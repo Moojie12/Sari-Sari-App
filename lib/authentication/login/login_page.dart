@@ -4,19 +4,42 @@ import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/custom_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../signup/signup_page.dart';
+import '../../users/customer_db/customer_db.dart';
+import '../../users/employee_db/employee_db.dart';
+import '../../users/owner_db/owner_db.dart';
+import '../signup/widgets/role_selector_card.dart';
 
-class LoginPage extends StatelessWidget {
+class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
+
+  @override
+  State<LoginPage> createState() => _LoginPageState();
+}
+
+class _LoginPageState extends State<LoginPage> {
+  String _selectedRole = 'customer';
+
+  void _onRoleSelected(String role) {
+    setState(() {
+      _selectedRole = role;
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.primaryOrange,
-      body: const SafeArea(
+      body: SafeArea(
         child: Column(
           children: [
-            Expanded(flex: 5, child: _Header()),
-            Expanded(flex: 9, child: _LoginCard()),
+            const Expanded(flex: 5, child: _Header()),
+            Expanded(
+              flex: 10,
+              child: _LoginCard(
+                selectedRole: _selectedRole,
+                onRoleSelected: _onRoleSelected,
+              ),
+            ),
           ],
         ),
       ),
@@ -85,7 +108,13 @@ class _Header extends StatelessWidget {
 }
 
 class _LoginCard extends StatelessWidget {
-  const _LoginCard();
+  const _LoginCard({
+    required this.selectedRole,
+    required this.onRoleSelected,
+  });
+
+  final String selectedRole;
+  final Function(String) onRoleSelected;
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +146,40 @@ class _LoginCard extends StatelessWidget {
               'Login account to get started',
               style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
             ),
-            const SizedBox(height: 25),
+            const SizedBox(height: 20),
+
+            // Role Selector in Login too
+            Row(
+              children: [
+                Expanded(
+                  child: RoleSelectorCard(
+                    label: 'Owner',
+                    icon: Icons.storefront_outlined,
+                    isSelected: selectedRole == 'owner',
+                    onTap: () => onRoleSelected('owner'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: RoleSelectorCard(
+                    label: 'Employee',
+                    icon: Icons.badge_outlined,
+                    isSelected: selectedRole == 'employee',
+                    onTap: () => onRoleSelected('employee'),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: RoleSelectorCard(
+                    label: 'Customer',
+                    icon: Icons.person_outline,
+                    isSelected: selectedRole == 'customer',
+                    onTap: () => onRoleSelected('customer'),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 20),
 
             const Text(
               'Phone Number',
@@ -171,10 +233,23 @@ class _LoginCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 10),
-
             PrimaryButton(
               label: 'Login',
-              onPressed: () {},
+              onPressed: () {
+                Widget destination;
+                if (selectedRole == 'owner') {
+                  destination = const OwnerDb();
+                } else if (selectedRole == 'employee') {
+                  destination = const EmployeeDb();
+                } else {
+                  destination = const CustomerDb();
+                }
+
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(builder: (context) => destination),
+                );
+              },
             ),
             const SizedBox(height: 14),
 

@@ -3,6 +3,9 @@ import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/custom_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
 import 'widgets/role_selector_card.dart';
+import '../../users/customer_db/customer_db.dart';
+import '../../users/employee_db/employee_db.dart';
+import '../../users/owner_db/owner_db.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -137,14 +140,26 @@ class _SignUpPageState extends State<SignUpPage> {
                 isPassword: true,
               ),
               const SizedBox(height: 24),
-
               PrimaryButton(
                 label: 'Create Account',
                 height: 48,
-                onPressed: () {},
-              ),
-              const SizedBox(height: 16),
+                onPressed: () {
+                  Widget destination;
+                  if (_selectedRole == 'owner') {
+                    destination = const OwnerDb();
+                  } else if (_selectedRole == 'employee') {
+                    destination = const EmployeeDb();
+                  } else {
+                    destination = const CustomerDb();
+                  }
 
+                  Navigator.pushReplacement(
+                    context,
+                    MaterialPageRoute(builder: (context) => destination),
+                  );
+                },
+              ),
+              
               Center(
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
