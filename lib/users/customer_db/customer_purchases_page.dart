@@ -21,17 +21,8 @@ class CustomerPurchasesPage extends StatelessWidget {
             color: AppColors.primaryOrange,
           ),
           const SizedBox(height: 12),
-          const Text(
-            'My Purchases',
-            style: TextStyle(
-              color: AppColors.darkText,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
           Text(
-            'Placeholder',
+            'No purchases found',
             style: TextStyle(
               color: AppColors.secondaryText.withValues(alpha: 0.6),
               fontSize: 14,

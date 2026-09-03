@@ -23,17 +23,8 @@ class CustomerNotificationsPage extends StatelessWidget {
             color: AppColors.primaryOrange,
           ),
           const SizedBox(height: 12),
-          const Text(
-            'Notifications',
-            style: TextStyle(
-              color: AppColors.darkText,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-          ),
-          const SizedBox(height: 4),
           Text(
-            'Placeholder',
+            'No notifications yet',
             style: TextStyle(
               color: AppColors.secondaryText.withValues(alpha: 0.6),
               fontSize: 14,

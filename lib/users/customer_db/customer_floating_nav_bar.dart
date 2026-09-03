@@ -71,7 +71,7 @@ class CustomerFloatingNavBar extends StatelessWidget {
       top: false,
       minimum: const EdgeInsets.only(bottom: 32),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 60),
         child: Material(
           elevation: 12,
           shadowColor: Colors.black.withValues(alpha: 0.25),
@@ -119,7 +119,6 @@ class _CustomerNavItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     const activeColor = AppColors.primaryOrange;
     final inactiveColor = AppColors.secondaryText.withValues(alpha: 0.6);
     final color = isSelected ? activeColor : inactiveColor;
@@ -128,39 +127,24 @@ class _CustomerNavItem extends StatelessWidget {
       onTap: onTap,
       borderRadius: BorderRadius.circular(24),
       child: Padding(
-        padding: const EdgeInsets.symmetric(vertical: 2, horizontal: 4),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Stack(
-              clipBehavior: Clip.none,
-              children: [
-                Icon(
-                  isSelected ? destination.selectedIcon : destination.icon,
-                  color: color,
-                  size: 24,
-                ),
-                if (badgeCount != null)
-                  Positioned(
-                    right: -8,
-                    top: -4,
-                    child: _NotificationBadge(count: badgeCount!),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 2),
-            Text(
-              destination.label,
-              style: theme.textTheme.labelSmall?.copyWith(
+        padding: const EdgeInsets.all(4),
+        child: Center(
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              Icon(
+                isSelected ? destination.selectedIcon : destination.icon,
                 color: color,
-                fontWeight: isSelected ? FontWeight.w600 : FontWeight.w400,
+                size: 26,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-          ],
+              if (badgeCount != null)
+                Positioned(
+                  right: -8,
+                  top: -4,
+                  child: _NotificationBadge(count: badgeCount!),
+                ),
+            ],
+          ),
         ),
       ),
     );
