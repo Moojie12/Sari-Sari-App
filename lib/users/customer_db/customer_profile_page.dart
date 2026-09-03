@@ -1,0 +1,44 @@
+import 'package:flutter/material.dart';
+import '../../core/theme/app_colors.dart';
+
+/// Placeholder page for the customer "Profile" tab.
+///
+/// TODO: Replace with the real profile experience: customer name and
+/// profile picture, account verification status, contact information,
+/// delivery addresses, account settings, password management, and logout.
+class CustomerProfilePage extends StatelessWidget {
+  const CustomerProfilePage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Icon(
+            Icons.person_outline,
+            size: 48,
+            color: AppColors.primaryOrange,
+          ),
+          const SizedBox(height: 12),
+          const Text(
+            'Profile',
+            style: TextStyle(
+              color: AppColors.darkText,
+              fontSize: 20,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'Placeholder',
+            style: TextStyle(
+              color: AppColors.secondaryText.withValues(alpha: 0.6),
+              fontSize: 14,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
