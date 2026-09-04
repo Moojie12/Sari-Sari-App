@@ -1,21 +1,13 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_colors.dart';
-import 'customer_cart_controller.dart';
+import '../../../core/theme/app_colors.dart';
+import '../customer_cart_controller.dart';
 import 'customer_dummy_products.dart';
 import 'customer_product_card.dart';
 import 'customer_product_details_page.dart';
 import 'customer_product_model.dart';
 
 /// Customer "Home" tab: product browsing.
-///
-/// Layout, top to bottom: header (store name + cart), welcome message,
-/// search bar, scrollable category filter, "Featured Products" (hidden
-/// while a search/category filter is active), and the searchable
-/// "All Products" grid.
-///
-/// All product data currently comes from [kCustomerDummyProducts] — see
-/// that file's TODO for swapping in a real data source later.
 class CustomerHomePage extends StatefulWidget {
   const CustomerHomePage({super.key, required this.cartController});
 
@@ -32,10 +24,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
 
   static const int _itemsPerPage = 8;
   int _currentPage = 1;
-
-  // Dummy signed-in customer name used only for the welcome message.
-  // TODO: Replace with the real signed-in customer's name.
-  static const String _customerName = 'Juan';
 
   @override
   void dispose() {
@@ -110,7 +98,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     final int totalCount = filtered.length;
     final int totalPages = (totalCount / _itemsPerPage).ceil();
 
-    // Reset current page if it's out of bounds after filtering
     if (_currentPage > totalPages && totalPages > 0) {
       _currentPage = totalPages;
     }
@@ -121,76 +108,69 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         .toList();
 
     return Scaffold(
-      backgroundColor: AppColors.lightBackground,
-      body: SafeArea(
-        bottom: false,
-        top: true,
-        child: CustomScrollView(
-          slivers: [
-            SliverToBoxAdapter(child: _buildTitle(context)),
-            SliverToBoxAdapter(child: _buildWelcomeSection(context)),
-            SliverToBoxAdapter(child: _buildSearchBar(context)),
-            SliverToBoxAdapter(child: _buildCategories(context)),
-            if (!_isFiltering)
-              SliverToBoxAdapter(child: _buildFeaturedProducts(context)),
-            // ...unchanged from here down
-            SliverToBoxAdapter(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(20, 20, 20, 12),
-                child: Text(
-                  _isFiltering ? 'Search Results' : 'All Products',
-                  style: const TextStyle(
-                    color: AppColors.darkText,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+      backgroundColor: Colors.transparent,
+      body: CustomScrollView(
+        slivers: [
+          SliverToBoxAdapter(child: _buildWelcomeSection(context)),
+          SliverToBoxAdapter(child: _buildSearchBar(context)),
+          SliverToBoxAdapter(child: _buildCategories(context)),
+          if (!_isFiltering)
+            SliverToBoxAdapter(child: _buildFeaturedProducts(context)),
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+              child: Text(
+                _isFiltering ? 'Search Results' : 'All Products',
+                style: const TextStyle(
+                  color: AppColors.darkText,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),
-            if (pagedProducts.isEmpty)
-              SliverToBoxAdapter(child: _buildEmptyState(context))
-            else ...[
-              SliverPadding(
-                padding: const EdgeInsets.fromLTRB(20, 0, 20, 12),
-                sliver: SliverGrid(
-                  gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                    crossAxisCount: 2,
-                    mainAxisSpacing: 14,
-                    crossAxisSpacing: 14,
-                    childAspectRatio: 0.65,
-                  ),
-                  delegate: SliverChildBuilderDelegate(
-                    (context, index) {
-                      final product = pagedProducts[index];
-                      return CustomerProductCard(
-                        product: product,
-                        onTap: () => _openProductDetails(product),
-                        onAddToCart: () => _addToCart(product),
-                      );
-                    },
-                    childCount: pagedProducts.length,
-                  ),
+          ),
+          if (pagedProducts.isEmpty)
+            SliverToBoxAdapter(child: _buildEmptyState(context))
+          else ...[
+            SliverPadding(
+              padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+              sliver: SliverGrid(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 2,
+                  mainAxisSpacing: 14,
+                  crossAxisSpacing: 14,
+                  childAspectRatio: 0.65,
+                ),
+                delegate: SliverChildBuilderDelegate(
+                  (context, index) {
+                    final product = pagedProducts[index];
+                    return CustomerProductCard(
+                      product: product,
+                      onTap: () => _openProductDetails(product),
+                      onAddToCart: () => _addToCart(product),
+                    );
+                  },
+                  childCount: pagedProducts.length,
                 ),
               ),
-              if (totalPages > 1)
-                SliverToBoxAdapter(
-                  child: _buildPagination(totalPages),
-                ),
-            ],
-            const SliverToBoxAdapter(child: SizedBox(height: 100)),
+            ),
+            if (totalPages > 1)
+              SliverToBoxAdapter(
+                child: _buildPagination(totalPages),
+              ),
           ],
-        ),
+          const SliverToBoxAdapter(child: SizedBox(height: 100)),
+        ],
       ),
     );
   }
 
   Widget _buildPagination(int totalPages) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 24),
+      padding: const EdgeInsets.fromLTRB(24, 10, 24, 24),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Previous Button
           _PageButton(
             icon: Icons.chevron_left,
             onPressed: _currentPage > 1
@@ -198,7 +178,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                 : null,
           ),
           const SizedBox(width: 8),
-          // Page Numbers
           ...List.generate(totalPages, (index) {
             final page = index + 1;
             final isSelected = page == _currentPage;
@@ -234,7 +213,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             );
           }),
           const SizedBox(width: 8),
-          // Next Button
           _PageButton(
             icon: Icons.chevron_right,
             onPressed: _currentPage < totalPages
@@ -248,26 +226,12 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
 
   Widget _buildWelcomeSection(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 10, 20, 16),
+      padding: const EdgeInsets.fromLTRB(24, 8, 24, 16),
       child: Text(
         'What would you like to buy today?',
         style: TextStyle(
           color: AppColors.secondaryText.withValues(alpha: 0.7),
-          fontSize: 13,
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTitle(BuildContext context) {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(20, 16, 20, 4),
-      child: Text(
-        'Home',
-        style: TextStyle(
-          color: AppColors.darkText,
-          fontSize: 22,
-          fontWeight: FontWeight.bold,
+          fontSize: 14,
         ),
       ),
     );
@@ -275,7 +239,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
 
   Widget _buildSearchBar(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
       child: TextField(
         controller: _searchController,
         onChanged: _onSearchChanged,
@@ -311,7 +275,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       height: 36,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 20),
+        padding: const EdgeInsets.symmetric(horizontal: 24),
         itemCount: kCustomerProductCategories.length,
         separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
@@ -353,8 +317,8 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 20),
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24),
             child: Text(
               'Featured Products',
               style: TextStyle(
@@ -369,7 +333,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             height: 230,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
               itemCount: featured.length,
               separatorBuilder: (context, index) => const SizedBox(width: 12),
               itemBuilder: (context, index) {

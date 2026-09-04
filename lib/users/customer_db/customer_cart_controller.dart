@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import 'customer_product_model.dart';
+import 'home/customer_product_model.dart';
 
 /// Simple in-memory mock cart shared by the Home page and Product Details
 /// page.

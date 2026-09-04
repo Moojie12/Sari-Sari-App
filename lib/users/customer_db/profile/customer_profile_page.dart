@@ -1,11 +1,7 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/app_colors.dart';
+import '../../../core/theme/app_colors.dart';
 
 /// Placeholder page for the customer "Profile" tab.
-///
-/// TODO: Replace with the real profile experience: customer name and
-/// profile picture, account verification status, contact information,
-/// delivery addresses, account settings, password management, and logout.
 class CustomerProfilePage extends StatelessWidget {
   const CustomerProfilePage({super.key});
 

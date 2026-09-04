@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_colors.dart';
+import '../../../core/theme/app_colors.dart';
 import 'customer_product_model.dart';
 
 /// Product card used in both the "Featured Products" horizontal list and
 /// the "All Products" grid on the customer Home page.
-///
-/// Sizing is controlled by the parent (wrap in a `SizedBox` for a
-/// fixed-width horizontal list, or let a `GridView`/`SliverGrid` size it)
-/// so this widget stays reusable in both layouts.
 class CustomerProductCard extends StatelessWidget {
   const CustomerProductCard({
     super.key,
@@ -42,7 +38,8 @@ class CustomerProductCard extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Expanded(
-              child: _CustomerProductImagePlaceholder(isOutOfStock: isOutOfStock),
+              child:
+                  _CustomerProductImagePlaceholder(isOutOfStock: isOutOfStock),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),

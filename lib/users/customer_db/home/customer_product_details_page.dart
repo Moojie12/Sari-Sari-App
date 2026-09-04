@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 
-import '../../core/theme/app_colors.dart';
-import 'customer_cart_controller.dart';
+import '../../../core/theme/app_colors.dart';
+import '../customer_cart_controller.dart';
 import 'customer_product_model.dart';
 
 /// Full-screen product details page.
-///
-/// Reached by tapping a product card on the Home page. Lets the customer
-/// pick a quantity and add it to the [cartController] shared with the
-/// Home page, so the cart badge there stays in sync.
 class CustomerProductDetailsPage extends StatefulWidget {
   const CustomerProductDetailsPage({
     super.key,
