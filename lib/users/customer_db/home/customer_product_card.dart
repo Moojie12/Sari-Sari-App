@@ -39,7 +39,7 @@ class CustomerProductCard extends StatelessWidget {
           children: [
             Expanded(
               child:
-                  _CustomerProductImagePlaceholder(isOutOfStock: isOutOfStock),
+              _CustomerProductImagePlaceholder(isOutOfStock: isOutOfStock),
             ),
             Padding(
               padding: const EdgeInsets.fromLTRB(10, 8, 10, 10),
@@ -68,40 +68,82 @@ class CustomerProductCard extends StatelessWidget {
                   const SizedBox(height: 4),
                   _AvailabilityLabel(availability: product.availability),
                   const SizedBox(height: 10),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 34,
-                    child: ElevatedButton(
-                      onPressed: isOutOfStock ? null : onAddToCart,
-                      style: ElevatedButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        backgroundColor: AppColors.primaryOrange,
-                        foregroundColor: Colors.white,
-                        elevation: 0,
-                        disabledBackgroundColor:
-                            AppColors.borderColor.withValues(alpha: 0.5),
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(8),
+                  if (isOutOfStock)
+                    SizedBox(
+                      width: double.infinity,
+                      height: 34,
+                      child: ElevatedButton(
+                        onPressed: null,
+                        style: ElevatedButton.styleFrom(
+                          padding: EdgeInsets.zero,
+                          disabledBackgroundColor:
+                          AppColors.borderColor.withValues(alpha: 0.5),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(8),
+                          ),
+                        ),
+                        child: const Text(
+                          'Unavailable',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          overflow: TextOverflow.ellipsis,
                         ),
                       ),
+                    )
+                  else
+                    SizedBox(
+                      height: 34,
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          if (!isOutOfStock)
-                            const Icon(Icons.add_shopping_cart, size: 14),
-                          if (!isOutOfStock) const SizedBox(width: 4),
-                          Text(
-                            isOutOfStock ? 'Unavailable' : 'Add',
-                            style: const TextStyle(
-                              fontSize: 12,
-                              fontWeight: FontWeight.bold,
+                          Expanded(
+                            child: ElevatedButton(
+                              onPressed: onTap,
+                              style: ElevatedButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                backgroundColor: AppColors.primaryOrange,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Text(
+                                'Purchase',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
                             ),
-                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(width: 6),
+                          SizedBox(
+                            width: 34,
+                            child: OutlinedButton(
+                              onPressed: onAddToCart,
+                              style: OutlinedButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                foregroundColor: AppColors.primaryOrange,
+                                side: BorderSide(
+                                  color: AppColors.primaryOrange,
+                                ),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              child: const Icon(
+                                Icons.add_shopping_cart,
+                                size: 16,
+                              ),
+                            ),
                           ),
                         ],
                       ),
                     ),
-                  ),
                 ],
               ),
             ),

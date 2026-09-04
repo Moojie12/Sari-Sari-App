@@ -111,6 +111,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       backgroundColor: Colors.transparent,
       body: CustomScrollView(
         slivers: [
+          SliverToBoxAdapter(child: _buildTitle(context)),
           SliverToBoxAdapter(child: _buildWelcomeSection(context)),
           SliverToBoxAdapter(child: _buildSearchBar(context)),
           SliverToBoxAdapter(child: _buildCategories(context)),
@@ -232,6 +233,20 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         style: TextStyle(
           color: AppColors.secondaryText.withValues(alpha: 0.7),
           fontSize: 14,
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTitle(BuildContext context) {
+    return const Padding(
+      padding: EdgeInsets.fromLTRB(24, 50, 24, 4),
+      child: Text(
+        'Home',
+        style: TextStyle(
+          color: AppColors.darkText,
+          fontSize: 28,
+          fontWeight: FontWeight.bold,
         ),
       ),
     );

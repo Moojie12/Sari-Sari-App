@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import '../../core/theme/app_colors.dart';
-import 'customer_cart_controller.dart';
-import 'customer_floating_nav_bar.dart';
-import 'home/customer_home_page.dart';
-import 'notifications/customer_notifications_page.dart';
-import 'purchases/customer_purchases_page.dart';
-import 'profile/customer_profile_page.dart';
+import 'package:sari_sari/users/customer_db/cart/customer_cart_page.dart';
+import 'package:sari_sari/users/customer_db/customer_cart_controller.dart';
+import 'package:sari_sari/users/customer_db/customer_floating_nav_bar.dart';
+import 'package:sari_sari/users/customer_db/home/customer_home_page.dart';
+import 'package:sari_sari/users/customer_db/notifications/customer_notifications_page.dart';
+import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
+import 'package:sari_sari/users/customer_db/purchases/customer_purchases_page.dart';
+import 'package:sari_sari/users/customer_db/profile/customer_profile_page.dart';
 
 /// Main shell for the customer-facing side of the app.
 ///
@@ -28,6 +30,9 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
   // Global cart controller shared across the customer experience.
   final _cartController = CustomerCartController();
 
+  // Global order controller shared across the customer experience.
+  final _orderController = CustomerOrderController();
+
   // Whether the floating nav bar is currently shown. Toggled by
   // [_handleScrollNotification] as the active tab's content scrolls.
   bool _isNavBarVisible = true;
@@ -36,25 +41,19 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
   // "Notifications" tab.
   final int _unreadNotificationCount = 3;
 
-  static const List<String> _labels = [
-    'Home',
-    'Notifications',
-    'My Purchases',
-    'Profile',
-  ];
-
   List<Widget>? _cachedPages;
 
   List<Widget> get _pages => _cachedPages ??= [
-        CustomerHomePage(cartController: _cartController),
-        const CustomerNotificationsPage(),
-        const CustomerPurchasesPage(),
-        const CustomerProfilePage(),
-      ];
+    CustomerHomePage(cartController: _cartController),
+    const CustomerNotificationsPage(),
+    CustomerPurchasesPage(orderController: _orderController),
+    const CustomerProfilePage(),
+  ];
 
   @override
   void dispose() {
     _cartController.dispose();
+    _orderController.dispose();
     super.dispose();
   }
 
@@ -87,69 +86,79 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       backgroundColor: AppColors.lightBackground,
       body: Stack(
         children: [
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Unified Header
-              SafeArea(
-                bottom: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 8),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text(
-                        _labels[_selectedIndex],
-                        style: const TextStyle(
-                          color: AppColors.darkText,
-                          fontSize: 28,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      ListenableBuilder(
-                        listenable: _cartController,
-                        builder: (context, _) => Stack(
+          // Tab Content Area (fills the screen; the cart icon and nav bar
+          // float above it instead of reserving their own layout space).
+          NotificationListener<UserScrollNotification>(
+            onNotification: _handleScrollNotification,
+            child: IndexedStack(
+              index: _selectedIndex,
+              children: _pages,
+            ),
+          ),
+          // Floating Cart Button — stays visible whenever the cart has
+          // items, even if the nav bar (and this button, normally) would
+          // otherwise be hidden by scrolling. Only fades away on scroll
+          // once the cart is back to empty.
+          Positioned(
+            top: 0,
+            right: 0,
+            child: SafeArea(
+              bottom: false,
+              child: ListenableBuilder(
+                listenable: _cartController,
+                builder: (context, _) {
+                  final hasItems = _cartController.itemCount > 0;
+                  final isVisible = _isNavBarVisible || hasItems;
+                  return IgnorePointer(
+                    ignoring: !isVisible,
+                    child: AnimatedOpacity(
+                      duration: _navBarAnimationDuration,
+                      opacity: isVisible ? 1 : 0,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(0, 26, 20, 0),
+                        child: Stack(
                           clipBehavior: Clip.none,
                           children: [
-                            Material(
-                              color: Colors.white,
-                              shape: const CircleBorder(),
-                              elevation: 2,
-                              shadowColor: Colors.black.withValues(alpha: 0.1),
-                              child: IconButton(
-                                onPressed: () {},
-                                icon: const Icon(
-                                  Icons.shopping_cart_outlined,
-                                  color: AppColors.darkText,
-                                  size: 22,
-                                ),
+                            FloatingActionButton(
+                              mini: true,
+                              onPressed: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => CustomerCartPage(
+                                      cartController: _cartController,
+                                      orderController: _orderController,
+                                    ),
+                                  ),
+                                );
+                              },
+                              backgroundColor: AppColors.primaryOrange,
+                              elevation: 4,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: const Icon(
+                                Icons.shopping_cart_outlined,
+                                color: Colors.white,
+                                size: 20,
                               ),
                             ),
-                            if (_cartController.itemCount > 0)
+                            if (hasItems)
                               Positioned(
-                                right: 2,
-                                top: 2,
-                                child:
-                                    _CartBadge(count: _cartController.itemCount),
+                                right: -4,
+                                top: -4,
+                                child: _CartBadge(
+                                  count: _cartController.itemCount,
+                                ),
                               ),
                           ],
                         ),
                       ),
-                    ],
-                  ),
-                ),
+                    ),
+                  );
+                },
               ),
-              // Tab Content Area
-              Expanded(
-                child: NotificationListener<UserScrollNotification>(
-                  onNotification: _handleScrollNotification,
-                  child: IndexedStack(
-                    index: _selectedIndex,
-                    children: _pages,
-                  ),
-                ),
-              ),
-            ],
+            ),
           ),
           // Floating Bottom Navigation Bar
           Positioned(
@@ -187,21 +196,21 @@ class _CartBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = count > 9 ? '9+' : '$count';
+    final label = count > 99 ? '99+' : '$count';
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
-      constraints: const BoxConstraints(minWidth: 16, minHeight: 16),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      constraints: const BoxConstraints(minWidth: 20, minHeight: 20),
       decoration: BoxDecoration(
         color: Colors.redAccent,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: Colors.white, width: 1.5),
+        border: Border.all(color: Colors.white, width: 2),
       ),
       alignment: Alignment.center,
       child: Text(
         label,
         style: const TextStyle(
           color: Colors.white,
-          fontSize: 9,
+          fontSize: 10,
           fontWeight: FontWeight.bold,
           height: 1,
         ),

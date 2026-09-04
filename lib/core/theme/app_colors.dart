@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 class AppColors {
   AppColors._();
 
-  static const Color primaryOrange = Color(0xFFFFA733); // bright tangerine
+  static const Color primaryOrange = Color(0xFFEF820D); // apricot orange
   static const Color lightPeach = Color(0xFFFFE8D6); // warm input fill
   static const Color lightBackground = Color(0xFFF9F6F7);
   static const Color cardWhite = Color(0xFFFFFFFF);
