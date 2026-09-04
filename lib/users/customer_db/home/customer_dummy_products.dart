@@ -13,7 +13,7 @@ const List<CustomerProduct> kCustomerDummyProducts = [
     price: 75.0,
     image: 'assets/products/coke_1_5l.png',
     availability: CustomerProductAvailability.inStock,
-    isFeatured: true,
+    isOnSale: true,
   ),
   CustomerProduct(
     id: 'p2',
@@ -22,7 +22,7 @@ const List<CustomerProduct> kCustomerDummyProducts = [
     price: 15.0,
     image: 'assets/products/lucky_me_pancit_canton.png',
     availability: CustomerProductAvailability.lowStock,
-    isFeatured: true,
+    isOnSale: true,
   ),
   CustomerProduct(
     id: 'p3',
@@ -31,7 +31,7 @@ const List<CustomerProduct> kCustomerDummyProducts = [
     price: 38.0,
     image: 'assets/products/argentina_corned_beef.png',
     availability: CustomerProductAvailability.inStock,
-    isFeatured: true,
+    isOnSale: true,
   ),
   CustomerProduct(
     id: 'p4',
@@ -40,7 +40,7 @@ const List<CustomerProduct> kCustomerDummyProducts = [
     price: 30.0,
     image: 'assets/products/piattos_cheese.png',
     availability: CustomerProductAvailability.inStock,
-    isFeatured: true,
+    isOnSale: true,
   ),
   CustomerProduct(
     id: 'p5',
@@ -49,7 +49,7 @@ const List<CustomerProduct> kCustomerDummyProducts = [
     price: 320.0,
     image: 'assets/products/jasmine_rice_5kg.png',
     availability: CustomerProductAvailability.inStock,
-    isFeatured: true,
+    isOnSale: true,
   ),
   CustomerProduct(
     id: 'p6',
@@ -58,7 +58,7 @@ const List<CustomerProduct> kCustomerDummyProducts = [
     price: 120.0,
     image: 'assets/products/mangga.png',
     availability: CustomerProductAvailability.inStock,
-    isFeatured: true,
+    isOnSale: true,
   ),
   CustomerProduct(
     id: 'p7',

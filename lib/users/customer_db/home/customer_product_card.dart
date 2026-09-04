@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import 'customer_product_model.dart';
 
-/// Product card used in both the "Featured Products" horizontal list and
+/// Product card used in both the "On Sale Products" horizontal list and
 /// the "All Products" grid on the customer Home page.
 class CustomerProductCard extends StatelessWidget {
   const CustomerProductCard({

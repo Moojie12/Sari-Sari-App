@@ -22,7 +22,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   String _searchQuery = '';
   String _selectedCategory = 'All';
 
-  static const int _itemsPerPage = 8;
+  static const int _itemsPerPage = 12;
   int _currentPage = 1;
 
   @override
@@ -45,8 +45,8 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     }).toList();
   }
 
-  List<CustomerProduct> get _featuredProducts =>
-      kCustomerDummyProducts.where((product) => product.isFeatured).toList();
+  List<CustomerProduct> get _onSaleProducts =>
+      kCustomerDummyProducts.where((product) => product.isOnSale).toList();
 
   void _onSearchChanged(String value) => setState(() {
         _searchQuery = value;
@@ -115,7 +115,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           SliverToBoxAdapter(child: _buildSearchBar(context)),
           SliverToBoxAdapter(child: _buildCategories(context)),
           if (!_isFiltering)
-            SliverToBoxAdapter(child: _buildFeaturedProducts(context)),
+            SliverToBoxAdapter(child: _buildOnSaleProducts(context)),
           SliverToBoxAdapter(
             child: Padding(
               padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
@@ -308,9 +308,9 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     );
   }
 
-  Widget _buildFeaturedProducts(BuildContext context) {
-    final featured = _featuredProducts;
-    if (featured.isEmpty) return const SizedBox.shrink();
+  Widget _buildOnSaleProducts(BuildContext context) {
+    final onSale = _onSaleProducts;
+    if (onSale.isEmpty) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
@@ -320,7 +320,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           const Padding(
             padding: EdgeInsets.symmetric(horizontal: 24),
             child: Text(
-              'Featured Products',
+              'On Sale Products',
               style: TextStyle(
                 color: AppColors.darkText,
                 fontSize: 16,
@@ -334,10 +334,10 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              itemCount: featured.length,
+              itemCount: onSale.length,
               separatorBuilder: (context, index) => const SizedBox(width: 12),
               itemBuilder: (context, index) {
-                final product = featured[index];
+                final product = onSale[index];
                 return SizedBox(
                   width: 160,
                   child: CustomerProductCard(
