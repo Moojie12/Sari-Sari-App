@@ -2,9 +2,9 @@ import 'package:flutter/material.dart';
 import '../../../authentication/login/login_page.dart';
 import '../../../core/theme/app_colors.dart';
 
-/// Placeholder page for the customer "Profile" tab.
-class CustomerProfilePage extends StatelessWidget {
-  const CustomerProfilePage({super.key});
+/// Placeholder page for the employee "Profile" tab.
+class EmployeeProfilePage extends StatelessWidget {
+  const EmployeeProfilePage({super.key});
 
   void _showLogoutConfirmation(BuildContext context) {
     showDialog(
@@ -67,7 +67,7 @@ class CustomerProfilePage extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   const Icon(
-                    Icons.person_outline,
+                    Icons.badge_outlined,
                     size: 48,
                     color: AppColors.primaryOrange,
                   ),

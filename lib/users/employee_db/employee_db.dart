@@ -1,31 +1,23 @@
 import 'package:flutter/material.dart';
-import '../../core/theme/app_colors.dart';
 
+import 'employee_dashboard.dart';
+
+/// Entry point widget for the employee (Cashier / Inventory Staff) side
+/// of the app.
+///
+/// This is the widget your login/authentication flow already navigates to
+/// once an employee signs in. It delegates straight to
+/// [EmployeeDashboard], which owns the floating bottom navigation bar and
+/// the employee tabs (Home, POS, Inventory, Profile).
+///
+/// Kept as its own class — rather than deleted or renamed — so nothing
+/// elsewhere in your app that references `EmployeeDb()` (e.g. in your
+/// auth/login flow) needs to change.
 class EmployeeDb extends StatelessWidget {
   const EmployeeDb({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.lightBackground,
-      appBar: AppBar(
-        title: const Text(
-          'Employee Dashboard',
-          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: AppColors.primaryOrange,
-        iconTheme: const IconThemeData(color: Colors.white),
-      ),
-      body: const Center(
-        child: Text(
-          'Welcome, Employee!',
-          style: TextStyle(
-            color: AppColors.darkText,
-            fontSize: 18,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-      ),
-    );
+    return const EmployeeDashboard();
   }
 }
