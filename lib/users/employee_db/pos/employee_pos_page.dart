@@ -675,94 +675,191 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
   @override
   Widget build(BuildContext context) {
     final total = widget.posController.totalAmount;
+    final cart = widget.posController.cart;
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Complete Sale',
-                style: TextStyle(
-                    fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText)),
-            const SizedBox(height: 16),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Total Due', style: TextStyle(color: AppColors.secondaryText)),
-                Text(
-                  '₱${total.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                      fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryOrange),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            const Text('Payment Method',
-                style: TextStyle(
-                    color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
-                  child: _PaymentMethodChip(
-                    label: 'Cash',
-                    icon: Icons.money,
-                    isSelected: _method == EmployeePaymentMethod.cash,
-                    onTap: () => setState(() => _method = EmployeePaymentMethod.cash),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Complete Sale',
+                  style: TextStyle(
+                      fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText)),
+              const SizedBox(height: 16),
+              const Text('Order Summary',
+                  style: TextStyle(
+                      color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              _CheckoutOrderSummary(cart: cart),
+              const SizedBox(height: 12),
+              const Divider(height: 1, color: AppColors.borderColor),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Total Due', style: TextStyle(color: AppColors.secondaryText)),
+                  Text(
+                    '₱${total.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryOrange),
                   ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _PaymentMethodChip(
-                    label: 'GCash',
-                    icon: Icons.account_balance_wallet,
-                    isSelected: _method == EmployeePaymentMethod.gCash,
-                    onTap: () => setState(() => _method = EmployeePaymentMethod.gCash),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Text('Payment Method',
+                  style: TextStyle(
+                      color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: _PaymentMethodChip(
+                      label: 'Cash',
+                      icon: Icons.money,
+                      isSelected: _method == EmployeePaymentMethod.cash,
+                      onTap: () => setState(() => _method = EmployeePaymentMethod.cash),
+                    ),
                   ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 20),
-            const Text('Amount Received',
-                style: TextStyle(
-                    color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              decoration: InputDecoration(
-                hintText: total.toStringAsFixed(2),
-                prefixText: '₱ ',
-                filled: true,
-                fillColor: AppColors.lightPeach,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _PaymentMethodChip(
+                      label: 'GCash',
+                      icon: Icons.account_balance_wallet,
+                      isSelected: _method == EmployeePaymentMethod.gCash,
+                      onTap: () => setState(() => _method = EmployeePaymentMethod.gCash),
+                    ),
+                  ),
+                ],
               ),
-            ),
-            const SizedBox(height: 24),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _confirm,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryOrange,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              const SizedBox(height: 20),
+              const Text('Amount Received',
+                  style: TextStyle(
+                      color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _amountController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  hintText: total.toStringAsFixed(2),
+                  prefixText: '₱ ',
+                  filled: true,
+                  fillColor: AppColors.lightPeach,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                  border: OutlineInputBorder(
+                      borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
                 ),
-                child: const Text('Confirm Payment',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
-            ),
-          ],
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _confirm,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryOrange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Confirm Payment',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
         ),
+      ),
+    );
+  }
+}
+
+/// Read-only line-by-line breakdown of every item in the sale — product
+/// name, quantity, unit price, and per-line subtotal — shown inside the
+/// "Complete Sale" sheet so the cashier can double-check the order before
+/// confirming payment.
+class _CheckoutOrderSummary extends StatelessWidget {
+  const _CheckoutOrderSummary({required this.cart});
+
+  final List<EmployeePosCartItem> cart;
+
+  @override
+  Widget build(BuildContext context) {
+    if (cart.isEmpty) {
+      return const Text(
+        'No items in this sale.',
+        style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
+      );
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: AppColors.lightPeach.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      child: Column(
+        children: [
+          for (int i = 0; i < cart.length; i++) ...[
+            if (i > 0) const Divider(height: 16, color: AppColors.borderColor),
+            _CheckoutOrderSummaryRow(item: cart[i]),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _CheckoutOrderSummaryRow extends StatelessWidget {
+  const _CheckoutOrderSummaryRow({required this.item});
+
+  final EmployeePosCartItem item;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  item.product.name,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    color: AppColors.darkText,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  '₱${item.product.price.toStringAsFixed(2)} x ${item.quantity}',
+                  style: const TextStyle(color: AppColors.secondaryText, fontSize: 11),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 12),
+          Text(
+            '₱${item.subtotal.toStringAsFixed(2)}',
+            style: const TextStyle(
+              color: AppColors.darkText,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ],
       ),
     );
   }
