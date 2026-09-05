@@ -6,6 +6,7 @@ import 'employee_batch_detail_sheet.dart';
 import 'employee_dummy_products.dart';
 import 'employee_product_model.dart';
 import 'employee_stock_adjust_sheet.dart';
+import 'employee_stock_receiving_page.dart';
 
 /// Employee "Inventory" tab: view current stock and adjust it manually
 /// (Inventory and Stock Management feature).
@@ -56,6 +57,19 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
     );
   }
 
+  /// Opens the Stock Receiving screen (barcode scan or manual
+  /// search/create, then quantity/expiry/supplier/notes entry) — the
+  /// primary way new stock gets added, separate from the quick +/- of
+  /// [EmployeeStockAdjustSheet].
+  void _openStockReceiving() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EmployeeStockReceivingPage(inventory: widget.inventory),
+      ),
+    );
+  }
+
   /// Path B of the Expiration Notification flow: tapping a product card
   /// directly (not via a sale) opens the full batch breakdown — every
   /// batch, not just sellable ones — for proactive monitoring.
@@ -85,13 +99,30 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
             final products = _filter(widget.inventory.products);
             return CustomScrollView(
               slivers: [
-                const SliverToBoxAdapter(
+                SliverToBoxAdapter(
                   child: Padding(
-                    padding: EdgeInsets.fromLTRB(24, 16, 24, 4),
-                    child: Text(
-                      'Inventory',
-                      style: TextStyle(
-                          color: AppColors.darkText, fontSize: 28, fontWeight: FontWeight.bold),
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Inventory',
+                          style: TextStyle(
+                              color: AppColors.darkText, fontSize: 28, fontWeight: FontWeight.bold),
+                        ),
+                        ElevatedButton.icon(
+                          onPressed: _openStockReceiving,
+                          icon: const Icon(Icons.add_box_outlined, size: 18),
+                          label: const Text('Receive Stock'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryOrange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),

@@ -15,6 +15,8 @@ class ProductBatch {
     required this.id,
     required this.quantity,
     this.expiryDate,
+    this.supplier,
+    this.notes,
   });
 
   /// Batch identifier shown to staff (e.g. "B001"). Carried onto the POS
@@ -28,6 +30,13 @@ class ProductBatch {
   /// that don't spoil) — it never shows as expiring/expired and is never
   /// prioritized by FEFO.
   final DateTime? expiryDate;
+
+  /// Optional supplier info captured on the Stock Receiving screen when
+  /// this batch was (most recently) received. Purely informational.
+  final String? supplier;
+
+  /// Optional free-text note captured on the Stock Receiving screen.
+  final String? notes;
 
   /// Runs this batch's [expiryDate] through the shared [ExpiryChecker] —
   /// the same check used on both the POS scan path and the manual-tap
@@ -44,11 +53,13 @@ class ProductBatch {
   /// visibility) but is never sellable.
   bool get isSellable => quantity > 0 && !isExpired;
 
-  ProductBatch copyWith({int? quantity}) {
+  ProductBatch copyWith({int? quantity, String? supplier, String? notes}) {
     return ProductBatch(
       id: id,
       quantity: quantity ?? this.quantity,
       expiryDate: expiryDate,
+      supplier: supplier ?? this.supplier,
+      notes: notes ?? this.notes,
     );
   }
 }
