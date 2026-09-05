@@ -1,8 +1,10 @@
 import 'package:flutter/foundation.dart';
 
-/// Stock status derived from a product's current quantity versus its
+import 'employee_batch_model.dart';
+
+/// Stock status derived from a product's *sellable* quantity versus its
 /// configured low-stock threshold. Unlike the customer-facing model,
-/// employees see the exact [quantity] on hand — not just a coarse label.
+/// employees see the exact quantity on hand — not just a coarse label.
 enum EmployeeStockStatus {
   inStock,
   lowStock,
@@ -25,9 +27,10 @@ extension EmployeeStockStatusLabel on EmployeeStockStatus {
 /// A sari-sari store product as seen by store staff (Cashier / Inventory
 /// Staff), used by both the POS and Inventory tabs.
 ///
-/// Carries the details an employee needs day-to-day — exact quantity,
-/// barcode, and expiry — per the Product Information and Inventory and
-/// Stock Management features in the system feature spec.
+/// Batch-Aware Selling: stock no longer lives on a single flat `quantity`
+/// field. Instead each product owns a list of [ProductBatch]es (its own
+/// id, quantity, and expiry date), and `quantity` below is a *computed*
+/// sum over them.
 @immutable
 class EmployeeProduct {
   const EmployeeProduct({
@@ -36,9 +39,8 @@ class EmployeeProduct {
     required this.category,
     required this.price,
     required this.barcode,
-    required this.quantity,
+    required this.batches,
     this.lowStockThreshold = 10,
-    this.expiryDate,
   });
 
   final String id;
@@ -46,37 +48,70 @@ class EmployeeProduct {
   final String category;
   final double price;
   final String barcode;
-  final int quantity;
+
+  /// Every received lot of this product. Source of truth for stock —
+  /// nothing else on this class stores a quantity directly.
+  final List<ProductBatch> batches;
   final int lowStockThreshold;
-  final DateTime? expiryDate;
+
+  /// Total physical quantity on hand — sum of *every* batch, expired or
+  /// not. This is what Inventory/POS display as "quantity" (a computed
+  /// value now, rather than a stored field).
+  int get quantity => batches.fold(0, (sum, b) => sum + b.quantity);
+
+  /// Batches that can actually be sold right now — stock left and not
+  /// expired — sorted nearest-expiry-first (FEFO). Batches with no expiry
+  /// date sort last, since they're never the "most urgent" pick.
+  List<ProductBatch> get validBatches {
+    final valid = batches.where((b) => b.isSellable).toList()
+      ..sort((a, b) {
+        final aDate = a.expiryDate;
+        final bDate = b.expiryDate;
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        return aDate.compareTo(bDate);
+      });
+    return valid;
+  }
+
+  /// Sellable quantity — sum of [validBatches] only. A product whose only
+  /// remaining stock sits in an expired batch has a [sellableQuantity] of
+  /// 0 even though [quantity] is still positive; per the Batch-Aware
+  /// Selling flow, that makes it out-of-stock for selling purposes.
+  int get sellableQuantity => validBatches.fold(0, (sum, b) => sum + b.quantity);
 
   EmployeeStockStatus get stockStatus {
-    if (quantity <= 0) return EmployeeStockStatus.outOfStock;
-    if (quantity <= lowStockThreshold) return EmployeeStockStatus.lowStock;
+    if (sellableQuantity <= 0) return EmployeeStockStatus.outOfStock;
+    if (sellableQuantity <= lowStockThreshold) return EmployeeStockStatus.lowStock;
     return EmployeeStockStatus.inStock;
   }
 
-  bool get isExpired {
-    if (expiryDate == null) return false;
-    return expiryDate!.isBefore(DateTime.now());
-  }
+  /// Whether any batch still holding stock is already expired — feeds the
+  /// manual-tap path (Path B) of the Expiration Notification flow, which
+  /// surfaces every batch, not just sellable ones.
+  bool get hasExpiredBatch => batches.any((b) => b.quantity > 0 && b.isExpired);
 
-  bool get isExpiringSoon {
-    if (expiryDate == null || isExpired) return false;
-    final daysLeft = expiryDate!.difference(DateTime.now()).inDays;
-    return daysLeft <= 7;
-  }
+  /// Whether any batch still holding stock is inside the notification
+  /// window but not expired yet — checked on both the POS scan path
+  /// (Path A) and the manual-tap path (Path B).
+  bool get hasExpiringSoonBatch => batches.any((b) => b.quantity > 0 && b.isExpiringSoon);
 
-  EmployeeProduct copyWith({int? quantity}) {
+  // Kept under their original names for existing call sites (Home's
+  // "Expiring Soon" stat card, Inventory's badge) — same meaning as the
+  // batch-aware getters above, just aggregated across all batches.
+  bool get isExpired => hasExpiredBatch;
+  bool get isExpiringSoon => hasExpiringSoonBatch;
+
+  EmployeeProduct copyWith({List<ProductBatch>? batches}) {
     return EmployeeProduct(
       id: id,
       name: name,
       category: category,
       price: price,
       barcode: barcode,
-      quantity: quantity ?? this.quantity,
+      batches: batches ?? this.batches,
       lowStockThreshold: lowStockThreshold,
-      expiryDate: expiryDate,
     );
   }
 }

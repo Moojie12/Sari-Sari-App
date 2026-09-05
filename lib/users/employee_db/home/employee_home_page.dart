@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/expiry/expiry_checker.dart';
 import '../../../core/theme/app_colors.dart';
 import '../employee_inventory_controller.dart';
+import '../inventory/employee_batch_detail_sheet.dart';
+import '../inventory/employee_expiry_badge.dart';
+import '../inventory/employee_product_model.dart';
+import '../inventory/employee_stock_adjust_sheet.dart';
 import '../pos/employee_pos_controller.dart';
 
 /// Employee "Home" tab: a quick dashboard overview for staff (Dashboard
@@ -21,6 +26,32 @@ class EmployeeHomePage extends StatelessWidget {
   final VoidCallback onOpenPos;
   final VoidCallback onOpenInventory;
 
+  /// Path B of the Expiration Notification flow, reached from Home: tapping
+  /// an entry in "Expiring Products" opens the same full batch breakdown
+  /// used from the Inventory tab — one shared sheet, another entry point.
+  void _openBatchDetail(BuildContext context, EmployeeProduct product) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => EmployeeBatchDetailSheet(
+        product: product,
+        onAdjustStock: () {
+          Navigator.pop(sheetContext);
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (context) => EmployeeStockAdjustSheet(
+              product: product,
+              onAdjust: (delta) => inventory.adjustStock(product.id, delta),
+            ),
+          );
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -32,6 +63,10 @@ class EmployeeHomePage extends StatelessWidget {
             final restockList = [
               ...inventory.outOfStockProducts,
               ...inventory.lowStockProducts,
+            ];
+            final expiringList = [
+              ...inventory.expiredProducts,
+              ...inventory.expiringSoonProducts,
             ];
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
@@ -71,11 +106,14 @@ class EmployeeHomePage extends StatelessWidget {
                   Row(
                     children: [
                       Expanded(
-                        child: _StatCard(
-                          label: 'Expiring Soon',
-                          value: '${inventory.expiringSoonProducts.length}',
-                          icon: Icons.event_busy,
-                          color: Colors.deepOrange,
+                        child: GestureDetector(
+                          onTap: onOpenInventory,
+                          child: _StatCard(
+                            label: 'Expiring Soon',
+                            value: '${inventory.expiringSoonProducts.length}',
+                            icon: Icons.event_busy,
+                            color: Colors.deepOrange,
+                          ),
                         ),
                       ),
                       const SizedBox(width: 12),
@@ -137,6 +175,42 @@ class EmployeeHomePage extends StatelessWidget {
                                 ),
                               ),
                             ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  ],
+                  if (expiringList.isNotEmpty) ...[
+                    const SizedBox(height: 28),
+                    const Text('Expiring Products',
+                        style: TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 12),
+                    ...expiringList.take(5).map(
+                          (product) => Padding(
+                        padding: const EdgeInsets.only(bottom: 10),
+                        child: GestureDetector(
+                          onTap: () => _openBatchDetail(context, product),
+                          child: Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration:
+                            BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(14)),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Text(
+                                    product.name,
+                                    style: const TextStyle(color: AppColors.darkText, fontWeight: FontWeight.w600),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ),
+                                ExpiryBadge(
+                                  status: product.hasExpiredBatch
+                                      ? ExpiryStatus.expired
+                                      : ExpiryStatus.expiringSoon,
+                                ),
+                              ],
+                            ),
                           ),
                         ),
                       ),

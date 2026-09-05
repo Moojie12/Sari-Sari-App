@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../employee_inventory_controller.dart';
+import 'employee_batch_detail_sheet.dart';
 import 'employee_dummy_products.dart';
 import 'employee_product_model.dart';
 import 'employee_stock_adjust_sheet.dart';
@@ -55,6 +56,24 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
     );
   }
 
+  /// Path B of the Expiration Notification flow: tapping a product card
+  /// directly (not via a sale) opens the full batch breakdown — every
+  /// batch, not just sellable ones — for proactive monitoring.
+  void _openBatchDetail(EmployeeProduct product) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => EmployeeBatchDetailSheet(
+        product: product,
+        onAdjustStock: () {
+          Navigator.pop(sheetContext);
+          _openAdjustSheet(product);
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -91,7 +110,7 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
                         final product = products[index];
                         return _InventoryItemCard(
                           product: product,
-                          onTap: () => _openAdjustSheet(product),
+                          onTap: () => _openBatchDetail(product),
                         );
                       },
                     ),
@@ -264,7 +283,13 @@ class _InventoryItemCard extends StatelessWidget {
                         '${product.stockStatus.label} · Qty: ${product.quantity}',
                         style: TextStyle(fontSize: 11, color: _statusColor, fontWeight: FontWeight.w600),
                       ),
-                      if (product.isExpiringSoon) ...[
+                      if (product.hasExpiredBatch) ...[
+                        const SizedBox(width: 8),
+                        const Icon(Icons.block, size: 12, color: Colors.red),
+                        const SizedBox(width: 2),
+                        const Text('Expired batch',
+                            style: TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.w600)),
+                      ] else if (product.isExpiringSoon) ...[
                         const SizedBox(width: 8),
                         const Icon(Icons.event_busy, size: 12, color: Colors.deepOrange),
                         const SizedBox(width: 2),

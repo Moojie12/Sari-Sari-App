@@ -6,6 +6,7 @@ import '../inventory/employee_dummy_products.dart';
 import '../inventory/employee_product_model.dart';
 import 'employee_pos_controller.dart';
 import 'employee_receipt_page.dart';
+import 'employee_batch_selection_sheet.dart';
 
 /// Employee "POS" tab: ring up a walk-in sale.
 ///
@@ -51,8 +52,7 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
   }
 
   void _addToCart(EmployeeProduct product) {
-    final added = widget.posController.addToCart(product);
-    if (!added) {
+    if (product.stockStatus == EmployeeStockStatus.outOfStock) {
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(
@@ -61,7 +61,20 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
             behavior: SnackBarBehavior.floating,
           ),
         );
+      return;
     }
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => EmployeeBatchSelectionSheet(
+        product: product,
+        onConfirm: (batch, quantity) {
+          widget.posController.addBatchToCart(product, batch, quantity: quantity);
+        },
+      ),
+    );
   }
 
   void _openCheckout() {
@@ -124,8 +137,7 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
                 ),
                 if (widget.posController.cart.isNotEmpty)
                   _CartBar(
-                    itemCount: widget.posController.itemCount,
-                    totalAmount: widget.posController.totalAmount,
+                    posController: widget.posController,
                     onCheckout: _openCheckout,
                   ),
               ],
@@ -317,21 +329,47 @@ class _PosProductCard extends StatelessWidget {
   }
 }
 
-class _CartBar extends StatelessWidget {
+/// Bottom cart summary bar. Slide it up (or tap the item-count/total area)
+/// to reveal the list of items currently added to the cart before hitting
+/// Checkout.
+class _CartBar extends StatefulWidget {
   const _CartBar({
-    required this.itemCount,
-    required this.totalAmount,
+    required this.posController,
     required this.onCheckout,
   });
 
-  final int itemCount;
-  final double totalAmount;
+  final EmployeePosController posController;
   final VoidCallback onCheckout;
 
   @override
+  State<_CartBar> createState() => _CartBarState();
+}
+
+class _CartBarState extends State<_CartBar> {
+  bool _expanded = false;
+
+  void _setExpanded(bool value) {
+    if (_expanded == value) return;
+    setState(() => _expanded = value);
+  }
+
+  void _toggleExpanded() => _setExpanded(!_expanded);
+
+  void _onVerticalDragEnd(DragEndDetails details) {
+    final velocity = details.primaryVelocity ?? 0;
+    if (velocity < -150) {
+      _setExpanded(true); // swiped up
+    } else if (velocity > 150) {
+      _setExpanded(false); // swiped down
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final itemCount = widget.posController.itemCount;
+    final totalAmount = widget.posController.totalAmount;
+
     return Container(
-      padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -339,37 +377,261 @@ class _CartBar extends StatelessWidget {
           BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5)),
         ],
       ),
-      child: Row(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('$itemCount item(s)',
-                    style: const TextStyle(
-                        color: AppColors.secondaryText, fontSize: 12)),
-                Text(
-                  '₱${totalAmount.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    color: AppColors.darkText,
-                    fontSize: 20,
-                    fontWeight: FontWeight.bold,
+          GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTap: _toggleExpanded,
+            onVerticalDragEnd: _onVerticalDragEnd,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
+              child: Column(
+                children: [
+                  // Drag handle — hints that this section can be slid up.
+                  Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: AppColors.borderColor,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
                   ),
-                ),
-              ],
+                  const SizedBox(height: 10),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.center,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                Text('$itemCount item(s)',
+                                    style: const TextStyle(
+                                        color: AppColors.secondaryText,
+                                        fontSize: 12)),
+                                const SizedBox(width: 4),
+                                Icon(
+                                  _expanded
+                                      ? Icons.keyboard_arrow_down
+                                      : Icons.keyboard_arrow_up,
+                                  size: 16,
+                                  color: AppColors.secondaryText,
+                                ),
+                              ],
+                            ),
+                            Text(
+                              '₱${totalAmount.toStringAsFixed(2)}',
+                              style: const TextStyle(
+                                color: AppColors.darkText,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      ElevatedButton(
+                        onPressed: widget.onCheckout,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryOrange,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 28, vertical: 16),
+                          shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12)),
+                        ),
+                        child: const Text('Checkout',
+                            style: TextStyle(fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                ],
+              ),
             ),
           ),
-          ElevatedButton(
-            onPressed: onCheckout,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryOrange,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 220),
+            curve: Curves.easeInOut,
+            alignment: Alignment.topCenter,
+            child: _expanded
+                ? _CartItemsList(posController: widget.posController)
+                : const SizedBox(width: double.infinity),
+          ),
+          SizedBox(height: MediaQuery.of(context).padding.bottom > 0 ? 12 : 24),
+        ],
+      ),
+    );
+  }
+}
+
+/// Scrollable preview of every product currently added to the cart, with
+/// quantity +/- controls and a remove option, shown when the cart bar is
+/// expanded.
+class _CartItemsList extends StatelessWidget {
+  const _CartItemsList({required this.posController});
+
+  final EmployeePosController posController;
+
+  @override
+  Widget build(BuildContext context) {
+    final cart = posController.cart;
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxHeight: 260),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          const Divider(height: 1, color: AppColors.borderColor),
+          Flexible(
+            child: ListView.separated(
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              shrinkWrap: true,
+              itemCount: cart.length,
+              separatorBuilder: (context, index) =>
+              const Divider(height: 16, color: AppColors.borderColor),
+              itemBuilder: (context, index) {
+                final item = cart[index];
+                return _CartItemTile(
+                  item: item,
+                  onIncrement: () =>
+                      posController.incrementQuantity(item.product.id, item.batchId),
+                  onDecrement: () =>
+                      posController.decrementQuantity(item.product.id, item.batchId),
+                  onRemove: () =>
+                      posController.removeFromCart(item.product.id, item.batchId),
+                );
+              },
             ),
-            child: const Text('Checkout', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _CartItemTile extends StatelessWidget {
+  const _CartItemTile({
+    required this.item,
+    required this.onIncrement,
+    required this.onDecrement,
+    required this.onRemove,
+  });
+
+  final EmployeePosCartItem item;
+  final VoidCallback onIncrement;
+  final VoidCallback onDecrement;
+  final VoidCallback onRemove;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                item.product.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  color: AppColors.darkText,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                '₱${item.product.price.toStringAsFixed(2)} each',
+                style: const TextStyle(
+                    color: AppColors.secondaryText, fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+        _QuantityStepper(
+          quantity: item.quantity,
+          onIncrement: onIncrement,
+          onDecrement: onDecrement,
+        ),
+        const SizedBox(width: 12),
+        SizedBox(
+          width: 64,
+          child: Text(
+            '₱${item.subtotal.toStringAsFixed(2)}',
+            textAlign: TextAlign.right,
+            style: const TextStyle(
+              color: AppColors.darkText,
+              fontSize: 13,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+        ),
+        IconButton(
+          onPressed: onRemove,
+          padding: EdgeInsets.zero,
+          constraints: const BoxConstraints(),
+          icon: const Icon(Icons.close, size: 18, color: AppColors.secondaryText),
+        ),
+      ],
+    );
+  }
+}
+
+class _QuantityStepper extends StatelessWidget {
+  const _QuantityStepper({
+    required this.quantity,
+    required this.onIncrement,
+    required this.onDecrement,
+  });
+
+  final int quantity;
+  final VoidCallback onIncrement;
+  final VoidCallback onDecrement;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        _StepperButton(icon: Icons.remove, onTap: onDecrement),
+        SizedBox(
+          width: 24,
+          child: Text(
+            '$quantity',
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+                color: AppColors.darkText,
+                fontSize: 13,
+                fontWeight: FontWeight.w600),
+          ),
+        ),
+        _StepperButton(icon: Icons.add, onTap: onIncrement),
+      ],
+    );
+  }
+}
+
+class _StepperButton extends StatelessWidget {
+  const _StepperButton({required this.icon, required this.onTap});
+
+  final IconData icon;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(6),
+      child: Container(
+        padding: const EdgeInsets.all(4),
+        decoration: BoxDecoration(
+          color: AppColors.lightPeach,
+          borderRadius: BorderRadius.circular(6),
+        ),
+        child: Icon(icon, size: 14, color: AppColors.primaryOrange),
       ),
     );
   }

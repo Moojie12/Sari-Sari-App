@@ -44,11 +44,24 @@ class EmployeeReceiptPage extends StatelessWidget {
                             padding: const EdgeInsets.only(bottom: 8),
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 Expanded(
-                                  child: Text(
-                                    '${item.product.name} x${item.quantity}',
-                                    style: const TextStyle(color: AppColors.darkText),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '${item.product.name} x${item.quantity}',
+                                        style: const TextStyle(color: AppColors.darkText),
+                                      ),
+                                      // Optional batch/expiry detail on the
+                                      // receipt (Receipt Generation, step 8).
+                                      Text(
+                                        'Batch ${item.batchId}'
+                                            '${item.batchExpiryDate != null ? " · Exp ${item.batchExpiryDate!.day}/${item.batchExpiryDate!.month}/${item.batchExpiryDate!.year}" : ""}',
+                                        style: const TextStyle(color: AppColors.secondaryText, fontSize: 11),
+                                      ),
+                                    ],
                                   ),
                                 ),
                                 Text('₱${item.subtotal.toStringAsFixed(2)}',

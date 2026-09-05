@@ -54,13 +54,19 @@ class _EmployeeStockAdjustSheetState extends State<EmployeeStockAdjustSheet> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Current Stock', style: TextStyle(color: AppColors.secondaryText)),
+                const Text('Current Stock (all batches)', style: TextStyle(color: AppColors.secondaryText)),
                 Text(
                   '${widget.product.quantity}',
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, color: AppColors.darkText, fontSize: 16),
                 ),
               ],
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Adding tops up (or opens) a no-expiry batch. Removing deducts '
+                  'the earliest-expiring batch first, same as a sale.',
+              style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.7), fontSize: 11),
             ),
             const SizedBox(height: 20),
             const Text('Adjustment',

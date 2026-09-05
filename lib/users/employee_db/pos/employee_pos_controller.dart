@@ -1,15 +1,29 @@
 import 'package:flutter/foundation.dart';
 
 import '../employee_inventory_controller.dart';
+import '../inventory/employee_batch_model.dart';
 import '../inventory/employee_product_model.dart';
 
 enum EmployeePaymentMethod { cash, gCash }
 
 /// A single line item in the current POS transaction.
+///
+/// Batch-Aware Selling: each line is pinned to the exact [batchId] it was
+/// rung up from (resolved via the batch-selection sheet — CONTINUE/FEFO or
+/// CHOOSE BATCH), not just the product. [batchExpiryDate] is captured at
+/// add-to-cart time so the cart/receipt can show it without re-looking up
+/// a batch that may since have been fully sold out.
 class EmployeePosCartItem {
-  EmployeePosCartItem({required this.product, this.quantity = 1});
+  EmployeePosCartItem({
+    required this.product,
+    required this.batchId,
+    this.batchExpiryDate,
+    this.quantity = 1,
+  });
 
   final EmployeeProduct product;
+  final String batchId;
+  final DateTime? batchExpiryDate;
   int quantity;
 
   double get subtotal => product.price * quantity;
@@ -37,10 +51,18 @@ class EmployeeReceipt {
   double get change => amountPaid - totalAmount;
 }
 
-/// Drives the POS tab: adding products to a walk-in sale cart (by search
-/// or barcode), calculating totals, and completing the transaction —
-/// which deducts sold quantities from the shared inventory automatically
-/// (POS and Sales Management / Payment Management features).
+ProductBatch? _findBatch(EmployeeProduct product, String batchId) {
+  for (final batch in product.batches) {
+    if (batch.id == batchId) return batch;
+  }
+  return null;
+}
+
+/// Drives the POS tab: adding products to a walk-in sale cart from a
+/// resolved batch, calculating totals, and completing the transaction —
+/// which deducts sold quantities from the correct batch in the shared
+/// inventory automatically (POS and Sales Management / Payment Management
+/// features, batch-aware).
 class EmployeePosController extends ChangeNotifier {
   EmployeePosController({required EmployeeInventoryController inventory})
       : _inventory = inventory;
@@ -56,38 +78,60 @@ class EmployeePosController extends ChangeNotifier {
 
   double get totalAmount => _cart.fold(0.0, (sum, item) => sum + item.subtotal);
 
-  /// Adds a product to the cart. Returns false if it's out of stock.
-  bool addToCart(EmployeeProduct product) {
-    if (product.stockStatus == EmployeeStockStatus.outOfStock) return false;
+  /// Adds [quantity] of [product] to the cart from a specific [batch] —
+  /// called once the cashier resolves the Batch Selection UI (CONTINUE for
+  /// FEFO, or CHOOSE BATCH). The quantity is capped to what's left in that
+  /// batch, even if the product's overall stock across other batches is
+  /// higher. Returns false if the batch can't cover the requested amount.
+  bool addBatchToCart(EmployeeProduct product, ProductBatch batch, {int quantity = 1}) {
+    if (quantity <= 0) return false;
 
-    final index = _cart.indexWhere((item) => item.product.id == product.id);
+    final index =
+    _cart.indexWhere((item) => item.product.id == product.id && item.batchId == batch.id);
+    final alreadyInCart = index >= 0 ? _cart[index].quantity : 0;
+    if (alreadyInCart + quantity > batch.quantity) return false;
+
     if (index >= 0) {
-      _cart[index].quantity++;
+      _cart[index].quantity += quantity;
     } else {
-      _cart.add(EmployeePosCartItem(product: product));
+      _cart.add(EmployeePosCartItem(
+        product: product,
+        batchId: batch.id,
+        batchExpiryDate: batch.expiryDate,
+        quantity: quantity,
+      ));
     }
     notifyListeners();
     return true;
   }
 
-  void incrementQuantity(String productId) {
-    final index = _cart.indexWhere((item) => item.product.id == productId);
-    if (index >= 0) {
-      _cart[index].quantity++;
-      notifyListeners();
-    }
+  /// Increments a cart line, capped to that specific batch's current stock
+  /// (looked up fresh from inventory, in case it changed since add-to-cart).
+  void incrementQuantity(String productId, String batchId) {
+    final index =
+    _cart.indexWhere((item) => item.product.id == productId && item.batchId == batchId);
+    if (index < 0) return;
+
+    final liveProduct = _inventory.findById(productId);
+    final liveBatch = liveProduct != null ? _findBatch(liveProduct, batchId) : null;
+    final cap = liveBatch?.quantity ?? _cart[index].quantity;
+    if (_cart[index].quantity + 1 > cap) return;
+
+    _cart[index].quantity++;
+    notifyListeners();
   }
 
-  void decrementQuantity(String productId) {
-    final index = _cart.indexWhere((item) => item.product.id == productId);
+  void decrementQuantity(String productId, String batchId) {
+    final index =
+    _cart.indexWhere((item) => item.product.id == productId && item.batchId == batchId);
     if (index >= 0 && _cart[index].quantity > 1) {
       _cart[index].quantity--;
       notifyListeners();
     }
   }
 
-  void removeFromCart(String productId) {
-    _cart.removeWhere((item) => item.product.id == productId);
+  void removeFromCart(String productId, String batchId) {
+    _cart.removeWhere((item) => item.product.id == productId && item.batchId == batchId);
     notifyListeners();
   }
 
@@ -97,21 +141,26 @@ class EmployeePosController extends ChangeNotifier {
     notifyListeners();
   }
 
-  /// Completes the sale: deducts every cart item from inventory, clears
-  /// the cart, and returns the resulting [EmployeeReceipt]. Returns null
-  /// if the cart is empty or any item no longer has enough stock.
+  /// Completes the sale: deducts every cart line from its *specific* batch
+  /// (not just the product's overall stock), clears the cart, and returns
+  /// the resulting [EmployeeReceipt]. Returns null if the cart is empty or
+  /// any line's batch no longer has enough stock left.
   EmployeeReceipt? checkout({
     required EmployeePaymentMethod paymentMethod,
     required double amountPaid,
   }) {
     if (_cart.isEmpty) return null;
 
+    // Re-validate against the live batch, not the snapshot captured when
+    // the item was added — another sale may have used up that batch since.
     for (final item in _cart) {
-      if (item.product.quantity < item.quantity) return null;
+      final liveProduct = _inventory.findById(item.product.id);
+      final liveBatch = liveProduct != null ? _findBatch(liveProduct, item.batchId) : null;
+      if (liveBatch == null || liveBatch.quantity < item.quantity) return null;
     }
 
     for (final item in _cart) {
-      _inventory.deductStock(item.product.id, item.quantity);
+      _inventory.deductFromBatch(item.product.id, item.batchId, item.quantity);
     }
 
     final receipt = EmployeeReceipt(
