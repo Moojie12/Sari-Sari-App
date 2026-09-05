@@ -170,7 +170,7 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
 
   Future<DateTime?> _showExpiryScanAndReturnDate() async {
     final input = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
+      MaterialPageRoute(builder: (context) => const ExpiryDateScannerScreen()),
     );
     if (input == null || input.isEmpty) return null;
     final date = DateTime.tryParse(input);
@@ -211,7 +211,7 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
   /// the product — staff type/paste what a real scan would have read.
   Future<void> _openExpiryScanDialog() async {
     final input = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
+      MaterialPageRoute(builder: (context) => const ExpiryDateScannerScreen()),
     );
     if (input == null || input.isEmpty) return;
     final date = DateTime.tryParse(input);
