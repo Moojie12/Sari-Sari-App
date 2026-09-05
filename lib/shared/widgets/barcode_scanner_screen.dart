@@ -72,18 +72,12 @@ class _ScannerScreen extends StatefulWidget {
   State<_ScannerScreen> createState() => _ScannerScreenState();
 }
 
-class _ScannerScreenState extends State<_ScannerScreen>
-    with SingleTickerProviderStateMixin {
+class _ScannerScreenState extends State<_ScannerScreen> {
   final MobileScannerController _controller = MobileScannerController(
     torchEnabled: false,
     facing: CameraFacing.back,
     detectionSpeed: DetectionSpeed.noDuplicates,
   );
-
-  late final AnimationController _scanLineController = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 1600),
-  )..repeat(reverse: true);
 
   bool _handled = false;
 
@@ -91,7 +85,6 @@ class _ScannerScreenState extends State<_ScannerScreen>
 
   @override
   void dispose() {
-    _scanLineController.dispose();
     _controller.dispose();
     super.dispose();
   }
@@ -144,37 +137,6 @@ class _ScannerScreenState extends State<_ScannerScreen>
             ),
           ),
 
-          // Animated scan line sweeping the cut-out.
-          IgnorePointer(
-            child: AnimatedBuilder(
-              animation: _scanLineController,
-              builder: (context, child) {
-                final top = cutOutRect.top +
-                    8 +
-                    _scanLineController.value * (cutOutRect.height - 16);
-                return Positioned(
-                  left: cutOutRect.left + 8,
-                  top: top,
-                  width: cutOutRect.width - 16,
-                  height: 2.5,
-                  child: child!,
-                );
-              },
-              child: Container(
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(4),
-                  gradient: LinearGradient(
-                    colors: [
-                      AppColors.primaryOrange.withValues(alpha: 0),
-                      AppColors.primaryOrange,
-                      AppColors.primaryOrange.withValues(alpha: 0),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-
           // Purpose icon + instruction, under the frame.
           Positioned(
             left: 24,
@@ -198,47 +160,55 @@ class _ScannerScreenState extends State<_ScannerScreen>
           ),
 
           // Floating header: back button + title pill + flash toggle.
-          SafeArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-              child: Row(
-                children: [
-                  _RoundIconButton(
-                    icon: Icons.arrow_back,
-                    onTap: () => Navigator.pop(context),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(vertical: 10),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.45),
-                        borderRadius: BorderRadius.circular(24),
-                      ),
-                      child: Text(
-                        _config.title,
-                        textAlign: TextAlign.center,
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w700,
+          // Pinned to the top with Positioned so Stack's StackFit.expand
+          // doesn't stretch it to full height and vertically center the
+          // Row (which was pushing it down into the scan frame).
+          Positioned(
+            top: 0,
+            left: 0,
+            right: 0,
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
+                child: Row(
+                  children: [
+                    _RoundIconButton(
+                      icon: Icons.arrow_back,
+                      onTap: () => Navigator.pop(context),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(vertical: 10),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withValues(alpha: 0.45),
+                          borderRadius: BorderRadius.circular(24),
+                        ),
+                        child: Text(
+                          _config.title,
+                          textAlign: TextAlign.center,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                          ),
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  ValueListenableBuilder<MobileScannerState>(
-                    valueListenable: _controller,
-                    builder: (context, state, child) {
-                      final isOn = state.torchState == TorchState.on;
-                      return _RoundIconButton(
-                        icon: isOn ? Icons.flash_on : Icons.flash_off,
-                        iconColor: isOn ? AppColors.primaryOrange : Colors.white,
-                        onTap: () => _controller.toggleTorch(),
-                      );
-                    },
-                  ),
-                ],
+                    const SizedBox(width: 12),
+                    ValueListenableBuilder<MobileScannerState>(
+                      valueListenable: _controller,
+                      builder: (context, state, child) {
+                        final isOn = state.torchState == TorchState.on;
+                        return _RoundIconButton(
+                          icon: isOn ? Icons.flash_on : Icons.flash_off,
+                          iconColor: Colors.white,
+                          onTap: () => _controller.toggleTorch(),
+                        );
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
@@ -274,6 +244,7 @@ class _RoundIconButton extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.iconColor = Colors.white,
+    this.backgroundColor,
     this.size = 42,
     this.iconSize = 20,
   });
@@ -281,13 +252,14 @@ class _RoundIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final Color iconColor;
+  final Color? backgroundColor;
   final double size;
   final double iconSize;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: Colors.black.withValues(alpha: 0.45),
+      color: backgroundColor ?? Colors.black.withValues(alpha: 0.45),
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),
