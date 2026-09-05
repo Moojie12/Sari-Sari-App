@@ -17,14 +17,14 @@ class EmployeeBatchDetailSheet extends StatelessWidget {
   const EmployeeBatchDetailSheet({
     super.key,
     required this.product,
-    required this.onAdjustStock,
+    required this.onEditProduct,
   });
 
   final EmployeeProduct product;
 
-  /// Called when staff tap "Adjust Stock" — the caller is responsible for
-  /// closing this sheet and opening [EmployeeStockAdjustSheet].
-  final VoidCallback onAdjustStock;
+  /// Called when staff tap "Edit Product" — the caller is responsible for
+  /// closing this sheet and opening [EmployeeEditProductPage].
+  final VoidCallback onEditProduct;
 
   @override
   Widget build(BuildContext context) {
@@ -74,14 +74,14 @@ class EmployeeBatchDetailSheet extends StatelessWidget {
           SizedBox(
             width: double.infinity,
             child: OutlinedButton(
-              onPressed: onAdjustStock,
+              onPressed: onEditProduct,
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primaryOrange,
                 side: const BorderSide(color: AppColors.primaryOrange),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text('Adjust Stock', style: TextStyle(fontWeight: FontWeight.bold)),
+              child: const Text('Edit Product', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ),
         ],

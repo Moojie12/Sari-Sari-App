@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/expiry/expiry_checker.dart';
 import '../employee_inventory_controller.dart';
 import '../inventory/employee_batch_model.dart';
 import '../inventory/employee_product_model.dart';
@@ -17,16 +18,25 @@ class EmployeePosCartItem {
   EmployeePosCartItem({
     required this.product,
     required this.batchId,
+    required this.unitPrice,
     this.batchExpiryDate,
     this.quantity = 1,
   });
 
   final EmployeeProduct product;
   final String batchId;
+
+  /// The price per unit at the time it was added to the cart, capturing
+  /// any automatic discounts (e.g. for expiring stock).
+  final double unitPrice;
+
   final DateTime? batchExpiryDate;
   int quantity;
 
-  double get subtotal => product.price * quantity;
+  /// Whether this item was sold at a discount because it was expiring soon.
+  bool get isOnSale => unitPrice < product.price;
+
+  double get subtotal => unitPrice * quantity;
 }
 
 /// A completed walk-in sale, shown on the receipt screen
@@ -94,9 +104,16 @@ class EmployeePosController extends ChangeNotifier {
     if (index >= 0) {
       _cart[index].quantity += quantity;
     } else {
+      // Automatic discount: 20% off if the batch is expiring soon.
+      double price = product.price;
+      if (batch.isExpiringSoon) {
+        price *= 0.8;
+      }
+
       _cart.add(EmployeePosCartItem(
         product: product,
         batchId: batch.id,
+        unitPrice: price,
         batchExpiryDate: batch.expiryDate,
         quantity: quantity,
       ));

@@ -6,7 +6,7 @@ import '../employee_inventory_controller.dart';
 import '../inventory/employee_batch_detail_sheet.dart';
 import '../inventory/employee_expiry_badge.dart';
 import '../inventory/employee_product_model.dart';
-import '../inventory/employee_stock_adjust_sheet.dart';
+import '../inventory/employee_edit_product_page.dart';
 import '../pos/employee_pos_controller.dart';
 
 /// Employee "Home" tab: a quick dashboard overview for staff (Dashboard
@@ -36,15 +36,15 @@ class EmployeeHomePage extends StatelessWidget {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => EmployeeBatchDetailSheet(
         product: product,
-        onAdjustStock: () {
+        onEditProduct: () {
           Navigator.pop(sheetContext);
-          showModalBottomSheet(
-            context: context,
-            isScrollControlled: true,
-            backgroundColor: Colors.transparent,
-            builder: (context) => EmployeeStockAdjustSheet(
-              product: product,
-              onAdjust: (delta) => inventory.adjustStock(product.id, delta),
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EmployeeEditProductPage(
+                inventory: inventory,
+                product: product,
+              ),
             ),
           );
         },

@@ -57,7 +57,7 @@ class EmployeeReceiptPage extends StatelessWidget {
                                       // Optional batch/expiry detail on the
                                       // receipt (Receipt Generation, step 8).
                                       Text(
-                                        'Batch ${item.batchId}'
+                                        '₱${item.unitPrice.toStringAsFixed(2)} each · Batch ${item.batchId}'
                                             '${item.batchExpiryDate != null ? " · Exp ${item.batchExpiryDate!.day}/${item.batchExpiryDate!.month}/${item.batchExpiryDate!.year}" : ""}',
                                         style: const TextStyle(color: AppColors.secondaryText, fontSize: 11),
                                       ),

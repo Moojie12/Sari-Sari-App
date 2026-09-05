@@ -52,7 +52,6 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   @override
   void dispose() {
-    _inventoryController.dispose();
     _posController.dispose();
     super.dispose();
   }

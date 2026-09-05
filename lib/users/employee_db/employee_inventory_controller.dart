@@ -40,6 +40,26 @@ class StockReceivingResult {
 /// batch on checkout), and the Inventory tab (which displays batches and
 /// lets staff adjust stock manually).
 class EmployeeInventoryController extends ChangeNotifier {
+  EmployeeInventoryController._() {
+    // Ensure initial dummy data is sorted.
+    for (var i = 0; i < _products.length; i++) {
+      final sortedBatches = List<ProductBatch>.from(_products[i].batches);
+      sortedBatches.sort((a, b) {
+        final aDate = a.expiryDate;
+        final bDate = b.expiryDate;
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        return aDate.compareTo(bDate);
+      });
+      _products[i] = _products[i].copyWith(batches: sortedBatches);
+    }
+  }
+
+  static final EmployeeInventoryController instance = EmployeeInventoryController._();
+
+  factory EmployeeInventoryController() => instance;
+
   final List<EmployeeProduct> _products = List.of(kEmployeeDummyProducts);
 
   List<EmployeeProduct> get products => List.unmodifiable(_products);
@@ -109,6 +129,7 @@ class EmployeeInventoryController extends ChangeNotifier {
     required String category,
     required double price,
     String barcode = '',
+    String? image,
     int lowStockThreshold = 10,
   }) {
     final trimmedName = name.trim();
@@ -122,12 +143,36 @@ class EmployeeInventoryController extends ChangeNotifier {
       category: category,
       price: price,
       barcode: trimmedBarcode,
+      image: image,
       batches: const [],
       lowStockThreshold: lowStockThreshold,
     );
     _products.add(product);
     notifyListeners();
     return product;
+  }
+
+  void updateProduct({
+    required String productId,
+    String? name,
+    String? category,
+    double? price,
+    String? barcode,
+    String? image,
+    int? lowStockThreshold,
+  }) {
+    final index = _products.indexWhere((p) => p.id == productId);
+    if (index < 0) return;
+
+    _products[index] = _products[index].copyWith(
+      name: name,
+      category: category,
+      price: price,
+      barcode: barcode,
+      image: image,
+      lowStockThreshold: lowStockThreshold,
+    );
+    notifyListeners();
   }
 
   /// Receives new stock for an *existing* product — the shared tail end of
@@ -191,6 +236,17 @@ class EmployeeInventoryController extends ChangeNotifier {
           : StockReceivingOutcome.newBatchCreated;
     }
 
+    // Sort batches by expiry date: nearest expiry first.
+    // Batches with no expiry date sort last.
+    batches.sort((a, b) {
+      final aDate = a.expiryDate;
+      final bDate = b.expiryDate;
+      if (aDate == null && bDate == null) return 0;
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+      return aDate.compareTo(bDate);
+    });
+
     final updatedProduct = product.copyWith(batches: batches);
     _products[productIndex] = updatedProduct;
     notifyListeners();
@@ -202,6 +258,37 @@ class EmployeeInventoryController extends ChangeNotifier {
       batchQuantity: batchQuantity,
       totalStock: updatedProduct.quantity,
     );
+  }
+
+  /// Receives several batches for the same product in one go — the Add
+  /// Product screen's "scan/enter one or more expiration dates, then hit
+  /// Add Product once" flow. Each entry in [batches] is applied through
+  /// the exact same [receiveStock] (RULE 1/2/3) logic, in order, so a
+  /// product that ends up with three differently-expiring lots from one
+  /// Add Product session is indistinguishable from three separate
+  /// [receiveStock] calls.
+  ///
+  /// Entries with a non-positive quantity are skipped rather than
+  /// aborting the whole batch (so one bad row doesn't undo the others).
+  List<StockReceivingResult> receiveBatches({
+    required String productId,
+    required List<({int quantity, DateTime? expiryDate})> batches,
+    String? supplier,
+    String? notes,
+  }) {
+    final results = <StockReceivingResult>[];
+    for (final batch in batches) {
+      if (batch.quantity <= 0) continue;
+      final result = receiveStock(
+        productId: productId,
+        quantity: batch.quantity,
+        expiryDate: batch.expiryDate,
+        supplier: supplier,
+        notes: notes,
+      );
+      if (result != null) results.add(result);
+    }
+    return results;
   }
 
   /// Pure preview of what [receiveStock] *would* do for [product] and
@@ -265,7 +352,12 @@ class EmployeeInventoryController extends ChangeNotifier {
     if (batch.quantity < quantity) return false;
 
     final updatedBatches = List<ProductBatch>.of(product.batches);
-    updatedBatches[batchIndex] = batch.copyWith(quantity: batch.quantity - quantity);
+    final newQuantity = batch.quantity - quantity;
+    if (newQuantity <= 0) {
+      updatedBatches.removeAt(batchIndex);
+    } else {
+      updatedBatches[batchIndex] = batch.copyWith(quantity: newQuantity);
+    }
     _products[productIndex] = product.copyWith(batches: updatedBatches);
     notifyListeners();
     return true;
@@ -293,6 +385,17 @@ class EmployeeInventoryController extends ChangeNotifier {
       } else {
         batches.add(ProductBatch(id: _nextBatchId(product), quantity: delta));
       }
+
+      // Ensure batches stay sorted after adding stock.
+      batches.sort((a, b) {
+        final aDate = a.expiryDate;
+        final bDate = b.expiryDate;
+        if (aDate == null && bDate == null) return 0;
+        if (aDate == null) return 1;
+        if (bDate == null) return -1;
+        return aDate.compareTo(bDate);
+      });
+
       _products[productIndex] = product.copyWith(batches: batches);
       notifyListeners();
       return;
@@ -300,6 +403,7 @@ class EmployeeInventoryController extends ChangeNotifier {
 
     var remaining = -delta;
     final batches = List<ProductBatch>.of(product.batches);
+    // FEFO order: nearest expiry first, then expired ones.
     final deductionOrder = [
       ...product.validBatches,
       ...product.batches.where((b) => b.isExpired && b.quantity > 0),
@@ -309,7 +413,13 @@ class EmployeeInventoryController extends ChangeNotifier {
       final index = batches.indexWhere((b) => b.id == target.id);
       if (index < 0) continue;
       final take = remaining < batches[index].quantity ? remaining : batches[index].quantity;
-      batches[index] = batches[index].copyWith(quantity: batches[index].quantity - take);
+      final newQty = batches[index].quantity - take;
+
+      if (newQty <= 0) {
+        batches.removeAt(index);
+      } else {
+        batches[index] = batches[index].copyWith(quantity: newQty);
+      }
       remaining -= take;
     }
     _products[productIndex] = product.copyWith(batches: batches);

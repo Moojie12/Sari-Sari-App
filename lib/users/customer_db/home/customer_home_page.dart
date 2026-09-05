@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../employee_db/employee_inventory_controller.dart';
 import '../customer_cart_controller.dart';
 import 'customer_dummy_products.dart';
 import 'customer_product_card.dart';
@@ -45,8 +46,14 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     }).toList();
   }
 
-  List<CustomerProduct> get _onSaleProducts =>
-      kCustomerDummyProducts.where((product) => product.isOnSale).toList();
+  List<CustomerProduct> get _onSaleProducts {
+    final expiringSoonIds = EmployeeInventoryController.instance.expiringSoonProducts
+        .map((p) => p.id)
+        .toSet();
+    return kCustomerDummyProducts.where((product) {
+      return product.isOnSale || expiringSoonIds.contains(product.id);
+    }).toList();
+  }
 
   void _onSearchChanged(String value) => setState(() {
         _searchQuery = value;
@@ -107,62 +114,67 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         .take(_itemsPerPage)
         .toList();
 
-    return Scaffold(
-      backgroundColor: Colors.transparent,
-      body: CustomScrollView(
-        slivers: [
-          SliverToBoxAdapter(child: _buildTitle(context)),
-          SliverToBoxAdapter(child: _buildWelcomeSection(context)),
-          SliverToBoxAdapter(child: _buildSearchBar(context)),
-          SliverToBoxAdapter(child: _buildCategories(context)),
-          if (!_isFiltering)
-            SliverToBoxAdapter(child: _buildOnSaleProducts(context)),
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-              child: Text(
-                _isFiltering ? 'Search Results' : 'All Products',
-                style: const TextStyle(
-                  color: AppColors.darkText,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-            ),
-          ),
-          if (pagedProducts.isEmpty)
-            SliverToBoxAdapter(child: _buildEmptyState(context))
-          else ...[
-            SliverPadding(
-              padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 14,
-                  crossAxisSpacing: 14,
-                  childAspectRatio: 0.65,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    final product = pagedProducts[index];
-                    return CustomerProductCard(
-                      product: product,
-                      onTap: () => _openProductDetails(product),
-                      onAddToCart: () => _addToCart(product),
-                    );
-                  },
-                  childCount: pagedProducts.length,
-                ),
-              ),
-            ),
-            if (totalPages > 1)
+    return ListenableBuilder(
+      listenable: EmployeeInventoryController.instance,
+      builder: (context, _) {
+        return Scaffold(
+          backgroundColor: Colors.transparent,
+          body: CustomScrollView(
+            slivers: [
+              SliverToBoxAdapter(child: _buildTitle(context)),
+              SliverToBoxAdapter(child: _buildWelcomeSection(context)),
+              SliverToBoxAdapter(child: _buildSearchBar(context)),
+              SliverToBoxAdapter(child: _buildCategories(context)),
+              if (!_isFiltering)
+                SliverToBoxAdapter(child: _buildOnSaleProducts(context)),
               SliverToBoxAdapter(
-                child: _buildPagination(totalPages),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+                  child: Text(
+                    _isFiltering ? 'Search Results' : 'All Products',
+                    style: const TextStyle(
+                      color: AppColors.darkText,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
               ),
-          ],
-          const SliverToBoxAdapter(child: SizedBox(height: 100)),
-        ],
-      ),
+              if (pagedProducts.isEmpty)
+                SliverToBoxAdapter(child: _buildEmptyState(context))
+              else ...[
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                  sliver: SliverGrid(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 14,
+                      childAspectRatio: 0.65,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final product = pagedProducts[index];
+                        return CustomerProductCard(
+                          product: product,
+                          onTap: () => _openProductDetails(product),
+                          onAddToCart: () => _addToCart(product),
+                        );
+                      },
+                      childCount: pagedProducts.length,
+                    ),
+                  ),
+                ),
+                if (totalPages > 1)
+                  SliverToBoxAdapter(
+                    child: _buildPagination(totalPages),
+                  ),
+              ],
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+            ],
+          ),
+        );
+      },
     );
   }
 

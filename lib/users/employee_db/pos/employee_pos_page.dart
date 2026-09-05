@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../employee_inventory_controller.dart';
 import '../inventory/employee_dummy_products.dart';
 import '../inventory/employee_product_model.dart';
@@ -75,6 +76,28 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
         },
       ),
     );
+  }
+
+  Future<void> _openBarcodeScanner() async {
+    final code = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
+    );
+    if (code == null || code.isEmpty) return;
+
+    final product = widget.inventory.findByBarcode(code);
+    if (product != null) {
+      _addToCart(product);
+    } else {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            content: Text('No product found for barcode "$code".'),
+            behavior: SnackBarBehavior.floating,
+          ),
+        );
+    }
   }
 
   void _openCheckout() {
@@ -179,8 +202,10 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
             fontSize: 14,
           ),
           prefixIcon: const Icon(Icons.search, color: AppColors.secondaryText),
-          suffixIcon:
-          const Icon(Icons.qr_code_scanner, color: AppColors.primaryOrange),
+          suffixIcon: IconButton(
+            icon: const Icon(Icons.qr_code_scanner, color: AppColors.primaryOrange),
+            onPressed: _openBarcodeScanner,
+          ),
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(
@@ -259,6 +284,10 @@ class _PosProductCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isOut = product.stockStatus == EmployeeStockStatus.outOfStock;
+    final originalPrice = product.price;
+    final currentPrice = product.currentPrice;
+    final isOnSale = currentPrice < originalPrice;
+
     return Material(
       color: Colors.white,
       clipBehavior: Clip.antiAlias,
@@ -268,61 +297,104 @@ class _PosProductCard extends StatelessWidget {
       ),
       child: InkWell(
         onTap: isOut ? null : onTap,
-        child: Padding(
-          padding: const EdgeInsets.all(12),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
+        child: Stack(
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: Container(
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryOrange.withValues(alpha: 0.05),
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      alignment: Alignment.center,
+                      child: Opacity(
+                        opacity: isOut ? 0.4 : 1,
+                        child: product.image != null
+                            ? const Icon(Icons.image,
+                            size: 28,
+                            color: AppColors.primaryOrange)
+                            : Icon(Icons.image_outlined,
+                            size: 28,
+                            color: AppColors.primaryOrange.withValues(alpha: 0.4)),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    product.name,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                      color: AppColors.darkText,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Row(
+                    children: [
+                      Text(
+                        '₱${currentPrice.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          color: AppColors.primaryOrange,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      if (isOnSale) ...[
+                        const SizedBox(width: 4),
+                        Text(
+                          '₱${originalPrice.toStringAsFixed(2)}',
+                          style: TextStyle(
+                            color: AppColors.secondaryText.withValues(alpha: 0.5),
+                            fontSize: 10,
+                            decoration: TextDecoration.lineThrough,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    isOut ? 'Out of stock' : '${product.quantity} in stock',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isOut
+                          ? Colors.red
+                          : (product.stockStatus == EmployeeStockStatus.lowStock
+                          ? Colors.orange
+                          : AppColors.secondaryText),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (isOnSale && !isOut)
+              Positioned(
+                top: 8,
+                right: 8,
                 child: Container(
-                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                   decoration: BoxDecoration(
-                    color: AppColors.primaryOrange.withValues(alpha: 0.05),
-                    borderRadius: BorderRadius.circular(10),
+                    color: Colors.red,
+                    borderRadius: BorderRadius.circular(4),
                   ),
-                  alignment: Alignment.center,
-                  child: Opacity(
-                    opacity: isOut ? 0.4 : 1,
-                    child: Icon(Icons.image_outlined,
-                        size: 28,
-                        color: AppColors.primaryOrange.withValues(alpha: 0.4)),
+                  child: const Text(
+                    'SALE',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 8,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                product.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  color: AppColors.darkText,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                '₱${product.price.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  color: AppColors.primaryOrange,
-                  fontSize: 13,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                isOut ? 'Out of stock' : '${product.quantity} in stock',
-                style: TextStyle(
-                  fontSize: 11,
-                  color: isOut
-                      ? Colors.red
-                      : (product.stockStatus == EmployeeStockStatus.lowStock
-                      ? Colors.orange
-                      : AppColors.secondaryText),
-                ),
-              ),
-            ],
-          ),
+          ],
         ),
       ),
     );
@@ -544,7 +616,7 @@ class _CartItemTile extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                '₱${item.product.price.toStringAsFixed(2)} each',
+                '₱${item.unitPrice.toStringAsFixed(2)} each',
                 style: const TextStyle(
                     color: AppColors.secondaryText, fontSize: 11),
               ),
@@ -844,7 +916,7 @@ class _CheckoutOrderSummaryRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '₱${item.product.price.toStringAsFixed(2)} x ${item.quantity}',
+                  '₱${item.unitPrice.toStringAsFixed(2)} x ${item.quantity}',
                   style: const TextStyle(color: AppColors.secondaryText, fontSize: 11),
                 ),
               ],

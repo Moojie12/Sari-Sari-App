@@ -6,45 +6,81 @@ import '../employee_inventory_controller.dart';
 import 'employee_dummy_products.dart';
 import 'employee_product_model.dart';
 
-/// Stock Receiving screen.
+/// Add Product screen (replaces the old "Receive Stock" screen).
 ///
-/// Flow: identify a product (barcode scan or manual search — creating a
-/// new product record if it truly doesn't exist yet), enter the received
-/// quantity/expiry/supplier/notes, review a live summary of what will
-/// happen, then save.
+/// Three ways to identify what's being added, all funneling into the same
+/// "fill up the details" step below:
+///  1. **Barcode scanner** — scan the product barcode, its details appear.
+///  2. **Search** (next to the scanner button) — find an existing product
+///     by name/barcode and tap it to restock it.
+///  3. **Add Product Manually** — for when the barcode can't be scanned;
+///     collects the same product info a scan would have found.
+///
+/// Once a product is identified (scanned, searched, or just created), the
+/// same "Product Details" step is shown every time: quantity + expiration
+/// date, where expiration date can also be scanned or entered manually.
+/// Scanning/entering more than one *different* expiration date for the
+/// same product automatically builds separate batches — quantity per
+/// batch stays editable, so staff don't have to scan one unit at a time.
+/// Pressing "Add Product" saves every batch at once, whether the product
+/// is brand new or already exists in inventory.
 ///
 /// All the actual RULE 1/2/3 batch logic lives in
-/// [EmployeeInventoryController.receiveStock] / [createProduct] — this
+/// [EmployeeInventoryController.receiveBatches] / [createProduct] — this
 /// screen only collects input, previews the outcome, and displays the
 /// result.
-class EmployeeStockReceivingPage extends StatefulWidget {
-  const EmployeeStockReceivingPage({super.key, required this.inventory});
+class EmployeeAddProductPage extends StatefulWidget {
+  const EmployeeAddProductPage({super.key, required this.inventory});
 
   final EmployeeInventoryController inventory;
 
   @override
-  State<EmployeeStockReceivingPage> createState() => _EmployeeStockReceivingPageState();
+  State<EmployeeAddProductPage> createState() => _EmployeeAddProductPageState();
 }
 
-class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage> {
+/// One batch waiting to be saved — a distinct expiration date (or "no
+/// expiry") plus a quantity the staff member can hand-edit instead of
+/// scanning every single unit.
+class _PendingBatch {
+  _PendingBatch({required this.expiryDate, int quantity = 1})
+      : quantityController = TextEditingController(text: quantity.toString());
+
+  /// Null means "no expiry / not tracked" — same convention as [ProductBatch].
+  final DateTime? expiryDate;
+  final TextEditingController quantityController;
+  String? quantityError;
+
+  int? get quantity => int.tryParse(quantityController.text.trim());
+
+  void dispose() => quantityController.dispose();
+}
+
+bool _isSameCalendarDay(DateTime? a, DateTime? b) {
+  if (a == null && b == null) return true;
+  if (a == null || b == null) return false;
+  return a.year == b.year && a.month == b.month && a.day == b.day;
+}
+
+String _formatDate(DateTime date) => '${date.day}/${date.month}/${date.year}';
+
+class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
   final _searchController = TextEditingController();
-  final _quantityController = TextEditingController();
 
   String _searchQuery = '';
   String? _selectedProductId;
-  DateTime? _expiryDate;
-  bool _noExpiry = false;
-  String? _quantityError;
-  String? _expiryError;
+  final List<_PendingBatch> _pendingBatches = [];
+  String? _batchesError;
 
   /// Last barcode that didn't match any product — kept so the "not found"
-  /// message and the "create with this barcode" shortcut stay in sync.
+  /// message and the "add manually with this barcode" shortcut stay in sync.
   String? _unmatchedBarcode;
 
   @override
   void dispose() {
     _searchController.dispose();
-    _quantityController.dispose();
+    for (final batch in _pendingBatches) {
+      batch.dispose();
+    }
     super.dispose();
   }
 
@@ -63,22 +99,24 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
   }
 
   void _clearSelection() {
+    for (final batch in _pendingBatches) {
+      batch.dispose();
+    }
     setState(() {
       _selectedProductId = null;
-      _quantityController.clear();
-      _expiryDate = null;
-      _noExpiry = false;
-      _quantityError = null;
-      _expiryError = null;
+      _pendingBatches.clear();
+      _batchesError = null;
       _unmatchedBarcode = null;
     });
   }
+
+  // ---- Identifying the product: scan / search / manual --------------------
 
   /// This build is frontend-only, so there's no camera/scanner package
   /// wired in yet — staff type or paste the scanned code here instead of
   /// pointing a camera at it. Looks the code up the same way a real scan
   /// would (exact barcode match).
-  Future<void> _openScanDialog() async {
+  Future<void> _openBarcodeScanDialog() async {
     final code = await Navigator.of(context).push<String>(
       MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
     );
@@ -87,9 +125,8 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
   }
 
   /// Handles a barcode however it arrived (scan dialog or typed straight
-  /// into the search field). Missing/unscannable barcodes are handled
-  /// gracefully — a no-match just surfaces the manual/create-new path
-  /// instead of crashing or dead-ending.
+  /// into the search field). A no-match just surfaces the manual/add-new
+  /// path instead of dead-ending.
   void _handleBarcode(String barcode) {
     final product = widget.inventory.findByBarcode(barcode);
     if (product != null) {
@@ -103,92 +140,185 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
     }
   }
 
-  Future<void> _openCreateProductSheet({String prefillBarcode = ''}) async {
+  Future<void> _openAddProductManuallySheet({String prefillBarcode = ''}) async {
     final created = await showModalBottomSheet<EmployeeProduct>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
-      builder: (sheetContext) => _NewProductSheet(
+      builder: (sheetContext) => _ManualProductInfoSheet(
         inventory: widget.inventory,
         prefillName: _unmatchedBarcode == null ? _searchQuery.trim() : '',
         prefillBarcode: prefillBarcode,
+        onExpiryScan: _showExpiryScanAndReturnDate,
       ),
     );
-    if (created != null) _selectProduct(created);
-  }
-
-  Future<void> _pickExpiryDate() async {
-    final now = DateTime.now();
-    final picked = await showDatePicker(
-      context: context,
-      initialDate: _expiryDate ?? now,
-      firstDate: DateTime(now.year - 1),
-      lastDate: DateTime(now.year + 15),
-    );
-    if (picked != null) {
-      setState(() {
-        _expiryDate = picked;
-        _noExpiry = false;
-        _expiryError = null;
-      });
+    if (created != null) {
+      // If the product was successfully created and the first batch added in the sheet,
+      // we show the success dialog for that one batch.
+      final lastBatch = created.batches.last;
+      _showSuccessDialog(created.name, [
+        StockReceivingResult(
+          outcome: StockReceivingOutcome.newProduct,
+          productId: created.id,
+          batchId: lastBatch.id,
+          batchQuantity: lastBatch.quantity,
+          totalStock: created.quantity,
+        )
+      ]);
     }
   }
 
-  bool _validate() {
-    final quantity = int.tryParse(_quantityController.text.trim());
-    final quantityError =
-    (quantity == null || quantity <= 0) ? 'Enter a quantity greater than 0.' : null;
-    final expiryError = (!_noExpiry && _expiryDate == null)
-        ? 'Pick an expiration date, or mark this item as not tracked.'
-        : null;
-
-    setState(() {
-      _quantityError = quantityError;
-      _expiryError = expiryError;
-    });
-    return quantityError == null && expiryError == null;
-  }
-
-  void _submit(EmployeeProduct product) {
-    if (!_validate()) return;
-
-    final quantity = int.parse(_quantityController.text.trim());
-
-    final result = widget.inventory.receiveStock(
-      productId: product.id,
-      quantity: quantity,
-      expiryDate: _noExpiry ? null : _expiryDate,
+  Future<DateTime?> _showExpiryScanAndReturnDate() async {
+    final input = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
     );
-
-    if (result == null) {
+    if (input == null || input.isEmpty) return null;
+    final date = DateTime.tryParse(input);
+    if (date == null) {
+      if (!mounted) return null;
       ScaffoldMessenger.of(context)
         ..hideCurrentSnackBar()
         ..showSnackBar(const SnackBar(
-          content: Text('Could not receive stock — please check the quantity and try again.'),
+          content: Text('Could not read that expiration date. Try again, or enter it manually.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      return null;
+    }
+    return DateTime(date.year, date.month, date.day);
+  }
+
+  // ---- Batch builder: quantity + one or more expiration dates ------------
+
+  /// Adds a batch for [expiryDate], or — if a pending batch for that exact
+  /// calendar date already exists — bumps its quantity by one instead of
+  /// creating a duplicate row. This is what lets "how many times you
+  /// scan" simply track "how many different expiration dates" there are.
+  void _addOrBumpBatch(DateTime? expiryDate) {
+    setState(() {
+      final index = _pendingBatches.indexWhere((b) => _isSameCalendarDay(b.expiryDate, expiryDate));
+      if (index >= 0) {
+        final current = _pendingBatches[index].quantity ?? 0;
+        _pendingBatches[index].quantityController.text = (current + 1).toString();
+        _pendingBatches[index].quantityError = null;
+      } else {
+        _pendingBatches.add(_PendingBatch(expiryDate: expiryDate));
+      }
+      _batchesError = null;
+    });
+  }
+
+  /// Frontend-only stand-in for scanning the expiration date printed on
+  /// the product — staff type/paste what a real scan would have read.
+  Future<void> _openExpiryScanDialog() async {
+    final input = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
+    );
+    if (input == null || input.isEmpty) return;
+    final date = DateTime.tryParse(input);
+    if (date == null) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+          content: Text('Could not read that expiration date. Try again, or enter it manually.'),
+          behavior: SnackBarBehavior.floating,
+        ));
+      return;
+    }
+    _addOrBumpBatch(DateTime(date.year, date.month, date.day));
+  }
+
+  Future<void> _pickExpiryManually() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 15),
+    );
+    if (picked != null) _addOrBumpBatch(picked);
+  }
+
+  void _addNoExpiryBatch() => _addOrBumpBatch(null);
+
+  void _removeBatch(int index) {
+    setState(() {
+      _pendingBatches[index].dispose();
+      _pendingBatches.removeAt(index);
+    });
+  }
+
+  bool _validateBatches() {
+    if (_pendingBatches.isEmpty) {
+      setState(() => _batchesError =
+      'Scan or enter at least one expiration date (or mark "No expiry") before adding this product.');
+      return false;
+    }
+    var allValid = true;
+    setState(() {
+      for (final batch in _pendingBatches) {
+        final quantity = batch.quantity;
+        batch.quantityError = (quantity == null || quantity <= 0) ? 'Enter a quantity greater than 0.' : null;
+        if (batch.quantityError != null) allValid = false;
+      }
+    });
+    return allValid;
+  }
+
+  void _submit(EmployeeProduct product) {
+    if (!_validateBatches()) return;
+
+    final results = widget.inventory.receiveBatches(
+      productId: product.id,
+      batches: [
+        for (final batch in _pendingBatches) (quantity: batch.quantity!, expiryDate: batch.expiryDate),
+      ],
+    );
+
+    if (results.isEmpty) {
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(const SnackBar(
+          content: Text('Could not add this product — please check the quantities and try again.'),
           behavior: SnackBarBehavior.floating,
         ));
       return;
     }
 
-    _showSuccessDialog(product.name, result);
+    _showSuccessDialog(product.name, results);
   }
 
-  Future<void> _showSuccessDialog(String productName, StockReceivingResult result) async {
-    final message = switch (result.outcome) {
-      StockReceivingOutcome.newProduct =>
-      'New product created. Batch ${result.batchId} started with ${result.batchQuantity} pcs.',
-      StockReceivingOutcome.mergedIntoExistingBatch =>
-      'Existing batch found. Added to Batch ${result.batchId}, now ${result.batchQuantity} pcs.',
-      StockReceivingOutcome.newBatchCreated =>
-      'Different expiration date — new Batch ${result.batchId} created with ${result.batchQuantity} pcs.',
-    };
+  Future<void> _showSuccessDialog(String productName, List<StockReceivingResult> results) async {
+    final totalAdded = results.fold<int>(0, (sum, r) => sum + r.batchQuantity);
+    final finalTotalStock = results.last.totalStock;
 
     if (!mounted) return;
-    final receiveAnother = await showDialog<bool>(
+    final addAnother = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('Stock Received'),
-        content: Text('$message\n\nTotal stock for $productName: ${result.totalStock} pcs.'),
+        title: const Text('Product Added'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              for (final result in results)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 4),
+                  child: Text(switch (result.outcome) {
+                    StockReceivingOutcome.newProduct =>
+                    'Batch ${result.batchId} started with ${result.batchQuantity} pcs.',
+                    StockReceivingOutcome.mergedIntoExistingBatch =>
+                    'Added to Batch ${result.batchId}, now ${result.batchQuantity} pcs.',
+                    StockReceivingOutcome.newBatchCreated =>
+                    'New Batch ${result.batchId} created with ${result.batchQuantity} pcs.',
+                  }),
+                ),
+              const SizedBox(height: 8),
+              Text('Added $totalAdded pcs total. $productName now has $finalTotalStock pcs in stock.'),
+            ],
+          ),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -200,14 +330,14 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
               backgroundColor: AppColors.primaryOrange,
               foregroundColor: Colors.white,
             ),
-            child: const Text('Receive Another'),
+            child: const Text('Add Another Product'),
           ),
         ],
       ),
     );
 
     if (!mounted) return;
-    if (receiveAnother == true) {
+    if (addAnother == true) {
       _clearSelection();
     } else {
       Navigator.pop(context);
@@ -222,7 +352,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
         backgroundColor: AppColors.lightBackground,
         elevation: 0,
         foregroundColor: AppColors.darkText,
-        title: const Text('Receive Stock', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Add Product', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: SafeArea(
         child: ListenableBuilder(
@@ -245,7 +375,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
                     : [
                   _buildSelectedProductCard(selected),
                   const SizedBox(height: 20),
-                  _buildStockForm(selected),
+                  _buildBatchBuilderSection(selected),
                 ],
               ),
             );
@@ -265,13 +395,13 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Identify Product',
+          'Add Product',
           style: TextStyle(color: AppColors.darkText, fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 4),
         Text(
-          'Scan a barcode or search by name — or add a new product if it '
-              "doesn't exist yet.",
+          'Scan a barcode, search for an existing product to restock, or '
+              "add a new one manually if it doesn't exist yet.",
           style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 12),
         ),
         const SizedBox(height: 16),
@@ -286,7 +416,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
                 }),
                 style: const TextStyle(fontSize: 14),
                 decoration: InputDecoration(
-                  hintText: 'Search by name or barcode...',
+                  hintText: 'Search existing products by name or barcode...',
                   hintStyle:
                   TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.5), fontSize: 14),
                   prefixIcon: const Icon(Icons.search, color: AppColors.secondaryText),
@@ -307,7 +437,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
               borderRadius: BorderRadius.circular(12),
               child: InkWell(
                 borderRadius: BorderRadius.circular(12),
-                onTap: _openScanDialog,
+                onTap: _openBarcodeScanDialog,
                 child: const SizedBox(
                   width: 48,
                   height: 48,
@@ -324,7 +454,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
             padding: const EdgeInsets.symmetric(vertical: 24),
             child: Center(
               child: Text(
-                'Start typing, or tap the scanner icon, to find a product.',
+                'Start typing, or tap the scanner icon, to find a product to restock.',
                 textAlign: TextAlign.center,
                 style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.7), fontSize: 12),
               ),
@@ -349,9 +479,9 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
         SizedBox(
           width: double.infinity,
           child: OutlinedButton.icon(
-            onPressed: () => _openCreateProductSheet(prefillBarcode: _unmatchedBarcode ?? ''),
+            onPressed: () => _openAddProductManuallySheet(prefillBarcode: _unmatchedBarcode ?? ''),
             icon: const Icon(Icons.add),
-            label: const Text('Create New Product'),
+            label: const Text('Add Product Manually'),
             style: OutlinedButton.styleFrom(
               foregroundColor: AppColors.primaryOrange,
               side: const BorderSide(color: AppColors.primaryOrange),
@@ -382,7 +512,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
           Expanded(
             child: Text(
               'No product found for barcode "$_unmatchedBarcode". '
-                  'You can create a new product with this barcode below, or '
+                  'You can add it manually with this barcode below, or '
                   'search by name instead.',
               style: const TextStyle(fontSize: 12, color: Colors.deepOrange, fontWeight: FontWeight.w600),
             ),
@@ -392,7 +522,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
     );
   }
 
-  // ---- Step 2: selected product + stock info form ------------------------
+  // ---- Step 2: selected/created product + batch details -----------------
 
   Widget _buildSelectedProductCard(EmployeeProduct product) {
     return Container(
@@ -460,9 +590,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
                 style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
             const SizedBox(height: 6),
             ...product.batches.map((batch) {
-              final dateLabel = batch.expiryDate == null
-                  ? 'No expiry'
-                  : '${batch.expiryDate!.day}/${batch.expiryDate!.month}/${batch.expiryDate!.year}';
+              final dateLabel = batch.expiryDate == null ? 'No expiry' : _formatDate(batch.expiryDate!);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
@@ -477,99 +605,94 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
     );
   }
 
-  Widget _buildStockForm(EmployeeProduct product) {
+  /// The batch-builder step, shared by every identification path (barcode
+  /// match, search-select, or a product just created manually). Staff
+  /// scan/enter as many *different* expiration dates as the delivery has
+  /// — each one becomes its own editable batch row — then press "Add
+  /// Product" once to save all of them.
+  Widget _buildBatchBuilderSection(EmployeeProduct product) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const Text(
-          'Stock Information',
+          'Product Details',
           style: TextStyle(color: AppColors.darkText, fontSize: 18, fontWeight: FontWeight.bold),
         ),
+        const SizedBox(height: 4),
+        Text(
+          'Scan the expiration date, or enter it manually. Adding a '
+              "different date starts a new batch automatically — you don't "
+              'have to scan every single unit, just edit the quantity.',
+          style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 12),
+        ),
         const SizedBox(height: 16),
-        _buildLabel('Quantity Received *'),
-        const SizedBox(height: 8),
-        TextField(
-          controller: _quantityController,
-          keyboardType: TextInputType.number,
-          onChanged: (_) {
-            if (_quantityError != null) setState(() => _quantityError = null);
-          },
-          decoration: InputDecoration(
-            hintText: 'e.g. 20',
-            errorText: _quantityError,
-            filled: true,
-            fillColor: AppColors.lightPeach,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-            border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-          ),
-        ),
-        const SizedBox(height: 18),
-        _buildLabel('Expiration Date *'),
-        const SizedBox(height: 8),
-        InkWell(
-          onTap: _noExpiry ? null : _pickExpiryDate,
-          borderRadius: BorderRadius.circular(8),
-          child: Container(
-            width: double.infinity,
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-            decoration: BoxDecoration(
-              color: _noExpiry ? AppColors.lightBackground : AppColors.lightPeach,
-              borderRadius: BorderRadius.circular(8),
-              border: _expiryError != null ? Border.all(color: Colors.red) : null,
-            ),
-            child: Row(
-              children: [
-                const Icon(Icons.calendar_today, size: 16, color: AppColors.secondaryText),
-                const SizedBox(width: 10),
-                Text(
-                  _noExpiry
-                      ? 'Not tracked'
-                      : (_expiryDate == null
-                      ? 'Select expiration date'
-                      : '${_expiryDate!.day}/${_expiryDate!.month}/${_expiryDate!.year}'),
-                  style: TextStyle(
-                    color: _expiryDate == null && !_noExpiry
-                        ? AppColors.secondaryText.withValues(alpha: 0.6)
-                        : AppColors.darkText,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-        if (_expiryError != null) ...[
-          const SizedBox(height: 4),
-          Text(_expiryError!, style: const TextStyle(color: Colors.red, fontSize: 11)),
-        ],
-        const SizedBox(height: 8),
         Row(
           children: [
-            SizedBox(
-              width: 24,
-              height: 24,
-              child: Checkbox(
-                value: _noExpiry,
-                activeColor: AppColors.primaryOrange,
-                onChanged: (value) => setState(() {
-                  _noExpiry = value ?? false;
-                  if (_noExpiry) {
-                    _expiryDate = null;
-                    _expiryError = null;
-                  }
-                }),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _openExpiryScanDialog,
+                icon: const Icon(Icons.qr_code_scanner, size: 18),
+                label: const Text('Scan Expiration'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primaryOrange,
+                  side: const BorderSide(color: AppColors.primaryOrange),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
             ),
-            const SizedBox(width: 8),
-            const Expanded(
-              child: Text(
-                "This item doesn't expire / expiry isn't tracked.",
-                style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _pickExpiryManually,
+                icon: const Icon(Icons.calendar_today, size: 16),
+                label: const Text('Enter Manually'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.darkText,
+                  side: const BorderSide(color: AppColors.borderColor),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
               ),
             ),
           ],
         ),
-        const SizedBox(height: 20),
-        _buildOutcomePreview(product),
+        const SizedBox(height: 8),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: TextButton.icon(
+            onPressed: _addNoExpiryBatch,
+            icon: const Icon(Icons.block, size: 16),
+            label: const Text("This item doesn't expire"),
+            style: TextButton.styleFrom(foregroundColor: AppColors.secondaryText),
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (_pendingBatches.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.lightBackground,
+              borderRadius: BorderRadius.circular(12),
+              border: _batchesError != null ? Border.all(color: Colors.red) : null,
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'No batches yet — scan or enter an expiration date above.',
+                  style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 12),
+                ),
+                if (_batchesError != null) ...[
+                  const SizedBox(height: 6),
+                  Text(_batchesError!, style: const TextStyle(color: Colors.red, fontSize: 11)),
+                ],
+              ],
+            ),
+          )
+        else
+          ...List.generate(_pendingBatches.length, (index) => _buildPendingBatchRow(product, index)),
         const SizedBox(height: 20),
         SizedBox(
           width: double.infinity,
@@ -581,92 +704,98 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
               padding: const EdgeInsets.symmetric(vertical: 16),
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
-            child: const Text('Receive Stock', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+            child: const Text('Add Product', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
           ),
         ),
       ],
     );
   }
 
-  Widget _buildLabel(String text) {
-    return Text(text,
-        style: const TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500));
-  }
+  /// One editable batch row inside the builder, with a live "what will
+  /// happen" preview from [EmployeeInventoryController.previewOutcome] /
+  /// [matchingBatch] — the exact same RULE 1/2/3 decision
+  /// [EmployeeInventoryController.receiveBatches] will make on save.
+  Widget _buildPendingBatchRow(EmployeeProduct product, int index) {
+    final batch = _pendingBatches[index];
+    final dateLabel = batch.expiryDate == null ? 'No expiry' : _formatDate(batch.expiryDate!);
 
-  /// Live "what will happen" summary — recomputed on every keystroke/date
-  /// pick from [EmployeeInventoryController.previewOutcome] /
-  /// [EmployeeInventoryController.matchingBatch], so staff see the exact
-  /// same RULE 1/2/3 decision before saving that [receiveStock] will make.
-  Widget _buildOutcomePreview(EmployeeProduct product) {
-    final quantity = int.tryParse(_quantityController.text.trim());
-    final effectiveExpiry = _noExpiry ? null : _expiryDate;
-    final hasEnoughInfo = quantity != null && quantity > 0 && (_noExpiry || effectiveExpiry != null);
-
-    if (!hasEnoughInfo) {
-      return Container(
-        width: double.infinity,
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: AppColors.lightBackground,
-          borderRadius: BorderRadius.circular(12),
-        ),
-        child: const Text(
-          'Enter quantity and expiration date to see a summary.',
-          style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
-        ),
-      );
-    }
-
-    final outcome = widget.inventory.previewOutcome(product, effectiveExpiry);
-    final matching = widget.inventory.matchingBatch(product, effectiveExpiry);
-
-    final String message;
-    switch (outcome) {
-      case StockReceivingOutcome.mergedIntoExistingBatch:
-        message = 'Existing batch found. Quantity will be added to Batch ${matching?.id}.';
-        break;
-      case StockReceivingOutcome.newBatchCreated:
-        message = 'Different expiration date. A new batch will be created.';
-        break;
-      case StockReceivingOutcome.newProduct:
-      default:
-        message = 'First stock for this product — a new batch will be created.';
-        break;
-    }
+    final outcome = widget.inventory.previewOutcome(product, batch.expiryDate);
+    final matching = widget.inventory.matchingBatch(product, batch.expiryDate);
+    final String previewMessage = switch (outcome) {
+      StockReceivingOutcome.mergedIntoExistingBatch => 'Will be added to existing Batch ${matching?.id}.',
+      StockReceivingOutcome.newBatchCreated => 'New batch will be created.',
+      StockReceivingOutcome.newProduct || null => 'First stock for this product — a new batch will be created.',
+    };
 
     return Container(
-      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: 10),
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: AppColors.primaryOrange.withValues(alpha: 0.08),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(12),
-        border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.3)),
+        border: Border.all(color: AppColors.borderColor.withValues(alpha: 0.6)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text('Product: ${product.name}', style: const TextStyle(fontSize: 12, color: AppColors.darkText)),
-          Text('Quantity Received: $quantity pcs', style: const TextStyle(fontSize: 12, color: AppColors.darkText)),
-          Text(
-            'Expiration Date: ${_noExpiry ? 'Not tracked' : '${effectiveExpiry!.day}/${effectiveExpiry.month}/${effectiveExpiry.year}'}',
-            style: const TextStyle(fontSize: 12, color: AppColors.darkText),
+          Row(
+            children: [
+              const Icon(Icons.calendar_today, size: 14, color: AppColors.secondaryText),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(dateLabel,
+                    style:
+                    const TextStyle(color: AppColors.darkText, fontSize: 13, fontWeight: FontWeight.w600)),
+              ),
+              SizedBox(
+                width: 80,
+                child: TextField(
+                  controller: batch.quantityController,
+                  keyboardType: TextInputType.number,
+                  textAlign: TextAlign.center,
+                  onChanged: (_) {
+                    if (batch.quantityError != null) setState(() => batch.quantityError = null);
+                  },
+                  decoration: InputDecoration(
+                    labelText: 'Qty',
+                    errorText: batch.quantityError,
+                    isDense: true,
+                    filled: true,
+                    fillColor: AppColors.lightPeach,
+                    contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
+                    border:
+                    OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                  ),
+                ),
+              ),
+              IconButton(
+                onPressed: () => _removeBatch(index),
+                icon: const Icon(Icons.close, size: 18, color: AppColors.secondaryText),
+                tooltip: 'Remove batch',
+              ),
+            ],
           ),
-          const SizedBox(height: 6),
+          const SizedBox(height: 4),
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Icon(Icons.info_outline, size: 14, color: AppColors.primaryOrange),
+              const Icon(Icons.info_outline, size: 12, color: AppColors.primaryOrange),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(message,
+                child: Text(previewMessage,
                     style: const TextStyle(
-                        fontSize: 12, color: AppColors.primaryOrange, fontWeight: FontWeight.w600)),
+                        fontSize: 11, color: AppColors.primaryOrange, fontWeight: FontWeight.w600)),
               ),
             ],
           ),
         ],
       ),
     );
+  }
+
+  Widget _buildLabel(String text) {
+    return Text(text,
+        style: const TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500));
   }
 }
 
@@ -727,29 +856,35 @@ class _ProductResultTile extends StatelessWidget {
   }
 }
 
-/// Bottom sheet for creating a brand-new product record (Stock Receiving's
-/// "product does not exist" path). Only collects what
-/// [EmployeeInventoryController.createProduct] needs; the first batch is
-/// then entered on the main Stock Receiving form right after this closes.
-class _NewProductSheet extends StatefulWidget {
-  const _NewProductSheet({
+/// Bottom sheet for entering a brand-new product's basic info (Add
+/// Product's "product does not exist" path). Only collects what
+/// [EmployeeInventoryController.createProduct] needs; the "Product
+/// Details" batch step (quantity + expiration dates) is then filled on
+/// the main Add Product screen right after this closes — the exact same
+/// step a barcode scan or search match would have landed on.
+class _ManualProductInfoSheet extends StatefulWidget {
+  const _ManualProductInfoSheet({
     required this.inventory,
     this.prefillName = '',
     this.prefillBarcode = '',
+    this.onExpiryScan,
   });
 
   final EmployeeInventoryController inventory;
   final String prefillName;
   final String prefillBarcode;
+  final Future<DateTime?> Function()? onExpiryScan;
 
   @override
-  State<_NewProductSheet> createState() => _NewProductSheetState();
+  State<_ManualProductInfoSheet> createState() => _ManualProductInfoSheetState();
 }
 
-class _NewProductSheetState extends State<_NewProductSheet> {
+class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
   late final _nameController = TextEditingController(text: widget.prefillName);
   late final _barcodeController = TextEditingController(text: widget.prefillBarcode);
   final _priceController = TextEditingController();
+  final _quantityController = TextEditingController(text: '1');
+  DateTime? _expiryDate;
   String? _imagePath;
   late String _category =
   kEmployeeProductCategories.where((c) => c != 'All').isNotEmpty
@@ -759,19 +894,40 @@ class _NewProductSheetState extends State<_NewProductSheet> {
   String? _nameError;
   String? _priceError;
   String? _barcodeError;
+  String? _quantityError;
 
   @override
   void dispose() {
     _nameController.dispose();
     _barcodeController.dispose();
     _priceController.dispose();
+    _quantityController.dispose();
     super.dispose();
   }
 
-  void _create() {
+  Future<void> _pickExpiryManually() async {
+    final now = DateTime.now();
+    final picked = await showDatePicker(
+      context: context,
+      initialDate: _expiryDate ?? now,
+      firstDate: DateTime(now.year - 1),
+      lastDate: DateTime(now.year + 15),
+    );
+    if (picked != null) setState(() => _expiryDate = picked);
+  }
+
+  Future<void> _scanExpiry() async {
+    if (widget.onExpiryScan != null) {
+      final date = await widget.onExpiryScan!();
+      if (date != null) setState(() => _expiryDate = date);
+    }
+  }
+
+  void _continue() {
     final name = _nameController.text.trim();
     final price = double.tryParse(_priceController.text.trim());
     final barcode = _barcodeController.text.trim();
+    final quantity = int.tryParse(_quantityController.text.trim());
 
     setState(() {
       _nameError = name.isEmpty ? 'Product name is required.' : null;
@@ -779,8 +935,9 @@ class _NewProductSheetState extends State<_NewProductSheet> {
       _barcodeError = widget.inventory.isBarcodeTaken(barcode)
           ? 'This barcode is already used by another product.'
           : null;
+      _quantityError = (quantity == null || quantity <= 0) ? 'Enter a quantity greater than 0.' : null;
     });
-    if (_nameError != null || _priceError != null || _barcodeError != null) return;
+    if (_nameError != null || _priceError != null || _barcodeError != null || _quantityError != null) return;
 
     final product = widget.inventory.createProduct(
       name: name,
@@ -795,10 +952,18 @@ class _NewProductSheetState extends State<_NewProductSheet> {
       return;
     }
 
+    // Immediately receive the first batch
+    widget.inventory.receiveStock(
+      productId: product.id,
+      quantity: quantity!,
+      expiryDate: _expiryDate,
+    );
+
     Navigator.pop(context, product);
   }
 
   Future<void> _pickImage() async {
+    // Mock image picking
     setState(() {
       _imagePath = 'assets/products/placeholder.png';
     });
@@ -822,8 +987,14 @@ class _NewProductSheetState extends State<_NewProductSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Create New Product',
+              const Text('Add Product Manually',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText)),
+              const SizedBox(height: 4),
+              Text(
+                "Enter the product's info — you'll add quantity and "
+                    'expiration date(s) on the next step.',
+                style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 12),
+              ),
               const SizedBox(height: 16),
               Center(
                 child: GestureDetector(
@@ -892,18 +1063,68 @@ class _NewProductSheetState extends State<_NewProductSheet> {
                 decoration: _fieldDecoration('Leave blank if this product has no barcode',
                     errorText: _barcodeError),
               ),
+              const SizedBox(height: 14),
+              const Text('Quantity *',
+                  style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _quantityController,
+                keyboardType: TextInputType.number,
+                decoration: _fieldDecoration('e.g. 10', errorText: _quantityError),
+              ),
+              const SizedBox(height: 14),
+              const Text('Expiration Date',
+                  style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  Expanded(
+                    child: GestureDetector(
+                      onTap: _pickExpiryManually,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                        decoration: BoxDecoration(
+                          color: AppColors.lightPeach,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(
+                          _expiryDate == null ? 'No expiration date' : _formatDate(_expiryDate!),
+                          style: TextStyle(
+                            color: _expiryDate == null ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.darkText,
+                            fontSize: 14,
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Material(
+                    color: AppColors.primaryOrange,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: _scanExpiry,
+                      child: const SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Icon(Icons.qr_code_scanner, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 20),
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _create,
+                  onPressed: _continue,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryOrange,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text('Create Product', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  child: const Text('Continue', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],

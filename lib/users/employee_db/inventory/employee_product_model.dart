@@ -40,6 +40,7 @@ class EmployeeProduct {
     required this.price,
     required this.barcode,
     required this.batches,
+    this.image,
     this.lowStockThreshold = 10,
   });
 
@@ -48,6 +49,7 @@ class EmployeeProduct {
   final String category;
   final double price;
   final String barcode;
+  final String? image;
 
   /// Every received lot of this product. Source of truth for stock —
   /// nothing else on this class stores a quantity directly.
@@ -58,6 +60,16 @@ class EmployeeProduct {
   /// not. This is what Inventory/POS display as "quantity" (a computed
   /// value now, rather than a stored field).
   int get quantity => batches.fold(0, (sum, b) => sum + b.quantity);
+
+  /// The price shown in the POS. If the next batch to be sold (per FEFO)
+  /// is expiring soon, the product is automatically discounted (20% off).
+  double get currentPrice {
+    final nextBatch = validBatches.isNotEmpty ? validBatches.first : null;
+    if (nextBatch != null && nextBatch.isExpiringSoon) {
+      return price * 0.8;
+    }
+    return price;
+  }
 
   /// Batches that can actually be sold right now — stock left and not
   /// expired — sorted nearest-expiry-first (FEFO). Batches with no expiry
@@ -103,15 +115,24 @@ class EmployeeProduct {
   bool get isExpired => hasExpiredBatch;
   bool get isExpiringSoon => hasExpiringSoonBatch;
 
-  EmployeeProduct copyWith({List<ProductBatch>? batches}) {
+  EmployeeProduct copyWith({
+    List<ProductBatch>? batches,
+    String? name,
+    String? category,
+    double? price,
+    String? barcode,
+    String? image,
+    int? lowStockThreshold,
+  }) {
     return EmployeeProduct(
       id: id,
-      name: name,
-      category: category,
-      price: price,
-      barcode: barcode,
+      name: name ?? this.name,
+      category: category ?? this.category,
+      price: price ?? this.price,
+      barcode: barcode ?? this.barcode,
       batches: batches ?? this.batches,
-      lowStockThreshold: lowStockThreshold,
+      image: image ?? this.image,
+      lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
     );
   }
 }

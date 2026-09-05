@@ -5,8 +5,8 @@ import '../employee_inventory_controller.dart';
 import 'employee_batch_detail_sheet.dart';
 import 'employee_dummy_products.dart';
 import 'employee_product_model.dart';
-import 'employee_stock_adjust_sheet.dart';
-import 'employee_stock_receiving_page.dart';
+import 'employee_edit_product_page.dart';
+import 'employee_add_product_page.dart';
 
 /// Employee "Inventory" tab: view current stock and adjust it manually
 /// (Inventory and Stock Management feature).
@@ -45,27 +45,27 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
     }).toList();
   }
 
-  void _openAdjustSheet(EmployeeProduct product) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => EmployeeStockAdjustSheet(
-        product: product,
-        onAdjust: (delta) => widget.inventory.adjustStock(product.id, delta),
+  void _openEditProduct(EmployeeProduct product) {
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => EmployeeEditProductPage(
+          inventory: widget.inventory,
+          product: product,
+        ),
       ),
     );
   }
 
-  /// Opens the Stock Receiving screen (barcode scan or manual
-  /// search/create, then quantity/expiry/supplier/notes entry) — the
-  /// primary way new stock gets added, separate from the quick +/- of
+  /// Opens the Add Product screen (barcode scan, search-to-restock, or
+  /// add manually, then quantity/expiration-date/supplier/notes entry) —
+  /// the primary way new stock gets added, separate from the quick +/- of
   /// [EmployeeStockAdjustSheet].
-  void _openStockReceiving() {
+  void _openAddProduct() {
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (context) => EmployeeStockReceivingPage(inventory: widget.inventory),
+        builder: (context) => EmployeeAddProductPage(inventory: widget.inventory),
       ),
     );
   }
@@ -80,9 +80,9 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => EmployeeBatchDetailSheet(
         product: product,
-        onAdjustStock: () {
+        onEditProduct: () {
           Navigator.pop(sheetContext);
-          _openAdjustSheet(product);
+          _openEditProduct(product);
         },
       ),
     );
@@ -111,9 +111,9 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
                               color: AppColors.darkText, fontSize: 28, fontWeight: FontWeight.bold),
                         ),
                         ElevatedButton.icon(
-                          onPressed: _openStockReceiving,
+                          onPressed: _openAddProduct,
                           icon: const Icon(Icons.add_box_outlined, size: 18),
-                          label: const Text('Receive Stock'),
+                          label: const Text('Add Product'),
                           style: ElevatedButton.styleFrom(
                             backgroundColor: AppColors.primaryOrange,
                             foregroundColor: Colors.white,
@@ -289,7 +289,9 @@ class _InventoryItemCard extends StatelessWidget {
               width: 56,
               height: 56,
               decoration: BoxDecoration(color: AppColors.lightBackground, borderRadius: BorderRadius.circular(12)),
-              child: const Icon(Icons.image_outlined, color: AppColors.placeholderColor, size: 26),
+              child: product.image != null
+                  ? const Icon(Icons.image, color: AppColors.primaryOrange, size: 26)
+                  : const Icon(Icons.image_outlined, color: AppColors.placeholderColor, size: 26),
             ),
             const SizedBox(width: 14),
             Expanded(
