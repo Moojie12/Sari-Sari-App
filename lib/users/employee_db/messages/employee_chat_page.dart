@@ -4,9 +4,14 @@ import '../../../core/theme/app_colors.dart';
 import 'employee_message_model.dart';
 import 'employee_messages_controller.dart';
 
-/// Chat thread between the signed-in Employee and the Store Owner.
+/// Chat thread between the signed-in Employee and a recipient (Owner or Customer).
 class EmployeeChatPage extends StatefulWidget {
-  const EmployeeChatPage({super.key});
+  const EmployeeChatPage({
+    super.key,
+    required this.recipientId,
+  });
+
+  final String recipientId;
 
   @override
   State<EmployeeChatPage> createState() => _EmployeeChatPageState();
@@ -20,9 +25,8 @@ class _EmployeeChatPageState extends State<EmployeeChatPage> {
   @override
   void initState() {
     super.initState();
-    // Opening the thread is how the employee "sees" the Owner's messages.
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      _controller.markAllRead();
+      _controller.markAllRead(widget.recipientId);
       _scrollToBottom();
     });
   }
@@ -46,7 +50,7 @@ class _EmployeeChatPageState extends State<EmployeeChatPage> {
   void _send() {
     final text = _textController.text;
     if (text.trim().isEmpty) return;
-    _controller.sendMessage(text);
+    _controller.sendMessage(widget.recipientId, text);
     _textController.clear();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
   }
@@ -60,40 +64,65 @@ class _EmployeeChatPageState extends State<EmployeeChatPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.lightBackground,
-      appBar: AppBar(
-        backgroundColor: AppColors.primaryOrange,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
-        ),
-        titleSpacing: 0,
-        title: Row(
-          children: [
-            CircleAvatar(
-              radius: 16,
-              backgroundColor: Colors.white.withValues(alpha: 0.2),
-              child: const Icon(Icons.storefront_outlined, color: Colors.white, size: 16),
+    return ListenableBuilder(
+      listenable: _controller,
+      builder: (context, _) {
+        final thread = _controller.getThread(widget.recipientId);
+        if (thread == null) {
+          return Scaffold(
+            appBar: AppBar(title: const Text('Chat')),
+            body: const Center(child: Text('Thread not found')),
+          );
+        }
+
+        final recipient = thread.recipient;
+        final messages = thread.messages;
+
+        return Scaffold(
+          backgroundColor: AppColors.lightBackground,
+          appBar: AppBar(
+            backgroundColor: AppColors.primaryOrange,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.arrow_back, color: Colors.white),
+              onPressed: () => Navigator.pop(context),
             ),
-            const SizedBox(width: 10),
-            const Text(
-              'Store Owner',
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+            titleSpacing: 0,
+            title: Row(
+              children: [
+                CircleAvatar(
+                  radius: 16,
+                  backgroundColor: Colors.white.withValues(alpha: 0.2),
+                  child: recipient.isCustomer
+                      ? Text(
+                          recipient.initials,
+                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
+                        )
+                      : Icon(recipient.avatarIcon, color: Colors.white, size: 16),
+                ),
+                const SizedBox(width: 10),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      recipient.name,
+                      style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      recipient.role,
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.8), fontSize: 10),
+                    ),
+                  ],
+                ),
+              ],
             ),
-          ],
-        ),
-      ),
-      body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: ListenableBuilder(
-                listenable: _controller,
-                builder: (context, _) {
-                  final messages = _controller.messages;
-                  return ListView.builder(
+          ),
+          body: SafeArea(
+            child: Column(
+              children: [
+                Expanded(
+                  child: ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                     itemCount: messages.length,
@@ -101,14 +130,14 @@ class _EmployeeChatPageState extends State<EmployeeChatPage> {
                       message: messages[index],
                       timeLabel: _formatTime(messages[index].sentAt),
                     ),
-                  );
-                },
-              ),
+                  ),
+                ),
+                _MessageComposer(controller: _textController, onSend: _send),
+              ],
             ),
-            _MessageComposer(controller: _textController, onSend: _send),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -121,7 +150,7 @@ class _ChatBubble extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isMe = message.sender == MessageSender.employee;
+    final isMe = message.sender == MessageSender.me;
     return Align(
       alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
       child: Container(

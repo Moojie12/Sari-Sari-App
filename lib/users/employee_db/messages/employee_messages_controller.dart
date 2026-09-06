@@ -1,90 +1,170 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
 import 'employee_message_model.dart';
 
-/// Owns the Owner &lt;-&gt; Employee message thread.
+/// Owns the message threads for the Employee.
 ///
-/// Frontend-only: there is no backend/chat server yet, so this just keeps
-/// one seeded conversation in memory for the session. [sendMessage] appends
-/// the employee's message and, to keep the screen feeling alive during
-/// front-end review, queues a short canned reply from the Owner shortly
-/// after — swap [_simulateOwnerReply] out once real messaging is wired up.
+/// Manages conversations between the Employee and the Store Owner,
+/// as well as conversations with Customers (order status, service, etc.).
 class EmployeeMessagesController extends ChangeNotifier {
-  EmployeeMessagesController._();
+  EmployeeMessagesController._() {
+    _threads = [
+      _createOwnerThread(),
+      _createCustomerThread(
+        id: 'cust-1',
+        name: 'Maria Santos',
+        initialMessage: 'Ask ko lang po if available pa yung Selecta Cookies & Cream 1.3L?',
+      ),
+      _createCustomerThread(
+        id: 'cust-2',
+        name: 'Roberto Gomez',
+        initialMessage: 'Hi, follow up ko lang po yung order #1005 ko for pickup.',
+      ),
+    ];
+  }
 
   static final EmployeeMessagesController instance = EmployeeMessagesController._();
 
   factory EmployeeMessagesController() => instance;
 
-  final List<EmployeeMessage> _messages = [
-    EmployeeMessage(
-      id: 'm1',
-      sender: MessageSender.owner,
-      text: 'Good morning! Please check the remaining stocks of the beverages.',
-      sentAt: DateTime.now().subtract(const Duration(hours: 3)),
-    ),
-    EmployeeMessage(
-      id: 'm2',
-      sender: MessageSender.employee,
-      text: "Okay po, I'll check the inventory now.",
-      sentAt: DateTime.now().subtract(const Duration(hours: 2, minutes: 55)),
-    ),
-    EmployeeMessage(
-      id: 'm3',
-      sender: MessageSender.owner,
-      text: 'Thank you! Let me know if any items need restocking.',
-      sentAt: DateTime.now().subtract(const Duration(hours: 2, minutes: 50)),
-      isRead: false,
-    ),
-  ];
+  late List<ChatThread> _threads;
 
-  int _nextId = 4;
+  List<ChatThread> get threads => List.unmodifiable(_threads);
 
-  List<EmployeeMessage> get messages => List.unmodifiable(_messages);
+  int get unreadCount => _threads.fold(0, (sum, thread) => sum + thread.unreadCount);
 
-  EmployeeMessage? get lastMessage => _messages.isEmpty ? null : _messages.last;
+  ChatThread? getThread(String recipientId) {
+    try {
+      return _threads.firstWhere((t) => t.recipient.id == recipientId);
+    } catch (_) {
+      return null;
+    }
+  }
 
-  /// Owner messages the employee hasn't opened the thread to see yet —
-  /// backs the badge on the "Messages" menu item and the Profile nav icon.
-  int get unreadCount =>
-      _messages.where((m) => m.sender == MessageSender.owner && !m.isRead).length;
-
-  void sendMessage(String text) {
+  void sendMessage(String recipientId, String text) {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
-    _messages.add(EmployeeMessage(
-      id: 'm${_nextId++}',
-      sender: MessageSender.employee,
+
+    final index = _threads.indexWhere((t) => t.recipient.id == recipientId);
+    if (index < 0) return;
+
+    final thread = _threads[index];
+    final newMessage = EmployeeMessage(
+      id: 'm-${DateTime.now().millisecondsSinceEpoch}',
+      sender: MessageSender.me,
       text: trimmed,
       sentAt: DateTime.now(),
-    ));
+    );
+
+    final updatedMessages = List<EmployeeMessage>.from(thread.messages)..add(newMessage);
+    _threads[index] = thread.copyWith(messages: updatedMessages);
     notifyListeners();
-    _simulateOwnerReply();
+
+    _simulateReply(recipientId);
   }
 
-  /// Marks every Owner message as read — called when the employee opens
-  /// the chat thread.
-  void markAllRead() {
+  void markAllRead(String recipientId) {
+    final index = _threads.indexWhere((t) => t.recipient.id == recipientId);
+    if (index < 0) return;
+
+    final thread = _threads[index];
     var changed = false;
-    for (var i = 0; i < _messages.length; i++) {
-      if (_messages[i].sender == MessageSender.owner && !_messages[i].isRead) {
-        _messages[i] = _messages[i].copyWith(isRead: true);
+    final updatedMessages = thread.messages.map((m) {
+      if (m.sender == MessageSender.them && !m.isRead) {
         changed = true;
+        return m.copyWith(isRead: true);
       }
+      return m;
+    }).toList();
+
+    if (changed) {
+      _threads[index] = thread.copyWith(messages: updatedMessages);
+      notifyListeners();
     }
-    if (changed) notifyListeners();
   }
 
-  void _simulateOwnerReply() {
+  void _simulateReply(String recipientId) {
+    final thread = getThread(recipientId);
+    if (thread == null) return;
+
     Future.delayed(const Duration(seconds: 2), () {
-      _messages.add(EmployeeMessage(
-        id: 'm${_nextId++}',
-        sender: MessageSender.owner,
-        text: "Noted, thank you for the update.",
+      final replyText = thread.recipient.isCustomer
+          ? "Sige po, thank you!"
+          : "Noted, thank you for the update.";
+
+      final index = _threads.indexWhere((t) => t.recipient.id == recipientId);
+      if (index < 0) return;
+
+      final updatedThread = _threads[index];
+      final reply = EmployeeMessage(
+        id: 'r-${DateTime.now().millisecondsSinceEpoch}',
+        sender: MessageSender.them,
+        text: replyText,
         sentAt: DateTime.now(),
         isRead: false,
-      ));
+      );
+
+      final newMessages = List<EmployeeMessage>.from(updatedThread.messages)..add(reply);
+      _threads[index] = updatedThread.copyWith(messages: newMessages);
       notifyListeners();
     });
+  }
+
+  ChatThread _createOwnerThread() {
+    return ChatThread(
+      recipient: const ChatRecipient(
+        id: 'owner',
+        name: 'Store Owner',
+        role: 'Owner',
+        avatarIcon: Icons.storefront_outlined,
+      ),
+      messages: [
+        EmployeeMessage(
+          id: 'om1',
+          sender: MessageSender.them,
+          text: 'Good morning! Please check the remaining stocks of the beverages.',
+          sentAt: DateTime.now().subtract(const Duration(hours: 3)),
+        ),
+        EmployeeMessage(
+          id: 'om2',
+          sender: MessageSender.me,
+          text: "Okay po, I'll check the inventory now.",
+          sentAt: DateTime.now().subtract(const Duration(hours: 2, minutes: 55)),
+        ),
+        EmployeeMessage(
+          id: 'om3',
+          sender: MessageSender.them,
+          text: 'Thank you! Let me know if any items need restocking.',
+          sentAt: DateTime.now().subtract(const Duration(hours: 2, minutes: 50)),
+          isRead: false,
+        ),
+      ],
+    );
+  }
+
+  ChatThread _createCustomerThread({
+    required String id,
+    required String name,
+    required String initialMessage,
+  }) {
+    return ChatThread(
+      recipient: ChatRecipient(
+        id: id,
+        name: name,
+        role: 'Customer',
+        isCustomer: true,
+      ),
+      messages: [
+        EmployeeMessage(
+          id: '$id-m1',
+          sender: MessageSender.them,
+          text: initialMessage,
+          sentAt: DateTime.now().subtract(const Duration(minutes: 45)),
+          isRead: false,
+        ),
+      ],
+    );
   }
 }

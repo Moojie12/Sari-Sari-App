@@ -5,10 +5,8 @@ import 'employee_chat_page.dart';
 import 'employee_message_model.dart';
 import 'employee_messages_controller.dart';
 
-/// "Messages" screen: entry point into the Owner &lt;-&gt; Employee
-/// conversation (sales/inventory/stock/order concerns and day-to-day
-/// coordination). Employee-side scope only, for now, so there's a single
-/// thread — with the Store Owner.
+/// "Messages" screen: entry point into internal (Owner) and external
+/// (Customer) conversations for the Employee.
 class EmployeeMessagesPage extends StatelessWidget {
   const EmployeeMessagesPage({super.key});
 
@@ -44,20 +42,51 @@ class EmployeeMessagesPage extends StatelessWidget {
       body: ListenableBuilder(
         listenable: controller,
         builder: (context, _) {
-          final lastMessage = controller.lastMessage;
-          final unreadCount = controller.unreadCount;
+          final threads = controller.threads;
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 16, 16, 16),
-            children: [
-              Material(
+          if (threads.isEmpty) {
+            return Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.forum_outlined,
+                    size: 48,
+                    color: AppColors.primaryOrange.withValues(alpha: 0.4),
+                  ),
+                  const SizedBox(height: 12),
+                  Text(
+                    'No messages yet',
+                    style: TextStyle(
+                      color: AppColors.secondaryText.withValues(alpha: 0.6),
+                      fontSize: 14,
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return ListView.separated(
+            padding: const EdgeInsets.all(16),
+            itemCount: threads.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 12),
+            itemBuilder: (context, index) {
+              final thread = threads[index];
+              final lastMessage = thread.lastMessage;
+              final unreadCount = thread.unreadCount;
+              final recipient = thread.recipient;
+
+              return Material(
                 color: AppColors.cardWhite,
                 borderRadius: BorderRadius.circular(16),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(16),
                   onTap: () => Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const EmployeeChatPage()),
+                    MaterialPageRoute(
+                      builder: (context) => EmployeeChatPage(recipientId: recipient.id),
+                    ),
                   ),
                   child: Padding(
                     padding: const EdgeInsets.all(14),
@@ -66,7 +95,15 @@ class EmployeeMessagesPage extends StatelessWidget {
                         CircleAvatar(
                           radius: 26,
                           backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.12),
-                          child: const Icon(Icons.storefront_outlined, color: AppColors.primaryOrange),
+                          child: recipient.isCustomer
+                              ? Text(
+                                  recipient.initials,
+                                  style: const TextStyle(
+                                    color: AppColors.primaryOrange,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                )
+                              : Icon(recipient.avatarIcon, color: AppColors.primaryOrange),
                         ),
                         const SizedBox(width: 14),
                         Expanded(
@@ -76,9 +113,9 @@ class EmployeeMessagesPage extends StatelessWidget {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  const Text(
-                                    'Store Owner',
-                                    style: TextStyle(
+                                  Text(
+                                    recipient.name,
+                                    style: const TextStyle(
                                       color: AppColors.darkText,
                                       fontSize: 15,
                                       fontWeight: FontWeight.bold,
@@ -101,9 +138,9 @@ class EmployeeMessagesPage extends StatelessWidget {
                                     child: Text(
                                       lastMessage == null
                                           ? 'No messages yet'
-                                          : (lastMessage.sender == MessageSender.employee
-                                          ? 'You: ${lastMessage.text}'
-                                          : lastMessage.text),
+                                          : (lastMessage.sender == MessageSender.me
+                                              ? 'You: ${lastMessage.text}'
+                                              : lastMessage.text),
                                       maxLines: 1,
                                       overflow: TextOverflow.ellipsis,
                                       style: TextStyle(
@@ -144,8 +181,8 @@ class EmployeeMessagesPage extends StatelessWidget {
                     ),
                   ),
                 ),
-              ),
-            ],
+              );
+            },
           );
         },
       ),

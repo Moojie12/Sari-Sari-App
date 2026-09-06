@@ -1,12 +1,34 @@
-import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
 
-/// Who sent an [EmployeeMessage] — the only two participants in the
-/// Owner &lt;-&gt; Employee conversation.
-enum MessageSender { employee, owner }
+/// Who sent an [EmployeeMessage].
+enum MessageSender { me, them }
 
-/// A single chat bubble in the Owner &lt;-&gt; Employee conversation (internal
-/// store communication: sales concerns, inventory/stock concerns,
-/// instructions, problem reports, day-to-day coordination).
+/// Information about a chat participant (Owner or Customer).
+@immutable
+class ChatRecipient {
+  const ChatRecipient({
+    required this.id,
+    required this.name,
+    required this.role,
+    this.isCustomer = false,
+    this.avatarIcon = Icons.person_outline,
+  });
+
+  final String id;
+  final String name;
+  final String role;
+  final bool isCustomer;
+  final IconData avatarIcon;
+
+  String get initials {
+    final parts = name.split(' ');
+    if (parts.isEmpty) return '?';
+    if (parts.length == 1) return parts[0][0].toUpperCase();
+    return (parts[0][0] + parts.last[0]).toUpperCase();
+  }
+}
+
+/// A single chat bubble in a conversation.
 @immutable
 class EmployeeMessage {
   const EmployeeMessage({
@@ -22,9 +44,7 @@ class EmployeeMessage {
   final String text;
   final DateTime sentAt;
 
-  /// Whether the *employee* has seen this message yet. Only meaningful for
-  /// [MessageSender.owner] messages — the employee's own messages are
-  /// always considered read.
+  /// Whether the message has been seen by the employee.
   final bool isRead;
 
   EmployeeMessage copyWith({bool? isRead}) {
@@ -34,6 +54,29 @@ class EmployeeMessage {
       text: text,
       sentAt: sentAt,
       isRead: isRead ?? this.isRead,
+    );
+  }
+}
+
+/// A collection of messages between the Employee and a specific recipient.
+class ChatThread {
+  const ChatThread({
+    required this.recipient,
+    required this.messages,
+  });
+
+  final ChatRecipient recipient;
+  final List<EmployeeMessage> messages;
+
+  EmployeeMessage? get lastMessage => messages.isEmpty ? null : messages.last;
+
+  int get unreadCount =>
+      messages.where((m) => m.sender == MessageSender.them && !m.isRead).length;
+
+  ChatThread copyWith({List<EmployeeMessage>? messages}) {
+    return ChatThread(
+      recipient: recipient,
+      messages: messages ?? this.messages,
     );
   }
 }
