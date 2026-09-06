@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/top_notification.dart';
 import '../customer_cart_controller.dart';
+import '../purchases/customer_order_controller.dart';
+import '../checkout/customer_checkout_page.dart';
 import 'customer_product_model.dart';
 
 /// Full-screen product details page.
@@ -10,10 +13,12 @@ class CustomerProductDetailsPage extends StatefulWidget {
     super.key,
     required this.product,
     required this.cartController,
+    required this.orderController,
   });
 
   final CustomerProduct product;
   final CustomerCartController cartController;
+  final CustomerOrderController orderController;
 
   @override
   State<CustomerProductDetailsPage> createState() =>
@@ -35,24 +40,29 @@ class _CustomerProductDetailsPageState
 
   void _handleAddToCart() {
     final added =
-        widget.cartController.addToCart(widget.product, quantity: _quantity);
+    widget.cartController.addToCart(widget.product, quantity: _quantity);
     if (!added) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Added to cart',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: AppColors.primaryOrange,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          duration: const Duration(seconds: 2),
+    TopNotification.show(context, 'Added to cart');
+  }
+
+  void _handleBuyNow() {
+    // Direct purchase: checkout reads from cartController.items, so make
+    // sure only this product (at the chosen quantity) is in the cart
+    // before handing off to checkout.
+    widget.cartController.clearCart();
+    final added =
+    widget.cartController.addToCart(widget.product, quantity: _quantity);
+    if (!added) return;
+
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => CustomerCheckoutPage(
+          cartController: widget.cartController,
+          orderController: widget.orderController,
         ),
-      );
+      ),
+    );
   }
 
   @override
@@ -144,30 +154,56 @@ class _CustomerProductDetailsPageState
                 onIncrement: _incrementQuantity,
               ),
               const SizedBox(height: 40),
-              SizedBox(
-                width: double.infinity,
-                height: 50,
-                child: ElevatedButton.icon(
-                  onPressed: _isOutOfStock ? null : _handleAddToCart,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryOrange,
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    disabledBackgroundColor:
-                        AppColors.borderColor.withValues(alpha: 0.5),
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
+              Row(
+                children: [
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: OutlinedButton.icon(
+                        onPressed: _isOutOfStock ? null : _handleAddToCart,
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primaryOrange,
+                          side: const BorderSide(color: AppColors.primaryOrange),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(Icons.add_shopping_cart, size: 20),
+                        label: const Text(
+                          'Add to Cart',
+                          style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                        ),
+                      ),
                     ),
                   ),
-                  icon: const Icon(Icons.add_shopping_cart),
-                  label: Text(
-                    _isOutOfStock ? 'Out of Stock' : 'Add to Cart',
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.bold,
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: SizedBox(
+                      height: 50,
+                      child: ElevatedButton.icon(
+                        onPressed: _isOutOfStock ? null : _handleBuyNow,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryOrange,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          disabledBackgroundColor:
+                          AppColors.borderColor.withValues(alpha: 0.5),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                        ),
+                        icon: const Icon(Icons.shopping_bag_outlined, size: 20),
+                        label: Text(
+                          _isOutOfStock ? 'Out of Stock' : 'Buy Now',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ),
                     ),
                   ),
-                ),
+                ],
               ),
             ],
           ),
@@ -229,20 +265,24 @@ class _QuantitySelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
         _QuantityButton(
           icon: Icons.remove,
           onPressed: enabled ? onDecrement : null,
         ),
-        SizedBox(
-          width: 60,
-          child: Text(
-            '$quantity',
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              color: AppColors.darkText,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
+        Flexible(
+          child: SizedBox(
+            width: 60,
+            child: Text(
+              '$quantity',
+              textAlign: TextAlign.center,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                color: AppColors.darkText,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
+              ),
             ),
           ),
         ),
@@ -265,7 +305,6 @@ class _QuantityButton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Material(
       color: Colors.white,
-      borderRadius: BorderRadius.circular(10),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(10),
         side: BorderSide(

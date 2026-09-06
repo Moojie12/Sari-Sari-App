@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_colors.dart';
+import 'package:sari_sari/core/theme/app_colors.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_details_page.dart';
@@ -48,14 +48,16 @@ class _CustomerPurchasesPageState extends State<CustomerPurchasesPage> with Sing
             ),
             Container(
               height: 50,
-              margin: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               child: TabBar(
                 controller: _tabController,
-                isScrollable: true,
+                isScrollable: false,
                 indicatorColor: AppColors.primaryOrange,
                 labelColor: AppColors.primaryOrange,
                 unselectedLabelColor: AppColors.secondaryText,
-                labelStyle: const TextStyle(fontWeight: FontWeight.bold),
+                labelPadding: const EdgeInsets.symmetric(horizontal: 4),
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
                 tabs: const [
                   Tab(text: 'To Pay'),
                   Tab(text: 'To Ship'),
@@ -226,4 +228,3 @@ class _OrderCard extends StatelessWidget {
     );
   }
 }
-
