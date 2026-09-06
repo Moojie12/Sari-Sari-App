@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
-import '../../core/theme/app_colors.dart';
+import 'package:sari_sari/core/theme/app_colors.dart';
 import 'package:sari_sari/users/customer_db/cart/customer_cart_page.dart';
 import 'package:sari_sari/users/customer_db/customer_cart_controller.dart';
 import 'package:sari_sari/users/customer_db/customer_floating_nav_bar.dart';
@@ -10,13 +10,11 @@ import 'package:sari_sari/users/customer_db/notifications/customer_notifications
 import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_purchases_page.dart';
 import 'package:sari_sari/users/customer_db/profile/customer_profile_page.dart';
+import 'package:sari_sari/users/customer_db/chat/customer_chat_page.dart';
+import 'package:sari_sari/users/customer_db/chat/customer_chat_controller.dart';
+import 'package:sari_sari/users/customer_db/notifications/customer_notifications_controller.dart';
 
 /// Main shell for the customer-facing side of the app.
-///
-/// Owns the selected bottom-navigation index and displays the matching
-/// page above a floating bottom navigation bar. Tab pages are kept in an
-/// [IndexedStack] so switching tabs does not rebuild or discard their
-/// state (e.g. scroll position) — only the visible child changes.
 class CustomerDashboard extends StatefulWidget {
   const CustomerDashboard({super.key});
 
@@ -27,24 +25,21 @@ class CustomerDashboard extends StatefulWidget {
 class _CustomerDashboardState extends State<CustomerDashboard> {
   int _selectedIndex = 0;
 
-  // Global cart controller shared across the customer experience.
+  // Using the singleton controllers (factory ensures we get the global instance)
   final _cartController = CustomerCartController();
-
-  // Global order controller shared across the customer experience.
   final _orderController = CustomerOrderController();
+  final _notificationsController = CustomerNotificationsController();
+  final _chatController = CustomerChatController();
 
-  // Whether the floating nav bar is currently shown. Toggled by
-  // [_handleScrollNotification] as the active tab's content scrolls.
   bool _isNavBarVisible = true;
 
-  // Mock/temporary unread-notification count shown as a badge on the
-  // "Notifications" tab.
-  final int _unreadNotificationCount = 3;
-
-  List<Widget>? _cachedPages;
-
-  List<Widget> get _pages => _cachedPages ??= [
-    CustomerHomePage(cartController: _cartController),
+  // Pages are now handled in a standard list inside build or initState
+  // to avoid any stale state during Hot Reload.
+  List<Widget> get _pages => [
+    CustomerHomePage(
+      cartController: _cartController,
+      orderController: _orderController,
+    ),
     const CustomerNotificationsPage(),
     CustomerPurchasesPage(orderController: _orderController),
     const CustomerProfilePage(),
@@ -52,8 +47,8 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
 
   @override
   void dispose() {
-    _cartController.dispose();
-    _orderController.dispose();
+    // Controllers that are singletons should usually NOT be disposed here
+    // unless you want them to reset every time the dashboard is closed.
     super.dispose();
   }
 
@@ -86,8 +81,6 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
       backgroundColor: AppColors.lightBackground,
       body: Stack(
         children: [
-          // Tab Content Area (fills the screen; the cart icon and nav bar
-          // float above it instead of reserving their own layout space).
           NotificationListener<UserScrollNotification>(
             onNotification: _handleScrollNotification,
             child: IndexedStack(
@@ -95,20 +88,26 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
               children: _pages,
             ),
           ),
-          // Floating Cart Button — stays visible whenever the cart has
-          // items, even if the nav bar (and this button, normally) would
-          // otherwise be hidden by scrolling. Only fades away on scroll
-          // once the cart is back to empty.
+          // Shortcut Button — Top Right
           Positioned(
             top: 0,
             right: 0,
             child: SafeArea(
               bottom: false,
               child: ListenableBuilder(
-                listenable: _cartController,
+                listenable: Listenable.merge([_cartController, _chatController]),
                 builder: (context, _) {
+                  final isHome = _selectedIndex == 0;
+                  final isProfile = _selectedIndex == 3;
                   final hasItems = _cartController.itemCount > 0;
-                  final isVisible = _isNavBarVisible || hasItems;
+                  final hasChats = _chatController.unreadCount > 0 || _chatController.hasActiveChats;
+                  
+                  // For Home: visible if nav bar is shown OR cart has items.
+                  // For Profile: visible if nav bar is shown OR if there are active chats.
+                  final isVisible = isHome 
+                      ? (_isNavBarVisible || hasItems) 
+                      : (isProfile && (_isNavBarVisible || hasChats));
+
                   return IgnorePointer(
                     ignoring: !isVisible,
                     child: AnimatedOpacity(
@@ -122,33 +121,50 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                             FloatingActionButton(
                               mini: true,
                               onPressed: () {
-                                Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) => CustomerCartPage(
-                                      cartController: _cartController,
-                                      orderController: _orderController,
+                                if (isHome) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => CustomerCartPage(
+                                        cartController: _cartController,
+                                        orderController: _orderController,
+                                      ),
                                     ),
-                                  ),
-                                );
+                                  );
+                                } else if (isProfile) {
+                                  Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (context) => const CustomerChatPage(),
+                                    ),
+                                  );
+                                }
                               },
                               backgroundColor: AppColors.primaryOrange,
                               elevation: 4,
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: const Icon(
-                                Icons.shopping_cart_outlined,
+                              child: Icon(
+                                isHome ? Icons.shopping_cart_outlined : Icons.chat_outlined,
                                 color: Colors.white,
                                 size: 20,
                               ),
                             ),
-                            if (hasItems)
+                            if (isHome && hasItems)
                               Positioned(
                                 right: -4,
                                 top: -4,
-                                child: _CartBadge(
+                                child: _StatusBadge(
                                   count: _cartController.itemCount,
+                                ),
+                              ),
+                            if (isProfile && _chatController.unreadCount > 0)
+                              Positioned(
+                                right: -4,
+                                top: -4,
+                                child: _StatusBadge(
+                                  count: _chatController.unreadCount,
                                 ),
                               ),
                           ],
@@ -174,10 +190,15 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
                 child: AnimatedOpacity(
                   duration: _navBarAnimationDuration,
                   opacity: _isNavBarVisible ? 1 : 0,
-                  child: CustomerFloatingNavBar(
-                    selectedIndex: _selectedIndex,
-                    onDestinationSelected: _onDestinationSelected,
-                    notificationBadgeCount: _unreadNotificationCount,
+                  child: ListenableBuilder(
+                    listenable: _notificationsController,
+                    builder: (context, _) {
+                      return CustomerFloatingNavBar(
+                        selectedIndex: _selectedIndex,
+                        onDestinationSelected: _onDestinationSelected,
+                        notificationBadgeCount: _notificationsController.unreadCount,
+                      );
+                    },
                   ),
                 ),
               ),
@@ -189,9 +210,8 @@ class _CustomerDashboardState extends State<CustomerDashboard> {
   }
 }
 
-class _CartBadge extends StatelessWidget {
-  const _CartBadge({required this.count});
-
+class _StatusBadge extends StatelessWidget {
+  const _StatusBadge({required this.count});
   final int count;
 
   @override

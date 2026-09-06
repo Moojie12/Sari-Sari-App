@@ -22,43 +22,43 @@ class CustomerCheckoutPage extends StatefulWidget {
 class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
   OrderType _orderType = OrderType.pickup;
   PaymentMethod _paymentMethod = PaymentMethod.cashOnDelivery;
-  final double _deliveryFee = 20.0;
+  final _addressController = TextEditingController(text: 'Juan Dela Cruz, Pagsanjan, Laguna, 09XXXXXXXXX');
 
-  double get _total => widget.cartController.totalAmount + (_orderType == OrderType.delivery ? _deliveryFee : 0);
+  @override
+  void dispose() {
+    _addressController.dispose();
+    super.dispose();
+  }
 
   void _handlePlaceOrder() {
-    final orderId = widget.orderController.generateOrderNumber();
-    final items = widget.cartController.items.map((item) => CustomerOrderItem(
-      productId: item.product.id,
-      productName: item.product.name,
-      price: item.product.price,
-      quantity: item.quantity,
-      subtotal: item.subtotal,
-    )).toList();
-
     final order = CustomerOrder(
-      orderId: orderId,
+      orderId: widget.orderController.generateOrderNumber(),
       orderDate: DateTime.now(),
-      items: items,
+      items: widget.cartController.items.map((item) => CustomerOrderItem(
+        productId: item.product.id,
+        productName: item.product.name,
+        price: item.product.price,
+        quantity: item.quantity,
+        subtotal: item.subtotal,
+      )).toList(),
       orderType: _orderType,
       paymentMethod: _paymentMethod,
-      paymentStatus: _paymentMethod == PaymentMethod.cashOnDelivery ? PaymentStatus.unpaid : PaymentStatus.paid,
-      deliveryAddress: _orderType == OrderType.delivery ? 'Juan Dela Cruz, Pagsanjan, Laguna, 09XXXXXXXXX' : null,
+      paymentStatus: PaymentStatus.unpaid,
+      deliveryAddress: _orderType == OrderType.delivery ? _addressController.text : null,
       subtotal: widget.cartController.totalAmount,
-      deliveryFee: _orderType == OrderType.delivery ? _deliveryFee : 0,
-      totalAmount: _total,
+      deliveryFee: _orderType == OrderType.delivery ? 20.0 : 0.0,
+      totalAmount: widget.cartController.totalAmount + (_orderType == OrderType.delivery ? 20.0 : 0.0),
       status: OrderStatus.pending,
     );
 
     widget.orderController.placeOrder(order);
     widget.cartController.clearCart();
 
-    Navigator.pushAndRemoveUntil(
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => CustomerOrderConfirmationPage(order: order),
       ),
-      (route) => route.isFirst,
     );
   }
 
@@ -81,57 +81,91 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _SectionHeader(title: 'Order Summary'),
+            const Text('Order Type', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            _OrderSummaryList(items: widget.cartController.items),
-            const SizedBox(height: 32),
-            
-            _SectionHeader(title: 'Order Type'),
-            const SizedBox(height: 12),
-            _OrderTypeSelector(
-              selectedType: _orderType,
-              onChanged: (type) => setState(() => _orderType = type),
+            Row(
+              children: [
+                _OptionCard(
+                  label: 'Pickup',
+                  icon: Icons.storefront,
+                  isSelected: _orderType == OrderType.pickup,
+                  onTap: () => setState(() => _orderType = OrderType.pickup),
+                ),
+                const SizedBox(width: 12),
+                _OptionCard(
+                  label: 'Delivery',
+                  icon: Icons.local_shipping,
+                  isSelected: _orderType == OrderType.delivery,
+                  onTap: () => setState(() => _orderType = OrderType.delivery),
+                ),
+              ],
             ),
-            const SizedBox(height: 32),
-
             if (_orderType == OrderType.delivery) ...[
-              _SectionHeader(title: 'Delivery Information'),
+              const SizedBox(height: 24),
+              const Text('Delivery Address', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-              _DeliveryInfoCard(),
-              const SizedBox(height: 32),
+              TextField(
+                controller: _addressController,
+                maxLines: 2,
+                decoration: InputDecoration(
+                  filled: true,
+                  fillColor: Colors.white,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  contentPadding: const EdgeInsets.all(16),
+                ),
+              ),
             ],
-
-            _SectionHeader(title: 'Payment Method'),
+            const SizedBox(height: 24),
+            const Text('Payment Method', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
-            _PaymentMethodSelector(
-              selectedMethod: _paymentMethod,
-              onChanged: (method) => setState(() => _paymentMethod = method),
+            _PaymentTile(
+              label: 'Cash on Delivery',
+              icon: Icons.money,
+              isSelected: _paymentMethod == PaymentMethod.cashOnDelivery,
+              onTap: () => setState(() => _paymentMethod = PaymentMethod.cashOnDelivery),
+            ),
+            const SizedBox(height: 8),
+            _PaymentTile(
+              label: 'GCash',
+              icon: Icons.account_balance_wallet,
+              isSelected: _paymentMethod == PaymentMethod.gCash,
+              onTap: () => setState(() => _paymentMethod = PaymentMethod.gCash),
+            ),
+            const SizedBox(height: 24),
+            const Text('Order Summary', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+              child: Column(
+                children: [
+                  _SummaryRow(label: 'Subtotal', value: widget.cartController.totalAmount),
+                  if (_orderType == OrderType.delivery)
+                    const _SummaryRow(label: 'Delivery Fee', value: 20.0),
+                  const Divider(height: 24),
+                  _SummaryRow(
+                    label: 'Total',
+                    value: widget.cartController.totalAmount + (_orderType == OrderType.delivery ? 20.0 : 0.0),
+                    isBold: true,
+                  ),
+                ],
+              ),
             ),
             const SizedBox(height: 32),
-
-            _SectionHeader(title: 'Price Summary'),
-            const SizedBox(height: 12),
-            _PriceSummaryCard(
-              subtotal: widget.cartController.totalAmount,
-              deliveryFee: _orderType == OrderType.delivery ? _deliveryFee : 0,
-              total: _total,
-            ),
-            const SizedBox(height: 40),
-
             SizedBox(
               width: double.infinity,
+              height: 54,
               child: ElevatedButton(
                 onPressed: _handlePlaceOrder,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryOrange,
                   foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 0,
                 ),
-                child: const Text('PLACE ORDER', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: const Text('Place Order', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
-            const SizedBox(height: 24),
           ],
         ),
       ),
@@ -139,147 +173,50 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
   }
 }
 
-class _SectionHeader extends StatelessWidget {
-  const _SectionHeader({required this.title});
-  final String title;
+class _OptionCard extends StatelessWidget {
+  const _OptionCard({required this.label, required this.icon, required this.isSelected, required this.onTap});
+  final String label;
+  final IconData icon;
+  final bool isSelected;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Text(
-      title,
-      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText),
-    );
-  }
-}
-
-class _OrderSummaryList extends StatelessWidget {
-  const _OrderSummaryList({required this.items});
-  final List<CartItem> items;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-      ),
-      child: Column(
-        children: items.map((item) => Padding(
-          padding: const EdgeInsets.only(bottom: 8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Expanded(
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          padding: const EdgeInsets.symmetric(vertical: 16),
+          decoration: BoxDecoration(
+            color: isSelected ? AppColors.primaryOrange : Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: isSelected ? AppColors.primaryOrange : AppColors.borderColor),
+          ),
+          child: Column(
             children: [
-              Text('${item.product.name} x${item.quantity}', style: const TextStyle(color: AppColors.secondaryText)),
-              Text('₱${item.subtotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+              Icon(icon, color: isSelected ? Colors.white : AppColors.secondaryText),
+              const SizedBox(height: 8),
+              Text(
+                label,
+                style: TextStyle(
+                  color: isSelected ? Colors.white : AppColors.darkText,
+                  fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
+                ),
+              ),
             ],
           ),
-        )).toList(),
-      ),
-    );
-  }
-}
-
-class _OrderTypeSelector extends StatelessWidget {
-  const _OrderTypeSelector({required this.selectedType, required this.onChanged});
-  final OrderType selectedType;
-  final ValueChanged<OrderType> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Expanded(
-          child: _SelectableCard(
-            title: 'Pickup',
-            isSelected: selectedType == OrderType.pickup,
-            onTap: () => onChanged(OrderType.pickup),
-            icon: Icons.storefront,
-          ),
-        ),
-        const SizedBox(width: 16),
-        Expanded(
-          child: _SelectableCard(
-            title: 'Delivery',
-            isSelected: selectedType == OrderType.delivery,
-            onTap: () => onChanged(OrderType.delivery),
-            icon: Icons.delivery_dining,
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PaymentMethodSelector extends StatelessWidget {
-  const _PaymentMethodSelector({required this.selectedMethod, required this.onChanged});
-  final PaymentMethod selectedMethod;
-  final ValueChanged<PaymentMethod> onChanged;
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        _PaymentOption(
-          title: 'Cash on Delivery',
-          isSelected: selectedMethod == PaymentMethod.cashOnDelivery,
-          onTap: () => onChanged(PaymentMethod.cashOnDelivery),
-          icon: Icons.money,
-        ),
-        const SizedBox(height: 12),
-        _PaymentOption(
-          title: 'GCash',
-          isSelected: selectedMethod == PaymentMethod.gCash,
-          onTap: () => onChanged(PaymentMethod.gCash),
-          icon: Icons.account_balance_wallet,
-        ),
-      ],
-    );
-  }
-}
-
-class _SelectableCard extends StatelessWidget {
-  const _SelectableCard({required this.title, required this.isSelected, required this.onTap, required this.icon});
-  final String title;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final IconData icon;
-
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primaryOrange.withValues(alpha: 0.1) : Colors.white,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? AppColors.primaryOrange : Colors.transparent,
-            width: 2,
-          ),
-        ),
-        child: Column(
-          children: [
-            Icon(icon, color: isSelected ? AppColors.primaryOrange : AppColors.secondaryText),
-            const SizedBox(height: 8),
-            Text(title, style: TextStyle(
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? AppColors.primaryOrange : AppColors.secondaryText,
-            )),
-          ],
         ),
       ),
     );
   }
 }
 
-class _PaymentOption extends StatelessWidget {
-  const _PaymentOption({required this.title, required this.isSelected, required this.onTap, required this.icon});
-  final String title;
+class _PaymentTile extends StatelessWidget {
+  const _PaymentTile({required this.label, required this.icon, required this.isSelected, required this.onTap});
+  final String label;
+  final IconData icon;
   final bool isSelected;
   final VoidCallback onTap;
-  final IconData icon;
 
   @override
   Widget build(BuildContext context) {
@@ -290,19 +227,13 @@ class _PaymentOption extends StatelessWidget {
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(
-            color: isSelected ? AppColors.primaryOrange : Colors.transparent,
-            width: 2,
-          ),
+          border: Border.all(color: isSelected ? AppColors.primaryOrange : AppColors.borderColor),
         ),
         child: Row(
           children: [
             Icon(icon, color: isSelected ? AppColors.primaryOrange : AppColors.secondaryText),
             const SizedBox(width: 16),
-            Text(title, style: TextStyle(
-              fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
-              color: isSelected ? AppColors.darkText : AppColors.secondaryText,
-            )),
+            Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
             const Spacer(),
             if (isSelected) const Icon(Icons.check_circle, color: AppColors.primaryOrange),
           ],
@@ -312,78 +243,30 @@ class _PaymentOption extends StatelessWidget {
   }
 }
 
-class _DeliveryInfoCard extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-      child: Row(
-        children: [
-          const Icon(Icons.location_on, color: AppColors.primaryOrange),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Juan Dela Cruz', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text('Pagsanjan, Laguna', style: TextStyle(color: AppColors.secondaryText)),
-                Text('09XXXXXXXXX', style: TextStyle(color: AppColors.secondaryText)),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PriceSummaryCard extends StatelessWidget {
-  const _PriceSummaryCard({required this.subtotal, required this.deliveryFee, required this.total});
-  final double subtotal;
-  final double deliveryFee;
-  final double total;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-      child: Column(
-        children: [
-          _PriceRow(label: 'Subtotal', value: subtotal),
-          const SizedBox(height: 8),
-          _PriceRow(label: 'Delivery Fee', value: deliveryFee),
-          const Divider(height: 24),
-          _PriceRow(label: 'Total', value: total, isBold: true),
-        ],
-      ),
-    );
-  }
-}
-
-class _PriceRow extends StatelessWidget {
-  const _PriceRow({required this.label, required this.value, this.isBold = false});
+class _SummaryRow extends StatelessWidget {
+  const _SummaryRow({required this.label, required this.value, this.isBold = false});
   final String label;
   final double value;
   final bool isBold;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        Text(label, style: TextStyle(
-          color: isBold ? AppColors.darkText : AppColors.secondaryText,
-          fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-          fontSize: isBold ? 18 : 14,
-        )),
-        Text('₱${value.toStringAsFixed(2)}', style: TextStyle(
-          color: isBold ? AppColors.primaryOrange : AppColors.darkText,
-          fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
-          fontSize: isBold ? 18 : 14,
-        )),
-      ],
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(color: isBold ? AppColors.darkText : AppColors.secondaryText, fontWeight: isBold ? FontWeight.bold : FontWeight.normal)),
+          Text(
+            '₱${value.toStringAsFixed(2)}',
+            style: TextStyle(
+              fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+              color: isBold ? AppColors.primaryOrange : AppColors.darkText,
+              fontSize: isBold ? 18 : 14,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
