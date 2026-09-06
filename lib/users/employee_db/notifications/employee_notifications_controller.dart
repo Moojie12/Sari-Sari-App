@@ -26,6 +26,8 @@ class EmployeeNotificationsController extends ChangeNotifier {
   /// recomputed from live stock on every read rather than stored.
   final Set<String> _readIds = {};
 
+  final List<EmployeeNotification> _dynamicNotifications = [];
+
   final List<EmployeeNotification> _mockNotifications = [
     EmployeeNotification(
       id: 'order-1001',
@@ -33,13 +35,6 @@ class EmployeeNotificationsController extends ChangeNotifier {
       title: 'New Order Received',
       message: 'Order #1001 from Maria Santos is ready for preparation.',
       timestamp: DateTime.now().subtract(const Duration(minutes: 20)),
-    ),
-    EmployeeNotification(
-      id: 'task-eod-report',
-      type: EmployeeNotificationType.assignedTask,
-      title: 'Task Assigned',
-      message: 'The Owner assigned you to prepare the end-of-day sales report.',
-      timestamp: DateTime.now().subtract(const Duration(hours: 4)),
     ),
   ];
 
@@ -95,8 +90,9 @@ class EmployeeNotificationsController extends ChangeNotifier {
     }
 
     final mock = _mockNotifications.map((n) => n.copyWith(isRead: _readIds.contains(n.id)));
+    final dynamicNotifs = _dynamicNotifications.map((n) => n.copyWith(isRead: _readIds.contains(n.id)));
 
-    final all = [...derived, ...mock]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    final all = [...derived, ...mock, ...dynamicNotifs]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
     return all;
   }
 
@@ -109,6 +105,22 @@ class EmployeeNotificationsController extends ChangeNotifier {
   void markAllAsRead() {
     final ids = notifications.map((n) => n.id);
     _readIds.addAll(ids);
+    notifyListeners();
+  }
+
+  void addNotification({
+    required EmployeeNotificationType type,
+    required String title,
+    required String message,
+  }) {
+    final newNotif = EmployeeNotification(
+      id: 'dynamic-${DateTime.now().millisecondsSinceEpoch}',
+      type: type,
+      title: title,
+      message: message,
+      timestamp: DateTime.now(),
+    );
+    _dynamicNotifications.add(newNotif);
     notifyListeners();
   }
 }

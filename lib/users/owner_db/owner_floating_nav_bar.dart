@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 
-class _EmployeeNavDestination {
-  const _EmployeeNavDestination({
+class _OwnerNavDestination {
+  const _OwnerNavDestination({
     required this.icon,
     required this.selectedIcon,
     required this.label,
@@ -13,8 +13,8 @@ class _EmployeeNavDestination {
   final String label;
 }
 
-class EmployeeFloatingNavBar extends StatelessWidget {
-  const EmployeeFloatingNavBar({
+class OwnerFloatingNavBar extends StatelessWidget {
+  const OwnerFloatingNavBar({
     super.key,
     required this.selectedIndex,
     required this.onDestinationSelected,
@@ -31,28 +31,28 @@ class EmployeeFloatingNavBar extends StatelessWidget {
   final int ordersAlertCount;
   final int profileAlertCount;
 
-  static const List<_EmployeeNavDestination> _destinations = [
-    _EmployeeNavDestination(
+  static const List<_OwnerNavDestination> _destinations = [
+    _OwnerNavDestination(
       icon: Icons.home_outlined,
       selectedIcon: Icons.home,
       label: 'Home',
     ),
-    _EmployeeNavDestination(
+    _OwnerNavDestination(
       icon: Icons.point_of_sale_outlined,
       selectedIcon: Icons.point_of_sale,
       label: 'POS',
     ),
-    _EmployeeNavDestination(
+    _OwnerNavDestination(
       icon: Icons.inventory_2_outlined,
       selectedIcon: Icons.inventory_2,
       label: 'Inventory',
     ),
-    _EmployeeNavDestination(
+    _OwnerNavDestination(
       icon: Icons.receipt_long_outlined,
       selectedIcon: Icons.receipt_long,
       label: 'Orders',
     ),
-    _EmployeeNavDestination(
+    _OwnerNavDestination(
       icon: Icons.person_outline,
       selectedIcon: Icons.person,
       label: 'Profile',

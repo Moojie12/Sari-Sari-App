@@ -7,6 +7,7 @@ import '../inventory/employee_batch_detail_sheet.dart';
 import '../inventory/employee_expiry_badge.dart';
 import '../inventory/employee_product_model.dart';
 import '../inventory/employee_edit_product_page.dart';
+import '../inventory/employee_archive_stock_dialog.dart';
 import '../pos/employee_pos_controller.dart';
 
 /// Employee "Home" tab: a quick dashboard overview for staff (Dashboard
@@ -48,6 +49,20 @@ class EmployeeHomePage extends StatelessWidget {
             ),
           );
         },
+        onArchiveProduct: () {
+          Navigator.pop(sheetContext);
+          _showArchiveDialog(context, product);
+        },
+      ),
+    );
+  }
+
+  void _showArchiveDialog(BuildContext context, EmployeeProduct product) {
+    showDialog(
+      context: context,
+      builder: (context) => EmployeeArchiveStockDialog(
+        product: product,
+        inventory: inventory,
       ),
     );
   }

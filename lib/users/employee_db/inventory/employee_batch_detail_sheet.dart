@@ -18,6 +18,7 @@ class EmployeeBatchDetailSheet extends StatelessWidget {
     super.key,
     required this.product,
     required this.onEditProduct,
+    required this.onArchiveProduct,
   });
 
   final EmployeeProduct product;
@@ -25,6 +26,9 @@ class EmployeeBatchDetailSheet extends StatelessWidget {
   /// Called when staff tap "Edit Product" — the caller is responsible for
   /// closing this sheet and opening [EmployeeEditProductPage].
   final VoidCallback onEditProduct;
+
+  /// Called when staff tap "Archive Product".
+  final VoidCallback onArchiveProduct;
 
   @override
   Widget build(BuildContext context) {
@@ -71,18 +75,34 @@ class EmployeeBatchDetailSheet extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 20),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: onEditProduct,
-              style: OutlinedButton.styleFrom(
-                foregroundColor: AppColors.primaryOrange,
-                side: const BorderSide(color: AppColors.primaryOrange),
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+          Row(
+            children: [
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onEditProduct,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.primaryOrange,
+                    side: const BorderSide(color: AppColors.primaryOrange),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Edit', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
               ),
-              child: const Text('Edit Product', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: onArchiveProduct,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.red,
+                    side: const BorderSide(color: Colors.red),
+                    padding: const EdgeInsets.symmetric(vertical: 14),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Archive', style: TextStyle(fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
           ),
         ],
       ),

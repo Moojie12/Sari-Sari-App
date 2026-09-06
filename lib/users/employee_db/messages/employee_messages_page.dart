@@ -8,7 +8,9 @@ import 'employee_messages_controller.dart';
 /// "Messages" screen: entry point into internal (Owner) and external
 /// (Customer) conversations for the Employee.
 class EmployeeMessagesPage extends StatelessWidget {
-  const EmployeeMessagesPage({super.key});
+  const EmployeeMessagesPage({super.key, this.viewerRole = 'Employee'});
+
+  final String viewerRole;
 
   String _formatTimestamp(DateTime dateTime) {
     final now = DateTime.now();
@@ -42,7 +44,7 @@ class EmployeeMessagesPage extends StatelessWidget {
       body: ListenableBuilder(
         listenable: controller,
         builder: (context, _) {
-          final threads = controller.threads;
+          final threads = controller.threads.where((t) => t.recipient.role != viewerRole).toList();
 
           if (threads.isEmpty) {
             return Center(
@@ -113,13 +115,25 @@ class EmployeeMessagesPage extends StatelessWidget {
                               Row(
                                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Text(
-                                    recipient.name,
-                                    style: const TextStyle(
-                                      color: AppColors.darkText,
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.bold,
-                                    ),
+                                  Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        recipient.name,
+                                        style: const TextStyle(
+                                          color: AppColors.darkText,
+                                          fontSize: 15,
+                                          fontWeight: FontWeight.bold,
+                                        ),
+                                      ),
+                                      Text(
+                                        recipient.role,
+                                        style: TextStyle(
+                                          color: AppColors.secondaryText.withValues(alpha: 0.6),
+                                          fontSize: 11,
+                                        ),
+                                      ),
+                                    ],
                                   ),
                                   if (lastMessage != null)
                                     Text(

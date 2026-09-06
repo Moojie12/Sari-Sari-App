@@ -38,6 +38,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
 
     final order = CustomerOrder(
       orderId: orderId,
+      customerName: 'Juan Dela Cruz', // Dummy name for now
       orderDate: DateTime.now(),
       items: items,
       orderType: _orderType,

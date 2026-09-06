@@ -41,6 +41,7 @@ class EmployeeProfile {
     String? username,
     String? email,
     String? contactNumber,
+    String? role,
   }) {
     return EmployeeProfile(
       firstName: firstName ?? this.firstName,
@@ -48,7 +49,7 @@ class EmployeeProfile {
       username: username ?? this.username,
       email: email ?? this.email,
       contactNumber: contactNumber ?? this.contactNumber,
-      role: role,
+      role: role ?? this.role,
     );
   }
 }

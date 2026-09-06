@@ -8,6 +8,8 @@ import 'home/employee_home_page.dart';
 import 'inventory/employee_inventory_page.dart';
 import 'messages/employee_messages_controller.dart';
 import 'notifications/employee_notifications_controller.dart';
+import 'orders/employee_orders_controller.dart';
+import 'orders/employee_orders_page.dart';
 import 'pos/employee_pos_controller.dart';
 import 'pos/employee_pos_page.dart';
 import 'profile/employee_profile_page.dart';
@@ -35,6 +37,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   late final _posController = EmployeePosController(inventory: _inventoryController);
   final _messagesController = EmployeeMessagesController();
   final _notificationsController = EmployeeNotificationsController();
+  final _ordersController = EmployeeOrderController();
 
   // Whether the floating nav bar is currently shown. Toggled by
   // [_handleScrollNotification] as the active tab's content scrolls.
@@ -51,6 +54,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     ),
     EmployeePosPage(inventory: _inventoryController, posController: _posController),
     EmployeeInventoryPage(inventory: _inventoryController),
+    EmployeeOrdersPage(controller: _ordersController),
     const EmployeeProfilePage(),
   ];
 
@@ -111,7 +115,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                   opacity: _isNavBarVisible ? 1 : 0,
                   child: ListenableBuilder(
                     listenable: Listenable.merge(
-                      [_inventoryController, _messagesController, _notificationsController],
+                      [_inventoryController, _posController, _messagesController, _notificationsController, _ordersController],
                     ),
                     builder: (context, _) {
                       return EmployeeFloatingNavBar(
@@ -119,8 +123,10 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                         onDestinationSelected: _onDestinationSelected,
                         inventoryAlertCount: _inventoryController.lowStockProducts.length +
                             _inventoryController.outOfStockProducts.length,
+                        posBadgeCount: _posController.itemCount,
                         profileAlertCount: _messagesController.unreadCount +
                             _notificationsController.unreadCount,
+                        ordersAlertCount: _ordersController.activeOrders.length,
                       );
                     },
                   ),

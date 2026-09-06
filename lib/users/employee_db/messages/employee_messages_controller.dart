@@ -12,6 +12,7 @@ class EmployeeMessagesController extends ChangeNotifier {
   EmployeeMessagesController._() {
     _threads = [
       _createOwnerThread(),
+      _createEmployeeThread(),
       _createCustomerThread(
         id: 'cust-1',
         name: 'Maria Santos',
@@ -116,7 +117,7 @@ class EmployeeMessagesController extends ChangeNotifier {
     return ChatThread(
       recipient: const ChatRecipient(
         id: 'owner',
-        name: 'Store Owner',
+        name: 'Juan Dela Cruz',
         role: 'Owner',
         avatarIcon: Icons.storefront_outlined,
       ),
@@ -138,6 +139,26 @@ class EmployeeMessagesController extends ChangeNotifier {
           sender: MessageSender.them,
           text: 'Thank you! Let me know if any items need restocking.',
           sentAt: DateTime.now().subtract(const Duration(hours: 2, minutes: 50)),
+          isRead: false,
+        ),
+      ],
+    );
+  }
+
+  ChatThread _createEmployeeThread() {
+    return ChatThread(
+      recipient: const ChatRecipient(
+        id: 'employee-1',
+        name: 'Pedro Penduko',
+        role: 'Employee',
+        avatarIcon: Icons.badge_outlined,
+      ),
+      messages: [
+        EmployeeMessage(
+          id: 'em1',
+          sender: MessageSender.them,
+          text: 'Sir, tapos na po yung inventory count para sa araw na ito.',
+          sentAt: DateTime.now().subtract(const Duration(hours: 1)),
           isRead: false,
         ),
       ],

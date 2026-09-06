@@ -6,6 +6,7 @@ class CustomerOrderController extends ChangeNotifier {
     // Dummy Order #SS-0001: To Pay
     CustomerOrder(
       orderId: 'SS-0001',
+      customerName: 'Juan Dela Cruz',
       orderDate: DateTime.now().subtract(const Duration(days: 2)),
       items: const [
         CustomerOrderItem(
@@ -35,6 +36,7 @@ class CustomerOrderController extends ChangeNotifier {
     // Dummy Order #SS-0002: To Ship
     CustomerOrder(
       orderId: 'SS-0002',
+      customerName: 'Maria Santos',
       orderDate: DateTime.now().subtract(const Duration(days: 1)),
       items: const [
         CustomerOrderItem(
@@ -56,6 +58,7 @@ class CustomerOrderController extends ChangeNotifier {
     // Dummy Order #SS-0003: Out for Delivery
     CustomerOrder(
       orderId: 'SS-0003',
+      customerName: 'Juan Dela Cruz',
       orderDate: DateTime.now(),
       items: const [
         CustomerOrderItem(
@@ -78,6 +81,7 @@ class CustomerOrderController extends ChangeNotifier {
     // Dummy Order #SS-0004: Completed
     CustomerOrder(
       orderId: 'SS-0004',
+      customerName: 'Pedro Penduko',
       orderDate: DateTime.now().subtract(const Duration(days: 5)),
       items: const [
         CustomerOrderItem(

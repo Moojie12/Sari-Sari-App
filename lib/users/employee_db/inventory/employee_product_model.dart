@@ -136,3 +136,30 @@ class EmployeeProduct {
     );
   }
 }
+
+/// Represents stock that has been removed from active inventory but kept
+/// for record-keeping/owner review.
+@immutable
+class ArchivedStockItem {
+  const ArchivedStockItem({
+    required this.id,
+    required this.productId,
+    required this.productName,
+    required this.batchId,
+    required this.quantity,
+    required this.archivedAt,
+    this.category,
+    this.expiryDate,
+    this.image,
+  });
+
+  final String id;
+  final String productId;
+  final String productName;
+  final String batchId;
+  final int quantity;
+  final DateTime archivedAt;
+  final String? category;
+  final DateTime? expiryDate;
+  final String? image;
+}

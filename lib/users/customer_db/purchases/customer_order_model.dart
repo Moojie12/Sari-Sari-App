@@ -65,6 +65,7 @@ class CustomerOrderItem {
 class CustomerOrder {
   const CustomerOrder({
     required this.orderId,
+    required this.customerName,
     required this.orderDate,
     required this.items,
     required this.orderType,
@@ -78,6 +79,7 @@ class CustomerOrder {
   });
 
   final String orderId;
+  final String customerName;
   final DateTime orderDate;
   final List<CustomerOrderItem> items;
   final OrderType orderType;

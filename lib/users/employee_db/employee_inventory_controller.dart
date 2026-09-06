@@ -61,8 +61,12 @@ class EmployeeInventoryController extends ChangeNotifier {
   factory EmployeeInventoryController() => instance;
 
   final List<EmployeeProduct> _products = List.of(kEmployeeDummyProducts);
+  final List<String> _categories = List.of(kEmployeeProductCategories);
+  final List<ArchivedStockItem> _archivedStock = [];
 
   List<EmployeeProduct> get products => List.unmodifiable(_products);
+  List<ArchivedStockItem> get archivedStock => List.unmodifiable(_archivedStock);
+  List<String> get categories => List.unmodifiable(_categories);
 
   List<EmployeeProduct> get lowStockProducts =>
       _products.where((p) => p.stockStatus == EmployeeStockStatus.lowStock).toList();
@@ -173,6 +177,99 @@ class EmployeeInventoryController extends ChangeNotifier {
       lowStockThreshold: lowStockThreshold,
     );
     notifyListeners();
+  }
+
+  void archiveStock(String productId, String batchId, int quantity) {
+    if (quantity <= 0) return;
+    final productIndex = _products.indexWhere((p) => p.id == productId);
+    if (productIndex < 0) return;
+    final product = _products[productIndex];
+
+    final batchIndex = product.batches.indexWhere((b) => b.id == batchId);
+    if (batchIndex < 0) return;
+    final batch = product.batches[batchIndex];
+
+    final actualQuantity = quantity > batch.quantity ? batch.quantity : quantity;
+
+    // Deduct from batch
+    final updatedBatches = List<ProductBatch>.of(product.batches);
+    final newBatchQty = batch.quantity - actualQuantity;
+    if (newBatchQty <= 0) {
+      updatedBatches.removeAt(batchIndex);
+    } else {
+      updatedBatches[batchIndex] = batch.copyWith(quantity: newBatchQty);
+    }
+
+    _products[productIndex] = product.copyWith(batches: updatedBatches);
+
+    // Add to archive
+    _archivedStock.add(ArchivedStockItem(
+      id: 'arc_${DateTime.now().millisecondsSinceEpoch}',
+      productId: product.id,
+      productName: product.name,
+      batchId: batchId,
+      quantity: actualQuantity,
+      archivedAt: DateTime.now(),
+      category: product.category,
+      expiryDate: batch.expiryDate,
+      image: product.image,
+    ));
+
+    notifyListeners();
+  }
+
+  void archiveAllStock(String productId) {
+    final productIndex = _products.indexWhere((p) => p.id == productId);
+    if (productIndex < 0) return;
+    final product = _products[productIndex];
+    if (product.batches.isEmpty) return;
+
+    final batches = List<ProductBatch>.from(product.batches);
+    for (final batch in batches) {
+      if (batch.quantity > 0) {
+        archiveStock(productId, batch.id, batch.quantity);
+      }
+    }
+  }
+
+  void restoreArchivedStock(String archivedId) {
+    final arcIndex = _archivedStock.indexWhere((a) => a.id == archivedId);
+    if (arcIndex < 0) return;
+    final item = _archivedStock[arcIndex];
+
+    // Add back to product
+    receiveStock(
+      productId: item.productId,
+      quantity: item.quantity,
+      expiryDate: item.expiryDate,
+    );
+
+    _archivedStock.removeAt(arcIndex);
+    notifyListeners();
+  }
+
+  void deleteArchivedStock(String archivedId) {
+    _archivedStock.removeWhere((a) => a.id == archivedId);
+    notifyListeners();
+  }
+
+  void deleteProduct(String productId) {
+    _products.removeWhere((p) => p.id == productId);
+    notifyListeners();
+  }
+
+  void addCategory(String category) {
+    if (!_categories.contains(category)) {
+      _categories.add(category);
+      notifyListeners();
+    }
+  }
+
+  void removeCategory(String category) {
+    if (category != 'All') {
+      _categories.remove(category);
+      notifyListeners();
+    }
   }
 
   /// Receives new stock for an *existing* product — the shared tail end of

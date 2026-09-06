@@ -132,7 +132,7 @@ class EmployeeProfilePage extends StatelessWidget {
                       badgeCount: messagesController.unreadCount,
                       onTap: () => Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const EmployeeMessagesPage()),
+                        MaterialPageRoute(builder: (context) => const EmployeeMessagesPage(viewerRole: 'Employee')),
                       ),
                     ),
                     _MenuTile(
