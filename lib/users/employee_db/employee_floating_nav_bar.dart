@@ -26,11 +26,16 @@ class EmployeeFloatingNavBar extends StatelessWidget {
     required this.selectedIndex,
     required this.onDestinationSelected,
     this.inventoryAlertCount = 0,
+    this.profileAlertCount = 0,
   });
 
   final int selectedIndex;
   final ValueChanged<int> onDestinationSelected;
   final int inventoryAlertCount;
+
+  /// Unread Messages + Notifications count, badged on the "Profile"
+  /// destination (that's where both live, under the Profile tab's menu).
+  final int profileAlertCount;
 
   static const List<_EmployeeNavDestination> _destinations = [
     _EmployeeNavDestination(
@@ -58,6 +63,9 @@ class EmployeeFloatingNavBar extends StatelessWidget {
   /// Index of the "Inventory" destination, used to attach the badge.
   static const int _inventoryIndex = 2;
 
+  /// Index of the "Profile" destination, used to attach its badge.
+  static const int _profileIndex = 3;
+
   @override
   Widget build(BuildContext context) {
     return SafeArea(
@@ -77,13 +85,17 @@ class EmployeeFloatingNavBar extends StatelessWidget {
               children: List.generate(_destinations.length, (index) {
                 final destination = _destinations[index];
                 final isSelected = index == selectedIndex;
-                final showBadge = index == _inventoryIndex && inventoryAlertCount > 0;
+                final showInventoryBadge = index == _inventoryIndex && inventoryAlertCount > 0;
+                final showProfileBadge = index == _profileIndex && profileAlertCount > 0;
+                final badgeCount = showInventoryBadge
+                    ? inventoryAlertCount
+                    : (showProfileBadge ? profileAlertCount : null);
 
                 return Expanded(
                   child: _EmployeeNavItem(
                     destination: destination,
                     isSelected: isSelected,
-                    badgeCount: showBadge ? inventoryAlertCount : null,
+                    badgeCount: badgeCount,
                     onTap: () => onDestinationSelected(index),
                   ),
                 );

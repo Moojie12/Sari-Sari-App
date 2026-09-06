@@ -6,6 +6,8 @@ import 'employee_floating_nav_bar.dart';
 import 'employee_inventory_controller.dart';
 import 'home/employee_home_page.dart';
 import 'inventory/employee_inventory_page.dart';
+import 'messages/employee_messages_controller.dart';
+import 'notifications/employee_notifications_controller.dart';
 import 'pos/employee_pos_controller.dart';
 import 'pos/employee_pos_page.dart';
 import 'profile/employee_profile_page.dart';
@@ -31,6 +33,8 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   final _inventoryController = EmployeeInventoryController();
   late final _posController = EmployeePosController(inventory: _inventoryController);
+  final _messagesController = EmployeeMessagesController();
+  final _notificationsController = EmployeeNotificationsController();
 
   // Whether the floating nav bar is currently shown. Toggled by
   // [_handleScrollNotification] as the active tab's content scrolls.
@@ -106,13 +110,17 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
                   duration: _navBarAnimationDuration,
                   opacity: _isNavBarVisible ? 1 : 0,
                   child: ListenableBuilder(
-                    listenable: _inventoryController,
+                    listenable: Listenable.merge(
+                      [_inventoryController, _messagesController, _notificationsController],
+                    ),
                     builder: (context, _) {
                       return EmployeeFloatingNavBar(
                         selectedIndex: _selectedIndex,
                         onDestinationSelected: _onDestinationSelected,
                         inventoryAlertCount: _inventoryController.lowStockProducts.length +
                             _inventoryController.outOfStockProducts.length,
+                        profileAlertCount: _messagesController.unreadCount +
+                            _notificationsController.unreadCount,
                       );
                     },
                   ),
