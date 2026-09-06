@@ -2,6 +2,10 @@ import 'package:flutter/foundation.dart';
 import 'customer_order_model.dart';
 
 class CustomerOrderController extends ChangeNotifier {
+  CustomerOrderController._();
+  static final CustomerOrderController instance = CustomerOrderController._();
+  factory CustomerOrderController() => instance;
+
   final List<CustomerOrder> _orders = [
     // Dummy Order #SS-0001: To Pay
     CustomerOrder(

@@ -1,18 +1,27 @@
 import 'package:flutter/material.dart';
 
-import '../../../core/theme/app_colors.dart';
-import '../../employee_db/employee_inventory_controller.dart';
-import '../customer_cart_controller.dart';
-import 'customer_dummy_products.dart';
-import 'customer_product_card.dart';
-import 'customer_product_details_page.dart';
-import 'customer_product_model.dart';
+import 'package:sari_sari/core/theme/app_colors.dart';
+import 'package:sari_sari/shared/utils/top_notification.dart';
+import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
+import 'package:sari_sari/users/customer_db/customer_cart_controller.dart';
+import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
+import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
+import 'package:sari_sari/users/customer_db/purchases/customer_order_details_page.dart';
+import 'package:sari_sari/users/customer_db/home/customer_dummy_products.dart';
+import 'package:sari_sari/users/customer_db/home/customer_product_card.dart';
+import 'package:sari_sari/users/customer_db/home/customer_product_details_page.dart';
+import 'package:sari_sari/users/customer_db/home/customer_product_model.dart';
 
 /// Customer "Home" tab: product browsing.
 class CustomerHomePage extends StatefulWidget {
-  const CustomerHomePage({super.key, required this.cartController});
+  const CustomerHomePage({
+    super.key,
+    required this.cartController,
+    required this.orderController,
+  });
 
   final CustomerCartController cartController;
+  final CustomerOrderController orderController;
 
   @override
   State<CustomerHomePage> createState() => _CustomerHomePageState();
@@ -73,6 +82,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         builder: (_) => CustomerProductDetailsPage(
           product: product,
           cartController: widget.cartController,
+          orderController: widget.orderController,
         ),
       ),
     );
@@ -81,22 +91,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   void _addToCart(CustomerProduct product) {
     final added = widget.cartController.addToCart(product);
     if (!added) return;
-    ScaffoldMessenger.of(context)
-      ..hideCurrentSnackBar()
-      ..showSnackBar(
-        SnackBar(
-          content: const Text(
-            'Added to cart',
-            style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
-          ),
-          backgroundColor: AppColors.primaryOrange,
-          behavior: SnackBarBehavior.floating,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(10),
-          ),
-          duration: const Duration(seconds: 2),
-        ),
-      );
+    TopNotification.show(context, 'Added to cart');
   }
 
   @override
@@ -123,6 +118,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             slivers: [
               SliverToBoxAdapter(child: _buildTitle(context)),
               SliverToBoxAdapter(child: _buildWelcomeSection(context)),
+              SliverToBoxAdapter(child: _buildActiveOrder(context)),
               SliverToBoxAdapter(child: _buildSearchBar(context)),
               SliverToBoxAdapter(child: _buildCategories(context)),
               if (!_isFiltering)
@@ -172,6 +168,138 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
               ],
               const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
+          ),
+        );
+      },
+    );
+  }
+
+  Widget _buildActiveOrder(BuildContext context) {
+    return ListenableBuilder(
+      listenable: widget.orderController,
+      builder: (context, _) {
+        final activeOrders = widget.orderController.orders
+            .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.delivered)
+            .toList();
+        if (activeOrders.isEmpty) return const SizedBox.shrink();
+
+        final latestOrder = activeOrders.first;
+
+        return Padding(
+          padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
+          child: Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.05),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
+                ),
+              ],
+              border: Border.all(
+                color: AppColors.primaryOrange.withValues(alpha: 0.3),
+                width: 1,
+              ),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text(
+                      'Active Order',
+                      style: TextStyle(
+                        color: AppColors.darkText,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryOrange.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(6),
+                      ),
+                      child: Text(
+                        latestOrder.status.label,
+                        style: const TextStyle(
+                          color: AppColors.primaryOrange,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: AppColors.lightBackground,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: const Icon(
+                        Icons.local_shipping_outlined,
+                        color: AppColors.primaryOrange,
+                        size: 20,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Order #${latestOrder.orderId} · ${latestOrder.formattedDate}',
+                            style: const TextStyle(
+                              color: AppColors.darkText,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                          Text(
+                            '${latestOrder.items.length} items · ₱${latestOrder.totalAmount.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 12,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CustomerOrderDetailsPage(order: latestOrder),
+                          ),
+                        );
+                      },
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: const Text(
+                        'Track',
+                        style: TextStyle(
+                          color: AppColors.primaryOrange,
+                          fontSize: 13,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         );
       },
