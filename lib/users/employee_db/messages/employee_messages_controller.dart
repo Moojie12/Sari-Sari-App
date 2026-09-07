@@ -16,11 +16,15 @@ class EmployeeMessagesController extends ChangeNotifier {
       _createCustomerThread(
         id: 'cust-1',
         name: 'Maria Santos',
+        email: 'maria.santos@gmail.com',
+        phone: '0917 123 4567',
         initialMessage: 'Ask ko lang po if available pa yung Selecta Cookies & Cream 1.3L?',
       ),
       _createCustomerThread(
         id: 'cust-2',
         name: 'Roberto Gomez',
+        email: 'roberto.gomez@yahoo.com',
+        phone: '0920 987 6543',
         initialMessage: 'Hi, follow up ko lang po yung order #1005 ko for pickup.',
       ),
     ];
@@ -152,6 +156,8 @@ class EmployeeMessagesController extends ChangeNotifier {
         name: 'Pedro Penduko',
         role: 'Employee',
         avatarIcon: Icons.badge_outlined,
+        email: 'pedro.penduko@sarisari.com',
+        phone: '0933 555 7788',
       ),
       messages: [
         EmployeeMessage(
@@ -168,6 +174,8 @@ class EmployeeMessagesController extends ChangeNotifier {
   ChatThread _createCustomerThread({
     required String id,
     required String name,
+    required String email,
+    required String phone,
     required String initialMessage,
   }) {
     return ChatThread(
@@ -176,6 +184,8 @@ class EmployeeMessagesController extends ChangeNotifier {
         name: name,
         role: 'Customer',
         isCustomer: true,
+        email: email,
+        phone: phone,
       ),
       messages: [
         EmployeeMessage(

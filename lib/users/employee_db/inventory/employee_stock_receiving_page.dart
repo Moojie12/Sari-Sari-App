@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../employee_inventory_controller.dart';
 import 'employee_dummy_products.dart';
@@ -161,12 +162,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
     );
 
     if (result == null) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(const SnackBar(
-          content: Text('Could not receive stock — please check the quantity and try again.'),
-          behavior: SnackBarBehavior.floating,
-        ));
+      TopNotification.show(context, 'Could not receive stock — please check the quantity and try again.', isError: true);
       return;
     }
 
@@ -174,6 +170,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
   }
 
   Future<void> _showSuccessDialog(String productName, StockReceivingResult result) async {
+    TopNotification.show(context, 'Stock received for $productName.');
     final message = switch (result.outcome) {
       StockReceivingOutcome.newProduct =>
       'New product created. Batch ${result.batchId} started with ${result.batchQuantity} pcs.',
@@ -750,11 +747,13 @@ class _NewProductSheetState extends State<_NewProductSheet> {
   late final _nameController = TextEditingController(text: widget.prefillName);
   late final _barcodeController = TextEditingController(text: widget.prefillBarcode);
   final _priceController = TextEditingController();
+  final _newCategoryController = TextEditingController();
   String? _imagePath;
   late String _category =
-  kEmployeeProductCategories.where((c) => c != 'All').isNotEmpty
-      ? kEmployeeProductCategories.firstWhere((c) => c != 'All')
+  widget.inventory.categories.where((c) => c != 'All').isNotEmpty
+      ? widget.inventory.categories.firstWhere((c) => c != 'All')
       : 'Snacks';
+  bool _isAddingNewCategory = false;
 
   String? _nameError;
   String? _priceError;
@@ -765,6 +764,7 @@ class _NewProductSheetState extends State<_NewProductSheet> {
     _nameController.dispose();
     _barcodeController.dispose();
     _priceController.dispose();
+    _newCategoryController.dispose();
     super.dispose();
   }
 
@@ -772,6 +772,7 @@ class _NewProductSheetState extends State<_NewProductSheet> {
     final name = _nameController.text.trim();
     final price = double.tryParse(_priceController.text.trim());
     final barcode = _barcodeController.text.trim();
+    final category = _isAddingNewCategory ? _newCategoryController.text.trim() : _category;
 
     setState(() {
       _nameError = name.isEmpty ? 'Product name is required.' : null;
@@ -781,10 +782,15 @@ class _NewProductSheetState extends State<_NewProductSheet> {
           : null;
     });
     if (_nameError != null || _priceError != null || _barcodeError != null) return;
+    if (category.isEmpty) return;
+
+    if (_isAddingNewCategory) {
+      widget.inventory.addCategory(category);
+    }
 
     final product = widget.inventory.createProduct(
       name: name,
-      category: _category,
+      category: category,
       price: price!,
       barcode: barcode,
       image: _imagePath,
@@ -806,7 +812,7 @@ class _NewProductSheetState extends State<_NewProductSheet> {
 
   @override
   Widget build(BuildContext context) {
-    final categories = kEmployeeProductCategories.where((c) => c != 'All').toList();
+    final categories = widget.inventory.categories.where((c) => c != 'All').toList();
 
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
@@ -861,19 +867,38 @@ class _NewProductSheetState extends State<_NewProductSheet> {
                 decoration: _fieldDecoration('e.g. Bear Brand Milk 300ml', errorText: _nameError),
               ),
               const SizedBox(height: 14),
-              const Text('Category',
-                  style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<String>(
-                initialValue: _category,
-                items: categories
-                    .map((category) => DropdownMenuItem(value: category, child: Text(category)))
-                    .toList(),
-                onChanged: (value) {
-                  if (value != null) setState(() => _category = value);
-                },
-                decoration: _fieldDecoration(null),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Category',
+                      style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+                  GestureDetector(
+                    onTap: () => setState(() => _isAddingNewCategory = !_isAddingNewCategory),
+                    child: Text(
+                      _isAddingNewCategory ? 'Select Existing' : 'Add New',
+                      style: const TextStyle(
+                          color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
               ),
+              const SizedBox(height: 8),
+              if (_isAddingNewCategory)
+                TextField(
+                  controller: _newCategoryController,
+                  decoration: _fieldDecoration('Enter new category name'),
+                )
+              else
+                DropdownButtonFormField<String>(
+                  value: _category,
+                  items: categories
+                      .map((category) => DropdownMenuItem(value: category, child: Text(category)))
+                      .toList(),
+                  onChanged: (value) {
+                    if (value != null) setState(() => _category = value);
+                  },
+                  decoration: _fieldDecoration(null),
+                ),
               const SizedBox(height: 14),
               const Text('Price *',
                   style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),

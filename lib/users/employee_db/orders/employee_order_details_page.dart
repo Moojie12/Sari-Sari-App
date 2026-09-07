@@ -3,6 +3,8 @@ import '../../../core/theme/app_colors.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
 import 'employee_orders_controller.dart';
 import 'employee_orders_page.dart';
+import '../messages/employee_chat_page.dart';
+import '../messages/employee_messages_controller.dart';
 
 class EmployeeOrderDetailsPage extends StatelessWidget {
   const EmployeeOrderDetailsPage({
@@ -47,6 +49,14 @@ class EmployeeOrderDetailsPage extends StatelessWidget {
                 const Text('Order Progress', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
                 _StatusTimelineView(order: currentOrder),
+                if (currentOrder.status == OrderStatus.outForDelivery &&
+                    currentOrder.orderType == OrderType.delivery) ...[
+                  const SizedBox(height: 24),
+                  const Text('Delivery Tracking',
+                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 12),
+                  _DeliveryMapSection(order: currentOrder),
+                ],
                 const SizedBox(height: 24),
                 const Text('Items', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
@@ -203,7 +213,35 @@ class _OrderInfoSection extends StatelessWidget {
       ),
       child: Column(
         children: [
-          _InfoRow(label: 'Customer Name', value: order.customerName),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Customer Name', style: TextStyle(color: AppColors.secondaryText, fontSize: 14)),
+              InkWell(
+                onTap: () {
+                  final messagesController = EmployeeMessagesController.instance;
+                  final thread = messagesController.threads.firstWhere(
+                    (t) => t.recipient.name == order.customerName,
+                    orElse: () => messagesController.threads.firstWhere((t) => t.recipient.isCustomer),
+                  );
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EmployeeChatPage(recipientId: thread.recipient.id),
+                    ),
+                  );
+                },
+                child: Text(
+                  order.customerName,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                    color: AppColors.primaryOrange,
+                  ),
+                ),
+              ),
+            ],
+          ),
           const SizedBox(height: 12),
           _InfoRow(label: 'Order Date', value: order.formattedDate),
           const SizedBox(height: 12),
@@ -395,6 +433,228 @@ class _DetailRow extends StatelessWidget {
               ),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+class _DeliveryMapSection extends StatelessWidget {
+  const _DeliveryMapSection({required this.order});
+  final CustomerOrder order;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => EmployeeDeliveryTrackingPage(order: order),
+          ),
+        );
+      },
+      child: Container(
+        height: 180,
+        width: double.infinity,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(16),
+          child: Stack(
+            children: [
+              // Placeholder for the Map
+              Image.network(
+                'https://static-maps.yandex.ru/1.x/?lang=en_US&ll=121.0483,14.5547&z=14&l=map&size=600,300',
+                fit: BoxFit.cover,
+                width: double.infinity,
+                errorBuilder: (context, error, stackTrace) => Container(
+                  color: Colors.grey[200],
+                  child: const Center(child: Icon(Icons.map, size: 50, color: Colors.grey)),
+                ),
+              ),
+              // Overlay to make it look like a map preview
+              Container(
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    begin: Alignment.topCenter,
+                    end: Alignment.bottomCenter,
+                    colors: [
+                      Colors.transparent,
+                      Colors.black.withValues(alpha: 0.3),
+                    ],
+                  ),
+                ),
+              ),
+              const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.location_on, color: AppColors.primaryOrange, size: 40),
+                    SizedBox(height: 8),
+                    Text(
+                      'Tap to View Real-time Map',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontWeight: FontWeight.bold,
+                        shadows: [Shadow(blurRadius: 10, color: Colors.black)],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class EmployeeDeliveryTrackingPage extends StatelessWidget {
+  const EmployeeDeliveryTrackingPage({super.key, required this.order});
+  final CustomerOrder order;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: const Text('Real-time Delivery Tracking',
+            style: TextStyle(color: AppColors.darkText, fontSize: 18, fontWeight: FontWeight.bold)),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: AppColors.darkText),
+      ),
+      body: Stack(
+        children: [
+          // Simulated Full Screen Map
+          Container(
+            color: Colors.grey[100],
+            child: const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.map_outlined, size: 100, color: AppColors.placeholderColor),
+                  SizedBox(height: 16),
+                  Text('Google Maps / Mapbox Integration Here',
+                      style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.bold)),
+                  Text('Showing rider movement and destination',
+                      style: TextStyle(color: AppColors.secondaryText)),
+                ],
+              ),
+            ),
+          ),
+          // Floating Info Card
+          Positioned(
+            bottom: 24,
+            left: 20,
+            right: 20,
+            child: Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(20),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, 5)),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Row(
+                    children: [
+                      const CircleAvatar(
+                        backgroundColor: AppColors.lightBackground,
+                        child: Icon(Icons.person, color: AppColors.primaryOrange),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(order.customerName,
+                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
+                            Text(order.deliveryAddress ?? 'No address provided',
+                                style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+                        decoration: BoxDecoration(
+                          color: Colors.green.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Text('On the way',
+                            style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
+                      ),
+                    ],
+                  ),
+                  const Divider(height: 32),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceAround,
+                    children: [
+                      _TrackingAction(icon: Icons.phone, label: 'Call', onTap: () {}),
+                      _TrackingAction(icon: Icons.chat_bubble_outline, label: 'Message', onTap: () {
+                        Navigator.pop(context); // Go back to details to use chat
+                      }),
+                      _TrackingAction(icon: Icons.navigation_outlined, label: 'Navigate', onTap: () {}),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Simple marker placeholders on map
+          Positioned(
+            top: 150,
+            left: 100,
+            child: Icon(Icons.location_on, color: AppColors.primaryOrange, size: 40),
+          ),
+          Positioned(
+            top: 300,
+            right: 80,
+            child: Icon(Icons.delivery_dining, color: Colors.blue, size: 40),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _TrackingAction extends StatelessWidget {
+  const _TrackingAction({required this.icon, required this.label, required this.onTap});
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      child: Column(
+        children: [
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.lightBackground,
+              shape: BoxShape.circle,
+            ),
+            child: Icon(icon, color: AppColors.darkText, size: 24),
+          ),
+          const SizedBox(height: 8),
+          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
         ],
       ),
     );

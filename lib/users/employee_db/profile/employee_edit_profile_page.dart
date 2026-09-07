@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/custom_text_field.dart';
 import '../../../shared/widgets/primary_button.dart';
 import 'employee_profile_controller.dart';
@@ -45,7 +46,7 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
     super.dispose();
   }
 
-  void _saveChanges() {
+  void _saveChanges() async {
     final firstName = _firstNameController.text.trim();
     final lastName = _lastNameController.text.trim();
     final username = _usernameController.text.trim();
@@ -53,11 +54,29 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
     final contact = _contactController.text.trim();
 
     if (firstName.isEmpty || lastName.isEmpty || username.isEmpty || email.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all required fields.')),
-      );
+      TopNotification.show(context, 'Please fill in all required fields.', isError: true);
       return;
     }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Changes', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('Do you want to save the changes to your profile?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Save', style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
 
     _controller.updateProfile(
       firstName: firstName,
@@ -67,9 +86,7 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
       contactNumber: contact,
     );
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Profile updated successfully.')),
-    );
+    TopNotification.show(context, 'Profile updated successfully.');
     Navigator.pop(context);
   }
 

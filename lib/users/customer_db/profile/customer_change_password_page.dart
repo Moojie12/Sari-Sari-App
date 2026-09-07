@@ -25,7 +25,37 @@ class _CustomerChangePasswordPageState extends State<CustomerChangePasswordPage>
     super.dispose();
   }
 
-  void _submit() {
+  void _submit() async {
+    final current = _currentPasswordController.text;
+    final newPassword = _newPasswordController.text;
+    final confirm = _confirmPasswordController.text;
+
+    if (current.isEmpty || newPassword.isEmpty || confirm.isEmpty) {
+      TopNotification.show(context, 'Please fill in all fields.', isError: true);
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Changes', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('Are you sure you want to update your password?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Update', style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    if (!mounted) return;
     TopNotification.show(context, 'Password changed successfully.');
     Navigator.pop(context);
   }

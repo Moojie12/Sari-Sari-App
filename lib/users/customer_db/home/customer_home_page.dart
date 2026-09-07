@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:sari_sari/core/theme/app_colors.dart';
 import 'package:sari_sari/shared/utils/top_notification.dart';
 import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
+import 'package:sari_sari/users/employee_db/inventory/employee_product_model.dart';
 import 'package:sari_sari/users/customer_db/customer_cart_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
@@ -44,9 +45,38 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   bool get _isFiltering =>
       _searchQuery.isNotEmpty || _selectedCategory != 'All';
 
+  CustomerProduct _mapToCustomerProduct(EmployeeProduct ep) {
+    CustomerProductAvailability availability;
+    switch (ep.stockStatus) {
+      case EmployeeStockStatus.inStock:
+        availability = CustomerProductAvailability.inStock;
+        break;
+      case EmployeeStockStatus.lowStock:
+        availability = CustomerProductAvailability.lowStock;
+        break;
+      case EmployeeStockStatus.outOfStock:
+        availability = CustomerProductAvailability.outOfStock;
+        break;
+    }
+
+    return CustomerProduct(
+      id: ep.id,
+      name: ep.name,
+      category: ep.category,
+      price: ep.currentPrice,
+      image: ep.image ?? '',
+      availability: availability,
+      isOnSale: ep.hasExpiringSoonBatch,
+    );
+  }
+
   List<CustomerProduct> get _filteredProducts {
     final query = _searchQuery.trim().toLowerCase();
-    return kCustomerDummyProducts.where((product) {
+    final employeeProducts = EmployeeInventoryController.instance.products;
+
+    return employeeProducts
+        .map((ep) => _mapToCustomerProduct(ep))
+        .where((product) {
       final matchesCategory =
           _selectedCategory == 'All' || product.category == _selectedCategory;
       final matchesSearch =
@@ -56,12 +86,11 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   }
 
   List<CustomerProduct> get _onSaleProducts {
-    final expiringSoonIds = EmployeeInventoryController.instance.expiringSoonProducts
-        .map((p) => p.id)
-        .toSet();
-    return kCustomerDummyProducts.where((product) {
-      return product.isOnSale || expiringSoonIds.contains(product.id);
-    }).toList();
+    final employeeProducts = EmployeeInventoryController.instance.products;
+    return employeeProducts
+        .where((ep) => ep.hasExpiringSoonBatch)
+        .map((ep) => _mapToCustomerProduct(ep))
+        .toList();
   }
 
   void _onSearchChanged(String value) => setState(() {
@@ -426,15 +455,16 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   }
 
   Widget _buildCategories(BuildContext context) {
+    final categories = EmployeeInventoryController.instance.categories;
     return SizedBox(
       height: 36,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 24),
-        itemCount: kCustomerProductCategories.length,
+        itemCount: categories.length,
         separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
-          final category = kCustomerProductCategories[index];
+          final category = categories[index];
           final isSelected = category == _selectedCategory;
           return ChoiceChip(
             label: Text(category),

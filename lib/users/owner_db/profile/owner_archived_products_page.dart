@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/top_notification.dart';
 import '../../employee_db/employee_inventory_controller.dart';
 import '../../employee_db/inventory/employee_product_model.dart';
 
@@ -70,6 +71,7 @@ class OwnerArchivedProductsPage extends StatelessWidget {
             onPressed: () {
               inventory.restoreArchivedStock(item.id);
               Navigator.pop(context);
+              TopNotification.show(context, 'Stock restored to active inventory.');
             },
             child: const Text('Restore', style: TextStyle(color: AppColors.primaryOrange)),
           ),
@@ -92,6 +94,7 @@ class OwnerArchivedProductsPage extends StatelessWidget {
             onPressed: () {
               inventory.deleteArchivedStock(item.id);
               Navigator.pop(context);
+              TopNotification.show(context, 'Archived record deleted permanently.');
             },
             child: const Text('Delete', style: TextStyle(color: Colors.red)),
           ),

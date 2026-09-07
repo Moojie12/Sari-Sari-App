@@ -4,8 +4,9 @@ import 'employee_pos_controller.dart';
 
 /// Shown after a POS sale is completed (Receipt Generation feature).
 class EmployeeReceiptPage extends StatelessWidget {
-  const EmployeeReceiptPage({super.key, required this.receipt});
+  const EmployeeReceiptPage({super.key, required this.receipt, this.actionLabel});
   final EmployeeReceipt receipt;
+  final String? actionLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +109,7 @@ class EmployeeReceiptPage extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text('New Sale', style: TextStyle(fontWeight: FontWeight.bold)),
+                  child: Text(actionLabel ?? 'New Sale', style: const TextStyle(fontWeight: FontWeight.bold)),
                 ),
               ),
             ],

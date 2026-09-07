@@ -221,7 +221,7 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
             ),
           ),
           const SizedBox(width: 8),
-          ...kEmployeeProductCategories.map((category) {
+          ...widget.inventory.categories.map((category) {
             final isSelected = category == _selectedCategory;
             return Padding(
               padding: const EdgeInsets.only(right: 8),

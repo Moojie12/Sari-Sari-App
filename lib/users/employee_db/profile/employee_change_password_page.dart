@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/custom_text_field.dart';
 import '../../../shared/widgets/primary_button.dart';
 import 'employee_profile_controller.dart';
@@ -29,17 +30,35 @@ class _EmployeeChangePasswordPageState extends State<EmployeeChangePasswordPage>
     super.dispose();
   }
 
-  void _submit() {
+  void _submit() async {
     final current = _currentPasswordController.text;
     final newPassword = _newPasswordController.text;
     final confirm = _confirmPasswordController.text;
 
     if (current.isEmpty || newPassword.isEmpty || confirm.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all fields.')),
-      );
+      TopNotification.show(context, 'Please fill in all fields.', isError: true);
       return;
     }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Changes', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('Are you sure you want to update your password?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Update', style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
 
     final result = _controller.changePassword(
       currentPassword: current,
@@ -49,25 +68,17 @@ class _EmployeeChangePasswordPageState extends State<EmployeeChangePasswordPage>
 
     switch (result) {
       case ChangePasswordResult.success:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Password changed successfully.')),
-        );
+        TopNotification.show(context, 'Password changed successfully.');
         Navigator.pop(context);
         break;
       case ChangePasswordResult.incorrectCurrentPassword:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Current password is incorrect.')),
-        );
+        TopNotification.show(context, 'Current password is incorrect.', isError: true);
         break;
       case ChangePasswordResult.newPasswordTooShort:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('New password must be at least 8 characters.')),
-        );
+        TopNotification.show(context, 'New password must be at least 8 characters.', isError: true);
         break;
       case ChangePasswordResult.newPasswordsDoNotMatch:
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('New password and confirmation do not match.')),
-        );
+        TopNotification.show(context, 'New password and confirmation do not match.', isError: true);
         break;
     }
   }

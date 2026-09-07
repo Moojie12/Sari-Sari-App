@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/top_notification.dart';
 import '../employee_inventory_controller.dart';
 import 'employee_batch_model.dart';
 import 'employee_product_model.dart';
@@ -121,10 +122,12 @@ class _EmployeeArchiveStockDialogState extends State<EmployeeArchiveStockDialog>
           onPressed: () {
             if (_isAllSelected) {
               widget.inventory.archiveAllStock(widget.product.id);
+              TopNotification.show(context, 'All stock archived for ${widget.product.name}');
             } else {
               final qty = int.tryParse(_quantityController.text) ?? 0;
               if (qty <= 0 || _selectedBatch == null) return;
               widget.inventory.archiveStock(widget.product.id, _selectedBatch!.id, qty);
+              TopNotification.show(context, '$qty pcs archived for ${widget.product.name}');
             }
             Navigator.pop(context);
           },

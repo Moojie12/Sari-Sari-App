@@ -12,6 +12,8 @@ class ChatRecipient {
     required this.role,
     this.isCustomer = false,
     this.avatarIcon = Icons.person_outline,
+    this.email,
+    this.phone,
   });
 
   final String id;
@@ -19,6 +21,10 @@ class ChatRecipient {
   final String role;
   final bool isCustomer;
   final IconData avatarIcon;
+  final String? email;
+  final String? phone;
+
+  bool get isEmployee => role == 'Employee';
 
   String get initials {
     final parts = name.split(' ');

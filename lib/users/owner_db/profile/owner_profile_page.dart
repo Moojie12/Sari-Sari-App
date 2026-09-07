@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../authentication/login/login_page.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/top_notification.dart';
 import '../../employee_db/profile/employee_profile_controller.dart';
 import '../../employee_db/profile/employee_profile_model.dart';
 import '../../employee_db/profile/employee_change_password_page.dart';
@@ -127,17 +128,12 @@ class OwnerProfilePage extends StatelessWidget {
                 _MenuTile(
                   icon: Icons.history,
                   label: 'Transaction History',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerHistoryPage(initialTabIndex: 0))),
-                ),
-                _MenuTile(
-                  icon: Icons.payments_outlined,
-                  label: 'Payment History',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerHistoryPage(initialTabIndex: 1))),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerTransactionHistoryPage())),
                 ),
                 _MenuTile(
                   icon: Icons.list_alt,
                   label: 'Employee Activity Logs',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerHistoryPage(initialTabIndex: 2))),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerActivityLogsPage())),
                 ),
                 _MenuTile(
                   icon: Icons.archive_outlined,
@@ -152,6 +148,11 @@ class OwnerProfilePage extends StatelessWidget {
             const SizedBox(height: 12),
             _MenuCard(
               children: [
+                _MenuTile(
+                  icon: Icons.qr_code_2_outlined,
+                  label: 'GCash QR Code',
+                  onTap: () => _showGcashQrDialog(context),
+                ),
                 _MenuTile(
                   icon: Icons.low_priority,
                   label: 'Low-Stock Threshold',
@@ -185,6 +186,64 @@ class OwnerProfilePage extends StatelessWidget {
     );
   }
 
+  Future<void> _showGcashQrDialog(BuildContext context) async {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('GCash QR Code'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Upload your store\'s GCash QR code for customer payments.'),
+            const SizedBox(height: 20),
+            Container(
+              height: 160,
+              width: 160,
+              decoration: BoxDecoration(
+                color: AppColors.lightPeach,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.borderColor),
+              ),
+              child: const Icon(Icons.add_a_photo_outlined, size: 48, color: AppColors.primaryOrange),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Click to upload or change image',
+              style: TextStyle(fontSize: 12, color: AppColors.secondaryText),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () async {
+              final proceed = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Confirm Changes'),
+                  content: const Text('Do you want to save this new GCash QR code?'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Yes', style: TextStyle(color: AppColors.primaryOrange)),
+                    ),
+                  ],
+                ),
+              );
+
+              if (proceed == true && context.mounted) {
+                Navigator.pop(context);
+                TopNotification.show(context, 'GCash QR code updated successfully.');
+              }
+            },
+            child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
   void _showThresholdDialog(BuildContext context) {
     showDialog(
       context: context,
@@ -206,7 +265,30 @@ class OwnerProfilePage extends StatelessWidget {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Save')),
+          TextButton(
+            onPressed: () async {
+              final proceed = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Confirm Changes'),
+                  content: const Text('Do you want to save this new low-stock threshold?'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Yes', style: TextStyle(color: AppColors.primaryOrange)),
+                    ),
+                  ],
+                ),
+              );
+
+              if (proceed == true && context.mounted) {
+                Navigator.pop(context);
+                TopNotification.show(context, 'Low-stock threshold updated.');
+              }
+            },
+            child: const Text('Save'),
+          ),
         ],
       ),
     );
@@ -237,7 +319,30 @@ class OwnerProfilePage extends StatelessWidget {
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Save')),
+          TextButton(
+            onPressed: () async {
+              final proceed = await showDialog<bool>(
+                context: context,
+                builder: (context) => AlertDialog(
+                  title: const Text('Confirm Changes'),
+                  content: const Text('Do you want to save this expiry monitoring configuration?'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(context, true),
+                      child: const Text('Yes', style: TextStyle(color: AppColors.primaryOrange)),
+                    ),
+                  ],
+                ),
+              );
+
+              if (proceed == true && context.mounted) {
+                Navigator.pop(context);
+                TopNotification.show(context, 'Expiry monitoring configuration saved.');
+              }
+            },
+            child: const Text('Save'),
+          ),
         ],
       ),
     );

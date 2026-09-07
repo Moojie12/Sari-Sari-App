@@ -29,7 +29,28 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
     super.dispose();
   }
 
-  void _saveChanges() {
+  void _saveChanges() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Changes', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('Do you want to save the changes to your profile?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Save', style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    if (!mounted) return;
     TopNotification.show(context, 'Profile updated successfully.');
     Navigator.pop(context);
   }

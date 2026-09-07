@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/top_notification.dart';
+import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../employee_inventory_controller.dart';
 import 'employee_dummy_products.dart';
 import 'employee_product_model.dart';
@@ -24,13 +26,16 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
   late final _barcodeController = TextEditingController(text: widget.product.barcode);
   late final _priceController = TextEditingController(text: widget.product.price.toString());
   late final _thresholdController = TextEditingController(text: widget.product.lowStockThreshold.toString());
-  
+  final _newCategoryController = TextEditingController();
+
   String? _imagePath;
   late String _category = widget.product.category;
+  bool _isAddingNewCategory = false;
 
   String? _nameError;
   String? _priceError;
   String? _barcodeError;
+  bool _isBarcodeEditingEnabled = false;
 
   @override
   void initState() {
@@ -44,6 +49,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
     _barcodeController.dispose();
     _priceController.dispose();
     _thresholdController.dispose();
+    _newCategoryController.dispose();
     super.dispose();
   }
 
@@ -54,11 +60,57 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
     });
   }
 
-  void _save() {
+  Future<void> _onScanBarcode() async {
+    if (!_isBarcodeEditingEnabled) {
+      final confirmed = await _showBarcodeEditConfirmation();
+      if (confirmed != true) return;
+      setState(() => _isBarcodeEditingEnabled = true);
+    }
+
+    if (!mounted) return;
+    final code = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
+    );
+    if (code != null && code.isNotEmpty) {
+      setState(() {
+        _barcodeController.text = code;
+      });
+    }
+  }
+
+  Future<bool?> _showBarcodeEditConfirmation() {
+    return showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Edit Barcode?', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Changing the barcode might affect how this product is identified. Are you sure you want to edit it?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+              foregroundColor: Colors.white,
+              elevation: 0,
+            ),
+            child: const Text('Yes, Edit'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _save() async {
     final name = _nameController.text.trim();
     final price = double.tryParse(_priceController.text.trim());
     final barcode = _barcodeController.text.trim();
     final threshold = int.tryParse(_thresholdController.text.trim()) ?? 10;
+    final category = _isAddingNewCategory ? _newCategoryController.text.trim() : _category;
 
     setState(() {
       _nameError = name.isEmpty ? 'Product name is required.' : null;
@@ -68,26 +120,49 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
           : null;
     });
     if (_nameError != null || _priceError != null || _barcodeError != null) return;
+    if (category.isEmpty) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Changes', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('Are you sure you want to save the changes to this product?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Save', style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+
+    if (_isAddingNewCategory) {
+      widget.inventory.addCategory(category);
+    }
 
     widget.inventory.updateProduct(
       productId: widget.product.id,
       name: name,
-      category: _category,
+      category: category,
       price: price!,
       barcode: barcode,
       image: _imagePath,
       lowStockThreshold: threshold,
     );
 
+    TopNotification.show(context, 'Product updated successfully');
     Navigator.pop(context);
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Product updated successfully')),
-    );
   }
 
   @override
   Widget build(BuildContext context) {
-    final categories = kEmployeeProductCategories.where((c) => c != 'All').toList();
+    final categories = widget.inventory.categories.where((c) => c != 'All').toList();
 
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
@@ -155,19 +230,38 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
               decoration: _fieldDecoration('e.g. Bear Brand Milk 300ml', errorText: _nameError),
             ),
             const SizedBox(height: 16),
-            const Text('Category',
-                style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: _category,
-              items: categories
-                  .map((category) => DropdownMenuItem(value: category, child: Text(category)))
-                  .toList(),
-              onChanged: (value) {
-                if (value != null) setState(() => _category = value);
-              },
-              decoration: _fieldDecoration(null),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text('Category',
+                    style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+                GestureDetector(
+                  onTap: () => setState(() => _isAddingNewCategory = !_isAddingNewCategory),
+                  child: Text(
+                    _isAddingNewCategory ? 'Select Existing' : 'Add New',
+                    style: const TextStyle(
+                        color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ],
             ),
+            const SizedBox(height: 8),
+            if (_isAddingNewCategory)
+              TextField(
+                controller: _newCategoryController,
+                decoration: _fieldDecoration('Enter new category name'),
+              )
+            else
+              DropdownButtonFormField<String>(
+                value: _category,
+                items: categories
+                    .map((category) => DropdownMenuItem(value: category, child: Text(category)))
+                    .toList(),
+                onChanged: (value) {
+                  if (value != null) setState(() => _category = value);
+                },
+                decoration: _fieldDecoration(null),
+              ),
             const SizedBox(height: 16),
             Row(
               children: [
@@ -208,9 +302,61 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
             const Text('Barcode',
                 style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
             const SizedBox(height: 8),
-            TextField(
-              controller: _barcodeController,
-              decoration: _fieldDecoration('Barcode value', errorText: _barcodeError),
+            Row(
+              children: [
+                Expanded(
+                  child: TextField(
+                    controller: _barcodeController,
+                    readOnly: !_isBarcodeEditingEnabled,
+                    onTap: _isBarcodeEditingEnabled
+                        ? null
+                        : () async {
+                            final confirmed = await _showBarcodeEditConfirmation();
+                            if (confirmed == true) {
+                              setState(() => _isBarcodeEditingEnabled = true);
+                            }
+                          },
+                    decoration: _fieldDecoration(
+                      'Barcode value',
+                      errorText: _barcodeError,
+                      suffixIcon: _isBarcodeEditingEnabled
+                          ? null
+                          : const Icon(Icons.lock_outline, size: 20, color: AppColors.placeholderColor),
+                    ),
+                  ),
+                ),
+                if (_isBarcodeEditingEnabled) ...[
+                  const SizedBox(width: 8),
+                  Material(
+                    color: AppColors.primaryOrange,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: _onScanBarcode,
+                      child: const SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Icon(Icons.qr_code_scanner, color: Colors.white),
+                      ),
+                    ),
+                  ),
+                ] else ...[
+                  const SizedBox(width: 8),
+                  Material(
+                    color: AppColors.placeholderColor.withValues(alpha: 0.2),
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: _onScanBarcode,
+                      child: const SizedBox(
+                        width: 48,
+                        height: 48,
+                        child: Icon(Icons.qr_code_scanner, color: AppColors.secondaryText),
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
             const SizedBox(height: 32),
             SizedBox(
@@ -232,11 +378,12 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
     );
   }
 
-  InputDecoration _fieldDecoration(String? hint, {String? prefixText, String? errorText}) {
+  InputDecoration _fieldDecoration(String? hint, {String? prefixText, String? errorText, Widget? suffixIcon}) {
     return InputDecoration(
       hintText: hint,
       prefixText: prefixText,
       errorText: errorText,
+      suffixIcon: suffixIcon,
       filled: true,
       fillColor: Colors.white,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),

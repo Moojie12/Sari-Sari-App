@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'employee_customer_details_page.dart';
 import 'employee_message_model.dart';
 import 'employee_messages_controller.dart';
 
@@ -117,6 +118,22 @@ class _EmployeeChatPageState extends State<EmployeeChatPage> {
                 ),
               ],
             ),
+            actions: [
+              if (recipient.isCustomer || recipient.isEmployee)
+                IconButton(
+                  icon: const Icon(Icons.info_outline, color: Colors.white),
+                  onPressed: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => EmployeeCustomerDetailsPage(recipient: recipient),
+                      ),
+                    );
+                  },
+                  tooltip: recipient.isCustomer ? 'Customer Details' : 'Employee Details',
+                ),
+              const SizedBox(width: 8),
+            ],
           ),
           body: SafeArea(
             child: Column(

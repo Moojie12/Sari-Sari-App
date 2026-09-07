@@ -37,6 +37,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
     )).toList();
 
     final order = CustomerOrder(
+      customerName: 'Juan Dela Cruz',
       orderId: orderId,
       orderDate: DateTime.now(),
       items: items,

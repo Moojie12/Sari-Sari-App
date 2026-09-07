@@ -118,9 +118,29 @@ class _CustomerGcashSettingPageState extends State<CustomerGcashSettingPage> {
               width: double.infinity,
               height: 54,
               child: ElevatedButton(
-                onPressed: () {
-                  TopNotification.show(context, 'GCash account updated!');
-                  Navigator.pop(context);
+                onPressed: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Confirm Changes', style: TextStyle(fontWeight: FontWeight.bold)),
+                      content: const Text('Are you sure you want to update your GCash link?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Update', style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (confirmed == true && context.mounted) {
+                    TopNotification.show(context, 'GCash account updated!');
+                    Navigator.pop(context);
+                  }
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryOrange,

@@ -5,6 +5,7 @@ import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../employee_inventory_controller.dart';
 import '../inventory/employee_dummy_products.dart';
 import '../inventory/employee_product_model.dart';
+import '../profile/employee_profile_controller.dart';
 import 'employee_pos_controller.dart';
 import 'employee_receipt_page.dart';
 import 'employee_batch_selection_sheet.dart';
@@ -121,6 +122,18 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
     );
   }
 
+  void _showCartDetails() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _CartDetailsSheet(
+        posController: widget.posController,
+        onCheckout: _openCheckout,
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -158,11 +171,6 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
                     },
                   ),
                 ),
-                if (widget.posController.cart.isNotEmpty)
-                  _CartBar(
-                    posController: widget.posController,
-                    onCheckout: _openCheckout,
-                  ),
               ],
             );
           },
@@ -172,16 +180,59 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
   }
 
   Widget _buildHeader() {
-    return const Padding(
-      padding: EdgeInsets.fromLTRB(24, 16, 24, 4),
-      child: Align(
-        alignment: Alignment.centerLeft,
-        child: Text(
-          'Point of Sale',
-          style: TextStyle(
-            color: AppColors.darkText,
-            fontSize: 28,
-            fontWeight: FontWeight.bold,
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          const Text(
+            'Point of Sale',
+            style: TextStyle(
+              color: AppColors.darkText,
+              fontSize: 28,
+              fontWeight: FontWeight.bold,
+            ),
+          ),
+          if (widget.posController.cart.isNotEmpty)
+            _buildCartSummary(),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildCartSummary() {
+    final itemCount = widget.posController.itemCount;
+    final totalAmount = widget.posController.totalAmount;
+
+    return Material(
+      color: AppColors.primaryOrange,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: _showCartDetails,
+        borderRadius: BorderRadius.circular(12),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                '$itemCount item(s)',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              Text(
+                '₱${totalAmount.toStringAsFixed(2)}',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
           ),
         ),
       ),
@@ -223,15 +274,16 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
   }
 
   Widget _buildCategories() {
+    final categories = widget.inventory.categories;
     return SizedBox(
       height: 36,
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 24),
-        itemCount: kEmployeeProductCategories.length,
+        itemCount: categories.length,
         separatorBuilder: (context, index) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
-          final category = kEmployeeProductCategories[index];
+          final category = categories[index];
           final isSelected = category == _selectedCategory;
           return ChoiceChip(
             label: Text(category),
@@ -401,11 +453,11 @@ class _PosProductCard extends StatelessWidget {
   }
 }
 
-/// Bottom cart summary bar. Slide it up (or tap the item-count/total area)
-/// to reveal the list of items currently added to the cart before hitting
-/// Checkout.
-class _CartBar extends StatefulWidget {
-  const _CartBar({
+/// Detailed cart view shown in a bottom sheet when clicking the top-right
+/// summary. Allows staff to adjust quantities or remove items before
+/// proceeding to checkout.
+class _CartDetailsSheet extends StatelessWidget {
+  const _CartDetailsSheet({
     required this.posController,
     required this.onCheckout,
   });
@@ -413,172 +465,165 @@ class _CartBar extends StatefulWidget {
   final EmployeePosController posController;
   final VoidCallback onCheckout;
 
-  @override
-  State<_CartBar> createState() => _CartBarState();
-}
+  void _confirmClearAll(BuildContext context) async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Clear Cart'),
+        content: const Text('Are you sure you want to remove all items from the cart?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Clear All'),
+          ),
+        ],
+      ),
+    );
 
-class _CartBarState extends State<_CartBar> {
-  bool _expanded = false;
-
-  void _setExpanded(bool value) {
-    if (_expanded == value) return;
-    setState(() => _expanded = value);
-  }
-
-  void _toggleExpanded() => _setExpanded(!_expanded);
-
-  void _onVerticalDragEnd(DragEndDetails details) {
-    final velocity = details.primaryVelocity ?? 0;
-    if (velocity < -150) {
-      _setExpanded(true); // swiped up
-    } else if (velocity > 150) {
-      _setExpanded(false); // swiped down
+    if (proceed == true) {
+      posController.voidTransaction();
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final itemCount = widget.posController.itemCount;
-    final totalAmount = widget.posController.totalAmount;
+    return ListenableBuilder(
+      listenable: posController,
+      builder: (context, _) {
+        final itemCount = posController.itemCount;
+        final totalAmount = posController.totalAmount;
 
-    return Container(
-      decoration: const BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-        boxShadow: [
-          BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -5)),
-        ],
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTap: _toggleExpanded,
-            onVerticalDragEnd: _onVerticalDragEnd,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 10, 24, 0),
-              child: Column(
+        // If cart becomes empty while sheet is open (staff removed all items),
+        // close the sheet.
+        if (posController.cart.isEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (Navigator.canPop(context)) Navigator.pop(context);
+          });
+          return const SizedBox.shrink();
+        }
+
+        return Container(
+          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  // Drag handle — hints that this section can be slid up.
-                  Container(
-                    width: 40,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: AppColors.borderColor,
-                      borderRadius: BorderRadius.circular(2),
-                    ),
+                  const Text('Cart Details',
+                      style: TextStyle(
+                          fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText)),
+                  TextButton(
+                    onPressed: () => _confirmClearAll(context),
+                    style: TextButton.styleFrom(foregroundColor: Colors.red, padding: EdgeInsets.zero),
+                    child: const Text('Clear All', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                   ),
-                  const SizedBox(height: 10),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                Text('$itemCount item(s)',
-                                    style: const TextStyle(
-                                        color: AppColors.secondaryText,
-                                        fontSize: 12)),
-                                const SizedBox(width: 4),
-                                Icon(
-                                  _expanded
-                                      ? Icons.keyboard_arrow_down
-                                      : Icons.keyboard_arrow_up,
-                                  size: 16,
-                                  color: AppColors.secondaryText,
-                                ),
-                              ],
-                            ),
-                            Text(
-                              '₱${totalAmount.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                color: AppColors.darkText,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                      ElevatedButton(
-                        onPressed: widget.onCheckout,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryOrange,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 28, vertical: 16),
-                          shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(12)),
-                        ),
-                        child: const Text('Checkout',
-                            style: TextStyle(fontWeight: FontWeight.bold)),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
                 ],
               ),
-            ),
+              const SizedBox(height: 8),
+              Text('$itemCount item(s) in cart',
+                  style: const TextStyle(color: AppColors.secondaryText, fontSize: 13)),
+              const SizedBox(height: 12),
+              const Divider(height: 1, color: AppColors.borderColor),
+              Flexible(
+                child: _CartItemsList(posController: posController),
+              ),
+              const SizedBox(height: 16),
+              const Divider(height: 1, color: AppColors.borderColor),
+              const SizedBox(height: 16),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Total Amount', style: TextStyle(color: AppColors.secondaryText)),
+                  Text(
+                    '₱${totalAmount.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                        fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryOrange),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 24),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: () {
+                    Navigator.pop(context);
+                    onCheckout();
+                  },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryOrange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Proceed to Checkout',
+                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
           ),
-          AnimatedSize(
-            duration: const Duration(milliseconds: 220),
-            curve: Curves.easeInOut,
-            alignment: Alignment.topCenter,
-            child: _expanded
-                ? _CartItemsList(posController: widget.posController)
-                : const SizedBox(width: double.infinity),
-          ),
-          SizedBox(height: MediaQuery.of(context).padding.bottom > 0 ? 12 : 24),
-        ],
-      ),
+        );
+      }
     );
   }
 }
 
-/// Scrollable preview of every product currently added to the cart, with
-/// quantity +/- controls and a remove option, shown when the cart bar is
-/// expanded.
+/// Scrollable list of every product currently added to the cart.
 class _CartItemsList extends StatelessWidget {
   const _CartItemsList({required this.posController});
 
   final EmployeePosController posController;
 
-  @override
-  Widget build(BuildContext context) {
-    final cart = posController.cart;
-    return ConstrainedBox(
-      constraints: const BoxConstraints(maxHeight: 260),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const Divider(height: 1, color: AppColors.borderColor),
-          Flexible(
-            child: ListView.separated(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              shrinkWrap: true,
-              itemCount: cart.length,
-              separatorBuilder: (context, index) =>
-              const Divider(height: 16, color: AppColors.borderColor),
-              itemBuilder: (context, index) {
-                final item = cart[index];
-                return _CartItemTile(
-                  item: item,
-                  onIncrement: () =>
-                      posController.incrementQuantity(item.product.id, item.batchId),
-                  onDecrement: () =>
-                      posController.decrementQuantity(item.product.id, item.batchId),
-                  onRemove: () =>
-                      posController.removeFromCart(item.product.id, item.batchId),
-                );
-              },
-            ),
+  void _confirmRemove(BuildContext context, EmployeePosCartItem item) async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Item'),
+        content: Text('Remove "${item.product.name}" from the cart?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: const Text('Remove'),
           ),
         ],
       ),
+    );
+
+    if (proceed == true) {
+      posController.removeFromCart(item.product.id, item.batchId);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final cart = posController.cart;
+    return ListView.separated(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      shrinkWrap: true,
+      itemCount: cart.length,
+      separatorBuilder: (context, index) =>
+      const Divider(height: 16, color: AppColors.borderColor),
+      itemBuilder: (context, index) {
+        final item = cart[index];
+        return _CartItemTile(
+          item: item,
+          onIncrement: () =>
+              posController.incrementQuantity(item.product.id, item.batchId),
+          onDecrement: () =>
+              posController.decrementQuantity(item.product.id, item.batchId),
+          onRemove: () => _confirmRemove(context, item),
+        );
+      },
     );
   }
 }
@@ -811,6 +856,14 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                   ),
                 ],
               ),
+              if (_method == EmployeePaymentMethod.gCash) ...[
+                const SizedBox(height: 20),
+                const Text('GCash QR Code',
+                    style: TextStyle(
+                        color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+                const SizedBox(height: 8),
+                _GcashQrView(posController: widget.posController),
+              ],
               const SizedBox(height: 20),
               const Text('Amount Received',
                   style: TextStyle(
@@ -978,6 +1031,183 @@ class _PaymentMethodChip extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+class _GcashQrView extends StatelessWidget {
+  const _GcashQrView({required this.posController});
+  final EmployeePosController posController;
+
+  void _showFullScreen(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog.fullscreen(
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.broken_image, color: Colors.white, size: 64),
+                      SizedBox(height: 16),
+                      Text('Failed to load QR code', style: TextStyle(color: Colors.white)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: CircleAvatar(
+                  backgroundColor: Colors.black54,
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _confirmChange(BuildContext context) async {
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Change GCash QR'),
+        content: const Text('Are you sure you want to change or remove the current GCash QR code?'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.primaryOrange),
+            child: const Text('Proceed'),
+          ),
+        ],
+      ),
+    );
+
+    if (proceed == true) {
+      posController.updateGcashQrCode(null);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isOwner = EmployeeProfileController.instance.profile.role == 'Owner';
+
+    return ListenableBuilder(
+      listenable: posController,
+      builder: (context, _) {
+        final currentQr = posController.gcashQrCode;
+        if (currentQr == null) {
+          if (!isOwner) {
+            return Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: AppColors.lightPeach,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Row(
+                children: [
+                  Icon(Icons.info_outline, color: AppColors.primaryOrange),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'GCash QR code is not set. Please contact the owner to upload the store QR.',
+                      style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+                    ),
+                  ),
+                ],
+              ),
+            );
+          }
+
+          return InkWell(
+            onTap: () {
+              // Simulate upload
+              posController.updateGcashQrCode(
+                  'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/QR_code_for_mobile_English_Wikipedia.svg/1200px-QR_code_for_mobile_English_Wikipedia.svg.png'
+              );
+            },
+            child: Container(
+              height: 120,
+              width: double.infinity,
+              decoration: BoxDecoration(
+                color: AppColors.lightPeach,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.borderColor.withValues(alpha: 0.5), style: BorderStyle.solid),
+              ),
+              child: const Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.add_photo_alternate_outlined, color: AppColors.primaryOrange, size: 32),
+                  SizedBox(height: 8),
+                  Text('Upload GCash QR Code',
+                      style: TextStyle(color: AppColors.primaryOrange, fontSize: 13, fontWeight: FontWeight.w600)),
+                ],
+              ),
+            ),
+          );
+        }
+
+        return Row(
+          children: [
+            GestureDetector(
+              onTap: () => _showFullScreen(context, currentQr),
+              child: Hero(
+                tag: 'gcash_qr',
+                child: Container(
+                  height: 100,
+                  width: 100,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.borderColor),
+                    image: DecorationImage(
+                      image: NetworkImage(currentQr),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text('Tap image to enlarge for customer scanning',
+                      style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                  if (isOwner) ...[
+                    const SizedBox(height: 8),
+                    TextButton.icon(
+                      onPressed: () => _confirmChange(context),
+                      icon: const Icon(Icons.edit_outlined, size: 16),
+                      label: const Text('Change QR'),
+                      style: TextButton.styleFrom(
+                        foregroundColor: AppColors.primaryOrange,
+                        padding: EdgeInsets.zero,
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        );
+      },
     );
   }
 }
