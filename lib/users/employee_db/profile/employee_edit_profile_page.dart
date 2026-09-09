@@ -77,6 +77,7 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
     );
 
     if (confirmed != true) return;
+    if (!mounted) return;
 
     _controller.updateProfile(
       firstName: firstName,

@@ -3,7 +3,6 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../employee_inventory_controller.dart';
 import 'employee_batch_detail_sheet.dart';
-import 'employee_dummy_products.dart';
 import 'employee_product_model.dart';
 import 'employee_edit_product_page.dart';
 import 'employee_add_product_page.dart';

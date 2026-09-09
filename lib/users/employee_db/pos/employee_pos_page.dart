@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../employee_inventory_controller.dart';
-import '../inventory/employee_dummy_products.dart';
 import '../inventory/employee_product_model.dart';
 import '../profile/employee_profile_controller.dart';
 import 'employee_pos_controller.dart';
@@ -601,6 +601,9 @@ class _CartItemsList extends StatelessWidget {
 
     if (proceed == true) {
       posController.removeFromCart(item.product.id, item.batchId);
+      if (context.mounted) {
+        TopNotification.show(context, 'Item removed from cart');
+      }
     }
   }
 

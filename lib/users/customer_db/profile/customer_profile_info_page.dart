@@ -52,7 +52,7 @@ class CustomerProfileInfoPage extends StatelessWidget {
                       ),
                     ),
                   ),
-                  const SizedBox(height: 12),
+                  SizedBox(height: 12),
                   Text(
                     'Juan Dela Cruz',
                     style: TextStyle(
@@ -61,7 +61,7 @@ class CustomerProfileInfoPage extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 4),
+                  SizedBox(height: 4),
                   Text(
                     'Customer',
                     style: TextStyle(color: AppColors.secondaryText, fontSize: 13),

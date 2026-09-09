@@ -8,10 +8,10 @@ import 'package:sari_sari/users/customer_db/customer_cart_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_details_page.dart';
-import 'package:sari_sari/users/customer_db/home/customer_dummy_products.dart';
 import 'package:sari_sari/users/customer_db/home/customer_product_card.dart';
 import 'package:sari_sari/users/customer_db/home/customer_product_details_page.dart';
 import 'package:sari_sari/users/customer_db/home/customer_product_model.dart';
+import 'package:sari_sari/shared/widgets/skeleton.dart';
 
 /// Customer "Home" tab: product browsing.
 class CustomerHomePage extends StatefulWidget {
@@ -30,15 +30,32 @@ class CustomerHomePage extends StatefulWidget {
 
 class _CustomerHomePageState extends State<CustomerHomePage> {
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
   String _searchQuery = '';
   String _selectedCategory = 'All';
+  bool _isLoading = true;
 
   static const int _itemsPerPage = 12;
   int _currentPage = 1;
 
   @override
+  void initState() {
+    super.initState();
+    _simulateLoading();
+  }
+
+  void _simulateLoading() async {
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(milliseconds: 1000));
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -103,7 +120,17 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         _currentPage = 1;
       });
 
-  void _onPageSelected(int page) => setState(() => _currentPage = page);
+  void _onPageSelected(int page) {
+    setState(() => _currentPage = page);
+    _simulateLoading();
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOut,
+      );
+    }
+  }
 
   void _openProductDetails(CustomerProduct product) {
     Navigator.of(context).push(
@@ -144,14 +171,17 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         return Scaffold(
           backgroundColor: Colors.transparent,
           body: CustomScrollView(
+            controller: _scrollController,
             slivers: [
               SliverToBoxAdapter(child: _buildTitle(context)),
               SliverToBoxAdapter(child: _buildWelcomeSection(context)),
               SliverToBoxAdapter(child: _buildActiveOrder(context)),
               SliverToBoxAdapter(child: _buildSearchBar(context)),
               SliverToBoxAdapter(child: _buildCategories(context)),
-              if (!_isFiltering)
+              if (!_isFiltering && !_isLoading)
                 SliverToBoxAdapter(child: _buildOnSaleProducts(context)),
+              if (!_isFiltering && _isLoading)
+                SliverToBoxAdapter(child: _buildOnSaleSkeletons()),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
@@ -165,8 +195,10 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                   ),
                 ),
               ),
-              if (pagedProducts.isEmpty)
+              if (!_isLoading && pagedProducts.isEmpty)
                 SliverToBoxAdapter(child: _buildEmptyState(context))
+              else if (_isLoading)
+                _buildGridSkeletons()
               else ...[
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
@@ -216,118 +248,114 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
 
         return Padding(
           padding: const EdgeInsets.fromLTRB(24, 0, 24, 20),
-          child: Container(
-            padding: const EdgeInsets.all(16),
-            decoration: BoxDecoration(
-              color: Colors.white,
+          child: Material(
+            color: AppColors.primaryOrange.withValues(alpha: 0.04), // Subtle tint
+            borderRadius: BorderRadius.circular(16),
+            child: InkWell(
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CustomerOrderDetailsPage(order: latestOrder),
+                  ),
+                );
+              },
               borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.05),
-                  blurRadius: 10,
-                  offset: const Offset(0, 4),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: AppColors.primaryOrange.withValues(alpha: 0.08),
+                      blurRadius: 12,
+                      offset: const Offset(0, 6),
+                    ),
+                  ],
+                  border: Border.all(
+                    color: AppColors.primaryOrange.withValues(alpha: 0.4), // Brighter border
+                    width: 1,
+                  ),
                 ),
-              ],
-              border: Border.all(
-                color: AppColors.primaryOrange.withValues(alpha: 0.3),
-                width: 1,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'My Order',
+                          style: TextStyle(
+                            color: AppColors.darkText,
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryOrange.withValues(alpha: 0.15), // Brighter badge
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(
+                            latestOrder.status.label,
+                            style: const TextStyle(
+                              color: AppColors.primaryOrange,
+                              fontSize: 11,
+                              fontWeight: FontWeight.w900, // Thicker font
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryOrange.withValues(alpha: 0.1), // Brightened icon bg
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: const Icon(
+                            Icons.local_shipping_outlined,
+                            color: AppColors.primaryOrange,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Order #${latestOrder.orderId} · ${latestOrder.formattedDate}',
+                                style: const TextStyle(
+                                  color: AppColors.darkText,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.w600,
+                                ),
+                              ),
+                              Text(
+                                '${latestOrder.items.length} items · ₱${latestOrder.totalAmount.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  color: AppColors.secondaryText,
+                                  fontSize: 12,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const Icon(
+                          Icons.chevron_right,
+                          color: AppColors.primaryOrange,
+                          size: 20,
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Active Order',
-                      style: TextStyle(
-                        color: AppColors.darkText,
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryOrange.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(6),
-                      ),
-                      child: Text(
-                        latestOrder.status.label,
-                        style: const TextStyle(
-                          color: AppColors.primaryOrange,
-                          fontSize: 11,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(8),
-                      decoration: BoxDecoration(
-                        color: AppColors.lightBackground,
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      child: const Icon(
-                        Icons.local_shipping_outlined,
-                        color: AppColors.primaryOrange,
-                        size: 20,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            'Order #${latestOrder.orderId} · ${latestOrder.formattedDate}',
-                            style: const TextStyle(
-                              color: AppColors.darkText,
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          Text(
-                            '${latestOrder.items.length} items · ₱${latestOrder.totalAmount.toStringAsFixed(2)}',
-                            style: const TextStyle(
-                              color: AppColors.secondaryText,
-                              fontSize: 12,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => CustomerOrderDetailsPage(order: latestOrder),
-                          ),
-                        );
-                      },
-                      style: TextButton.styleFrom(
-                        padding: const EdgeInsets.symmetric(horizontal: 12),
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                      ),
-                      child: const Text(
-                        'Track',
-                        style: TextStyle(
-                          color: AppColors.primaryOrange,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ],
             ),
           ),
         );
@@ -558,6 +586,53 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildOnSaleSkeletons() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Padding(
+            padding: EdgeInsets.symmetric(horizontal: 24),
+            child: Skeleton(height: 20, width: 140),
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            height: 230,
+            child: ListView.separated(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              itemCount: 3,
+              separatorBuilder: (context, index) => const SizedBox(width: 12),
+              itemBuilder: (context, index) => const SizedBox(
+                width: 160,
+                child: ProductCardSkeleton(),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGridSkeletons() {
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+      sliver: SliverGrid(
+        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+          crossAxisCount: 2,
+          mainAxisSpacing: 14,
+          crossAxisSpacing: 14,
+          childAspectRatio: 0.65,
+        ),
+        delegate: SliverChildBuilderDelegate(
+          (context, index) => const ProductCardSkeleton(),
+          childCount: 4,
+        ),
       ),
     );
   }

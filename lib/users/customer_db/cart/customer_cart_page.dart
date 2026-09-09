@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/top_notification.dart';
 import '../customer_cart_controller.dart';
 import '../purchases/customer_order_controller.dart';
 import '../checkout/customer_checkout_page.dart';
+import '../home/customer_product_details_page.dart';
 
 class CustomerCartPage extends StatelessWidget {
   const CustomerCartPage({
@@ -50,9 +52,46 @@ class CustomerCartPage extends StatelessWidget {
                     final item = cartController.items[index];
                     return _CartItemCard(
                       item: item,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => CustomerProductDetailsPage(
+                              product: item.product,
+                              cartController: cartController,
+                              orderController: orderController,
+                            ),
+                          ),
+                        );
+                      },
                       onIncrement: () => cartController.incrementQuantity(item.product.id),
                       onDecrement: () => cartController.decrementQuantity(item.product.id),
-                      onRemove: () => cartController.removeFromCart(item.product.id),
+                      onRemove: () async {
+                        final confirmed = await showDialog<bool>(
+                          context: context,
+                          builder: (context) => AlertDialog(
+                            title: const Text('Remove Item', style: TextStyle(fontWeight: FontWeight.bold)),
+                            content: Text('Are you sure you want to remove "${item.product.name}" from your cart?'),
+                            actions: [
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, false),
+                                child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+                              ),
+                              TextButton(
+                                onPressed: () => Navigator.pop(context, true),
+                                child: const Text('Remove', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                              ),
+                            ],
+                          ),
+                        );
+
+                        if (confirmed == true) {
+                          cartController.removeFromCart(item.product.id);
+                          if (context.mounted) {
+                            TopNotification.show(context, 'Item removed from cart');
+                          }
+                        }
+                      },
                     );
                   },
                 ),
@@ -83,139 +122,151 @@ class CustomerCartPage extends StatelessWidget {
 class _CartItemCard extends StatelessWidget {
   const _CartItemCard({
     required this.item,
+    required this.onTap,
     required this.onIncrement,
     required this.onDecrement,
     required this.onRemove,
   });
 
   final CartItem item;
+  final VoidCallback onTap;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
   final VoidCallback onRemove;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(16),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              color: AppColors.lightBackground,
-              borderRadius: BorderRadius.circular(12),
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.05),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
             ),
-            child: const Icon(
-              Icons.image_outlined,
-              color: AppColors.placeholderColor,
-              size: 32,
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                color: AppColors.lightBackground,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.image_outlined,
+                color: AppColors.placeholderColor,
+                size: 32,
+              ),
             ),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Expanded(
-                      child: Text(
-                        item.product.name,
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          item.product.name,
+                          style: const TextStyle(
+                            color: AppColors.darkText,
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: onRemove,
+                        icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                  Text(
+                    '₱${item.product.price.toStringAsFixed(2)}',
+                    style: const TextStyle(
+                      color: AppColors.primaryOrange,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Row(
+                        children: [
+                          _QuantityBtn(icon: Icons.remove, onPressed: onDecrement),
+                          SizedBox(
+                            width: 40,
+                            child: Text(
+                              '${item.quantity}',
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ),
+                          _QuantityBtn(
+                            icon: Icons.add,
+                            onPressed: item.quantity < 8 ? onIncrement : null,
+                          ),
+                        ],
+                      ),
+                      Text(
+                        '₱${item.subtotal.toStringAsFixed(2)}',
                         style: const TextStyle(
                           color: AppColors.darkText,
                           fontSize: 16,
                           fontWeight: FontWeight.bold,
                         ),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
                       ),
-                    ),
-                    IconButton(
-                      onPressed: onRemove,
-                      icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                    ),
-                  ],
-                ),
-                Text(
-                  '₱${item.product.price.toStringAsFixed(2)}',
-                  style: const TextStyle(
-                    color: AppColors.primaryOrange,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
+                    ],
                   ),
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Row(
-                      children: [
-                        _QuantityBtn(icon: Icons.remove, onPressed: onDecrement),
-                        SizedBox(
-                          width: 40,
-                          child: Text(
-                            '${item.quantity}',
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 16,
-                            ),
-                          ),
-                        ),
-                        _QuantityBtn(icon: Icons.add, onPressed: onIncrement),
-                      ],
-                    ),
-                    Text(
-                      '₱${item.subtotal.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        color: AppColors.darkText,
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
 }
 
 class _QuantityBtn extends StatelessWidget {
-  const _QuantityBtn({required this.icon, required this.onPressed});
+  const _QuantityBtn({required this.icon, this.onPressed});
   final IconData icon;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final bool isEnabled = onPressed != null;
     return GestureDetector(
       onTap: onPressed,
-      child: Container(
-        width: 32,
-        height: 32,
-        decoration: BoxDecoration(
-          color: AppColors.lightBackground,
-          borderRadius: BorderRadius.circular(8),
+      child: Opacity(
+        opacity: isEnabled ? 1.0 : 0.3,
+        child: Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: AppColors.lightBackground,
+            borderRadius: BorderRadius.circular(8),
+          ),
+          child: Icon(icon, size: 18, color: AppColors.darkText),
         ),
-        child: Icon(icon, size: 18, color: AppColors.darkText),
       ),
     );
   }

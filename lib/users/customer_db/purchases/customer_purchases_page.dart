@@ -3,6 +3,7 @@ import 'package:sari_sari/core/theme/app_colors.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_details_page.dart';
+import 'package:sari_sari/shared/widgets/skeleton.dart';
 
 class CustomerPurchasesPage extends StatefulWidget {
   const CustomerPurchasesPage({super.key, required this.orderController});
@@ -14,11 +15,21 @@ class CustomerPurchasesPage extends StatefulWidget {
 
 class _CustomerPurchasesPageState extends State<CustomerPurchasesPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
+  bool _isLoading = true;
 
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 4, vsync: this);
+    _simulateLoading();
+  }
+
+  void _simulateLoading() async {
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(milliseconds: 800));
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
   }
 
   @override
@@ -70,6 +81,14 @@ class _CustomerPurchasesPageState extends State<CustomerPurchasesPage> with Sing
               child: ListenableBuilder(
                 listenable: widget.orderController,
                 builder: (context, _) {
+                  if (_isLoading) {
+                    return ListView.separated(
+                      padding: const EdgeInsets.all(24),
+                      itemCount: 3,
+                      separatorBuilder: (context, index) => const SizedBox(height: 16),
+                      itemBuilder: (context, index) => const OrderCardSkeleton(),
+                    );
+                  }
                   return TabBarView(
                     controller: _tabController,
                     children: [

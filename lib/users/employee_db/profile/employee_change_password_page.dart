@@ -59,6 +59,7 @@ class _EmployeeChangePasswordPageState extends State<EmployeeChangePasswordPage>
     );
 
     if (confirmed != true) return;
+    if (!mounted) return;
 
     final result = _controller.changePassword(
       currentPassword: current,
@@ -68,16 +69,20 @@ class _EmployeeChangePasswordPageState extends State<EmployeeChangePasswordPage>
 
     switch (result) {
       case ChangePasswordResult.success:
+        if (!mounted) return;
         TopNotification.show(context, 'Password changed successfully.');
         Navigator.pop(context);
         break;
       case ChangePasswordResult.incorrectCurrentPassword:
+        if (!mounted) return;
         TopNotification.show(context, 'Current password is incorrect.', isError: true);
         break;
       case ChangePasswordResult.newPasswordTooShort:
+        if (!mounted) return;
         TopNotification.show(context, 'New password must be at least 8 characters.', isError: true);
         break;
       case ChangePasswordResult.newPasswordsDoNotMatch:
+        if (!mounted) return;
         TopNotification.show(context, 'New password and confirmation do not match.', isError: true);
         break;
     }

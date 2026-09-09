@@ -4,7 +4,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../employee_inventory_controller.dart';
-import 'employee_dummy_products.dart';
 import 'employee_product_model.dart';
 
 /// Stock Receiving screen.
@@ -890,7 +889,7 @@ class _NewProductSheetState extends State<_NewProductSheet> {
                 )
               else
                 DropdownButtonFormField<String>(
-                  value: _category,
+                  initialValue: _category,
                   items: categories
                       .map((category) => DropdownMenuItem(value: category, child: Text(category)))
                       .toList(),

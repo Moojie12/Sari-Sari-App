@@ -3,9 +3,31 @@ import 'package:flutter/material.dart';
 import 'package:sari_sari/core/theme/app_colors.dart';
 import 'customer_notification_model.dart';
 import 'customer_notifications_controller.dart';
+import 'package:sari_sari/shared/widgets/skeleton.dart';
 
-class CustomerNotificationsPage extends StatelessWidget {
+class CustomerNotificationsPage extends StatefulWidget {
   const CustomerNotificationsPage({super.key});
+
+  @override
+  State<CustomerNotificationsPage> createState() => _CustomerNotificationsPageState();
+}
+
+class _CustomerNotificationsPageState extends State<CustomerNotificationsPage> {
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _simulateLoading();
+  }
+
+  void _simulateLoading() async {
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(milliseconds: 700));
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -35,6 +57,15 @@ class CustomerNotificationsPage extends StatelessWidget {
       body: ListenableBuilder(
         listenable: controller,
         builder: (context, _) {
+          if (_isLoading) {
+            return ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: 6,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) => const NotificationSkeleton(),
+            );
+          }
+
           final notifications = controller.notifications;
 
           if (notifications.isEmpty) {

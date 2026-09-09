@@ -6,6 +6,7 @@ import 'employee_floating_nav_bar.dart';
 import 'employee_inventory_controller.dart';
 import 'home/employee_home_page.dart';
 import 'inventory/employee_inventory_page.dart';
+import 'inventory/employee_expiring_products_page.dart';
 import 'messages/employee_messages_controller.dart';
 import 'notifications/employee_notifications_controller.dart';
 import 'orders/employee_orders_controller.dart';
@@ -43,14 +44,20 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   // [_handleScrollNotification] as the active tab's content scrolls.
   bool _isNavBarVisible = true;
 
-  List<Widget>? _cachedPages;
-
-  List<Widget> get _pages => _cachedPages ??= [
+  List<Widget> get _pages => [
     EmployeeHomePage(
       inventory: _inventoryController,
       posController: _posController,
       onOpenPos: () => _onDestinationSelected(1),
       onOpenInventory: () => _onDestinationSelected(2),
+      onOpenExpiringProducts: () {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => EmployeeExpiringProductsPage(inventory: _inventoryController),
+          ),
+        );
+      },
     ),
     EmployeePosPage(inventory: _inventoryController, posController: _posController),
     EmployeeInventoryPage(inventory: _inventoryController),

@@ -28,6 +28,10 @@ class CustomerOrderDetailsPage extends StatelessWidget {
             _OrderInfoSection(order: order),
             const SizedBox(height: 24),
             _StatusTimeline(currentStatus: order.status, orderType: order.orderType),
+            if (order.status == OrderStatus.outForDelivery) ...[
+              const SizedBox(height: 24),
+              const _DeliveryMapPlaceholder(),
+            ],
             const SizedBox(height: 24),
             const Text('Products', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
@@ -260,4 +264,99 @@ class _DetailRow extends StatelessWidget {
       ),
     );
   }
+}
+
+class _DeliveryMapPlaceholder extends StatelessWidget {
+  const _DeliveryMapPlaceholder();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: 200,
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.05),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Stack(
+        children: [
+          // Mock Map Background
+          Container(
+            color: const Color(0xFFE5E3DF),
+            child: CustomPaint(
+              size: Size.infinite,
+              painter: _MapGridPainter(),
+            ),
+          ),
+          // Delivery Status Overlay
+          Positioned(
+            top: 16,
+            left: 16,
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: [
+                  BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 4),
+                ],
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.local_shipping, color: AppColors.primaryOrange, size: 18),
+                  SizedBox(width: 8),
+                  Text(
+                    'Rider is on the way',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Center Marker Placeholder
+          const Center(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(Icons.location_on, color: Colors.red, size: 36),
+                SizedBox(height: 40), // Offset for rider
+              ],
+            ),
+          ),
+          Positioned(
+            left: MediaQuery.of(context).size.width / 2 - 60,
+            top: 110,
+            child: const Icon(Icons.delivery_dining, color: AppColors.primaryOrange, size: 32),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MapGridPainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = Colors.white
+      ..strokeWidth = 4;
+
+    // Draw some random "roads"
+    canvas.drawLine(Offset(0, size.height * 0.3), Offset(size.width, size.height * 0.4), paint);
+    canvas.drawLine(Offset(size.width * 0.2, 0), Offset(size.width * 0.3, size.height), paint);
+    canvas.drawLine(Offset(size.width * 0.7, 0), Offset(size.width * 0.6, size.height), paint);
+    canvas.drawLine(Offset(0, size.height * 0.7), Offset(size.width, size.height * 0.8), paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant CustomPainter oldDelegate) => false;
 }

@@ -755,7 +755,7 @@ class _OrderCard extends StatelessWidget {
 }
 
 class StatusTimelinePicker extends StatelessWidget {
-  const StatusTimelinePicker({required this.order, required this.onStatusSelected});
+  const StatusTimelinePicker({super.key, required this.order, required this.onStatusSelected});
   final CustomerOrder order;
   final ValueChanged<OrderStatus> onStatusSelected;
 

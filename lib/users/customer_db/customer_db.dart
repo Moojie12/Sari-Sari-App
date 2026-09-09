@@ -17,6 +17,6 @@ class CustomerDb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const CustomerDashboard();
+    return CustomerDashboard(key: CustomerDashboard.dashboardKey);
   }
 }

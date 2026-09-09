@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/top_notification.dart';
+import 'customer_address_controller.dart';
+import 'customer_add_edit_address_page.dart';
 
 class CustomerAddressPage extends StatelessWidget {
   const CustomerAddressPage({super.key});
@@ -22,37 +25,81 @@ class CustomerAddressPage extends StatelessWidget {
         iconTheme: const IconThemeData(color: AppColors.darkText),
         centerTitle: true,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          _AddressCard(
-            type: 'Home',
-            address: '123 Sampaguita Street, Brgy. 456, Manila City, Metro Manila',
-            isDefault: true,
-            onEdit: () {},
-            onDelete: () {},
-          ),
-          const SizedBox(height: 16),
-          _AddressCard(
-            type: 'Office',
-            address: '456 Narra Avenue, Makati Business District, Makati City',
-            isDefault: false,
-            onEdit: () {},
-            onDelete: () {},
-          ),
-          const SizedBox(height: 32),
-          OutlinedButton.icon(
-            onPressed: () {},
-            icon: const Icon(Icons.add_location_alt_outlined),
-            label: const Text('Add New Address'),
-            style: OutlinedButton.styleFrom(
-              foregroundColor: AppColors.primaryOrange,
-              side: const BorderSide(color: AppColors.primaryOrange),
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
-          ),
-        ],
+      body: ListenableBuilder(
+        listenable: CustomerAddressController.instance,
+        builder: (context, _) {
+          final addresses = CustomerAddressController.instance.addresses;
+
+          return ListView(
+            padding: const EdgeInsets.all(24),
+            children: [
+              if (addresses.isEmpty)
+                const Center(
+                  child: Padding(
+                    padding: EdgeInsets.symmetric(vertical: 40),
+                    child: Text('No addresses saved yet.', style: TextStyle(color: AppColors.secondaryText)),
+                  ),
+                ),
+              ...addresses.map((a) => Padding(
+                padding: const EdgeInsets.only(bottom: 16),
+                child: _AddressCard(
+                  type: a.type,
+                  address: a.address,
+                  isDefault: a.isDefault,
+                  onEdit: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => CustomerAddEditAddressPage(address: a)),
+                    );
+                  },
+                  onDelete: () async {
+                    final confirmed = await showDialog<bool>(
+                      context: context,
+                      builder: (context) => AlertDialog(
+                        title: const Text('Delete Address', style: TextStyle(fontWeight: FontWeight.bold)),
+                        content: Text('Are you sure you want to delete your "${a.type}" address?'),
+                        actions: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, false),
+                            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+                          ),
+                          TextButton(
+                            onPressed: () => Navigator.pop(context, true),
+                            child: const Text('Delete', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    );
+
+                    if (confirmed == true) {
+                      CustomerAddressController.instance.deleteAddress(a.id);
+                      if (context.mounted) {
+                        TopNotification.show(context, 'Address deleted successfully');
+                      }
+                    }
+                  },
+                ),
+              )),
+              const SizedBox(height: 16),
+              OutlinedButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const CustomerAddEditAddressPage()),
+                  );
+                },
+                icon: const Icon(Icons.add_location_alt_outlined),
+                label: const Text('Add New Address'),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.primaryOrange,
+                  side: const BorderSide(color: AppColors.primaryOrange),
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+              ),
+            ],
+          );
+        },
       ),
     );
   }

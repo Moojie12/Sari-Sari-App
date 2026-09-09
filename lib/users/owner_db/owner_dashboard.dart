@@ -8,6 +8,7 @@ import '../employee_db/pos/employee_pos_page.dart';
 import 'owner_floating_nav_bar.dart';
 import 'home/owner_home_page.dart';
 import 'inventory/owner_inventory_page.dart';
+import '../employee_db/inventory/employee_expiring_products_page.dart';
 import 'profile/owner_profile_page.dart';
 import '../employee_db/orders/employee_orders_controller.dart';
 import '../employee_db/orders/employee_orders_page.dart';
@@ -36,6 +37,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     setState(() => _selectedIndex = index);
   }
 
+
+
   bool _handleScrollNotification(UserScrollNotification notification) {
     if (notification.metrics.axis != Axis.vertical) return false;
     switch (notification.direction) {
@@ -62,9 +65,17 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     final List<Widget> pages = [
       OwnerHomePage(
         inventory: _inventoryController,
-        onOpenPos: () => _onDestinationSelected(1),
+        posController: _posController,
         onOpenInventory: () => _onDestinationSelected(2),
-        onOpenProfile: () => _onDestinationSelected(4),
+        onOpenPos: () => _onDestinationSelected(1),
+        onOpenExpiringProducts: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EmployeeExpiringProductsPage(inventory: _inventoryController),
+            ),
+          );
+        },
       ),
       EmployeePosPage(inventory: _inventoryController, posController: _posController),
       OwnerInventoryPage(inventory: _inventoryController),

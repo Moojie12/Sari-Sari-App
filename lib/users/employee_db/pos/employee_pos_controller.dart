@@ -1,6 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-import '../../../core/expiry/expiry_checker.dart';
 import '../employee_inventory_controller.dart';
 import '../inventory/employee_batch_model.dart';
 import '../inventory/employee_product_model.dart';
@@ -74,10 +73,9 @@ ProductBatch? _findBatch(EmployeeProduct product, String batchId) {
 /// inventory automatically (POS and Sales Management / Payment Management
 /// features, batch-aware).
 class EmployeePosController extends ChangeNotifier {
-  EmployeePosController({required EmployeeInventoryController inventory})
-      : _inventory = inventory;
+  EmployeePosController({required this.inventory});
 
-  final EmployeeInventoryController _inventory;
+  final EmployeeInventoryController inventory;
 
   final List<EmployeePosCartItem> _cart = [];
   int _receiptCounter = 1;
@@ -139,7 +137,7 @@ class EmployeePosController extends ChangeNotifier {
     _cart.indexWhere((item) => item.product.id == productId && item.batchId == batchId);
     if (index < 0) return;
 
-    final liveProduct = _inventory.findById(productId);
+    final liveProduct = inventory.findById(productId);
     final liveBatch = liveProduct != null ? _findBatch(liveProduct, batchId) : null;
     final cap = liveBatch?.quantity ?? _cart[index].quantity;
     if (_cart[index].quantity + 1 > cap) return;
@@ -181,13 +179,13 @@ class EmployeePosController extends ChangeNotifier {
     // Re-validate against the live batch, not the snapshot captured when
     // the item was added — another sale may have used up that batch since.
     for (final item in _cart) {
-      final liveProduct = _inventory.findById(item.product.id);
+      final liveProduct = inventory.findById(item.product.id);
       final liveBatch = liveProduct != null ? _findBatch(liveProduct, item.batchId) : null;
       if (liveBatch == null || liveBatch.quantity < item.quantity) return null;
     }
 
     for (final item in _cart) {
-      _inventory.deductFromBatch(item.product.id, item.batchId, item.quantity);
+      inventory.deductFromBatch(item.product.id, item.batchId, item.quantity);
     }
 
     final receipt = EmployeeReceipt(

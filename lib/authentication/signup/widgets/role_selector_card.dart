@@ -21,39 +21,36 @@ class RoleSelectorCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: GestureDetector(
-        onTap: onTap,
-        child: AnimatedContainer(
-          duration: const Duration(milliseconds: 150),
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          decoration: BoxDecoration(
-            color: isSelected ? AppColors.primaryOrange : AppColors.cardWhite,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(
-              color:
-              isSelected ? AppColors.primaryOrange : AppColors.borderColor,
-              width: 1.2,
+    return GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primaryOrange : AppColors.cardWhite,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: isSelected ? AppColors.primaryOrange : AppColors.borderColor,
+            width: 1.2,
+          ),
+        ),
+        child: Column(
+          children: [
+            Icon(
+              icon,
+              size: 24,
+              color: isSelected ? Colors.white : AppColors.secondaryText,
             ),
-          ),
-          child: Column(
-            children: [
-              Icon(
-                icon,
-                size: 24,
+            const SizedBox(height: 6),
+            Text(
+              label,
+              style: TextStyle(
                 color: isSelected ? Colors.white : AppColors.secondaryText,
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
               ),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                style: TextStyle(
-                  color: isSelected ? Colors.white : AppColors.secondaryText,
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
       ),
     );

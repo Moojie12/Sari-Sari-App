@@ -244,7 +244,6 @@ class _RoundIconButton extends StatelessWidget {
     required this.icon,
     required this.onTap,
     this.iconColor = Colors.white,
-    this.backgroundColor,
     this.size = 42,
     this.iconSize = 20,
   });
@@ -252,14 +251,13 @@ class _RoundIconButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
   final Color iconColor;
-  final Color? backgroundColor;
   final double size;
   final double iconSize;
 
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: backgroundColor ?? Colors.black.withValues(alpha: 0.45),
+      color: Colors.black.withValues(alpha: 0.45),
       shape: const CircleBorder(),
       child: InkWell(
         customBorder: const CircleBorder(),

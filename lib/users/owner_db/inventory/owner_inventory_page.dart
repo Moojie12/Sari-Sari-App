@@ -3,7 +3,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../employee_db/employee_inventory_controller.dart';
 import '../../employee_db/inventory/employee_batch_model.dart';
 import '../../employee_db/inventory/employee_expiry_badge.dart';
-import '../../employee_db/inventory/employee_dummy_products.dart';
 import '../../employee_db/inventory/employee_product_model.dart';
 import '../../employee_db/inventory/employee_edit_product_page.dart';
 import '../../employee_db/inventory/employee_add_product_page.dart';

@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/utils/top_notification.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
 import '../../employee_db/inventory/employee_dummy_products.dart';
-import '../../employee_db/orders/employee_order_details_page.dart';
 import '../../employee_db/orders/employee_orders_controller.dart';
 import '../../employee_db/pos/employee_pos_controller.dart';
 import '../../employee_db/pos/employee_receipt_page.dart';
@@ -101,7 +99,7 @@ class _DeliveryTransactionsList extends StatelessWidget {
         return ListView.separated(
           padding: const EdgeInsets.all(24),
           itemCount: orders.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final order = orders[index];
             return _HistoryCard(
@@ -226,7 +224,7 @@ class _PickupTransactionsList extends StatelessWidget {
         return ListView.separated(
           padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
           itemCount: orders.length,
-          separatorBuilder: (_, __) => const SizedBox(height: 12),
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
           itemBuilder: (context, index) {
             final order = orders[index];
             return _HistoryCard(
@@ -261,7 +259,7 @@ class _WalkInTransactionsList extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
       itemCount: receipts.length,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) {
         final receipt = receipts[index];
         return _HistoryCard(
@@ -315,7 +313,7 @@ class _ActivityLogsList extends StatelessWidget {
     return ListView.separated(
       padding: const EdgeInsets.all(24),
       itemCount: 15,
-      separatorBuilder: (_, __) => const SizedBox(height: 12),
+      separatorBuilder: (_, _) => const SizedBox(height: 12),
       itemBuilder: (context, index) => Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
@@ -499,7 +497,6 @@ class _HistoryCard extends StatelessWidget {
     required this.subtitle,
     required this.trailingText,
     required this.date,
-    this.canVoid = false,
     this.status,
     this.statusColor,
     this.onTap,
@@ -509,7 +506,6 @@ class _HistoryCard extends StatelessWidget {
   final String subtitle;
   final String trailingText;
   final String date;
-  final bool canVoid;
   final String? status;
   final Color? statusColor;
   final VoidCallback? onTap;
@@ -574,19 +570,6 @@ class _HistoryCard extends StatelessWidget {
                 Text(date,
                     style: TextStyle(
                         color: AppColors.secondaryText.withValues(alpha: 0.5), fontSize: 11)),
-                if (canVoid)
-                  TextButton(
-                    onPressed: () {
-                      TopNotification.show(context, 'Transaction voided successfully.');
-                    },
-                    style: TextButton.styleFrom(
-                      foregroundColor: Colors.red,
-                      padding: EdgeInsets.zero,
-                      minimumSize: const Size(0, 0),
-                      tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                    ),
-                    child: const Text('Void', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                  ),
               ],
             ),
           ],

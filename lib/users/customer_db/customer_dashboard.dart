@@ -16,14 +16,21 @@ import 'package:sari_sari/users/customer_db/notifications/customer_notifications
 
 /// Main shell for the customer-facing side of the app.
 class CustomerDashboard extends StatefulWidget {
+  static final GlobalKey<CustomerDashboardState> dashboardKey = GlobalKey<CustomerDashboardState>();
   const CustomerDashboard({super.key});
 
   @override
-  State<CustomerDashboard> createState() => _CustomerDashboardState();
+  State<CustomerDashboard> createState() => CustomerDashboardState();
 }
 
-class _CustomerDashboardState extends State<CustomerDashboard> {
+class CustomerDashboardState extends State<CustomerDashboard> {
   int _selectedIndex = 0;
+
+  void switchTab(int index) {
+    if (index >= 0 && index < _pages.length) {
+      setState(() => _selectedIndex = index);
+    }
+  }
 
   // Using the singleton controllers (factory ensures we get the global instance)
   final _cartController = CustomerCartController();

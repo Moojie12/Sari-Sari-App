@@ -12,6 +12,7 @@ import '../../employee_db/messages/employee_messages_page.dart';
 import '../../employee_db/notifications/employee_notifications_controller.dart';
 import '../../employee_db/notifications/employee_notifications_page.dart';
 import '../history/owner_history_page.dart';
+import '../reports/owner_reports_page.dart';
 import 'owner_archived_products_page.dart';
 
 class OwnerProfilePage extends StatelessWidget {
@@ -129,6 +130,11 @@ class OwnerProfilePage extends StatelessWidget {
                   icon: Icons.history,
                   label: 'Transaction History',
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerTransactionHistoryPage())),
+                ),
+                _MenuTile(
+                  icon: Icons.bar_chart_rounded,
+                  label: 'View Reports',
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerReportsPage())),
                 ),
                 _MenuTile(
                   icon: Icons.list_alt,
@@ -305,7 +311,7 @@ class OwnerProfilePage extends StatelessWidget {
             const Text('Notify when items are within:'),
             const SizedBox(height: 16),
             DropdownButtonFormField<int>(
-              value: 30,
+              initialValue: 30,
               items: const [
                 DropdownMenuItem(value: 7, child: Text('7 Days')),
                 DropdownMenuItem(value: 15, child: Text('15 Days')),

@@ -4,7 +4,6 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../employee_inventory_controller.dart';
-import 'employee_dummy_products.dart';
 import 'employee_product_model.dart';
 
 /// Add Product screen (replaces the old "Receive Stock" screen).
@@ -232,11 +231,34 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
 
   void _addNoExpiryBatch() => _addOrBumpBatch(null);
 
-  void _removeBatch(int index) {
-    setState(() {
-      _pendingBatches[index].dispose();
-      _pendingBatches.removeAt(index);
-    });
+  void _removeBatch(int index) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Remove Batch', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: const Text('Are you sure you want to remove this batch entry?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Remove', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      setState(() {
+        _pendingBatches[index].dispose();
+        _pendingBatches.removeAt(index);
+      });
+      if (mounted) {
+        TopNotification.show(context, 'Batch entry removed');
+      }
+    }
   }
 
   bool _validateBatches() {
@@ -278,6 +300,7 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
     );
 
     if (confirmed != true) return;
+    if (!mounted) return;
 
     final results = widget.inventory.receiveBatches(
       productId: product.id,
@@ -800,10 +823,7 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
     );
   }
 
-  Widget _buildLabel(String text) {
-    return Text(text,
-        style: const TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500));
-  }
+
 }
 
 class _ProductResultTile extends StatelessWidget {
@@ -970,6 +990,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
     );
 
     if (confirmed != true) return;
+    if (!mounted) return;
 
     if (_isAddingNewCategory) {
       widget.inventory.addCategory(category);
@@ -1092,7 +1113,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                 )
               else
                 DropdownButtonFormField<String>(
-                  value: _category,
+                  initialValue: _category,
                   items: categories
                       .map((category) => DropdownMenuItem(value: category, child: Text(category)))
                       .toList(),

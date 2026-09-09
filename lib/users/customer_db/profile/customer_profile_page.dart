@@ -6,12 +6,34 @@ import 'customer_edit_profile_page.dart';
 import 'customer_change_password_page.dart';
 import 'customer_address_page.dart';
 import 'customer_gcash_setting_page.dart';
-import '../../../shared/utils/top_notification.dart';
+import '../chat/customer_chat_page.dart';
+import 'package:sari_sari/shared/widgets/skeleton.dart';
 
 /// Customer "Profile" tab: a menu into customer profile features,
 /// mirroring the employee dashboard layout but simplified.
-class CustomerProfilePage extends StatelessWidget {
+class CustomerProfilePage extends StatefulWidget {
   const CustomerProfilePage({super.key});
+
+  @override
+  State<CustomerProfilePage> createState() => _CustomerProfilePageState();
+}
+
+class _CustomerProfilePageState extends State<CustomerProfilePage> {
+  bool _isLoading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _simulateLoading();
+  }
+
+  void _simulateLoading() async {
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+  }
 
   void _showLogoutConfirmation(BuildContext context) {
     showDialog(
@@ -47,7 +69,9 @@ class CustomerProfilePage extends StatelessWidget {
       body: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(24, 50, 24, 24),
-        child: Column(
+        child: _isLoading 
+            ? const ProfileSkeleton()
+            : Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
@@ -113,6 +137,16 @@ class CustomerProfilePage extends StatelessWidget {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const CustomerAddressPage()),
+                    );
+                  },
+                ),
+                _MenuTile(
+                  icon: Icons.chat_outlined,
+                  label: 'Messages',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const CustomerChatPage()),
                     );
                   },
                 ),

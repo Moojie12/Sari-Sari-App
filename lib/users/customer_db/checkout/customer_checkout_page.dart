@@ -3,6 +3,9 @@ import '../../../core/theme/app_colors.dart';
 import '../customer_cart_controller.dart';
 import '../purchases/customer_order_controller.dart';
 import '../purchases/customer_order_model.dart';
+import '../profile/customer_address_model.dart';
+import '../profile/customer_address_controller.dart';
+import '../profile/customer_add_edit_address_page.dart';
 import 'customer_order_confirmation_page.dart';
 
 class CustomerCheckoutPage extends StatefulWidget {
@@ -24,9 +27,24 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
   PaymentMethod _paymentMethod = PaymentMethod.cashOnDelivery;
   final double _deliveryFee = 20.0;
 
+  CustomerAddress? _selectedAddress;
+
+  @override
+  void initState() {
+    super.initState();
+    _selectedAddress = CustomerAddressController.instance.defaultAddress;
+  }
+
   double get _total => widget.cartController.totalAmount + (_orderType == OrderType.delivery ? _deliveryFee : 0);
 
   void _handlePlaceOrder() {
+    if (_orderType == OrderType.delivery && _selectedAddress == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please select a delivery address')),
+      );
+      return;
+    }
+
     final orderId = widget.orderController.generateOrderNumber();
     final items = widget.cartController.items.map((item) => CustomerOrderItem(
       productId: item.product.id,
@@ -44,7 +62,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       orderType: _orderType,
       paymentMethod: _paymentMethod,
       paymentStatus: _paymentMethod == PaymentMethod.cashOnDelivery ? PaymentStatus.unpaid : PaymentStatus.paid,
-      deliveryAddress: _orderType == OrderType.delivery ? 'Juan Dela Cruz, Pagsanjan, Laguna, 09XXXXXXXXX' : null,
+      deliveryAddress: _orderType == OrderType.delivery ? _selectedAddress?.address : null,
       subtotal: widget.cartController.totalAmount,
       deliveryFee: _orderType == OrderType.delivery ? _deliveryFee : 0,
       totalAmount: _total,
@@ -63,79 +81,122 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
     );
   }
 
+  void _showAddressModal() {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _AddressSelectionModal(
+        addresses: CustomerAddressController.instance.addresses,
+        selectedAddress: _selectedAddress,
+        onAddressSelected: (address) {
+          setState(() => _selectedAddress = address);
+          Navigator.pop(context);
+        },
+        onAddNewAddress: () {
+          Navigator.pop(context);
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => const CustomerAddEditAddressPage()),
+          ).then((_) {
+            if (_selectedAddress == null) {
+              setState(() => _selectedAddress = CustomerAddressController.instance.defaultAddress);
+            }
+          });
+        },
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.lightBackground,
-      appBar: AppBar(
-        title: const Text(
-          'Checkout',
-          style: TextStyle(color: AppColors.darkText, fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.darkText),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _SectionHeader(title: 'Order Summary'),
-            const SizedBox(height: 12),
-            _OrderSummaryList(items: widget.cartController.items),
-            const SizedBox(height: 32),
-            
-            _SectionHeader(title: 'Order Type'),
-            const SizedBox(height: 12),
-            _OrderTypeSelector(
-              selectedType: _orderType,
-              onChanged: (type) => setState(() => _orderType = type),
+    return ListenableBuilder(
+      listenable: CustomerAddressController.instance,
+      builder: (context, _) {
+        if (_selectedAddress != null && 
+            !CustomerAddressController.instance.addresses.any((a) => a.id == _selectedAddress!.id)) {
+          _selectedAddress = CustomerAddressController.instance.defaultAddress;
+        }
+
+        return Scaffold(
+          backgroundColor: AppColors.lightBackground,
+          appBar: AppBar(
+            title: const Text(
+              'Checkout',
+              style: TextStyle(color: AppColors.darkText, fontSize: 20, fontWeight: FontWeight.bold),
             ),
-            const SizedBox(height: 32),
-
-            if (_orderType == OrderType.delivery) ...[
-              _SectionHeader(title: 'Delivery Information'),
-              const SizedBox(height: 12),
-              _DeliveryInfoCard(),
-              const SizedBox(height: 32),
-            ],
-
-            _SectionHeader(title: 'Payment Method'),
-            const SizedBox(height: 12),
-            _PaymentMethodSelector(
-              selectedMethod: _paymentMethod,
-              onChanged: (method) => setState(() => _paymentMethod = method),
-            ),
-            const SizedBox(height: 32),
-
-            _SectionHeader(title: 'Price Summary'),
-            const SizedBox(height: 12),
-            _PriceSummaryCard(
-              subtotal: widget.cartController.totalAmount,
-              deliveryFee: _orderType == OrderType.delivery ? _deliveryFee : 0,
-              total: _total,
-            ),
-            const SizedBox(height: 40),
-
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _handlePlaceOrder,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryOrange,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            backgroundColor: Colors.white,
+            elevation: 0,
+            iconTheme: const IconThemeData(color: AppColors.darkText),
+            centerTitle: true,
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _SectionHeader(title: 'Order Summary'),
+                const SizedBox(height: 12),
+                _OrderSummaryList(items: widget.cartController.items),
+                const SizedBox(height: 32),
+                
+                _SectionHeader(title: 'Order Type'),
+                const SizedBox(height: 12),
+                _OrderTypeSelector(
+                  selectedType: _orderType,
+                  onChanged: (type) => setState(() => _orderType = type),
                 ),
-                child: const Text('PLACE ORDER', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
+                const SizedBox(height: 32),
+
+                if (_orderType == OrderType.delivery) ...[
+                  _SectionHeader(title: 'Delivery Information'),
+                  const SizedBox(height: 12),
+                  if (_selectedAddress == null)
+                    _AddLocationButton(onTap: _showAddressModal)
+                  else
+                    _DeliveryInfoCard(
+                      address: _selectedAddress!,
+                      onTap: _showAddressModal,
+                    ),
+                  const SizedBox(height: 32),
+                ],
+
+                _SectionHeader(title: 'Payment Method'),
+                const SizedBox(height: 12),
+                _PaymentMethodSelector(
+                  selectedMethod: _paymentMethod,
+                  onChanged: (method) => setState(() => _paymentMethod = method),
+                ),
+                const SizedBox(height: 32),
+
+                _SectionHeader(title: 'Price Summary'),
+                const SizedBox(height: 12),
+                _PriceSummaryCard(
+                  subtotal: widget.cartController.totalAmount,
+                  deliveryFee: _orderType == OrderType.delivery ? _deliveryFee : 0,
+                  total: _total,
+                ),
+                const SizedBox(height: 40),
+
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: _handlePlaceOrder,
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryOrange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('PLACE ORDER', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+                const SizedBox(height: 24),
+              ],
             ),
-            const SizedBox(height: 24),
-          ],
-        ),
-      ),
+          ),
+        );
+      },
     );
   }
 }
@@ -314,23 +375,171 @@ class _PaymentOption extends StatelessWidget {
 }
 
 class _DeliveryInfoCard extends StatelessWidget {
+  const _DeliveryInfoCard({required this.address, required this.onTap});
+  final CustomerAddress address;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.all(16),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.borderColor.withValues(alpha: 0.5)),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.location_on, color: AppColors.primaryOrange),
+            const SizedBox(width: 16),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(address.type, style: const TextStyle(fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 4),
+                  Text(
+                    address.address,
+                    style: const TextStyle(color: AppColors.secondaryText, fontSize: 13),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+            const Icon(Icons.chevron_right, color: AppColors.placeholderColor),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _AddLocationButton extends StatelessWidget {
+  const _AddLocationButton({required this.onTap});
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return OutlinedButton.icon(
+      onPressed: onTap,
+      icon: const Icon(Icons.add_location_alt_outlined),
+      label: const Text('Add Delivery Location'),
+      style: OutlinedButton.styleFrom(
+        foregroundColor: AppColors.primaryOrange,
+        side: const BorderSide(color: AppColors.primaryOrange),
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        minimumSize: const Size(double.infinity, 0),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+    );
+  }
+}
+
+class _AddressSelectionModal extends StatelessWidget {
+  const _AddressSelectionModal({
+    required this.addresses,
+    required this.selectedAddress,
+    required this.onAddressSelected,
+    required this.onAddNewAddress,
+  });
+
+  final List<CustomerAddress> addresses;
+  final CustomerAddress? selectedAddress;
+  final ValueChanged<CustomerAddress> onAddressSelected;
+  final VoidCallback onAddNewAddress;
+
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(12)),
-      child: Row(
+      padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(Icons.location_on, color: AppColors.primaryOrange),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text('Juan Dela Cruz', style: TextStyle(fontWeight: FontWeight.bold)),
-                Text('Pagsanjan, Laguna', style: TextStyle(color: AppColors.secondaryText)),
-                Text('09XXXXXXXXX', style: TextStyle(color: AppColors.secondaryText)),
-              ],
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Select Delivery Address',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText),
+              ),
+              IconButton(
+                onPressed: () => Navigator.pop(context),
+                icon: const Icon(Icons.close),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          ...addresses.map((address) {
+            final isSelected = selectedAddress?.id == address.id;
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: InkWell(
+                onTap: () => onAddressSelected(address),
+                borderRadius: BorderRadius.circular(12),
+                child: Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.primaryOrange.withValues(alpha: 0.05) : Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(
+                      color: isSelected ? AppColors.primaryOrange : AppColors.borderColor,
+                      width: isSelected ? 2 : 1,
+                    ),
+                  ),
+                  child: Row(
+                    children: [
+                      Icon(
+                        address.type == 'Home' ? Icons.home_outlined : Icons.work_outline,
+                        color: isSelected ? AppColors.primaryOrange : AppColors.secondaryText,
+                      ),
+                      const SizedBox(width: 16),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              address.type,
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                color: isSelected ? AppColors.primaryOrange : AppColors.darkText,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                            Text(
+                              address.address,
+                              style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      if (isSelected)
+                        const Icon(Icons.check_circle, color: AppColors.primaryOrange),
+                    ],
+                  ),
+                ),
+              ),
+            );
+          }),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: onAddNewAddress,
+            icon: const Icon(Icons.add),
+            label: const Text('Add New Address'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: AppColors.primaryOrange,
+              side: const BorderSide(color: AppColors.primaryOrange),
+              minimumSize: const Size(double.infinity, 50),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
             ),
           ),
         ],

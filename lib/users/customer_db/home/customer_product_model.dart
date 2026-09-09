@@ -40,6 +40,7 @@ class CustomerProduct {
     required this.image,
     required this.availability,
     this.isOnSale = false,
+    this.isFeatured = false,
   });
 
   final String id;
@@ -56,6 +57,7 @@ class CustomerProduct {
 
   final CustomerProductAvailability availability;
   final bool isOnSale;
+  final bool isFeatured;
 
   bool get isOutOfStock =>
       availability == CustomerProductAvailability.outOfStock;

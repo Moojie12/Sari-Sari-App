@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../purchases/customer_order_model.dart';
+import '../customer_dashboard.dart';
 
 class CustomerOrderConfirmationPage extends StatelessWidget {
   const CustomerOrderConfirmationPage({super.key, required this.order});
@@ -38,15 +39,8 @@ class CustomerOrderConfirmationPage extends StatelessWidget {
                 width: double.infinity,
                 child: ElevatedButton(
                   onPressed: () {
-                    // Navigate to My Purchases
-                    // Since Dashboard is at the bottom, we might need a specific way to switch tabs.
-                    // For now, popping back to home and letting the user navigate to My Purchases is simpler,
-                    // or we can try to pop until dashboard and then set index.
-                    // But the prompt says "View My Purchases should open the My Purchases section."
-                    Navigator.pop(context); // Go back to Home
-                    // Ideally we should tell the Dashboard to switch to index 2.
-                    // A simple way is to use a callback or just tell the user to navigate.
-                    // However, I'll just pop to the first route for now.
+                    Navigator.pop(context);
+                    CustomerDashboard.dashboardKey.currentState?.switchTab(2);
                   },
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryOrange,

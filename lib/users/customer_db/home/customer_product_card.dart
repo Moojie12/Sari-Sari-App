@@ -65,8 +65,6 @@ class CustomerProductCard extends StatelessWidget {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 4),
-                  _AvailabilityLabel(availability: product.availability),
                   const SizedBox(height: 10),
                   if (isOutOfStock)
                     SizedBox(
@@ -84,7 +82,7 @@ class CustomerProductCard extends StatelessWidget {
                           ),
                         ),
                         child: const Text(
-                          'Unavailable',
+                          'Out of Stock',
                           style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.bold,
@@ -177,42 +175,3 @@ class _CustomerProductImagePlaceholder extends StatelessWidget {
   }
 }
 
-class _AvailabilityLabel extends StatelessWidget {
-  const _AvailabilityLabel({required this.availability});
-
-  final CustomerProductAvailability availability;
-
-  @override
-  Widget build(BuildContext context) {
-    final Color dotColor;
-    switch (availability) {
-      case CustomerProductAvailability.inStock:
-        dotColor = Colors.green;
-        break;
-      case CustomerProductAvailability.lowStock:
-        dotColor = Colors.orange;
-        break;
-      case CustomerProductAvailability.outOfStock:
-        dotColor = Colors.red;
-        break;
-    }
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Container(
-          width: 6,
-          height: 6,
-          decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
-        ),
-        const SizedBox(width: 4),
-        Text(
-          availability.label,
-          style: Theme.of(context)
-              .textTheme
-              .labelSmall
-              ?.copyWith(color: dotColor),
-        ),
-      ],
-    );
-  }
-}
