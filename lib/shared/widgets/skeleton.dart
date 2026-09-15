@@ -285,3 +285,68 @@ class WeatherCardSkeleton extends StatelessWidget {
     );
   }
 }
+
+class BatchCardSkeleton extends StatelessWidget {
+  const BatchCardSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.borderColor.withValues(alpha: 0.5),
+          width: 1,
+        ),
+      ),
+      child: const Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Skeleton(height: 18, width: 120),
+              Skeleton(height: 22, width: 80, borderRadius: 12),
+            ],
+          ),
+          SizedBox(height: 16),
+          Skeleton(height: 14, width: 150),
+          SizedBox(height: 16),
+          Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Skeleton(height: 12, width: 60),
+                    SizedBox(height: 4),
+                    Skeleton(height: 14, width: 90),
+                  ],
+                ),
+              ),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Skeleton(height: 12, width: 60),
+                    SizedBox(height: 4),
+                    Skeleton(height: 14, width: 90),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          Divider(height: 24),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.end,
+            children: [
+              Skeleton(height: 36, width: 110, borderRadius: 8),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}

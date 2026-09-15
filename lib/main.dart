@@ -1,6 +1,8 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
-import 'authentication/login/login_page.dart'; // Fixed relative path
+import 'package:flutter/foundation.dart';
+import 'authentication/login/login_page.dart';
+import 'authentication/admin_login/admin_login_page.dart';
 
 void main() {
   runApp(const SariSariApp());
@@ -18,10 +20,10 @@ class SariSariApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Roboto',
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFFFFA733),
+          seedColor: const Color(0xFFEF820D),
         ),
       ),
-      home: const LoginPage(),
+      home: kIsWeb ? const AdminLoginPage() : const LoginPage(),
     );
   }
 }
