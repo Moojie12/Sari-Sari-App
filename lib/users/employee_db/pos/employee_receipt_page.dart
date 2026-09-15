@@ -52,13 +52,13 @@ class EmployeeReceiptPage extends StatelessWidget {
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
                                       Text(
-                                        '${item.product.name} x${item.quantity}',
+                                        '${item.product.name} x ${item.product.isWeightBased ? item.quantity.toStringAsFixed(2) : item.quantity.toStringAsFixed(0)} ${item.product.isWeightBased ? 'kg' : 'pcs'}',
                                         style: const TextStyle(color: AppColors.darkText),
                                       ),
                                       // Optional batch/expiry detail on the
                                       // receipt (Receipt Generation, step 8).
                                       Text(
-                                        '₱${item.unitPrice.toStringAsFixed(2)} each · Batch ${item.batchId}'
+                                        '₱${item.unitPrice.toStringAsFixed(2)} / ${item.product.isWeightBased ? 'kg' : 'pc'} · Batch ${item.batchId}'
                                             '${item.batchExpiryDate != null ? " · Exp ${item.batchExpiryDate!.day}/${item.batchExpiryDate!.month}/${item.batchExpiryDate!.year}" : ""}',
                                         style: const TextStyle(color: AppColors.secondaryText, fontSize: 11),
                                       ),

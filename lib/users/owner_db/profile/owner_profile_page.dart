@@ -14,6 +14,8 @@ import '../../employee_db/notifications/employee_notifications_page.dart';
 import '../history/owner_history_page.dart';
 import '../reports/owner_reports_page.dart';
 import 'owner_archived_products_page.dart';
+import 'shop_settings_controller.dart';
+import 'owner_create_employee_page.dart';
 
 class OwnerProfilePage extends StatelessWidget {
   const OwnerProfilePage({super.key});
@@ -76,6 +78,19 @@ class OwnerProfilePage extends StatelessWidget {
                   icon: Icons.badge_outlined,
                   label: 'Profile Information',
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileInfoPage())),
+                ),
+                _MenuTile(
+                  icon: Icons.person_add_alt_1_outlined,
+                  label: 'Create Employee',
+                  onTap: () async {
+                    final created = await Navigator.push<bool>(
+                      context,
+                      MaterialPageRoute(builder: (context) => const OwnerCreateEmployeePage()),
+                    );
+                    if (created == true && context.mounted) {
+                      _showSuccessDialog(context, 'Employee account created successfully.');
+                    }
+                  },
                 ),
                 _MenuTile(
                   icon: Icons.edit_outlined,
@@ -165,6 +180,11 @@ class OwnerProfilePage extends StatelessWidget {
                   onTap: () => _showThresholdDialog(context),
                 ),
                 _MenuTile(
+                  icon: Icons.delivery_dining_outlined,
+                  label: 'Delivery Fee Config',
+                  onTap: () => _showDeliveryFeeDialog(context),
+                ),
+                _MenuTile(
                   icon: Icons.timer_outlined,
                   label: 'Expiry Monitoring Config',
                   isLast: true,
@@ -240,7 +260,7 @@ class OwnerProfilePage extends StatelessWidget {
 
               if (proceed == true && context.mounted) {
                 Navigator.pop(context);
-                TopNotification.show(context, 'GCash QR code updated successfully.');
+                _showSuccessDialog(context, 'GCash QR code updated successfully.');
               }
             },
             child: const Text('Save'),
@@ -251,56 +271,157 @@ class OwnerProfilePage extends StatelessWidget {
   }
 
   void _showThresholdDialog(BuildContext context) {
+    final controller = ShopSettingsController.instance;
+    final textController = TextEditingController(text: controller.lowStockThreshold.toString());
+    String? errorText;
+
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Low-Stock Threshold'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Text('Set the default item count for low stock alerts.'),
-            const SizedBox(height: 16),
-            TextField(
-              keyboardType: TextInputType.number,
-              decoration: InputDecoration(
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                hintText: 'e.g. 10',
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Low-Stock Threshold'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Set the default item count for low stock alerts.'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: textController,
+                keyboardType: TextInputType.number,
+                onChanged: (_) {
+                  if (errorText != null) setState(() => errorText = null);
+                },
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  hintText: 'e.g. 10',
+                  errorText: errorText,
+                ),
               ),
+            ],
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () async {
+                if (textController.text.trim().isEmpty) {
+                  setState(() => errorText = 'You must fill this field');
+                  return;
+                }
+
+                final newValue = int.tryParse(textController.text);
+                if (newValue == null) {
+                  setState(() => errorText = 'Please enter a valid number');
+                  return;
+                }
+
+                final proceed = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Confirm Changes'),
+                    content: const Text('Do you want to save this new low-stock threshold?'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Yes', style: TextStyle(color: AppColors.primaryOrange)),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (proceed == true && context.mounted) {
+                  controller.updateLowStockThreshold(newValue);
+                  Navigator.pop(context);
+                  _showSuccessDialog(context, 'Low-stock threshold updated.');
+                }
+              },
+              child: const Text('Save'),
             ),
           ],
         ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () async {
-              final proceed = await showDialog<bool>(
-                context: context,
-                builder: (context) => AlertDialog(
-                  title: const Text('Confirm Changes'),
-                  content: const Text('Do you want to save this new low-stock threshold?'),
-                  actions: [
-                    TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
-                    TextButton(
-                      onPressed: () => Navigator.pop(context, true),
-                      child: const Text('Yes', style: TextStyle(color: AppColors.primaryOrange)),
-                    ),
-                  ],
-                ),
-              );
+      ),
+    );
+  }
 
-              if (proceed == true && context.mounted) {
-                Navigator.pop(context);
-                TopNotification.show(context, 'Low-stock threshold updated.');
-              }
-            },
-            child: const Text('Save'),
+  void _showDeliveryFeeDialog(BuildContext context) {
+    final controller = ShopSettingsController.instance;
+    final textController = TextEditingController(text: controller.deliveryFeePer500m.toString());
+    String? errorText;
+
+    showDialog(
+      context: context,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setState) => AlertDialog(
+          title: const Text('Delivery Fee Settings'),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const Text('Set the delivery fee for every 500 meters (0.5 km) distance.'),
+              const SizedBox(height: 16),
+              TextField(
+                controller: textController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) {
+                  if (errorText != null) setState(() => errorText = null);
+                },
+                decoration: InputDecoration(
+                  prefixText: '₱ ',
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                  hintText: 'e.g. 5.00',
+                  labelText: 'Fee per 500m',
+                  errorText: errorText,
+                ),
+              ),
+            ],
           ),
-        ],
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () async {
+                if (textController.text.trim().isEmpty) {
+                  setState(() => errorText = 'You must fill this field');
+                  return;
+                }
+
+                final newValue = double.tryParse(textController.text);
+                if (newValue == null) {
+                  setState(() => errorText = 'Please enter a valid amount');
+                  return;
+                }
+
+                final proceed = await showDialog<bool>(
+                  context: context,
+                  builder: (context) => AlertDialog(
+                    title: const Text('Confirm Changes'),
+                    content: Text('Do you want to set the delivery fee to ₱${newValue.toStringAsFixed(2)} per 500m?'),
+                    actions: [
+                      TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('No')),
+                      TextButton(
+                        onPressed: () => Navigator.pop(context, true),
+                        child: const Text('Yes', style: TextStyle(color: AppColors.primaryOrange)),
+                      ),
+                    ],
+                  ),
+                );
+
+                if (proceed == true && context.mounted) {
+                  controller.updateDeliveryFee(newValue);
+                  Navigator.pop(context);
+                  _showSuccessDialog(context, 'Delivery fee setting updated.');
+                }
+              },
+              child: const Text('Save'),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   void _showExpiryConfigDialog(BuildContext context) {
+    final controller = ShopSettingsController.instance;
+    int selectedDays = controller.expiryMonitoringDays;
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -311,14 +432,16 @@ class OwnerProfilePage extends StatelessWidget {
             const Text('Notify when items are within:'),
             const SizedBox(height: 16),
             DropdownButtonFormField<int>(
-              initialValue: 30,
+              value: selectedDays,
               items: const [
                 DropdownMenuItem(value: 7, child: Text('7 Days')),
                 DropdownMenuItem(value: 15, child: Text('15 Days')),
                 DropdownMenuItem(value: 30, child: Text('30 Days')),
                 DropdownMenuItem(value: 60, child: Text('60 Days')),
               ],
-              onChanged: (v) {},
+              onChanged: (v) {
+                if (v != null) selectedDays = v;
+              },
               decoration: InputDecoration(border: OutlineInputBorder(borderRadius: BorderRadius.circular(8))),
             ),
           ],
@@ -343,11 +466,62 @@ class OwnerProfilePage extends StatelessWidget {
               );
 
               if (proceed == true && context.mounted) {
+                controller.updateExpiryMonitoringDays(selectedDays);
                 Navigator.pop(context);
-                TopNotification.show(context, 'Expiry monitoring configuration saved.');
+                _showSuccessDialog(context, 'Expiry monitoring configuration saved.');
               }
             },
             child: const Text('Save'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showSuccessDialog(BuildContext context, String message) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.green.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.check_circle, color: Colors.green, size: 48),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'Settings Updated',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              message,
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: AppColors.secondaryText, fontSize: 14),
+            ),
+            const SizedBox(height: 10),
+          ],
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
+            ),
           ),
         ],
       ),

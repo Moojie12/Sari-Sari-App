@@ -17,8 +17,10 @@ class ExpiryBadge extends StatelessWidget {
     switch (status) {
       case ExpiryStatus.expired:
         return Colors.red;
-      case ExpiryStatus.expiringSoon:
+      case ExpiryStatus.fiveDays:
         return Colors.deepOrange;
+      case ExpiryStatus.twoWeeks:
+        return Colors.orange;
       case ExpiryStatus.none:
         return Colors.green;
     }
@@ -28,8 +30,10 @@ class ExpiryBadge extends StatelessWidget {
     switch (status) {
       case ExpiryStatus.expired:
         return Icons.block;
-      case ExpiryStatus.expiringSoon:
+      case ExpiryStatus.fiveDays:
         return Icons.event_busy;
+      case ExpiryStatus.twoWeeks:
+        return Icons.event_note;
       case ExpiryStatus.none:
         return Icons.check_circle_outline;
     }

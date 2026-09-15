@@ -168,7 +168,7 @@ class EmployeeOrderController extends ChangeNotifier {
           oldOrder.status != OrderStatus.completed && 
           oldOrder.status != OrderStatus.cancelled) {
         for (var item in oldOrder.items) {
-          _inventory.adjustStock(item.productId, -item.quantity);
+          _inventory.adjustStock(item.productId, -item.quantity.toDouble());
         }
       }
 

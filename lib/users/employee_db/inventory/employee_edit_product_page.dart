@@ -30,6 +30,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
   String? _imagePath;
   late String _category = widget.product.category;
   bool _isAddingNewCategory = false;
+  bool _isWeightBased = false;
 
   String? _nameError;
   String? _priceError;
@@ -40,6 +41,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
   void initState() {
     super.initState();
     _imagePath = widget.product.image;
+    _isWeightBased = widget.product.isWeightBased;
   }
 
   @override
@@ -53,7 +55,6 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
   }
 
   Future<void> _pickImage() async {
-    // Mock image picking
     setState(() {
       _imagePath = 'assets/products/placeholder.png';
     });
@@ -82,23 +83,10 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Edit Barcode?', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: const Text(
-          'Changing the barcode might affect how this product is identified. Are you sure you want to edit it?',
-        ),
+        content: const Text('Changing the barcode might affect how this product is identified. Are you sure you want to edit it?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryOrange,
-              foregroundColor: Colors.white,
-              elevation: 0,
-            ),
-            child: const Text('Yes, Edit'),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          ElevatedButton(onPressed: () => Navigator.pop(context, true), child: const Text('Yes, Edit')),
         ],
       ),
     );
@@ -108,8 +96,13 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
     final name = _nameController.text.trim();
     final price = double.tryParse(_priceController.text.trim());
     final barcode = _barcodeController.text.trim();
-    final threshold = int.tryParse(_thresholdController.text.trim()) ?? 10;
+    final threshold = double.tryParse(_thresholdController.text.trim()) ?? 10.0;
     final category = _isAddingNewCategory ? _newCategoryController.text.trim() : _category;
+
+    if (!_isWeightBased && widget.product.quantity != widget.product.quantity.roundToDouble()) {
+      TopNotification.show(context, 'Cannot turn off De-Kilo because existing stock has a decimal value.', isError: true);
+      return;
+    }
 
     setState(() {
       _nameError = name.isEmpty ? 'Product name is required.' : null;
@@ -127,14 +120,8 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
         title: const Text('Confirm Changes', style: TextStyle(fontWeight: FontWeight.bold)),
         content: const Text('Are you sure you want to save the changes to this product?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Save', style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Save')),
         ],
       ),
     );
@@ -154,6 +141,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
       barcode: barcode,
       image: _imagePath,
       lowStockThreshold: threshold,
+      isWeightBased: _isWeightBased,
     );
 
     TopNotification.show(context, 'Product updated successfully');
@@ -222,8 +210,21 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
               ),
             ),
             const SizedBox(height: 24),
-            const Text('Product Name *',
-                style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+            CheckboxListTile(
+              title: const Text('De-Kilo Product (Weight-Based)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+              subtitle: const Text('Check this if sold by weight (kg) instead of pieces (pcs)', style: TextStyle(fontSize: 11)),
+              value: _isWeightBased,
+              onChanged: (val) {
+                setState(() {
+                  _isWeightBased = val ?? false;
+                });
+              },
+              controlAffinity: ListTileControlAffinity.leading,
+              activeColor: AppColors.primaryOrange,
+              contentPadding: EdgeInsets.zero,
+            ),
+            const SizedBox(height: 12),
+            const Text('Product Name *', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
             const SizedBox(height: 8),
             TextField(
               controller: _nameController,
@@ -233,15 +234,10 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text('Category',
-                    style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+                const Text('Category', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
                 GestureDetector(
                   onTap: () => setState(() => _isAddingNewCategory = !_isAddingNewCategory),
-                  child: Text(
-                    _isAddingNewCategory ? 'Select Existing' : 'Add New',
-                    style: const TextStyle(
-                        color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.bold),
-                  ),
+                  child: Text(_isAddingNewCategory ? 'Select Existing' : 'Add New', style: const TextStyle(color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.bold)),
                 ),
               ],
             ),
@@ -254,9 +250,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
             else
               DropdownButtonFormField<String>(
                 initialValue: _category,
-                items: categories
-                    .map((category) => DropdownMenuItem(value: category, child: Text(category)))
-                    .toList(),
+                items: categories.map((category) => DropdownMenuItem(value: category, child: Text(category))).toList(),
                 onChanged: (value) {
                   if (value != null) setState(() => _category = value);
                 },
@@ -269,8 +263,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Price *',
-                          style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+                      Text(_isWeightBased ? 'Price per kg *' : 'Price per pc *', style: const TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
                       const SizedBox(height: 8),
                       TextField(
                         controller: _priceController,
@@ -285,12 +278,11 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Text('Low Stock Alert',
-                          style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+                      const Text('Low Stock Alert', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
                       const SizedBox(height: 8),
                       TextField(
                         controller: _thresholdController,
-                        keyboardType: TextInputType.number,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         decoration: _fieldDecoration('e.g. 10'),
                       ),
                     ],
@@ -299,8 +291,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
               ],
             ),
             const SizedBox(height: 16),
-            const Text('Barcode',
-                style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+            const Text('Barcode', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
             const SizedBox(height: 8),
             Row(
               children: [
@@ -308,20 +299,16 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                   child: TextField(
                     controller: _barcodeController,
                     readOnly: !_isBarcodeEditingEnabled,
-                    onTap: _isBarcodeEditingEnabled
-                        ? null
-                        : () async {
-                            final confirmed = await _showBarcodeEditConfirmation();
-                            if (confirmed == true) {
-                              setState(() => _isBarcodeEditingEnabled = true);
-                            }
-                          },
+                    onTap: _isBarcodeEditingEnabled ? null : () async {
+                      final confirmed = await _showBarcodeEditConfirmation();
+                      if (confirmed == true) {
+                        setState(() => _isBarcodeEditingEnabled = true);
+                      }
+                    },
                     decoration: _fieldDecoration(
                       'Barcode value',
                       errorText: _barcodeError,
-                      suffixIcon: _isBarcodeEditingEnabled
-                          ? null
-                          : const Icon(Icons.lock_outline, size: 20, color: AppColors.placeholderColor),
+                      suffixIcon: _isBarcodeEditingEnabled ? null : const Icon(Icons.lock_outline, size: 20, color: AppColors.placeholderColor),
                     ),
                   ),
                 ),
@@ -333,11 +320,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                     child: InkWell(
                       borderRadius: BorderRadius.circular(8),
                       onTap: _onScanBarcode,
-                      child: const SizedBox(
-                        width: 48,
-                        height: 48,
-                        child: Icon(Icons.qr_code_scanner, color: Colors.white),
-                      ),
+                      child: const SizedBox(width: 48, height: 48, child: Icon(Icons.qr_code_scanner, color: Colors.white)),
                     ),
                   ),
                 ] else ...[
@@ -348,11 +331,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                     child: InkWell(
                       borderRadius: BorderRadius.circular(8),
                       onTap: _onScanBarcode,
-                      child: const SizedBox(
-                        width: 48,
-                        height: 48,
-                        child: Icon(Icons.qr_code_scanner, color: AppColors.secondaryText),
-                      ),
+                      child: const SizedBox(width: 48, height: 48, child: Icon(Icons.qr_code_scanner, color: AppColors.secondaryText)),
                     ),
                   ),
                 ],

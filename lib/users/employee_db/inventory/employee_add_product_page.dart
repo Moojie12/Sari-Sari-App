@@ -7,28 +7,6 @@ import '../employee_inventory_controller.dart';
 import 'employee_product_model.dart';
 
 /// Add Product screen (replaces the old "Receive Stock" screen).
-///
-/// Three ways to identify what's being added, all funneling into the same
-/// "fill up the details" step below:
-///  1. **Barcode scanner** — scan the product barcode, its details appear.
-///  2. **Search** (next to the scanner button) — find an existing product
-///     by name/barcode and tap it to restock it.
-///  3. **Add Product Manually** — for when the barcode can't be scanned;
-///     collects the same product info a scan would have found.
-///
-/// Once a product is identified (scanned, searched, or just created), the
-/// same "Product Details" step is shown every time: quantity + expiration
-/// date, where expiration date can also be scanned or entered manually.
-/// Scanning/entering more than one *different* expiration date for the
-/// same product automatically builds separate batches — quantity per
-/// batch stays editable, so staff don't have to scan one unit at a time.
-/// Pressing "Add Product" saves every batch at once, whether the product
-/// is brand new or already exists in inventory.
-///
-/// All the actual RULE 1/2/3 batch logic lives in
-/// [EmployeeInventoryController.receiveBatches] / [createProduct] — this
-/// screen only collects input, previews the outcome, and displays the
-/// result.
 class EmployeeAddProductPage extends StatefulWidget {
   const EmployeeAddProductPage({super.key, required this.inventory});
 
@@ -38,19 +16,16 @@ class EmployeeAddProductPage extends StatefulWidget {
   State<EmployeeAddProductPage> createState() => _EmployeeAddProductPageState();
 }
 
-/// One batch waiting to be saved — a distinct expiration date (or "no
-/// expiry") plus a quantity the staff member can hand-edit instead of
-/// scanning every single unit.
+/// One batch waiting to be saved.
 class _PendingBatch {
-  _PendingBatch({required this.expiryDate, int quantity = 1})
+  _PendingBatch({required this.expiryDate, double quantity = 1.0})
       : quantityController = TextEditingController(text: quantity.toString());
 
-  /// Null means "no expiry / not tracked" — same convention as [ProductBatch].
   final DateTime? expiryDate;
   final TextEditingController quantityController;
   String? quantityError;
 
-  int? get quantity => int.tryParse(quantityController.text.trim());
+  double? get quantity => double.tryParse(quantityController.text.trim());
 
   void dispose() => quantityController.dispose();
 }
@@ -71,8 +46,6 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
   final List<_PendingBatch> _pendingBatches = [];
   String? _batchesError;
 
-  /// Last barcode that didn't match any product — kept so the "not found"
-  /// message and the "add manually with this barcode" shortcut stay in sync.
   String? _unmatchedBarcode;
 
   @override
@@ -110,12 +83,6 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
     });
   }
 
-  // ---- Identifying the product: scan / search / manual --------------------
-
-  /// This build is frontend-only, so there's no camera/scanner package
-  /// wired in yet — staff type or paste the scanned code here instead of
-  /// pointing a camera at it. Looks the code up the same way a real scan
-  /// would (exact barcode match).
   Future<void> _openBarcodeScanDialog() async {
     final code = await Navigator.of(context).push<String>(
       MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
@@ -124,9 +91,6 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
     _handleBarcode(code);
   }
 
-  /// Handles a barcode however it arrived (scan dialog or typed straight
-  /// into the search field). A no-match just surfaces the manual/add-new
-  /// path instead of dead-ending.
   void _handleBarcode(String barcode) {
     final product = widget.inventory.findByBarcode(barcode);
     if (product != null) {
@@ -153,8 +117,6 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
       ),
     );
     if (created != null) {
-      // If the product was successfully created and the first batch added in the sheet,
-      // we show the success dialog for that one batch.
       final lastBatch = created.batches.last;
       _showSuccessDialog(created.name, [
         StockReceivingResult(
@@ -182,18 +144,12 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
     return DateTime(date.year, date.month, date.day);
   }
 
-  // ---- Batch builder: quantity + one or more expiration dates ------------
-
-  /// Adds a batch for [expiryDate], or — if a pending batch for that exact
-  /// calendar date already exists — bumps its quantity by one instead of
-  /// creating a duplicate row. This is what lets "how many times you
-  /// scan" simply track "how many different expiration dates" there are.
   void _addOrBumpBatch(DateTime? expiryDate) {
     setState(() {
       final index = _pendingBatches.indexWhere((b) => _isSameCalendarDay(b.expiryDate, expiryDate));
       if (index >= 0) {
-        final current = _pendingBatches[index].quantity ?? 0;
-        _pendingBatches[index].quantityController.text = (current + 1).toString();
+        final current = _pendingBatches[index].quantity ?? 0.0;
+        _pendingBatches[index].quantityController.text = (current + 1.0).toString();
         _pendingBatches[index].quantityError = null;
       } else {
         _pendingBatches.add(_PendingBatch(expiryDate: expiryDate));
@@ -202,8 +158,6 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
     });
   }
 
-  /// Frontend-only stand-in for scanning the expiration date printed on
-  /// the product — staff type/paste what a real scan would have read.
   Future<void> _openExpiryScanDialog() async {
     final input = await Navigator.of(context).push<String>(
       MaterialPageRoute(builder: (context) => const ExpiryDateScannerScreen()),
@@ -261,7 +215,7 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
     }
   }
 
-  bool _validateBatches() {
+  bool _validateBatches(EmployeeProduct product) {
     if (_pendingBatches.isEmpty) {
       setState(() => _batchesError =
       'Scan or enter at least one expiration date (or mark "No expiry") before adding this product.');
@@ -271,15 +225,22 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
     setState(() {
       for (final batch in _pendingBatches) {
         final quantity = batch.quantity;
-        batch.quantityError = (quantity == null || quantity <= 0) ? 'Enter a quantity greater than 0.' : null;
-        if (batch.quantityError != null) allValid = false;
+        if (quantity == null || quantity <= 0) {
+          batch.quantityError = 'Enter a quantity greater than 0.';
+          allValid = false;
+        } else if (!product.isWeightBased && quantity != quantity.roundToDouble()) {
+          batch.quantityError = 'Regular products must use whole numbers.';
+          allValid = false;
+        } else {
+          batch.quantityError = null;
+        }
       }
     });
     return allValid;
   }
 
   void _submit(EmployeeProduct product) async {
-    if (!_validateBatches()) return;
+    if (!_validateBatches(product)) return;
 
     final confirmed = await showDialog<bool>(
       context: context,
@@ -319,8 +280,10 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
 
   Future<void> _showSuccessDialog(String productName, List<StockReceivingResult> results) async {
     TopNotification.show(context, 'Product "$productName" added to inventory.');
-    final totalAdded = results.fold<int>(0, (sum, r) => sum + r.batchQuantity);
+    final totalAdded = results.fold<double>(0.0, (sum, r) => sum + r.batchQuantity);
     final finalTotalStock = results.last.totalStock;
+    final selected = _selectedProductId == null ? null : widget.inventory.findById(_selectedProductId!);
+    final unitStr = (selected?.isWeightBased ?? false) ? 'kg' : 'pcs';
 
     if (!mounted) return;
     final addAnother = await showDialog<bool>(
@@ -337,15 +300,15 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
                   padding: const EdgeInsets.only(bottom: 4),
                   child: Text(switch (result.outcome) {
                     StockReceivingOutcome.newProduct =>
-                    'Batch ${result.batchId} started with ${result.batchQuantity} pcs.',
+                    'Batch ${result.batchId} started with ${result.batchQuantity.toStringAsFixed(2)} $unitStr.',
                     StockReceivingOutcome.mergedIntoExistingBatch =>
-                    'Added to Batch ${result.batchId}, now ${result.batchQuantity} pcs.',
+                    'Added to Batch ${result.batchId}, now ${result.batchQuantity.toStringAsFixed(2)} $unitStr.',
                     StockReceivingOutcome.newBatchCreated =>
-                    'New Batch ${result.batchId} created with ${result.batchQuantity} pcs.',
+                    'New Batch ${result.batchId} created with ${result.batchQuantity.toStringAsFixed(2)} $unitStr.',
                   }),
                 ),
               const SizedBox(height: 8),
-              Text('Added $totalAdded pcs total. $productName now has $finalTotalStock pcs in stock.'),
+              Text('Added ${totalAdded.toStringAsFixed(2)} $unitStr total. $productName now has ${finalTotalStock.toStringAsFixed(2)} $unitStr in stock.'),
             ],
           ),
         ),
@@ -388,10 +351,6 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
         child: ListenableBuilder(
           listenable: widget.inventory,
           builder: (context, _) {
-            // Re-resolve from the live list every rebuild, so if this
-            // product's stock changes elsewhere while the screen is open
-            // (or, on first frame, right after we just created/selected
-            // it) the screen always reflects current data.
             final selected = _selectedProductId == null
                 ? null
                 : widget.inventory.findById(_selectedProductId!);
@@ -415,8 +374,6 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
     );
   }
 
-  // ---- Step 1: identify the product -------------------------------------
-
   Widget _buildIdentifySection() {
     final matches = _matches;
     final showNotFound = _unmatchedBarcode != null && matches.isEmpty;
@@ -430,8 +387,7 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
         ),
         const SizedBox(height: 4),
         Text(
-          'Scan a barcode, search for an existing product to restock, or '
-              "add a new one manually if it doesn't exist yet.",
+          'Scan a barcode, search for an existing product to restock, or add a new one manually.',
           style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 12),
         ),
         const SizedBox(height: 16),
@@ -447,13 +403,11 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
                 style: const TextStyle(fontSize: 14),
                 decoration: InputDecoration(
                   hintText: 'Search existing products by name or barcode...',
-                  hintStyle:
-                  TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.5), fontSize: 14),
+                  hintStyle: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.5), fontSize: 14),
                   prefixIcon: const Icon(Icons.search, color: AppColors.secondaryText),
                   filled: true,
                   fillColor: Colors.white,
-                  border:
-                  OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(12),
                     borderSide: BorderSide(color: AppColors.borderColor.withValues(alpha: 0.5)),
@@ -541,9 +495,7 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
           const SizedBox(width: 8),
           Expanded(
             child: Text(
-              'No product found for barcode "$_unmatchedBarcode". '
-                  'You can add it manually with this barcode below, or '
-                  'search by name instead.',
+              'No product found for barcode "$_unmatchedBarcode".',
               style: const TextStyle(fontSize: 12, color: Colors.deepOrange, fontWeight: FontWeight.w600),
             ),
           ),
@@ -552,9 +504,8 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
     );
   }
 
-  // ---- Step 2: selected/created product + batch details -----------------
-
   Widget _buildSelectedProductCard(EmployeeProduct product) {
+    final unitStr = product.isWeightBased ? 'kg' : 'pcs';
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -586,14 +537,9 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(product.name,
-                        style: const TextStyle(
-                            color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold)),
+                    Text(product.name, style: const TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold)),
                     const SizedBox(height: 2),
-                    Text(
-                      product.barcode.isEmpty ? 'No barcode' : 'Barcode: ${product.barcode}',
-                      style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
-                    ),
+                    Text(product.barcode.isEmpty ? 'No barcode' : 'Barcode: ${product.barcode}', style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
                   ],
                 ),
               ),
@@ -608,23 +554,21 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('Current Total Stock', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-              Text('${product.quantity} pcs',
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText)),
+              Text('${product.quantity.toStringAsFixed(2)} $unitStr', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText)),
             ],
           ),
           if (product.batches.isNotEmpty) ...[
             const SizedBox(height: 8),
             const Divider(height: 1, color: AppColors.borderColor),
             const SizedBox(height: 8),
-            const Text('Existing Batches',
-                style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+            const Text('Existing Batches', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
             const SizedBox(height: 6),
             ...product.batches.map((batch) {
               final dateLabel = batch.expiryDate == null ? 'No expiry' : _formatDate(batch.expiryDate!);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
-                  'Batch ${batch.id} — $dateLabel — ${batch.quantity} pcs',
+                  'Batch ${batch.id} — $dateLabel — ${batch.quantity.toStringAsFixed(2)} $unitStr',
                   style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
                 ),
               );
@@ -635,24 +579,16 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
     );
   }
 
-  /// The batch-builder step, shared by every identification path (barcode
-  /// match, search-select, or a product just created manually). Staff
-  /// scan/enter as many *different* expiration dates as the delivery has
-  /// — each one becomes its own editable batch row — then press "Add
-  /// Product" once to save all of them.
   Widget _buildBatchBuilderSection(EmployeeProduct product) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Product Details',
-          style: TextStyle(color: AppColors.darkText, fontSize: 18, fontWeight: FontWeight.bold),
-        ),
+        const Text('Product Details', style: TextStyle(color: AppColors.darkText, fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
         Text(
-          'Scan the expiration date, or enter it manually. Adding a '
-              "different date starts a new batch automatically — you don't "
-              'have to scan every single unit, just edit the quantity.',
+          product.isWeightBased 
+            ? 'Enter quantity in kg for de-kilo product.' 
+            : 'Enter quantity in pcs for regular product.',
           style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 12),
         ),
         const SizedBox(height: 16),
@@ -710,10 +646,7 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  'No batches yet — scan or enter an expiration date above.',
-                  style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 12),
-                ),
+                Text('No batches yet — scan or enter an expiration date above.', style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 12)),
                 if (_batchesError != null) ...[
                   const SizedBox(height: 6),
                   Text(_batchesError!, style: const TextStyle(color: Colors.red, fontSize: 11)),
@@ -741,10 +674,6 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
     );
   }
 
-  /// One editable batch row inside the builder, with a live "what will
-  /// happen" preview from [EmployeeInventoryController.previewOutcome] /
-  /// [matchingBatch] — the exact same RULE 1/2/3 decision
-  /// [EmployeeInventoryController.receiveBatches] will make on save.
   Widget _buildPendingBatchRow(EmployeeProduct product, int index) {
     final batch = _pendingBatches[index];
     final dateLabel = batch.expiryDate == null ? 'No expiry' : _formatDate(batch.expiryDate!);
@@ -773,28 +702,25 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
               const Icon(Icons.calendar_today, size: 14, color: AppColors.secondaryText),
               const SizedBox(width: 8),
               Expanded(
-                child: Text(dateLabel,
-                    style:
-                    const TextStyle(color: AppColors.darkText, fontSize: 13, fontWeight: FontWeight.w600)),
+                child: Text(dateLabel, style: const TextStyle(color: AppColors.darkText, fontSize: 13, fontWeight: FontWeight.w600)),
               ),
               SizedBox(
-                width: 80,
+                width: 100,
                 child: TextField(
                   controller: batch.quantityController,
-                  keyboardType: TextInputType.number,
+                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                   textAlign: TextAlign.center,
                   onChanged: (_) {
                     if (batch.quantityError != null) setState(() => batch.quantityError = null);
                   },
                   decoration: InputDecoration(
-                    labelText: 'Qty',
+                    labelText: product.isWeightBased ? 'Qty (kg)' : 'Qty (pcs)',
                     errorText: batch.quantityError,
                     isDense: true,
                     filled: true,
                     fillColor: AppColors.lightPeach,
                     contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                    border:
-                    OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
                   ),
                 ),
               ),
@@ -812,9 +738,7 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
               const Icon(Icons.info_outline, size: 12, color: AppColors.primaryOrange),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(previewMessage,
-                    style: const TextStyle(
-                        fontSize: 11, color: AppColors.primaryOrange, fontWeight: FontWeight.w600)),
+                child: Text(previewMessage, style: const TextStyle(fontSize: 11, color: AppColors.primaryOrange, fontWeight: FontWeight.w600)),
               ),
             ],
           ),
@@ -822,8 +746,6 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
       ),
     );
   }
-
-
 }
 
 class _ProductResultTile extends StatelessWidget {
@@ -833,6 +755,7 @@ class _ProductResultTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final unitStr = product.isWeightBased ? 'kg' : 'pcs';
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
       child: Material(
@@ -861,15 +784,9 @@ class _ProductResultTile extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(product.name,
-                          style: const TextStyle(
-                              color: AppColors.darkText, fontWeight: FontWeight.bold, fontSize: 14)),
+                      Text(product.name, style: const TextStyle(color: AppColors.darkText, fontWeight: FontWeight.bold, fontSize: 14)),
                       const SizedBox(height: 2),
-                      Text(
-                        '${product.barcode.isEmpty ? 'No barcode' : product.barcode} · '
-                            'Current stock: ${product.quantity} pcs',
-                        style: const TextStyle(color: AppColors.secondaryText, fontSize: 11),
-                      ),
+                      Text('${product.barcode.isEmpty ? 'No barcode' : product.barcode} · Current stock: ${product.quantity.toStringAsFixed(2)} $unitStr', style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
                     ],
                   ),
                 ),
@@ -883,12 +800,6 @@ class _ProductResultTile extends StatelessWidget {
   }
 }
 
-/// Bottom sheet for entering a brand-new product's basic info (Add
-/// Product's "product does not exist" path). Only collects what
-/// [EmployeeInventoryController.createProduct] needs; the "Product
-/// Details" batch step (quantity + expiration dates) is then filled on
-/// the main Add Product screen right after this closes — the exact same
-/// step a barcode scan or search match would have landed on.
 class _ManualProductInfoSheet extends StatefulWidget {
   const _ManualProductInfoSheet({
     required this.inventory,
@@ -910,10 +821,11 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
   late final _nameController = TextEditingController(text: widget.prefillName);
   late final _barcodeController = TextEditingController(text: widget.prefillBarcode);
   final _priceController = TextEditingController();
-  final _quantityController = TextEditingController(text: '1');
+  final _quantityController = TextEditingController(text: '1.0');
   final _newCategoryController = TextEditingController();
   DateTime? _expiryDate;
   String? _imagePath;
+  bool _isWeightBased = false;
   late String _category =
   widget.inventory.categories.where((c) => c != 'All').isNotEmpty
       ? widget.inventory.categories.firstWhere((c) => c != 'All')
@@ -957,16 +869,21 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
     final name = _nameController.text.trim();
     final price = double.tryParse(_priceController.text.trim());
     final barcode = _barcodeController.text.trim();
-    final quantity = int.tryParse(_quantityController.text.trim());
+    final quantity = double.tryParse(_quantityController.text.trim());
     final category = _isAddingNewCategory ? _newCategoryController.text.trim() : _category;
 
     setState(() {
       _nameError = name.isEmpty ? 'Product name is required.' : null;
       _priceError = (price == null || price < 0) ? 'Enter a valid price.' : null;
-      _barcodeError = widget.inventory.isBarcodeTaken(barcode)
-          ? 'This barcode is already used by another product.'
-          : null;
-      _quantityError = (quantity == null || quantity <= 0) ? 'Enter a quantity greater than 0.' : null;
+      _barcodeError = widget.inventory.isBarcodeTaken(barcode) ? 'This barcode is already used.' : null;
+      
+      if (quantity == null || quantity <= 0) {
+        _quantityError = 'Enter a quantity greater than 0.';
+      } else if (!_isWeightBased && quantity != quantity.roundToDouble()) {
+        _quantityError = 'Regular products must use whole-number quantities.';
+      } else {
+        _quantityError = null;
+      }
     });
     if (_nameError != null || _priceError != null || _barcodeError != null || _quantityError != null) return;
     if (category.isEmpty) return;
@@ -977,14 +894,8 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
         title: const Text('Confirm Action', style: TextStyle(fontWeight: FontWeight.bold)),
         content: Text('Are you sure you want to add "$name" to the inventory?'),
         actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text('Add Product', style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold)),
-          ),
+          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Add Product')),
         ],
       ),
     );
@@ -1002,6 +913,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
       price: price!,
       barcode: barcode,
       image: _imagePath,
+      isWeightBased: _isWeightBased,
     );
 
     if (product == null) {
@@ -1009,7 +921,6 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
       return;
     }
 
-    // Immediately receive the first batch
     widget.inventory.receiveStock(
       productId: product.id,
       quantity: quantity!,
@@ -1021,7 +932,6 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
   }
 
   Future<void> _pickImage() async {
-    // Mock image picking
     setState(() {
       _imagePath = 'assets/products/placeholder.png';
     });
@@ -1045,14 +955,9 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const Text('Add Product Manually',
-                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText)),
+              const Text('Add Product Manually', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText)),
               const SizedBox(height: 4),
-              Text(
-                "Enter the product's info — you'll add quantity and "
-                    'expiration date(s) on the next step.',
-                style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 12),
-              ),
+              Text("Enter the product's info.", style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 12)),
               const SizedBox(height: 16),
               Center(
                 child: GestureDetector(
@@ -1082,26 +987,34 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text('Product Name *',
-                  style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+              CheckboxListTile(
+                title: const Text('De-Kilo Product (Weight-Based)', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                subtitle: const Text('Check this if sold by weight (kg) instead of pieces (pcs)', style: TextStyle(fontSize: 11)),
+                value: _isWeightBased,
+                onChanged: (val) {
+                  setState(() {
+                    _isWeightBased = val ?? false;
+                  });
+                },
+                controlAffinity: ListTileControlAffinity.leading,
+                activeColor: AppColors.primaryOrange,
+                contentPadding: EdgeInsets.zero,
+              ),
+              const SizedBox(height: 12),
+              const Text('Product Name *', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
               const SizedBox(height: 8),
               TextField(
                 controller: _nameController,
-                decoration: _fieldDecoration('e.g. Bear Brand Milk 300ml', errorText: _nameError),
+                decoration: _fieldDecoration('e.g. Jasmine Rice', errorText: _nameError),
               ),
               const SizedBox(height: 14),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text('Category',
-                      style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+                  const Text('Category', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
                   GestureDetector(
                     onTap: () => setState(() => _isAddingNewCategory = !_isAddingNewCategory),
-                    child: Text(
-                      _isAddingNewCategory ? 'Select Existing' : 'Add New',
-                      style: const TextStyle(
-                          color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.bold),
-                    ),
+                    child: Text(_isAddingNewCategory ? 'Select Existing' : 'Add New', style: const TextStyle(color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.bold)),
                   ),
                 ],
               ),
@@ -1114,44 +1027,37 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
               else
                 DropdownButtonFormField<String>(
                   initialValue: _category,
-                  items: categories
-                      .map((category) => DropdownMenuItem(value: category, child: Text(category)))
-                      .toList(),
+                  items: categories.map((category) => DropdownMenuItem(value: category, child: Text(category))).toList(),
                   onChanged: (value) {
                     if (value != null) setState(() => _category = value);
                   },
                   decoration: _fieldDecoration(null),
                 ),
               const SizedBox(height: 14),
-              const Text('Price *',
-                  style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+              Text(_isWeightBased ? 'Price per kg *' : 'Price per pc *', style: const TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
               const SizedBox(height: 8),
               TextField(
                 controller: _priceController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: _fieldDecoration('e.g. 45.00', prefixText: '₱ ', errorText: _priceError),
+                decoration: _fieldDecoration('e.g. 55.00', prefixText: '₱ ', errorText: _priceError),
               ),
               const SizedBox(height: 14),
-              const Text('Barcode (optional)',
-                  style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+              const Text('Barcode (optional)', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
               const SizedBox(height: 8),
               TextField(
                 controller: _barcodeController,
-                decoration: _fieldDecoration('Leave blank if this product has no barcode',
-                    errorText: _barcodeError),
+                decoration: _fieldDecoration('Leave blank if none', errorText: _barcodeError),
               ),
               const SizedBox(height: 14),
-              const Text('Quantity *',
-                  style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+              Text(_isWeightBased ? 'Quantity (kg) *' : 'Quantity (pcs) *', style: const TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
               const SizedBox(height: 8),
               TextField(
                 controller: _quantityController,
-                keyboardType: TextInputType.number,
-                decoration: _fieldDecoration('e.g. 10', errorText: _quantityError),
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: _fieldDecoration('e.g. 10.50', errorText: _quantityError),
               ),
               const SizedBox(height: 14),
-              const Text('Expiration Date',
-                  style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+              const Text('Expiration Date', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
               const SizedBox(height: 8),
               Row(
                 children: [
@@ -1160,16 +1066,10 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                       onTap: _pickExpiryManually,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-                        decoration: BoxDecoration(
-                          color: AppColors.lightPeach,
-                          borderRadius: BorderRadius.circular(8),
-                        ),
+                        decoration: BoxDecoration(color: AppColors.lightPeach, borderRadius: BorderRadius.circular(8)),
                         child: Text(
                           _expiryDate == null ? 'No expiration date' : _formatDate(_expiryDate!),
-                          style: TextStyle(
-                            color: _expiryDate == null ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.darkText,
-                            fontSize: 14,
-                          ),
+                          style: TextStyle(color: _expiryDate == null ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.darkText, fontSize: 14),
                         ),
                       ),
                     ),
@@ -1181,11 +1081,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                     child: InkWell(
                       borderRadius: BorderRadius.circular(8),
                       onTap: _scanExpiry,
-                      child: const SizedBox(
-                        width: 48,
-                        height: 48,
-                        child: Icon(Icons.qr_code_scanner, color: Colors.white),
-                      ),
+                      child: const SizedBox(width: 48, height: 48, child: Icon(Icons.qr_code_scanner, color: Colors.white)),
                     ),
                   ),
                 ],

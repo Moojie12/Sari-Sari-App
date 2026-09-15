@@ -22,40 +22,40 @@ final List<EmployeeProduct> kEmployeeDummyProducts = [
   EmployeeProduct(
     id: 'p1', name: 'Coca-Cola 1.5L', category: 'Drinks', price: 75.0,
     barcode: '4801981123456',
-    batches: [const ProductBatch(id: 'B001', quantity: 42)],
+    batches: [const ProductBatch(id: 'B001', quantity: 42.0)],
   ),
   EmployeeProduct(
     id: 'p2', name: 'Lucky Me Pancit Canton', category: 'Noodles', price: 15.0,
-    barcode: '4800016581239', lowStockThreshold: 10,
-    batches: [const ProductBatch(id: 'B001', quantity: 6)],
+    barcode: '4800016581239', lowStockThreshold: 10.0,
+    batches: [const ProductBatch(id: 'B001', quantity: 6.0)],
   ),
   EmployeeProduct(
     id: 'p3', name: 'Argentina Corned Beef 175g', category: 'Canned Goods', price: 38.0,
     barcode: '4800392110017',
     batches: [
-      ProductBatch(id: 'B001', quantity: 10, expiryDate: _now.add(const Duration(days: 5))),
-      ProductBatch(id: 'B002', quantity: 15, expiryDate: _now.add(const Duration(days: 40))),
+      ProductBatch(id: 'B001', quantity: 10.0, expiryDate: _now.add(const Duration(days: 5))),
+      ProductBatch(id: 'B002', quantity: 15.0, expiryDate: _now.add(const Duration(days: 40))),
     ],
   ),
   EmployeeProduct(
     id: 'p4', name: 'Piattos Cheese', category: 'Snacks', price: 30.0,
     barcode: '4800016171232',
-    batches: [const ProductBatch(id: 'B001', quantity: 18)],
+    batches: [const ProductBatch(id: 'B001', quantity: 18.0)],
   ),
   EmployeeProduct(
     id: 'p5', name: 'Jasmine Rice 5kg', category: 'Rice & Grains', price: 320.0,
-    barcode: '4800000001015',
-    batches: [const ProductBatch(id: 'B001', quantity: 12)],
+    barcode: '4800000001015', isWeightBased: true, lowStockThreshold: 5.0,
+    batches: [const ProductBatch(id: 'B001', quantity: 12.5)],
   ),
   EmployeeProduct(
     id: 'p6', name: 'Mangga', category: 'Fruits & Vegetables', price: 120.0,
-    barcode: '4800000002019',
-    batches: [ProductBatch(id: 'B001', quantity: 30, expiryDate: _now.add(const Duration(days: 3)))],
+    barcode: '4800000002019', isWeightBased: true, lowStockThreshold: 5.0,
+    batches: [ProductBatch(id: 'B001', quantity: 30.0, expiryDate: _now.add(const Duration(days: 3)))],
   ),
   EmployeeProduct(
     id: 'p7', name: 'Nescafe 3-in-1 Twin Pack', category: 'Drinks', price: 12.0,
     barcode: '4800361231239',
-    batches: [const ProductBatch(id: 'B001', quantity: 60)],
+    batches: [const ProductBatch(id: 'B001', quantity: 60.0)],
   ),
   EmployeeProduct(
     id: 'p8', name: 'Sky Flakes Crackers', category: 'Snacks', price: 18.0,
@@ -64,13 +64,13 @@ final List<EmployeeProduct> kEmployeeDummyProducts = [
   ),
   EmployeeProduct(
     id: 'p9', name: 'Century Tuna Flakes in Oil', category: 'Canned Goods', price: 32.0,
-    barcode: '4800014112233', lowStockThreshold: 10,
-    batches: [const ProductBatch(id: 'B001', quantity: 8)],
+    barcode: '4800014112233', lowStockThreshold: 10.0,
+    batches: [const ProductBatch(id: 'B001', quantity: 8.0)],
   ),
   EmployeeProduct(
     id: 'p10', name: 'Datu Puti Soy Sauce 1L', category: 'Household', price: 55.0,
     barcode: '4800092112230',
-    batches: [const ProductBatch(id: 'B001', quantity: 20)],
+    batches: [const ProductBatch(id: 'B001', quantity: 20.0)],
   ),
   EmployeeProduct(
     id: 'p11', name: 'Safeguard Soap', category: 'Personal Care', price: 25.0,
@@ -80,30 +80,30 @@ final List<EmployeeProduct> kEmployeeDummyProducts = [
   EmployeeProduct(
     id: 'p12', name: 'Kopiko Blanca 3-in-1', category: 'Drinks', price: 11.0,
     barcode: '4800002112238',
-    batches: [const ProductBatch(id: 'B001', quantity: 50)],
+    batches: [const ProductBatch(id: 'B001', quantity: 50.0)],
   ),
   EmployeeProduct(
     id: 'p13', name: 'Nissin Cup Noodles', category: 'Noodles', price: 20.0,
     barcode: '4800005112232',
-    batches: [const ProductBatch(id: 'B001', quantity: 33)],
+    batches: [const ProductBatch(id: 'B001', quantity: 33.0)],
   ),
   EmployeeProduct(
     id: 'p14', name: 'Sinigang Mix 44g', category: 'Household', price: 14.0,
-    barcode: '4800016112245', lowStockThreshold: 10,
-    batches: [const ProductBatch(id: 'B001', quantity: 5)],
+    barcode: '4800016112245', lowStockThreshold: 10.0,
+    batches: [const ProductBatch(id: 'B001', quantity: 5.0)],
   ),
   EmployeeProduct(
     id: 'p15', name: 'Kalamansi', category: 'Fruits & Vegetables', price: 60.0,
-    barcode: '4800000002026',
+    barcode: '4800000002026', isWeightBased: true, lowStockThreshold: 2.0,
     batches: [
-      ProductBatch(id: 'B001', quantity: 8, expiryDate: _now.add(const Duration(days: 2))),
-      ProductBatch(id: 'B002', quantity: 7, expiryDate: _now.subtract(const Duration(days: 1))),
+      ProductBatch(id: 'B001', quantity: 8.0, expiryDate: _now.add(const Duration(days: 2))),
+      ProductBatch(id: 'B002', quantity: 7.0, expiryDate: _now.subtract(const Duration(days: 1))),
     ],
   ),
   EmployeeProduct(
     id: 'p16', name: 'Purefoods Corned Beef 150g', category: 'Canned Goods', price: 35.0,
     barcode: '4800100112299',
-    batches: [ProductBatch(id: 'B001', quantity: 14, expiryDate: _now.subtract(const Duration(days: 3)))],
+    batches: [ProductBatch(id: 'B001', quantity: 14.0, expiryDate: _now.subtract(const Duration(days: 3)))],
   ),
 ];
 

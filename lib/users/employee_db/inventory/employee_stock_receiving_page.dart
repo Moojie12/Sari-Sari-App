@@ -152,7 +152,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
   void _submit(EmployeeProduct product) {
     if (!_validate()) return;
 
-    final quantity = int.parse(_quantityController.text.trim());
+    final quantity = double.parse(_quantityController.text.trim());
 
     final result = widget.inventory.receiveStock(
       productId: product.id,

@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../core/expiry/expiry_checker.dart';
 import 'employee_batch_model.dart';
 
 /// Stock status derived from a product's *sellable* quantity versus its
@@ -41,7 +42,8 @@ class EmployeeProduct {
     required this.barcode,
     required this.batches,
     this.image,
-    this.lowStockThreshold = 10,
+    this.lowStockThreshold = 10.0,
+    this.isWeightBased = false,
   });
 
   final String id;
@@ -50,16 +52,17 @@ class EmployeeProduct {
   final double price;
   final String barcode;
   final String? image;
+  final bool isWeightBased;
 
   /// Every received lot of this product. Source of truth for stock —
   /// nothing else on this class stores a quantity directly.
   final List<ProductBatch> batches;
-  final int lowStockThreshold;
+  final double lowStockThreshold;
 
   /// Total physical quantity on hand — sum of *every* batch, expired or
   /// not. This is what Inventory/POS display as "quantity" (a computed
   /// value now, rather than a stored field).
-  int get quantity => batches.fold(0, (sum, b) => sum + b.quantity);
+  double get quantity => batches.fold(0.0, (sum, b) => sum + b.quantity);
 
   /// The price shown in the POS. If the next batch to be sold (per FEFO)
   /// is expiring soon, the product is automatically discounted (20% off).
@@ -91,7 +94,7 @@ class EmployeeProduct {
   /// remaining stock sits in an expired batch has a [sellableQuantity] of
   /// 0 even though [quantity] is still positive; per the Batch-Aware
   /// Selling flow, that makes it out-of-stock for selling purposes.
-  int get sellableQuantity => validBatches.fold(0, (sum, b) => sum + b.quantity);
+  double get sellableQuantity => validBatches.fold(0.0, (sum, b) => sum + b.quantity);
 
   EmployeeStockStatus get stockStatus {
     if (sellableQuantity <= 0) return EmployeeStockStatus.outOfStock;
@@ -115,6 +118,29 @@ class EmployeeProduct {
   bool get isExpired => hasExpiredBatch;
   bool get isExpiringSoon => hasExpiringSoonBatch;
 
+  /// Aggregate expiry status for this product — returns the most urgent
+  /// status across all batches currently in stock.
+  ExpiryStatus get expiryStatus {
+    if (hasExpiredBatch) return ExpiryStatus.expired;
+    
+    final activeBatches = batches.where((b) => b.quantity > 0);
+    if (activeBatches.isEmpty) return ExpiryStatus.none;
+    
+    bool has5Days = false;
+    bool has2Weeks = false;
+    
+    for (final b in activeBatches) {
+      final status = b.expiryStatus();
+      if (status == ExpiryStatus.fiveDays) has5Days = true;
+      if (status == ExpiryStatus.twoWeeks) has2Weeks = true;
+    }
+    
+    if (has5Days) return ExpiryStatus.fiveDays;
+    if (has2Weeks) return ExpiryStatus.twoWeeks;
+    
+    return ExpiryStatus.none;
+  }
+
   EmployeeProduct copyWith({
     List<ProductBatch>? batches,
     String? name,
@@ -122,7 +148,8 @@ class EmployeeProduct {
     double? price,
     String? barcode,
     String? image,
-    int? lowStockThreshold,
+    double? lowStockThreshold,
+    bool? isWeightBased,
   }) {
     return EmployeeProduct(
       id: id,
@@ -133,6 +160,7 @@ class EmployeeProduct {
       batches: batches ?? this.batches,
       image: image ?? this.image,
       lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
+      isWeightBased: isWeightBased ?? this.isWeightBased,
     );
   }
 }
@@ -157,7 +185,7 @@ class ArchivedStockItem {
   final String productId;
   final String productName;
   final String batchId;
-  final int quantity;
+  final double quantity;
   final DateTime archivedAt;
   final String? category;
   final DateTime? expiryDate;

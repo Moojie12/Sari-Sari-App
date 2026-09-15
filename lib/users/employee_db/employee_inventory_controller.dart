@@ -1,12 +1,13 @@
 import 'package:flutter/foundation.dart';
 
+import '../../core/expiry/expiry_checker.dart';
 import 'inventory/employee_batch_model.dart';
 import 'inventory/employee_dummy_products.dart';
 import 'inventory/employee_product_model.dart';
 
 /// What [EmployeeInventoryController.receiveStock] ended up doing — lets
 /// the Stock Receiving screen show the right confirmation ("added to
-/// B001" vs "new batch B002 created") without re-deriving the same
+/// B001" vs "new batch B002 created") without re-derived the same
 /// same-product/same-expiry logic itself.
 enum StockReceivingOutcome { newProduct, mergedIntoExistingBatch, newBatchCreated }
 
@@ -29,10 +30,10 @@ class StockReceivingResult {
   final String batchId;
 
   /// That batch's quantity *after* this receiving.
-  final int batchQuantity;
+  final double batchQuantity;
 
   /// The product's total stock (sum of all batches) after this receiving.
-  final int totalStock;
+  final double totalStock;
 }
 
 /// Owns the live inventory list shared across the employee experience —
@@ -75,11 +76,17 @@ class EmployeeInventoryController extends ChangeNotifier {
       _products.where((p) => p.stockStatus == EmployeeStockStatus.outOfStock).toList();
 
   /// Products with at least one batch inside the notification window —
-  /// backs the Home tab's "Expiring Soon" stat card and list. Same signal
-  /// the POS (Path A) and Inventory/Home (Path B) screens check per batch;
-  /// this is just that same logic aggregated up to product level.
+  /// backs the Home tab's "Expiring Soon" stat card and list.
   List<EmployeeProduct> get expiringSoonProducts =>
       _products.where((p) => p.hasExpiringSoonBatch).toList();
+
+  /// Products with at least one batch expiring within 5 days.
+  List<EmployeeProduct> get expiringIn5DaysProducts =>
+      _products.where((p) => p.batches.any((b) => b.quantity > 0 && b.expiryStatus() == ExpiryStatus.fiveDays)).toList();
+
+  /// Products with at least one batch expiring within 2 weeks.
+  List<EmployeeProduct> get expiringIn2WeeksProducts =>
+      _products.where((p) => p.batches.any((b) => b.quantity > 0 && b.expiryStatus() == ExpiryStatus.twoWeeks)).toList();
 
   /// Products with at least one already-expired batch still holding stock.
   List<EmployeeProduct> get expiredProducts =>
@@ -121,20 +128,15 @@ class EmployeeInventoryController extends ChangeNotifier {
     return _products.any((p) => p.id != excludingProductId && p.barcode == trimmed);
   }
 
-  /// Creates a brand-new product with no batches yet (Stock Receiving's
-  /// "product does not exist" path — RULE 1's product half; the first
-  /// batch is then added by a normal [receiveStock] call).
-  ///
-  /// Returns null instead of creating anything if [barcode] is non-blank
-  /// and already belongs to another product, so callers never end up with
-  /// two product records sharing one barcode.
+  /// Creates a brand-new product with no batches yet.
   EmployeeProduct? createProduct({
     required String name,
     required String category,
     required double price,
     String barcode = '',
     String? image,
-    int lowStockThreshold = 10,
+    double lowStockThreshold = 10.0,
+    bool isWeightBased = false,
   }) {
     final trimmedName = name.trim();
     final trimmedBarcode = barcode.trim();
@@ -150,6 +152,7 @@ class EmployeeInventoryController extends ChangeNotifier {
       image: image,
       batches: const [],
       lowStockThreshold: lowStockThreshold,
+      isWeightBased: isWeightBased,
     );
     _products.add(product);
     notifyListeners();
@@ -163,7 +166,8 @@ class EmployeeInventoryController extends ChangeNotifier {
     double? price,
     String? barcode,
     String? image,
-    int? lowStockThreshold,
+    double? lowStockThreshold,
+    bool? isWeightBased,
   }) {
     final index = _products.indexWhere((p) => p.id == productId);
     if (index < 0) return;
@@ -175,11 +179,12 @@ class EmployeeInventoryController extends ChangeNotifier {
       barcode: barcode,
       image: image,
       lowStockThreshold: lowStockThreshold,
+      isWeightBased: isWeightBased,
     );
     notifyListeners();
   }
 
-  void archiveStock(String productId, String batchId, int quantity) {
+  void archiveStock(String productId, String batchId, double quantity) {
     if (quantity <= 0) return;
     final productIndex = _products.indexWhere((p) => p.id == productId);
     if (productIndex < 0) return;
@@ -272,24 +277,10 @@ class EmployeeInventoryController extends ChangeNotifier {
     }
   }
 
-  /// Receives new stock for an *existing* product — the shared tail end of
-  /// the Stock Receiving flow, whichever way the product was identified
-  /// (barcode scan, manual search, or a product just created via
-  /// [createProduct]).
-  ///
-  /// Implements RULE 2 / RULE 3 (and, for a just-created product with no
-  /// batches yet, RULE 1's batch half) in one place:
-  ///  - an existing batch with the *exact same* [expiryDate] gets the
-  ///    quantity added to it (RULE 2) — this is also what guarantees no
-  ///    duplicate batch is ever created for the same product + exact
-  ///    expiration date;
-  ///  - otherwise a brand-new batch is generated (RULE 3 / RULE 1).
-  ///
-  /// Returns null (and changes nothing) for invalid input: missing
-  /// product, non-positive quantity.
+  /// Receives new stock for an *existing* product.
   StockReceivingResult? receiveStock({
     required String productId,
-    required int quantity,
+    required double quantity,
     DateTime? expiryDate,
     String? supplier,
     String? notes,
@@ -305,7 +296,7 @@ class EmployeeInventoryController extends ChangeNotifier {
     batches.indexWhere((b) => _isSameExpiryDate(b.expiryDate, expiryDate));
 
     final String batchId;
-    final int batchQuantity;
+    final double batchQuantity;
     final StockReceivingOutcome outcome;
 
     if (existingIndex >= 0) {
@@ -334,7 +325,6 @@ class EmployeeInventoryController extends ChangeNotifier {
     }
 
     // Sort batches by expiry date: nearest expiry first.
-    // Batches with no expiry date sort last.
     batches.sort((a, b) {
       final aDate = a.expiryDate;
       final bDate = b.expiryDate;
@@ -357,19 +347,10 @@ class EmployeeInventoryController extends ChangeNotifier {
     );
   }
 
-  /// Receives several batches for the same product in one go — the Add
-  /// Product screen's "scan/enter one or more expiration dates, then hit
-  /// Add Product once" flow. Each entry in [batches] is applied through
-  /// the exact same [receiveStock] (RULE 1/2/3) logic, in order, so a
-  /// product that ends up with three differently-expiring lots from one
-  /// Add Product session is indistinguishable from three separate
-  /// [receiveStock] calls.
-  ///
-  /// Entries with a non-positive quantity are skipped rather than
-  /// aborting the whole batch (so one bad row doesn't undo the others).
+  /// Receives several batches for the same product in one go.
   List<StockReceivingResult> receiveBatches({
     required String productId,
-    required List<({int quantity, DateTime? expiryDate})> batches,
+    required List<({double quantity, DateTime? expiryDate})> batches,
     String? supplier,
     String? notes,
   }) {
@@ -388,11 +369,6 @@ class EmployeeInventoryController extends ChangeNotifier {
     return results;
   }
 
-  /// Pure preview of what [receiveStock] *would* do for [product] and
-  /// [expiryDate] — powers the Stock Receiving screen's "Existing batch
-  /// found, quantity will be added to B001" / "A new batch will be
-  /// created" summary before staff confirm. Returns null if there's no
-  /// product selected yet.
   StockReceivingOutcome? previewOutcome(EmployeeProduct? product, DateTime? expiryDate) {
     if (product == null) return null;
     if (product.batches.isEmpty) return StockReceivingOutcome.newProduct;
@@ -402,9 +378,6 @@ class EmployeeInventoryController extends ChangeNotifier {
         : StockReceivingOutcome.newBatchCreated;
   }
 
-  /// The exact batch a same-expiry receipt would land on, if any — used
-  /// alongside [previewOutcome] so the summary can name the batch (e.g.
-  /// "will be added to B001") before saving.
   ProductBatch? matchingBatch(EmployeeProduct? product, DateTime? expiryDate) {
     if (product == null) return null;
     for (final batch in product.batches) {
@@ -413,10 +386,6 @@ class EmployeeInventoryController extends ChangeNotifier {
     return null;
   }
 
-  /// Same-calendar-day comparison (ignoring time-of-day) so two batches
-  /// received hours apart on the same expiration date are still treated
-  /// as "the same expiration date". Two null dates (both "no expiry
-  /// tracked") count as a match too.
   bool _isSameExpiryDate(DateTime? a, DateTime? b) {
     if (a == null && b == null) return true;
     if (a == null || b == null) return false;
@@ -431,14 +400,8 @@ class EmployeeInventoryController extends ChangeNotifier {
     return 'p$next';
   }
 
-  /// Deducts [quantity] from one specific batch — the Batch-Aware Selling
-  /// flow's checkout step. The product's total `quantity` is a computed
-  /// sum over its batches, so it updates automatically once the batch
-  /// itself is deducted; nothing else needs to be recalculated by hand.
-  ///
-  /// Returns false if the product/batch doesn't exist, or the batch no
-  /// longer has enough left (e.g. deducted elsewhere in the meantime).
-  bool deductFromBatch(String productId, String batchId, int quantity) {
+  /// Deducts [quantity] from one specific batch.
+  bool deductFromBatch(String productId, String batchId, double quantity) {
     final productIndex = _products.indexWhere((p) => p.id == productId);
     if (productIndex < 0) return false;
     final product = _products[productIndex];
@@ -460,14 +423,8 @@ class EmployeeInventoryController extends ChangeNotifier {
     return true;
   }
 
-  /// Manually adjusts stock up or down — the Inventory tab's "Add stock" /
-  /// "Remove stock" feature. Since stock now lives on batches:
-  ///  - adding (`delta > 0`) tops up an existing no-expiry batch, or opens
-  ///    a new one if the product doesn't have one yet;
-  ///  - removing (`delta < 0`) follows the same FEFO order a sale would —
-  ///    nearest-expiry valid batches first, then already-expired ones —
-  ///    so no batch is ever left with a negative quantity.
-  void adjustStock(String productId, int delta) {
+  /// Manually adjusts stock up or down.
+  void adjustStock(String productId, double delta) {
     if (delta == 0) return;
     final productIndex = _products.indexWhere((p) => p.id == productId);
     if (productIndex < 0) return;
@@ -483,7 +440,6 @@ class EmployeeInventoryController extends ChangeNotifier {
         batches.add(ProductBatch(id: _nextBatchId(product), quantity: delta));
       }
 
-      // Ensure batches stay sorted after adding stock.
       batches.sort((a, b) {
         final aDate = a.expiryDate;
         final bDate = b.expiryDate;
@@ -500,7 +456,6 @@ class EmployeeInventoryController extends ChangeNotifier {
 
     var remaining = -delta;
     final batches = List<ProductBatch>.of(product.batches);
-    // FEFO order: nearest expiry first, then expired ones.
     final deductionOrder = [
       ...product.validBatches,
       ...product.batches.where((b) => b.isExpired && b.quantity > 0),
@@ -521,6 +476,17 @@ class EmployeeInventoryController extends ChangeNotifier {
     }
     _products[productIndex] = product.copyWith(batches: batches);
     notifyListeners();
+  }
+
+  /// Records a shortage for a product by deducting it from batches following FEFO order.
+  bool reportShortage(String productId, double shortageQuantity) {
+    if (shortageQuantity <= 0) return false;
+    final product = findById(productId);
+    if (product == null || product.quantity < shortageQuantity) return false;
+
+    // Deduct stock using adjustStock with negative delta
+    adjustStock(productId, -shortageQuantity);
+    return true;
   }
 
   String _nextBatchId(EmployeeProduct product) {

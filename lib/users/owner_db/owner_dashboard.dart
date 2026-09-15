@@ -2,18 +2,18 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import '../../core/theme/app_colors.dart';
-import '../employee_db/employee_inventory_controller.dart';
-import '../employee_db/pos/employee_pos_controller.dart';
-import '../employee_db/pos/employee_pos_page.dart';
-import 'owner_floating_nav_bar.dart';
-import 'home/owner_home_page.dart';
-import 'inventory/owner_inventory_page.dart';
-import '../employee_db/inventory/employee_expiring_products_page.dart';
-import 'profile/owner_profile_page.dart';
-import '../employee_db/orders/employee_orders_controller.dart';
-import '../employee_db/orders/employee_orders_page.dart';
-import '../employee_db/messages/employee_messages_controller.dart';
-import '../employee_db/notifications/employee_notifications_controller.dart';
+import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
+import 'package:sari_sari/users/employee_db/pos/employee_pos_controller.dart';
+import 'package:sari_sari/users/employee_db/pos/employee_pos_page.dart';
+import 'package:sari_sari/users/owner_db/owner_floating_nav_bar.dart';
+import 'package:sari_sari/users/owner_db/home/owner_home_page.dart';
+import 'package:sari_sari/users/owner_db/inventory/owner_inventory_page.dart';
+import 'package:sari_sari/users/employee_db/inventory/employee_expiring_products_page.dart';
+import 'package:sari_sari/users/owner_db/profile/owner_profile_page.dart';
+import 'package:sari_sari/users/employee_db/orders/employee_orders_controller.dart';
+import 'package:sari_sari/users/employee_db/orders/employee_orders_page.dart';
+import 'package:sari_sari/users/employee_db/messages/employee_messages_controller.dart';
+import 'package:sari_sari/users/employee_db/notifications/employee_notifications_controller.dart';
 
 class OwnerDashboard extends StatefulWidget {
   const OwnerDashboard({super.key});

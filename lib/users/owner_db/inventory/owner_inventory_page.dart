@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../core/expiry/expiry_checker.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../employee_db/employee_inventory_controller.dart';
 import '../../employee_db/inventory/employee_batch_model.dart';
@@ -320,18 +321,9 @@ class _InventoryItemCard extends StatelessWidget {
                         '${product.stockStatus.label} · Qty: ${product.quantity}',
                         style: TextStyle(fontSize: 11, color: _statusColor, fontWeight: FontWeight.w600),
                       ),
-                      if (product.hasExpiredBatch) ...[
+                      if (product.expiryStatus != ExpiryStatus.none) ...[
                         const SizedBox(width: 8),
-                        const Icon(Icons.block, size: 12, color: Colors.red),
-                        const SizedBox(width: 2),
-                        const Text('Expired batch',
-                            style: TextStyle(fontSize: 11, color: Colors.red, fontWeight: FontWeight.w600)),
-                      ] else if (product.isExpiringSoon) ...[
-                        const SizedBox(width: 8),
-                        const Icon(Icons.event_busy, size: 12, color: Colors.deepOrange),
-                        const SizedBox(width: 2),
-                        const Text('Expiring soon',
-                            style: TextStyle(fontSize: 11, color: Colors.deepOrange, fontWeight: FontWeight.w600)),
+                        _buildExpiryMarker(product.expiryStatus),
                       ],
                     ],
                   ),
@@ -342,6 +334,39 @@ class _InventoryItemCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildExpiryMarker(ExpiryStatus status) {
+    Color color;
+    IconData icon;
+    switch (status) {
+      case ExpiryStatus.expired:
+        color = Colors.red;
+        icon = Icons.block;
+        break;
+      case ExpiryStatus.fiveDays:
+        color = Colors.deepOrange;
+        icon = Icons.event_busy;
+        break;
+      case ExpiryStatus.twoWeeks:
+        color = Colors.orange;
+        icon = Icons.event_note;
+        break;
+      case ExpiryStatus.none:
+        return const SizedBox.shrink();
+    }
+
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 12, color: color),
+        const SizedBox(width: 2),
+        Text(
+          status.label,
+          style: TextStyle(fontSize: 11, color: color, fontWeight: FontWeight.w600),
+        ),
+      ],
     );
   }
 }

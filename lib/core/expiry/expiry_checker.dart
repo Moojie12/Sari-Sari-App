@@ -11,15 +11,17 @@ import 'package:flutter/foundation.dart';
 /// Neither screen computes its own "is this expiring?" logic; they both
 /// ask [ExpiryChecker.statusOf] the same question, so a batch can never be
 /// "expiring soon" on one screen and "fine" on another.
-enum ExpiryStatus { none, expiringSoon, expired }
+enum ExpiryStatus { none, twoWeeks, fiveDays, expired }
 
 extension ExpiryStatusLabel on ExpiryStatus {
   String get label {
     switch (this) {
       case ExpiryStatus.none:
         return 'Fresh';
-      case ExpiryStatus.expiringSoon:
-        return 'Expiring Soon';
+      case ExpiryStatus.twoWeeks:
+        return '2 weeks';
+      case ExpiryStatus.fiveDays:
+        return '5 days';
       case ExpiryStatus.expired:
         return 'Expired';
     }
@@ -45,9 +47,19 @@ class ExpiryChecker {
   ExpiryStatus statusOf(DateTime? expiryDate, {DateTime? now}) {
     if (expiryDate == null) return ExpiryStatus.none;
     final today = now ?? DateTime.now();
-    if (expiryDate.isBefore(today)) return ExpiryStatus.expired;
-    final daysLeft = expiryDate.difference(today).inDays;
-    if (daysLeft <= notificationPeriodDays) return ExpiryStatus.expiringSoon;
+    
+    // Normalize to date only for day difference calculation
+    final cleanExpiry = DateTime(expiryDate.year, expiryDate.month, expiryDate.day);
+    final cleanToday = DateTime(today.year, today.month, today.day);
+    
+    if (cleanExpiry.isBefore(cleanToday)) return ExpiryStatus.expired;
+    if (cleanExpiry.isAtSameMomentAs(cleanToday)) return ExpiryStatus.expired;
+    
+    final daysLeft = cleanExpiry.difference(cleanToday).inDays;
+    
+    if (daysLeft <= 5) return ExpiryStatus.fiveDays;
+    if (daysLeft <= 14) return ExpiryStatus.twoWeeks;
+    
     return ExpiryStatus.none;
   }
 

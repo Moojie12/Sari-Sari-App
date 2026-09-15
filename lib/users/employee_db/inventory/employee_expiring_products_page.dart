@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import '../../../core/expiry/expiry_checker.dart';
 import '../../../core/theme/app_colors.dart';
 import '../employee_inventory_controller.dart';
 import 'employee_batch_detail_sheet.dart';
@@ -20,6 +19,7 @@ class EmployeeExpiringProductsPage extends StatelessWidget {
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => EmployeeBatchDetailSheet(
         product: product,
+        inventory: inventory,
         onEditProduct: () {
           Navigator.pop(sheetContext);
           Navigator.push(
@@ -136,11 +136,7 @@ class EmployeeExpiringProductsPage extends StatelessWidget {
                           ],
                         ),
                       ),
-                      ExpiryBadge(
-                        status: product.hasExpiredBatch
-                            ? ExpiryStatus.expired
-                            : ExpiryStatus.expiringSoon,
-                      ),
+                      ExpiryBadge(status: product.expiryStatus),
                     ],
                   ),
                 ),

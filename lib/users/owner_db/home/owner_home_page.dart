@@ -1,9 +1,9 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme/app_colors.dart';
-import '../../employee_db/employee_inventory_controller.dart';
-import '../../employee_db/pos/employee_pos_controller.dart';
-import 'owner_analytics_section.dart';
-import 'owner_weather_card.dart';
+import 'package:sari_sari/core/theme/app_colors.dart';
+import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
+import 'package:sari_sari/users/employee_db/pos/employee_pos_controller.dart';
+import 'package:sari_sari/users/owner_db/home/owner_analytics_section.dart';
+import 'package:sari_sari/users/owner_db/home/owner_weather_card.dart';
 
 class OwnerHomePage extends StatelessWidget {
   const OwnerHomePage({
@@ -31,7 +31,9 @@ class OwnerHomePage extends StatelessWidget {
           builder: (context, _) {
             final lowStock = inventory.lowStockProducts.length;
             final outOfStock = inventory.outOfStockProducts.length;
-            final expiring = inventory.expiringSoonProducts.length;
+            final expiring5DaysCount = inventory.expiringIn5DaysProducts.length;
+            final expiring2WeeksCount = inventory.expiringIn2WeeksProducts.length;
+            final expiredCount = inventory.expiredProducts.length;
 
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
@@ -182,10 +184,26 @@ class OwnerHomePage extends StatelessWidget {
                         ),
                         const Divider(height: 1, color: AppColors.borderColor),
                         _StatCardLong(
-                          label: 'Products Expiring Soon',
-                          value: '$expiring',
+                          label: 'Expired Products',
+                          value: '$expiredCount',
+                          icon: Icons.block,
+                          color: Colors.red,
+                          onTap: onOpenExpiringProducts,
+                        ),
+                        const Divider(height: 1, color: AppColors.borderColor),
+                        _StatCardLong(
+                          label: 'Expiring in 5 Days',
+                          value: '$expiring5DaysCount',
                           icon: Icons.event_busy,
                           color: Colors.deepOrange,
+                          onTap: onOpenExpiringProducts,
+                        ),
+                        const Divider(height: 1, color: AppColors.borderColor),
+                        _StatCardLong(
+                          label: 'Expiring in 2 Weeks',
+                          value: '$expiring2WeeksCount',
+                          icon: Icons.event_note,
+                          color: Colors.orange,
                           onTap: onOpenExpiringProducts,
                         ),
                       ],

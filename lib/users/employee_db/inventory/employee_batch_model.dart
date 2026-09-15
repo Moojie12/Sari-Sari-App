@@ -24,7 +24,7 @@ class ProductBatch {
   /// to the exact lot it came from.
   final String id;
 
-  final int quantity;
+  final double quantity;
 
   /// Null means this batch isn't tracked for expiry (e.g. household goods
   /// that don't spoil) — it never shows as expiring/expired and is never
@@ -46,14 +46,15 @@ class ProductBatch {
   }
 
   bool get isExpired => expiryStatus() == ExpiryStatus.expired;
-  bool get isExpiringSoon => expiryStatus() == ExpiryStatus.expiringSoon;
+  bool get isExpiringSoon =>
+      expiryStatus() == ExpiryStatus.fiveDays || expiryStatus() == ExpiryStatus.twoWeeks;
 
   /// Whether this batch can still be rung up in a sale: has stock left and
   /// isn't expired. Expired stock stays on record (for Inventory/Home
   /// visibility) but is never sellable.
   bool get isSellable => quantity > 0 && !isExpired;
 
-  ProductBatch copyWith({int? quantity, String? supplier, String? notes}) {
+  ProductBatch copyWith({double? quantity, String? supplier, String? notes}) {
     return ProductBatch(
       id: id,
       quantity: quantity ?? this.quantity,

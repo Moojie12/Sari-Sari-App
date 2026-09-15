@@ -413,7 +413,7 @@ class _PosProductCard extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    isOut ? 'Out of stock' : '${product.quantity} in stock',
+                    isOut ? 'Out of stock' : '${product.isWeightBased ? product.quantity.toStringAsFixed(2) : product.quantity.toStringAsFixed(0)} ${product.isWeightBased ? 'kg' : 'pcs'} in stock',
                     style: TextStyle(
                       fontSize: 11,
                       color: isOut
@@ -664,7 +664,7 @@ class _CartItemTile extends StatelessWidget {
               ),
               const SizedBox(height: 2),
               Text(
-                '₱${item.unitPrice.toStringAsFixed(2)} each',
+                '₱${item.unitPrice.toStringAsFixed(2)} / ${item.product.isWeightBased ? 'kg' : 'pc'}',
                 style: const TextStyle(
                     color: AppColors.secondaryText, fontSize: 11),
               ),
@@ -673,6 +673,7 @@ class _CartItemTile extends StatelessWidget {
         ),
         _QuantityStepper(
           quantity: item.quantity,
+          isWeightBased: item.product.isWeightBased,
           onIncrement: onIncrement,
           onDecrement: onDecrement,
         ),
@@ -703,11 +704,13 @@ class _CartItemTile extends StatelessWidget {
 class _QuantityStepper extends StatelessWidget {
   const _QuantityStepper({
     required this.quantity,
+    required this.isWeightBased,
     required this.onIncrement,
     required this.onDecrement,
   });
 
-  final int quantity;
+  final double quantity;
+  final bool isWeightBased;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
 
@@ -718,9 +721,9 @@ class _QuantityStepper extends StatelessWidget {
       children: [
         _StepperButton(icon: Icons.remove, onTap: onDecrement),
         SizedBox(
-          width: 24,
+          width: isWeightBased ? 48 : 24,
           child: Text(
-            '$quantity',
+            isWeightBased ? quantity.toStringAsFixed(2) : quantity.toStringAsFixed(0),
             textAlign: TextAlign.center,
             style: const TextStyle(
                 color: AppColors.darkText,
@@ -972,7 +975,7 @@ class _CheckoutOrderSummaryRow extends StatelessWidget {
                 ),
                 const SizedBox(height: 2),
                 Text(
-                  '₱${item.unitPrice.toStringAsFixed(2)} x ${item.quantity}',
+                  '₱${item.unitPrice.toStringAsFixed(2)} x ${item.product.isWeightBased ? item.quantity.toStringAsFixed(2) : item.quantity.toStringAsFixed(0)} ${item.product.isWeightBased ? 'kg' : 'pcs'}',
                   style: const TextStyle(color: AppColors.secondaryText, fontSize: 11),
                 ),
               ],

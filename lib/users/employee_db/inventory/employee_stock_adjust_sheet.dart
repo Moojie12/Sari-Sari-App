@@ -23,9 +23,9 @@ class EmployeeStockAdjustSheet extends StatefulWidget {
 class _EmployeeStockAdjustSheetState extends State<EmployeeStockAdjustSheet> {
   int _delta = 0;
 
-  int get _resultingQuantity {
+  double get _resultingQuantity {
     final result = widget.product.quantity + _delta;
-    return result < 0 ? 0 : result;
+    return result < 0 ? 0.0 : result;
   }
 
   @override

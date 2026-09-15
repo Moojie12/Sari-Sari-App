@@ -20,16 +20,14 @@ class EmployeeArchiveStockDialog extends StatefulWidget {
 }
 
 class _EmployeeArchiveStockDialogState extends State<EmployeeArchiveStockDialog> {
-  // null represents "All Batches"
   ProductBatch? _selectedBatch;
   final _quantityController = TextEditingController();
-  int _maxQuantity = 0;
+  double _maxQuantity = 0.0;
   bool _isAllSelected = false;
 
   @override
   void initState() {
     super.initState();
-    // Default to "All Batches" (null)
     _selectedBatch = null;
     _isAllSelected = true;
     _maxQuantity = widget.product.quantity;
@@ -58,6 +56,8 @@ class _EmployeeArchiveStockDialogState extends State<EmployeeArchiveStockDialog>
 
   @override
   Widget build(BuildContext context) {
+    final unitStr = widget.product.isWeightBased ? 'kg' : 'pcs';
+
     return AlertDialog(
       title: const Text('Archive Stock', style: TextStyle(fontWeight: FontWeight.bold)),
       content: Column(
@@ -71,7 +71,7 @@ class _EmployeeArchiveStockDialogState extends State<EmployeeArchiveStockDialog>
               style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.labelText)),
           const SizedBox(height: 8),
           DropdownButtonFormField<ProductBatch?>(
-            initialValue: _selectedBatch,
+            value: _selectedBatch,
             isExpanded: true,
             items: [
               const DropdownMenuItem<ProductBatch?>(
@@ -84,7 +84,7 @@ class _EmployeeArchiveStockDialogState extends State<EmployeeArchiveStockDialog>
                     : '${b.expiryDate!.day}/${b.expiryDate!.month}/${b.expiryDate!.year}';
                 return DropdownMenuItem<ProductBatch?>(
                   value: b,
-                  child: Text('Batch ${b.id} ($dateStr) - ${b.quantity} pcs',
+                  child: Text('Batch ${b.id} ($dateStr) - ${b.quantity.toStringAsFixed(2)} $unitStr',
                       style: const TextStyle(fontSize: 14)),
                 );
               }),
@@ -101,10 +101,10 @@ class _EmployeeArchiveStockDialogState extends State<EmployeeArchiveStockDialog>
           const SizedBox(height: 8),
           TextField(
             controller: _quantityController,
-            keyboardType: TextInputType.number,
+            keyboardType: const TextInputType.numberWithOptions(decimal: true),
             enabled: !_isAllSelected,
             decoration: InputDecoration(
-              hintText: _isAllSelected ? 'All quantity will be archived' : 'Max: $_maxQuantity',
+              hintText: _isAllSelected ? 'All quantity will be archived' : 'Max: ${_maxQuantity.toStringAsFixed(2)}',
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               filled: _isAllSelected,
@@ -124,10 +124,14 @@ class _EmployeeArchiveStockDialogState extends State<EmployeeArchiveStockDialog>
               widget.inventory.archiveAllStock(widget.product.id);
               TopNotification.show(context, 'All stock archived for ${widget.product.name}');
             } else {
-              final qty = int.tryParse(_quantityController.text) ?? 0;
+              final qty = double.tryParse(_quantityController.text) ?? 0.0;
               if (qty <= 0 || _selectedBatch == null) return;
+              if (!widget.product.isWeightBased && qty != qty.roundToDouble()) {
+                TopNotification.show(context, 'Regular products must use whole numbers.', isError: true);
+                return;
+              }
               widget.inventory.archiveStock(widget.product.id, _selectedBatch!.id, qty);
-              TopNotification.show(context, '$qty pcs archived for ${widget.product.name}');
+              TopNotification.show(context, '${qty.toStringAsFixed(2)} $unitStr archived for ${widget.product.name}');
             }
             Navigator.pop(context);
           },
@@ -142,4 +146,3 @@ class _EmployeeArchiveStockDialogState extends State<EmployeeArchiveStockDialog>
     );
   }
 }
-
