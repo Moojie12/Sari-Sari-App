@@ -109,6 +109,9 @@ class _DeliveryTransactionsList extends StatelessWidget {
               date: order.formattedDate,
               status: order.status.label,
               statusColor: Colors.green,
+              revenue: order.subtotal,
+              capital: order.totalCapital,
+              profit: order.totalProfit,
               onTap: () {
                 Navigator.push(
                   context,
@@ -234,6 +237,9 @@ class _PickupTransactionsList extends StatelessWidget {
               date: order.formattedDate,
               status: 'Picked-up',
               statusColor: Colors.green,
+              revenue: order.subtotal,
+              capital: order.totalCapital,
+              profit: order.totalProfit,
               onTap: () {
                 Navigator.push(
                   context,
@@ -269,6 +275,9 @@ class _WalkInTransactionsList extends StatelessWidget {
           date: 'Today, 3:45 PM',
           status: 'Completed',
           statusColor: Colors.green,
+          revenue: receipt.totalAmount,
+          capital: receipt.totalCapital,
+          profit: receipt.totalProfit,
           onTap: () {
             Navigator.push(
               context,
@@ -287,6 +296,7 @@ class _WalkInTransactionsList extends StatelessWidget {
 
   EmployeeReceipt _generateDummyReceipt(int index) {
     final product = kEmployeeDummyProducts[index % kEmployeeDummyProducts.length];
+    final double qty = 2.0;
     return EmployeeReceipt(
       receiptNumber: 'RC-1002$index',
       dateTime: DateTime.now(),
@@ -295,12 +305,15 @@ class _WalkInTransactionsList extends StatelessWidget {
           product: product,
           batchId: 'B001',
           unitPrice: product.price,
-          quantity: 2,
+          capitalPrice: product.capital,
+          quantity: qty,
         ),
       ],
-      totalAmount: product.price * 2,
-      amountPaid: product.price * 2 + 10,
+      totalAmount: product.price * qty,
+      amountPaid: product.price * qty + 10,
       paymentMethod: index % 2 == 0 ? EmployeePaymentMethod.cash : EmployeePaymentMethod.gCash,
+      totalCapital: product.capital * qty,
+      totalProfit: (product.price - product.capital) * qty,
     );
   }
 }
@@ -500,6 +513,9 @@ class _HistoryCard extends StatelessWidget {
     this.status,
     this.statusColor,
     this.onTap,
+    this.capital,
+    this.revenue,
+    this.profit,
   });
 
   final String title;
@@ -509,6 +525,10 @@ class _HistoryCard extends StatelessWidget {
   final String? status;
   final Color? statusColor;
   final VoidCallback? onTap;
+
+  final double? capital;
+  final double? revenue;
+  final double? profit;
 
   @override
   Widget build(BuildContext context) {
@@ -563,6 +583,19 @@ class _HistoryCard extends StatelessWidget {
                 ),
               ],
             ),
+            if (capital != null || revenue != null || profit != null) ...[
+              const SizedBox(height: 12),
+              const Divider(height: 1, color: AppColors.borderColor),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceAround,
+                children: [
+                  _buildMiniStat('Capital: ₱${(capital ?? 0).toStringAsFixed(2)}', Colors.blueGrey),
+                  _buildMiniStat('Revenue: ₱${(revenue ?? 0).toStringAsFixed(2)}', AppColors.primaryOrange),
+                  _buildMiniStat('Profit: ₱${(profit ?? 0).toStringAsFixed(2)}', Colors.green),
+                ],
+              ),
+            ],
             const Divider(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -575,6 +608,16 @@ class _HistoryCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildMiniStat(String text, Color color) {
+    return Column(
+      children: [
+        Text(text.split(':')[0], style: const TextStyle(color: AppColors.secondaryText, fontSize: 9)),
+        Text(text.split(':')[1].trim(),
+            style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.bold)),
+      ],
     );
   }
 }

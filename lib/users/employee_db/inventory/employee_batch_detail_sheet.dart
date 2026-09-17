@@ -110,6 +110,23 @@ class _EmployeeBatchDetailSheetState extends State<EmployeeBatchDetailSheet> {
     );
   }
 
+  Widget _buildStat(String label, String value, {bool isProfit = false}) {
+    return Column(
+      children: [
+        Text(label, style: const TextStyle(color: AppColors.secondaryText, fontSize: 10, fontWeight: FontWeight.w500)),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: TextStyle(
+            color: isProfit ? Colors.green.shade700 : AppColors.darkText,
+            fontSize: 13,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final batches = widget.product.batches;
@@ -132,8 +149,39 @@ class _EmployeeBatchDetailSheetState extends State<EmployeeBatchDetailSheet> {
           ),
           const SizedBox(height: 4),
           Text(
-            'Barcode: ${widget.product.barcode} · Total on hand: ${widget.product.quantity.toStringAsFixed(2)} $unitStr',
+            'Barcode: ${widget.product.barcode} · Total on hand: ${widget.product.quantity.toStringAsFixed(2)} ${widget.product.unit}',
             style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
+          ),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              Text(
+                'Capital: ₱ ${widget.product.capital.toStringAsFixed(2)}',
+                style: const TextStyle(color: Colors.blueGrey, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'Price: ₱ ${widget.product.price.toStringAsFixed(2)}',
+                style: const TextStyle(color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.w600),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Container(
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              color: AppColors.lightPeach.withValues(alpha: 0.5),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.1)),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceAround,
+              children: [
+                _buildStat('Total Capital', '₱${widget.product.totalCapital.toStringAsFixed(2)}'),
+                _buildStat('Total Revenue', '₱${widget.product.totalRevenue.toStringAsFixed(2)}'),
+                _buildStat('Total Profit', '₱${widget.product.totalProfit.toStringAsFixed(2)}', isProfit: true),
+              ],
+            ),
           ),
           const SizedBox(height: 16),
           const Text('All Batches', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
@@ -152,7 +200,7 @@ class _EmployeeBatchDetailSheetState extends State<EmployeeBatchDetailSheet> {
                 shrinkWrap: true,
                 itemCount: batches.length,
                 separatorBuilder: (context, index) => const SizedBox(height: 8),
-                itemBuilder: (context, index) => _BatchDetailRow(batch: batches[index], isWeightBased: widget.product.isWeightBased),
+                itemBuilder: (context, index) => _BatchDetailRow(batch: batches[index], unit: widget.product.unit),
               ),
             ),
           const SizedBox(height: 20),
@@ -207,16 +255,16 @@ class _EmployeeBatchDetailSheetState extends State<EmployeeBatchDetailSheet> {
 }
 
 class _BatchDetailRow extends StatelessWidget {
-  const _BatchDetailRow({required this.batch, required this.isWeightBased});
+  const _BatchDetailRow({required this.batch, required this.unit});
   final ProductBatch batch;
-  final bool isWeightBased;
+  final String unit;
 
   @override
   Widget build(BuildContext context) {
     final dateLabel = batch.expiryDate == null
         ? 'No expiry date'
         : '${batch.expiryDate!.day}/${batch.expiryDate!.month}/${batch.expiryDate!.year}';
-    final unitStr = isWeightBased ? 'kg' : 'pcs';
+    final isDecimalUnit = unit == 'kg';
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -233,7 +281,7 @@ class _BatchDetailRow extends StatelessWidget {
                 Text('Batch ${batch.id}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText, fontSize: 13)),
                 const SizedBox(height: 2),
                 Text('Expiry: $dateLabel', style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
-                Text('${isWeightBased ? batch.quantity.toStringAsFixed(2) : batch.quantity.toStringAsFixed(0)} $unitStr', style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
+                Text('${isDecimalUnit ? batch.quantity.toStringAsFixed(2) : batch.quantity.toStringAsFixed(0)} $unit', style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
               ],
             ),
           ),

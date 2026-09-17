@@ -8,28 +8,26 @@ enum EmployeePaymentMethod { cash, gCash }
 
 /// A single line item in the current POS transaction.
 class EmployeePosCartItem {
+  final EmployeeProduct product;
+  final String batchId;
+  final double unitPrice;
+  final double capitalPrice;
+  final DateTime? batchExpiryDate;
+  double quantity;
+
   EmployeePosCartItem({
     required this.product,
     required this.batchId,
     required this.unitPrice,
+    required this.capitalPrice,
     this.batchExpiryDate,
     this.quantity = 1.0,
   });
 
-  final EmployeeProduct product;
-  final String batchId;
-
-  /// The price per unit at the time it was added to the cart, capturing
-  /// any automatic discounts (e.g. for expiring stock).
-  final double unitPrice;
-
-  final DateTime? batchExpiryDate;
-  double quantity;
-
-  /// Whether this item was sold at a discount because it was expiring soon.
   bool get isOnSale => unitPrice < product.price;
-
   double get subtotal => ((unitPrice * quantity) * 100).round() / 100;
+  double get totalCapital => ((capitalPrice * quantity) * 100).round() / 100;
+  double get profit => subtotal - totalCapital;
 }
 
 /// A completed walk-in sale, shown on the receipt screen
@@ -42,6 +40,8 @@ class EmployeeReceipt {
     required this.totalAmount,
     required this.amountPaid,
     required this.paymentMethod,
+    this.totalCapital = 0.0,
+    this.totalProfit = 0.0,
   });
 
   final String receiptNumber;
@@ -50,6 +50,9 @@ class EmployeeReceipt {
   final double totalAmount;
   final double amountPaid;
   final EmployeePaymentMethod paymentMethod;
+
+  final double totalCapital;
+  final double totalProfit;
 
   double get change => amountPaid - totalAmount;
 }
@@ -116,6 +119,7 @@ class EmployeePosController extends ChangeNotifier {
         product: product,
         batchId: batch.id,
         unitPrice: price,
+        capitalPrice: product.capital,
         batchExpiryDate: batch.expiryDate,
         quantity: quantity,
       ));
@@ -181,6 +185,9 @@ class EmployeePosController extends ChangeNotifier {
       inventory.deductFromBatch(item.product.id, item.batchId, item.quantity);
     }
 
+    final totalCapital = _cart.fold(0.0, (sum, item) => sum + item.totalCapital);
+    final totalProfit = totalAmount - totalCapital;
+
     final receipt = EmployeeReceipt(
       receiptNumber: 'RC-${_receiptCounter.toString().padLeft(5, '0')}',
       dateTime: DateTime.now(),
@@ -188,6 +195,8 @@ class EmployeePosController extends ChangeNotifier {
       totalAmount: totalAmount,
       amountPaid: amountPaid,
       paymentMethod: paymentMethod,
+      totalCapital: totalCapital,
+      totalProfit: totalProfit,
     );
 
     _receiptCounter++;

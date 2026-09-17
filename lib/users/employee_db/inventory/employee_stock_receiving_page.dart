@@ -30,6 +30,22 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
   final _searchController = TextEditingController();
   final _quantityController = TextEditingController();
 
+  // ---- Bulk / Set Entry Calculator ---------------------------------------
+  // Lets staff receiving a batch for pcs-based products enter what they
+  // paid for a whole set/bulk pack instead of counting pieces by hand.
+  // Opening the calculator auto-fills Quantity Received (Total Pcs) above
+  // and surfaces the computed per-piece cost, which gets recorded on the
+  // batch's notes for traceability.
+  bool _showBulkCalculator = false;
+  final _setPriceController = TextEditingController();
+  final _pcsPerSetController = TextEditingController();
+  final _numberOfSetsController = TextEditingController();
+  String? _setPriceError;
+  String? _pcsPerSetError;
+  String? _numberOfSetsError;
+  double? _bulkCapitalPerPc;
+  double? _bulkTotalQuantity;
+
   String _searchQuery = '';
   String? _selectedProductId;
   DateTime? _expiryDate;
@@ -45,7 +61,52 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
   void dispose() {
     _searchController.dispose();
     _quantityController.dispose();
+    _setPriceController.dispose();
+    _pcsPerSetController.dispose();
+    _numberOfSetsController.dispose();
     super.dispose();
+  }
+
+  void _toggleBulkCalculator() {
+    setState(() {
+      _showBulkCalculator = !_showBulkCalculator;
+      if (!_showBulkCalculator) {
+        _setPriceError = null;
+        _pcsPerSetError = null;
+        _numberOfSetsError = null;
+        _bulkCapitalPerPc = null;
+        _bulkTotalQuantity = null;
+      }
+    });
+  }
+
+  /// Recomputes Batch Cost Price (per pc) and Added Batch Quantity (Total
+  /// Pcs) from the Set Price / Pcs per Set / Number of Sets inputs, then
+  /// writes the total straight into `_quantityController` (the same field
+  /// `_submit` reads). Guards against divide-by-zero / invalid input by
+  /// leaving the computed values blank until the inputs check out.
+  void _recalcBulk() {
+    final setPrice = double.tryParse(_setPriceController.text.trim());
+    final pcsPerSet = int.tryParse(_pcsPerSetController.text.trim());
+    final numberOfSets = int.tryParse(_numberOfSetsController.text.trim());
+
+    setState(() {
+      if (setPrice != null && setPrice >= 0 && pcsPerSet != null && pcsPerSet > 0) {
+        _bulkCapitalPerPc = setPrice / pcsPerSet;
+      } else {
+        _bulkCapitalPerPc = null;
+      }
+
+      if (pcsPerSet != null && pcsPerSet > 0 && numberOfSets != null && numberOfSets >= 0) {
+        final totalQuantity = pcsPerSet * numberOfSets;
+        _bulkTotalQuantity = totalQuantity.toDouble();
+        _quantityController.text = totalQuantity.toString();
+      } else {
+        _bulkTotalQuantity = null;
+        _quantityController.text = '';
+      }
+      _quantityError = null;
+    });
   }
 
   List<EmployeeProduct> get _matches {
@@ -71,6 +132,15 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
       _quantityError = null;
       _expiryError = null;
       _unmatchedBarcode = null;
+      _showBulkCalculator = false;
+      _setPriceController.clear();
+      _pcsPerSetController.clear();
+      _numberOfSetsController.clear();
+      _setPriceError = null;
+      _pcsPerSetError = null;
+      _numberOfSetsError = null;
+      _bulkCapitalPerPc = null;
+      _bulkTotalQuantity = null;
     });
   }
 
@@ -134,6 +204,26 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
     }
   }
 
+  bool _validateBulkCalculator() {
+    if (!_showBulkCalculator) return true;
+
+    final setPrice = double.tryParse(_setPriceController.text.trim());
+    final pcsPerSet = int.tryParse(_pcsPerSetController.text.trim());
+    final numberOfSets = int.tryParse(_numberOfSetsController.text.trim());
+
+    setState(() {
+      _setPriceError = (setPrice == null || setPrice < 0) ? 'Enter a valid set price.' : null;
+      _pcsPerSetError = (pcsPerSet == null || pcsPerSet <= 0) ? 'Must be greater than 0.' : null;
+      _numberOfSetsError = (numberOfSets == null || numberOfSets <= 0) ? 'Must be greater than 0.' : null;
+    });
+
+    if (_setPriceError != null || _pcsPerSetError != null || _numberOfSetsError != null) return false;
+
+    // Make sure Quantity Received / the computed cost reflect the latest inputs.
+    _recalcBulk();
+    return true;
+  }
+
   bool _validate() {
     final quantity = int.tryParse(_quantityController.text.trim());
     final quantityError =
@@ -150,14 +240,24 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
   }
 
   void _submit(EmployeeProduct product) {
+    if (!_validateBulkCalculator()) return;
     if (!_validate()) return;
 
     final quantity = double.parse(_quantityController.text.trim());
+
+    // When the Bulk / Set calculator was used, keep the computed per-piece
+    // cost on record with this batch (the data model doesn't carry a
+    // dedicated cost field, so it's captured in the batch notes).
+    final bulkNotes = (_showBulkCalculator && _bulkCapitalPerPc != null)
+        ? 'Bulk/Set entry: ₱${_setPriceController.text.trim()} ÷ ${_pcsPerSetController.text.trim()} pcs/set × '
+        '${_numberOfSetsController.text.trim()} set(s) → Cost/pc ₱${_bulkCapitalPerPc!.toStringAsFixed(2)}'
+        : null;
 
     final result = widget.inventory.receiveStock(
       productId: product.id,
       quantity: quantity,
       expiryDate: _noExpiry ? null : _expiryDate,
+      notes: bulkNotes,
     );
 
     if (result == null) {
@@ -474,6 +574,11 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
   }
 
   Widget _buildStockForm(EmployeeProduct product) {
+    // The Bulk/Set calculator converts a bulk/set purchase into pieces —
+    // it only makes sense for Retail (Pcs) products, not De-Kilo (Kg) ones.
+    final bulkCalculatorAvailable = !product.isWeightBased;
+    final bulkModeActive = bulkCalculatorAvailable && _showBulkCalculator;
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -482,10 +587,147 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
           style: TextStyle(color: AppColors.darkText, fontSize: 18, fontWeight: FontWeight.bold),
         ),
         const SizedBox(height: 16),
-        _buildLabel('Quantity Received *'),
+        if (bulkCalculatorAvailable) ...[
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: _toggleBulkCalculator,
+              icon: Icon(_showBulkCalculator ? Icons.calculate : Icons.calculate_outlined, size: 18),
+              label: Text(_showBulkCalculator ? 'Hide Bulk / Set Calculator' : 'Restock using Bulk / Set Calculator'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primaryOrange,
+                side: const BorderSide(color: AppColors.primaryOrange),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          if (_showBulkCalculator) ...[
+            const SizedBox(height: 14),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: AppColors.lightPeach,
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Enter the cost of the whole set/bulk pack — Batch Cost Price (per pc) and the Quantity Received below fill in automatically.',
+                    style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.9), fontSize: 11),
+                  ),
+                  const SizedBox(height: 12),
+                  _buildLabel('Set Price (₱) *'),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _setPriceController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    onChanged: (_) => _recalcBulk(),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. 500.00',
+                      prefixText: '₱ ',
+                      errorText: _setPriceError,
+                      filled: true,
+                      fillColor: Colors.white,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLabel('Pcs per Set *'),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _pcsPerSetController,
+                              keyboardType: TextInputType.number,
+                              onChanged: (_) => _recalcBulk(),
+                              decoration: InputDecoration(
+                                hintText: 'e.g. 50',
+                                errorText: _pcsPerSetError,
+                                filled: true,
+                                fillColor: Colors.white,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            _buildLabel('Number of Sets *'),
+                            const SizedBox(height: 8),
+                            TextField(
+                              controller: _numberOfSetsController,
+                              keyboardType: TextInputType.number,
+                              onChanged: (_) => _recalcBulk(),
+                              decoration: InputDecoration(
+                                hintText: 'e.g. 2',
+                                errorText: _numberOfSetsError,
+                                filled: true,
+                                fillColor: Colors.white,
+                                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Batch Cost Price (per pc)', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                      Text(
+                        _bulkCapitalPerPc == null ? '—' : '₱${_bulkCapitalPerPc!.toStringAsFixed(2)}',
+                        style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText),
+                      ),
+                    ],
+                  ),
+                  if (_bulkCapitalPerPc != null && _bulkTotalQuantity != null && _bulkTotalQuantity! > 0) ...[
+                    const SizedBox(height: 10),
+                    const Divider(height: 1, color: AppColors.borderColor),
+                    const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.summarize_outlined, size: 14, color: AppColors.primaryOrange),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Adding ${_bulkTotalQuantity!.toStringAsFixed(_bulkTotalQuantity! == _bulkTotalQuantity!.roundToDouble() ? 0 : 2)} pcs '
+                                'at ₱${_bulkCapitalPerPc!.toStringAsFixed(2)}/pc capital to ${product.name}.',
+                            style: const TextStyle(fontSize: 12, color: AppColors.primaryOrange, fontWeight: FontWeight.w600),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+          const SizedBox(height: 18),
+        ],
+        _buildLabel(bulkModeActive ? 'Added Batch Quantity (Total Pcs) *' : 'Quantity Received *'),
         const SizedBox(height: 8),
         TextField(
           controller: _quantityController,
+          enabled: !bulkModeActive,
+          readOnly: bulkModeActive,
           keyboardType: TextInputType.number,
           onChanged: (_) {
             if (_quantityError != null) setState(() => _quantityError = null);
@@ -494,7 +736,8 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
             hintText: 'e.g. 20',
             errorText: _quantityError,
             filled: true,
-            fillColor: AppColors.lightPeach,
+            fillColor: bulkModeActive ? AppColors.borderColor.withValues(alpha: 0.3) : AppColors.lightPeach,
+            suffixIcon: bulkModeActive ? const Icon(Icons.calculate_outlined, color: AppColors.secondaryText, size: 18) : null,
             contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
             border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
           ),
@@ -643,6 +886,11 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
         children: [
           Text('Product: ${product.name}', style: const TextStyle(fontSize: 12, color: AppColors.darkText)),
           Text('Quantity Received: $quantity pcs', style: const TextStyle(fontSize: 12, color: AppColors.darkText)),
+          if (_showBulkCalculator && _bulkCapitalPerPc != null)
+            Text(
+              'Capital Cost: ₱${_bulkCapitalPerPc!.toStringAsFixed(2)}/pc (via Bulk / Set Calculator)',
+              style: const TextStyle(fontSize: 12, color: AppColors.darkText),
+            ),
           Text(
             'Expiration Date: ${_noExpiry ? 'Not tracked' : '${effectiveExpiry!.day}/${effectiveExpiry.month}/${effectiveExpiry.year}'}',
             style: const TextStyle(fontSize: 12, color: AppColors.darkText),
@@ -791,6 +1039,7 @@ class _NewProductSheetState extends State<_NewProductSheet> {
       name: name,
       category: category,
       price: price!,
+      capital: price,
       barcode: barcode,
       image: _imagePath,
     );

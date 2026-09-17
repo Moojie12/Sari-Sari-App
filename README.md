@@ -1,4 +1,4 @@
-# sari_sari
+# Tindahan ni Eca
 
 A new Flutter project.
 

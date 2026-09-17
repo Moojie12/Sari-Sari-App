@@ -39,8 +39,10 @@ class EmployeeProduct {
     required this.name,
     required this.category,
     required this.price,
+    required this.capital,
     required this.barcode,
     required this.batches,
+    this.unit = 'pcs',
     this.image,
     this.lowStockThreshold = 10.0,
     this.isWeightBased = false,
@@ -50,7 +52,9 @@ class EmployeeProduct {
   final String name;
   final String category;
   final double price;
+  final double capital;
   final String barcode;
+  final String unit;
   final String? image;
   final bool isWeightBased;
 
@@ -63,6 +67,11 @@ class EmployeeProduct {
   /// not. This is what Inventory/POS display as "quantity" (a computed
   /// value now, rather than a stored field).
   double get quantity => batches.fold(0.0, (sum, b) => sum + b.quantity);
+
+  /// Calculated totals for the entire stock currently on hand.
+  double get totalCapital => capital * quantity;
+  double get totalRevenue => price * quantity;
+  double get totalProfit => totalRevenue - totalCapital;
 
   /// The price shown in the POS. If the next batch to be sold (per FEFO)
   /// is expiring soon, the product is automatically discounted (20% off).
@@ -146,7 +155,9 @@ class EmployeeProduct {
     String? name,
     String? category,
     double? price,
+    double? capital,
     String? barcode,
+    String? unit,
     String? image,
     double? lowStockThreshold,
     bool? isWeightBased,
@@ -156,7 +167,9 @@ class EmployeeProduct {
       name: name ?? this.name,
       category: category ?? this.category,
       price: price ?? this.price,
+      capital: capital ?? this.capital,
       barcode: barcode ?? this.barcode,
+      unit: unit ?? this.unit,
       batches: batches ?? this.batches,
       image: image ?? this.image,
       lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
@@ -179,6 +192,9 @@ class ArchivedStockItem {
     this.category,
     this.expiryDate,
     this.image,
+    this.capital = 0.0,
+    this.revenue = 0.0,
+    this.profit = 0.0,
   });
 
   final String id;
@@ -190,4 +206,8 @@ class ArchivedStockItem {
   final String? category;
   final DateTime? expiryDate;
   final String? image;
+
+  final double capital;
+  final double revenue;
+  final double profit;
 }

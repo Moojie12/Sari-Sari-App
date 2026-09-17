@@ -46,13 +46,16 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
     }
 
     final orderId = widget.orderController.generateOrderNumber();
-    final items = widget.cartController.items.map((item) => CustomerOrderItem(
-      productId: item.product.id,
-      productName: item.product.name,
-      price: item.product.price,
-      quantity: item.quantity,
-      subtotal: item.subtotal,
-    )).toList();
+    final items = widget.cartController.items.map<CustomerOrderItem>((item) {
+      return CustomerOrderItem(
+        productId: item.product.id,
+        productName: item.product.name,
+        price: item.product.price,
+        capital: item.product.capital,
+        quantity: item.quantity,
+        subtotal: item.subtotal,
+      );
+    }).toList();
 
     final order = CustomerOrder(
       customerName: 'Juan Dela Cruz',

@@ -157,6 +157,17 @@ class _ArchivedStockCard extends StatelessWidget {
                 ),
                 Text('Qty: ${item.quantity} · Batch: ${item.batchId}',
                     style: const TextStyle(color: AppColors.darkText, fontSize: 12, fontWeight: FontWeight.w600)),
+                const SizedBox(height: 4),
+                Row(
+                  children: [
+                    _buildMiniStat('Cap: ₱${item.capital.toStringAsFixed(2)}', Colors.blueGrey),
+                    const SizedBox(width: 8),
+                    _buildMiniStat('Rev: ₱${item.revenue.toStringAsFixed(2)}', AppColors.primaryOrange),
+                    const SizedBox(width: 8),
+                    _buildMiniStat('Prof: ₱${item.profit.toStringAsFixed(2)}', Colors.green),
+                  ],
+                ),
+                const SizedBox(height: 4),
                 Text('Expiry: $dateStr',
                     style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
                 Text('Archived on: $archivedDate',
@@ -180,6 +191,20 @@ class _ArchivedStockCard extends StatelessWidget {
             ],
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildMiniStat(String text, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.1),
+        borderRadius: BorderRadius.circular(4),
+      ),
+      child: Text(
+        text,
+        style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.bold),
       ),
     );
   }

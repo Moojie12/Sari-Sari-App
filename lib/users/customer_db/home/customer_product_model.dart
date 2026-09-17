@@ -37,6 +37,7 @@ class CustomerProduct {
     required this.name,
     required this.category,
     required this.price,
+    required this.capital,
     required this.image,
     required this.availability,
     this.isOnSale = false,
@@ -47,6 +48,7 @@ class CustomerProduct {
   final String name;
   final String category;
   final double price;
+  final double capital;
 
   /// Placeholder image reference (e.g. a future asset path or network
   /// URL). Not rendered yet — the UI currently shows a plain placeholder

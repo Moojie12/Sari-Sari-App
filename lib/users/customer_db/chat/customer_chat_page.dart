@@ -85,7 +85,7 @@ class _CustomerChatPageState extends State<CustomerChatPage> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     Text(
-                      'Sari-Sari Support',
+                      'Tindahan ni Eca Support',
                       style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
                     ),
                     Text(

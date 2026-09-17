@@ -64,7 +64,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Sari-Sari',
+                      'Tindahan ni Eca',
                       style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.w900,

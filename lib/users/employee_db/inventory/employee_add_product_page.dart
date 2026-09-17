@@ -549,16 +549,8 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
               ),
             ],
           ),
-          const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text('Current Total Stock', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-              Text('${product.quantity.toStringAsFixed(2)} $unitStr', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText)),
-            ],
-          ),
           if (product.batches.isNotEmpty) ...[
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             const Divider(height: 1, color: AppColors.borderColor),
             const SizedBox(height: 8),
             const Text('Existing Batches', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
@@ -586,9 +578,9 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
         const Text('Product Details', style: TextStyle(color: AppColors.darkText, fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
         Text(
-          product.isWeightBased 
-            ? 'Enter quantity in kg for de-kilo product.' 
-            : 'Enter quantity in pcs for regular product.',
+          product.isWeightBased
+              ? 'Enter quantity in kg for de-kilo product.'
+              : 'Enter quantity in pcs for regular product.',
           style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 12),
         ),
         const SizedBox(height: 16),
@@ -821,6 +813,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
   late final _nameController = TextEditingController(text: widget.prefillName);
   late final _barcodeController = TextEditingController(text: widget.prefillBarcode);
   final _priceController = TextEditingController();
+  final _capitalController = TextEditingController();
   final _quantityController = TextEditingController(text: '1.0');
   final _newCategoryController = TextEditingController();
   DateTime? _expiryDate;
@@ -834,6 +827,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
 
   String? _nameError;
   String? _priceError;
+  String? _capitalError;
   String? _barcodeError;
   String? _quantityError;
 
@@ -842,6 +836,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
     _nameController.dispose();
     _barcodeController.dispose();
     _priceController.dispose();
+    _capitalController.dispose();
     _quantityController.dispose();
     _newCategoryController.dispose();
     super.dispose();
@@ -868,6 +863,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
   Future<void> _continue() async {
     final name = _nameController.text.trim();
     final price = double.tryParse(_priceController.text.trim());
+    final capital = double.tryParse(_capitalController.text.trim());
     final barcode = _barcodeController.text.trim();
     final quantity = double.tryParse(_quantityController.text.trim());
     final category = _isAddingNewCategory ? _newCategoryController.text.trim() : _category;
@@ -875,8 +871,9 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
     setState(() {
       _nameError = name.isEmpty ? 'Product name is required.' : null;
       _priceError = (price == null || price < 0) ? 'Enter a valid price.' : null;
+      _capitalError = (capital == null || capital < 0) ? 'Enter a valid capital/cost price.' : null;
       _barcodeError = widget.inventory.isBarcodeTaken(barcode) ? 'This barcode is already used.' : null;
-      
+
       if (quantity == null || quantity <= 0) {
         _quantityError = 'Enter a quantity greater than 0.';
       } else if (!_isWeightBased && quantity != quantity.roundToDouble()) {
@@ -885,7 +882,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
         _quantityError = null;
       }
     });
-    if (_nameError != null || _priceError != null || _barcodeError != null || _quantityError != null) return;
+    if (_nameError != null || _priceError != null || _capitalError != null || _barcodeError != null || _quantityError != null) return;
     if (category.isEmpty) return;
 
     final confirmed = await showDialog<bool>(
@@ -911,6 +908,8 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
       name: name,
       category: category,
       price: price!,
+      capital: capital!,
+      unit: _isWeightBased ? 'kg' : 'pcs',
       barcode: barcode,
       image: _imagePath,
       isWeightBased: _isWeightBased,
@@ -1040,6 +1039,14 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                 controller: _priceController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
                 decoration: _fieldDecoration('e.g. 55.00', prefixText: '₱ ', errorText: _priceError),
+              ),
+              const SizedBox(height: 14),
+              Text(_isWeightBased ? 'Capital / Cost per kg *' : 'Capital / Cost per pc *', style: const TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _capitalController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: _fieldDecoration('e.g. 40.00', prefixText: '₱ ', errorText: _capitalError),
               ),
               const SizedBox(height: 14),
               const Text('Barcode (optional)', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),

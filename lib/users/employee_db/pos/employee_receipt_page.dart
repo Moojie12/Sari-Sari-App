@@ -76,6 +76,15 @@ class EmployeeReceiptPage extends StatelessWidget {
                             label: 'Total',
                             value: '₱${receipt.totalAmount.toStringAsFixed(2)}',
                             isBold: true),
+                        if (actionLabel != null) ...[
+                          _ReceiptRow(
+                              label: 'Total Capital',
+                              value: '₱${receipt.totalCapital.toStringAsFixed(2)}'),
+                          _ReceiptRow(
+                              label: 'Total Profit',
+                              value: '₱${receipt.totalProfit.toStringAsFixed(2)}',
+                              isBold: true),
+                        ],
                         _ReceiptRow(
                           label: 'Payment Method',
                           value: receipt.paymentMethod == EmployeePaymentMethod.cash

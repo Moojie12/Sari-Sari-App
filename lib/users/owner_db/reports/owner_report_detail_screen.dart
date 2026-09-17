@@ -141,11 +141,35 @@ class OwnerReportDetailScreen extends StatelessWidget {
 
     switch (type) {
       case OwnerReportType.dailyRevenue:
-        final total = orders.where((o) => o.status == OrderStatus.completed).fold(0.0, (sum, o) => sum + o.totalAmount);
-        return _KpiRow(label: 'Total Today', value: '₱ ${total.toStringAsFixed(2)}', icon: Icons.payments, color: Colors.green);
+        final completed = orders.where((o) => o.status == OrderStatus.completed).toList();
+        final revenue = completed.fold(0.0, (sum, o) => sum + o.subtotal);
+        final capital = completed.fold(0.0, (sum, o) => sum + o.totalCapital);
+        final profit = revenue - capital;
+        return Column(
+          children: [
+            _KpiRow(label: 'Total Revenue', value: '₱ ${revenue.toStringAsFixed(2)}', icon: Icons.payments, color: Colors.blue),
+            const SizedBox(height: 12),
+            _KpiRow(label: 'Total Capital', value: '₱ ${capital.toStringAsFixed(2)}', icon: Icons.shopping_bag, color: Colors.blueGrey),
+            const SizedBox(height: 12),
+            _KpiRow(label: 'Net Profit', value: '₱ ${profit.toStringAsFixed(2)}', icon: Icons.trending_up, color: Colors.green),
+          ],
+        );
       case OwnerReportType.inventoryValue:
-        final totalValue = inventory.products.fold(0.0, (sum, p) => sum + (p.quantity * p.price));
-        return _KpiRow(label: 'Assets on Hand', value: '₱ ${totalValue.toStringAsFixed(2)}', icon: Icons.inventory_2, color: Colors.blue);
+        final totalRev = inventory.products.fold(0.0, (sum, p) => sum + p.totalRevenue);
+        final totalCap = inventory.products.fold(0.0, (sum, p) => sum + p.totalCapital);
+        final totalProf = totalRev - totalCap;
+        return Column(
+          children: [
+            _KpiRow(label: 'Potential Revenue', value: '₱ ${totalRev.toStringAsFixed(2)}', icon: Icons.monetization_on, color: Colors.orange),
+            const SizedBox(height: 12),
+            _KpiRow(label: 'Capital Tied Up', value: '₱ ${totalCap.toStringAsFixed(2)}', icon: Icons.account_balance_wallet, color: Colors.blueGrey),
+            const SizedBox(height: 12),
+            _KpiRow(label: 'Potential Profit', value: '₱ ${totalProf.toStringAsFixed(2)}', icon: Icons.show_chart, color: Colors.green),
+          ],
+        );
+      case OwnerReportType.wastageLog:
+        final totalLoss = inventory.archivedStock.fold(0.0, (sum, a) => sum + a.capital);
+        return _KpiRow(label: 'Total Capital Loss', value: '₱ ${totalLoss.toStringAsFixed(2)}', icon: Icons.delete_forever, color: Colors.red);
       case OwnerReportType.restockChecklist:
         final count = inventory.lowStockProducts.length + inventory.outOfStockProducts.length;
         return _KpiRow(label: 'Items to Restock', value: '$count items', icon: Icons.warning_amber, color: Colors.red);
@@ -173,33 +197,35 @@ class OwnerReportDetailScreen extends StatelessWidget {
       case OwnerReportType.inventoryValue:
         return _ReportTable(
           title: 'Value Breakdown by Product',
-          columns: const ['Product', 'Price', 'Value'],
+          columns: const ['Product', 'Capital', 'Revenue', 'Profit'],
           rows: inventory.products.map((p) => [
             p.name,
-            '₱${p.price.toStringAsFixed(2)}',
-            '₱${(p.quantity * p.price).toStringAsFixed(2)}',
+            '₱${p.totalCapital.toStringAsFixed(2)}',
+            '₱${p.totalRevenue.toStringAsFixed(2)}',
+            '₱${p.totalProfit.toStringAsFixed(2)}',
           ]).toList(),
         );
       case OwnerReportType.dailyRevenue:
         final completed = orders.where((o) => o.status == OrderStatus.completed).toList();
         return _ReportTable(
           title: 'Completed Transactions',
-          columns: const ['Order ID', 'Payment', 'Amount'],
+          columns: const ['Order ID', 'Capital', 'Revenue', 'Profit'],
           rows: completed.map((o) => [
             '#${o.orderId}',
-            o.paymentMethod == PaymentMethod.gCash ? 'GCash' : 'Cash',
-            '₱${o.totalAmount.toStringAsFixed(2)}',
+            '₱${o.totalCapital.toStringAsFixed(2)}',
+            '₱${o.subtotal.toStringAsFixed(2)}',
+            '₱${o.totalProfit.toStringAsFixed(2)}',
           ]).toList(),
         );
       case OwnerReportType.wastageLog:
         final archived = inventory.archivedStock;
         return _ReportTable(
           title: 'Archive & Loss History',
-          columns: const ['Item', 'Qty', 'Reason'],
+          columns: const ['Item', 'Qty', 'Loss (Cap)'],
           rows: archived.map((a) => [
             a.productName,
             '${a.quantity} pcs',
-            a.expiryDate != null ? 'Expired' : 'Damaged/Other',
+            '₱${a.capital.toStringAsFixed(2)}',
           ]).toList(),
         );
       default:

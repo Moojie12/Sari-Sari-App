@@ -50,6 +50,7 @@ class CustomerOrderItem {
     required this.productId,
     required this.productName,
     required this.price,
+    required this.capital,
     required this.quantity,
     required this.subtotal,
   });
@@ -57,8 +58,12 @@ class CustomerOrderItem {
   final String productId;
   final String productName;
   final double price;
+  final double capital;
   final int quantity;
   final double subtotal;
+
+  double get totalCapital => capital * quantity;
+  double get profit => subtotal - totalCapital;
 }
 
 @immutable
@@ -92,4 +97,7 @@ class CustomerOrder {
   final OrderStatus status;
 
   String get formattedDate => '${orderDate.day}/${orderDate.month}/${orderDate.year}';
+
+  double get totalCapital => items.fold(0.0, (sum, item) => sum + item.totalCapital);
+  double get totalProfit => subtotal - totalCapital;
 }

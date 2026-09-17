@@ -9,6 +9,8 @@ import '../profile/employee_profile_controller.dart';
 import 'employee_pos_controller.dart';
 import 'employee_receipt_page.dart';
 import 'employee_batch_selection_sheet.dart';
+import 'employee_shift_controller.dart';
+import 'employee_shift_widgets.dart';
 
 /// Employee "POS" tab: ring up a walk-in sale.
 ///
@@ -140,8 +142,18 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
       backgroundColor: Colors.transparent,
       body: SafeArea(
         child: ListenableBuilder(
-          listenable: Listenable.merge([widget.inventory, widget.posController]),
+          listenable: Listenable.merge(
+              [widget.inventory, widget.posController, EmployeeShiftController.instance]),
           builder: (context, _) {
+            if (!EmployeeShiftController.instance.isShiftOpen) {
+              return Column(
+                children: [
+                  _buildHeader(),
+                  const Expanded(child: EmployeeStartShiftView()),
+                ],
+              );
+            }
+
             final products = _filteredProducts;
             return Column(
               children: [
@@ -180,21 +192,90 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
   }
 
   Widget _buildHeader() {
+    final shift = EmployeeShiftController.instance.currentShift;
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
-            'Point of Sale',
-            style: TextStyle(
-              color: AppColors.darkText,
-              fontSize: 28,
-              fontWeight: FontWeight.bold,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text(
+                'Point of Sale',
+                style: TextStyle(
+                  color: AppColors.darkText,
+                  fontSize: 28,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              if (widget.posController.cart.isNotEmpty)
+                _buildCartSummary(),
+            ],
           ),
-          if (widget.posController.cart.isNotEmpty)
-            _buildCartSummary(),
+          if (shift != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+              decoration: BoxDecoration(
+                color: AppColors.primaryOrange.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          'Shift ${shift.id} · Cash in Drawer',
+                          style: const TextStyle(
+                            color: AppColors.primaryOrange,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            letterSpacing: 0.3,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          '₱${shift.expectedCash.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: AppColors.darkText,
+                            fontSize: 20,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Float ₱${shift.startingFloat.toStringAsFixed(2)}'
+                              ' + Cash Sales ₱${shift.cashSalesTotal.toStringAsFixed(2)}'
+                              '${shift.netAdjustments != 0 ? ' ${shift.netAdjustments >= 0 ? '+' : '-'} Adj ₱${shift.netAdjustments.abs().toStringAsFixed(2)}' : ''}',
+                          style: TextStyle(
+                            color: AppColors.secondaryText.withValues(alpha: 0.8),
+                            fontSize: 10,
+                          ),
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  _HeaderIconButton(
+                    icon: Icons.swap_horiz_rounded,
+                    tooltip: 'Cash Adjustment',
+                    onTap: () => showCashAdjustmentSheet(context),
+                  ),
+                  const SizedBox(width: 8),
+                  _HeaderIconButton(
+                    icon: Icons.logout_rounded,
+                    tooltip: 'End Shift',
+                    onTap: () => showEndShiftSheet(context),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -323,6 +404,36 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
               style: TextStyle(
                   color: AppColors.secondaryText.withValues(alpha: 0.6))),
         ],
+      ),
+    );
+  }
+}
+
+class _HeaderIconButton extends StatelessWidget {
+  const _HeaderIconButton({required this.icon, required this.tooltip, required this.onTap});
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: tooltip,
+      child: Material(
+        color: Colors.white,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(10),
+          side: BorderSide(color: AppColors.borderColor.withValues(alpha: 0.5)),
+        ),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.all(8),
+            child: Icon(icon, size: 18, color: AppColors.primaryOrange),
+          ),
+        ),
       ),
     );
   }
@@ -490,88 +601,88 @@ class _CartDetailsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
-      listenable: posController,
-      builder: (context, _) {
-        final itemCount = posController.itemCount;
-        final totalAmount = posController.totalAmount;
+        listenable: posController,
+        builder: (context, _) {
+          final itemCount = posController.itemCount;
+          final totalAmount = posController.totalAmount;
 
-        // If cart becomes empty while sheet is open (staff removed all items),
-        // close the sheet.
-        if (posController.cart.isEmpty) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (Navigator.canPop(context)) Navigator.pop(context);
-          });
-          return const SizedBox.shrink();
-        }
+          // If cart becomes empty while sheet is open (staff removed all items),
+          // close the sheet.
+          if (posController.cart.isEmpty) {
+            WidgetsBinding.instance.addPostFrameCallback((_) {
+              if (Navigator.canPop(context)) Navigator.pop(context);
+            });
+            return const SizedBox.shrink();
+          }
 
-        return Container(
-          padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
-          constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
-          decoration: const BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-          ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Cart Details',
-                      style: TextStyle(
-                          fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText)),
-                  TextButton(
-                    onPressed: () => _confirmClearAll(context),
-                    style: TextButton.styleFrom(foregroundColor: Colors.red, padding: EdgeInsets.zero),
-                    child: const Text('Clear All', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 8),
-              Text('$itemCount item(s) in cart',
-                  style: const TextStyle(color: AppColors.secondaryText, fontSize: 13)),
-              const SizedBox(height: 12),
-              const Divider(height: 1, color: AppColors.borderColor),
-              Flexible(
-                child: _CartItemsList(posController: posController),
-              ),
-              const SizedBox(height: 16),
-              const Divider(height: 1, color: AppColors.borderColor),
-              const SizedBox(height: 16),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  const Text('Total Amount', style: TextStyle(color: AppColors.secondaryText)),
-                  Text(
-                    '₱${totalAmount.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                        fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryOrange),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 24),
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.pop(context);
-                    onCheckout();
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primaryOrange,
-                    foregroundColor: Colors.white,
-                    padding: const EdgeInsets.symmetric(vertical: 16),
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                  ),
-                  child: const Text('Proceed to Checkout',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+          return Container(
+            padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
+            constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.75),
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Cart Details',
+                        style: TextStyle(
+                            fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText)),
+                    TextButton(
+                      onPressed: () => _confirmClearAll(context),
+                      style: TextButton.styleFrom(foregroundColor: Colors.red, padding: EdgeInsets.zero),
+                      child: const Text('Clear All', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
+                    ),
+                  ],
                 ),
-              ),
-            ],
-          ),
-        );
-      }
+                const SizedBox(height: 8),
+                Text('$itemCount item(s) in cart',
+                    style: const TextStyle(color: AppColors.secondaryText, fontSize: 13)),
+                const SizedBox(height: 12),
+                const Divider(height: 1, color: AppColors.borderColor),
+                Flexible(
+                  child: _CartItemsList(posController: posController),
+                ),
+                const SizedBox(height: 16),
+                const Divider(height: 1, color: AppColors.borderColor),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    const Text('Total Amount', style: TextStyle(color: AppColors.secondaryText)),
+                    Text(
+                      '₱${totalAmount.toStringAsFixed(2)}',
+                      style: const TextStyle(
+                          fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primaryOrange),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 24),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () {
+                      Navigator.pop(context);
+                      onCheckout();
+                    },
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryOrange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    child: const Text('Proceed to Checkout',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  ),
+                ),
+              ],
+            ),
+          );
+        }
     );
   }
 }
@@ -792,7 +903,13 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
 
     final receipt =
     widget.posController.checkout(paymentMethod: _method, amountPaid: amountPaid);
-    if (receipt != null) widget.onCompleted(receipt);
+    if (receipt != null) {
+      EmployeeShiftController.instance.recordSale(
+        paymentMethod: receipt.paymentMethod,
+        amount: receipt.totalAmount,
+      );
+      widget.onCompleted(receipt);
+    }
   }
 
   @override

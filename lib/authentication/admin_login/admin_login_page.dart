@@ -39,16 +39,22 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                 child: Column(
                   children: [
                     Container(
-                      padding: const EdgeInsets.all(16),
+                      width: 72,
+                      height: 72,
                       decoration: const BoxDecoration(
                         color: AppColors.primaryOrange,
                         shape: BoxShape.circle,
                       ),
-                      child: const Icon(Icons.admin_panel_settings, color: Colors.white, size: 40),
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/images/logo.png',
+                          fit: BoxFit.cover,
+                        ),
+                      ),
                     ),
                     const SizedBox(height: 16),
                     const Text(
-                      'Sari-Sari Admin',
+                      'Tindahan ni Eca Admin',
                       style: TextStyle(
                         fontSize: 28,
                         fontWeight: FontWeight.bold,
@@ -107,7 +113,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
               const SizedBox(height: 20),
               const Center(
                 child: Text(
-                  '© 2024 Sari-Sari App System',
+                  '© 2024 Tindahan ni Eca App System',
                   style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
                 ),
               ),

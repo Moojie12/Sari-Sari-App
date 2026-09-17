@@ -13,6 +13,7 @@ import '../../employee_db/notifications/employee_notifications_controller.dart';
 import '../../employee_db/notifications/employee_notifications_page.dart';
 import '../history/owner_history_page.dart';
 import '../reports/owner_reports_page.dart';
+import '../reports/owner_shift_reports_page.dart';
 import 'owner_archived_products_page.dart';
 import 'shop_settings_controller.dart';
 import 'owner_create_employee_page.dart';
@@ -37,7 +38,7 @@ class OwnerProfilePage extends StatelessWidget {
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (context) => const LoginPage()),
-                (route) => false,
+                    (route) => false,
               );
             },
             child: const Text('Logout', style: TextStyle(color: Colors.red)),
@@ -150,6 +151,11 @@ class OwnerProfilePage extends StatelessWidget {
                   icon: Icons.bar_chart_rounded,
                   label: 'View Reports',
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerReportsPage())),
+                ),
+                _MenuTile(
+                  icon: Icons.point_of_sale_outlined,
+                  label: 'Shift Reports',
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerShiftReportsPage())),
                 ),
                 _MenuTile(
                   icon: Icons.list_alt,
