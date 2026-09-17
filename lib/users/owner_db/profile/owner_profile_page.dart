@@ -15,6 +15,7 @@ import '../history/owner_history_page.dart';
 import '../reports/owner_reports_page.dart';
 import '../reports/owner_shift_reports_page.dart';
 import 'owner_archived_products_page.dart';
+import '../../employee_db/profile/employee_my_consumables_page.dart';
 import 'shop_settings_controller.dart';
 import 'owner_create_employee_page.dart';
 
@@ -165,8 +166,13 @@ class OwnerProfilePage extends StatelessWidget {
                 _MenuTile(
                   icon: Icons.archive_outlined,
                   label: 'Archived Products',
-                  isLast: true,
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerArchivedProductsPage())),
+                ),
+                _MenuTile(
+                  icon: Icons.set_meal_outlined,
+                  label: 'My Consumables',
+                  isLast: true,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeMyConsumablesPage(role: 'Owner'))),
                 ),
               ],
             ),

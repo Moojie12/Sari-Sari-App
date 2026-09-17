@@ -8,6 +8,7 @@ import '../../employee_db/inventory/employee_product_model.dart';
 import '../../employee_db/inventory/employee_edit_product_page.dart';
 import '../../employee_db/inventory/employee_add_product_page.dart';
 import '../../employee_db/inventory/employee_archive_stock_dialog.dart';
+import '../../employee_db/inventory/employee_consume_stock_dialog.dart';
 
 class OwnerInventoryPage extends StatefulWidget {
   const OwnerInventoryPage({super.key, required this.inventory});
@@ -79,6 +80,10 @@ class _OwnerInventoryPageState extends State<OwnerInventoryPage> {
           Navigator.pop(sheetContext);
           _showArchiveDialog(product);
         },
+        onConsumeProduct: () {
+          Navigator.pop(sheetContext);
+          _showConsumeDialog(product);
+        },
       ),
     );
   }
@@ -89,6 +94,17 @@ class _OwnerInventoryPageState extends State<OwnerInventoryPage> {
       builder: (context) => EmployeeArchiveStockDialog(
         product: product,
         inventory: widget.inventory,
+      ),
+    );
+  }
+
+  void _showConsumeDialog(EmployeeProduct product) {
+    showDialog(
+      context: context,
+      builder: (context) => EmployeeConsumeStockDialog(
+        product: product,
+        inventory: widget.inventory,
+        role: 'Owner',
       ),
     );
   }
@@ -376,11 +392,13 @@ class _OwnerBatchDetailSheet extends StatelessWidget {
     required this.product,
     required this.onEditProduct,
     required this.onArchiveProduct,
+    required this.onConsumeProduct,
   });
 
   final EmployeeProduct product;
   final VoidCallback onEditProduct;
   final VoidCallback onArchiveProduct;
+  final VoidCallback onConsumeProduct;
 
   @override
   Widget build(BuildContext context) {
@@ -427,6 +445,21 @@ class _OwnerBatchDetailSheet extends StatelessWidget {
               ),
             ),
           const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: onConsumeProduct,
+              icon: const Icon(Icons.set_meal_outlined, size: 18, color: Colors.white),
+              label: const Text('Consumables (Personal Use)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
           Row(
             children: [
               Expanded(

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/utils/top_notification.dart';
 import '../employee_inventory_controller.dart';
 import 'employee_batch_model.dart';
 import 'employee_expiry_badge.dart';
@@ -30,88 +29,6 @@ class EmployeeBatchDetailSheet extends StatefulWidget {
 }
 
 class _EmployeeBatchDetailSheetState extends State<EmployeeBatchDetailSheet> {
-  void _showShortageDialog() {
-    final shortageController = TextEditingController();
-    final reasonController = TextEditingController();
-    String? errorText;
-
-    showDialog(
-      context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setStateDialog) => AlertDialog(
-          title: const Text('Report Shortage', style: TextStyle(fontWeight: FontWeight.bold)),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text('Product: ${widget.product.name}', style: const TextStyle(fontWeight: FontWeight.w600)),
-                const SizedBox(height: 6),
-                Text('Current Stock: ${widget.product.quantity.toStringAsFixed(2)} ${widget.product.isWeightBased ? 'kg' : 'pcs'}'),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: shortageController,
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  decoration: InputDecoration(
-                    labelText: widget.product.isWeightBased ? 'Shortage Quantity (kg)' : 'Shortage Quantity (pcs)',
-                    errorText: errorText,
-                    filled: true,
-                    fillColor: AppColors.lightPeach,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: reasonController,
-                  decoration: InputDecoration(
-                    labelText: 'Reason (Optional)',
-                    filled: true,
-                    fillColor: AppColors.lightPeach,
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                final qty = double.tryParse(shortageController.text.trim());
-                if (qty == null || qty <= 0) {
-                  setStateDialog(() => errorText = 'Enter a valid quantity greater than 0.');
-                  return;
-                }
-                if (!widget.product.isWeightBased && qty != qty.roundToDouble()) {
-                  setStateDialog(() => errorText = 'Regular products must use whole numbers.');
-                  return;
-                }
-                if (qty > widget.product.quantity) {
-                  setStateDialog(() => errorText = 'Shortage cannot exceed available stock.');
-                  return;
-                }
-
-                final success = widget.inventory.reportShortage(widget.product.id, qty);
-                if (success) {
-                  Navigator.pop(context); // close dialog
-                  Navigator.pop(this.context); // close sheet
-                  TopNotification.show(this.context, 'Shortage recorded successfully.\n${widget.product.name}\nShortage: $qty ${widget.product.isWeightBased ? 'kg' : 'pcs'}\nRemaining: ${(widget.product.quantity - qty).toStringAsFixed(2)} ${widget.product.isWeightBased ? 'kg' : 'pcs'}');
-                } else {
-                  setStateDialog(() => errorText = 'Failed to record shortage.');
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange, foregroundColor: Colors.white),
-              child: const Text('Confirm'),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildStat(String label, String value, {bool isProfit = false}) {
     return Column(
       children: [
@@ -209,27 +126,12 @@ class _EmployeeBatchDetailSheetState extends State<EmployeeBatchDetailSheet> {
           SizedBox(
             width: double.infinity,
             child: ElevatedButton.icon(
-              onPressed: _showShortageDialog,
-              icon: const Icon(Icons.assignment_late_outlined, size: 18),
-              label: const Text('Report Shortage', style: TextStyle(fontWeight: FontWeight.bold)),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.amber.shade800,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-          ),
-          const SizedBox(height: 10),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton.icon(
               onPressed: widget.onConsumeProduct,
-              icon: const Icon(Icons.set_meal_outlined, size: 18),
-              label: const Text('Consumables (Personal Use)', style: TextStyle(fontWeight: FontWeight.bold)),
-              style: OutlinedButton.styleFrom(
-                foregroundColor: Colors.deepPurple,
-                side: const BorderSide(color: Colors.deepPurple),
+              icon: const Icon(Icons.set_meal_outlined, size: 18, color: Colors.white),
+              label: const Text('Consumables (Personal Use)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                foregroundColor: Colors.white,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),

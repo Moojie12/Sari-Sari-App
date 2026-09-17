@@ -8,6 +8,7 @@ import '../notifications/employee_notifications_controller.dart';
 import '../notifications/employee_notifications_page.dart';
 import 'employee_change_password_page.dart';
 import 'employee_edit_profile_page.dart';
+import 'employee_my_consumables_page.dart';
 import 'employee_profile_controller.dart';
 import 'employee_profile_info_page.dart';
 import 'employee_profile_model.dart';
@@ -103,10 +104,18 @@ class EmployeeProfilePage extends StatelessWidget {
                 _MenuTile(
                   icon: Icons.lock_outline,
                   label: 'Change Password',
-                  isLast: true,
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const EmployeeChangePasswordPage()),
+                  ),
+                ),
+                _MenuTile(
+                  icon: Icons.set_meal_outlined,
+                  label: 'My Consumables',
+                  isLast: true,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const EmployeeMyConsumablesPage(role: 'Employee')),
                   ),
                 ),
               ],

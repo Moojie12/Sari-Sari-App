@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../employee_inventory_controller.dart';
+import '../profile/employee_profile_controller.dart';
 import 'employee_batch_model.dart';
 import 'employee_product_model.dart';
 
@@ -15,10 +16,15 @@ class EmployeeConsumeStockDialog extends StatefulWidget {
     super.key,
     required this.product,
     required this.inventory,
+    this.role = 'Employee',
   });
 
   final EmployeeProduct product;
   final EmployeeInventoryController inventory;
+
+  /// Which dashboard opened this dialog ('Owner' or 'Employee') — combined
+  /// with the signed-in profile's name to auto-fill who took the stock.
+  final String role;
 
   @override
   State<EmployeeConsumeStockDialog> createState() => _EmployeeConsumeStockDialogState();
@@ -27,7 +33,6 @@ class EmployeeConsumeStockDialog extends StatefulWidget {
 class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog> {
   ProductBatch? _selectedBatch;
   final _quantityController = TextEditingController();
-  final _consumedByController = TextEditingController();
   double _maxQuantity = 0.0;
   bool _isAllSelected = false;
   String? _errorText;
@@ -44,8 +49,15 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
   @override
   void dispose() {
     _quantityController.dispose();
-    _consumedByController.dispose();
     super.dispose();
+  }
+
+  /// The signed-in account's name and role, e.g. "Juan Dela Cruz (Owner)" —
+  /// recorded automatically so no one has to type who took the stock.
+  String _currentUserLabel() {
+    final profile = EmployeeProfileController.instance.profile;
+    final name = '${profile.firstName} ${profile.lastName}'.trim();
+    return '${name.isEmpty ? profile.role : name} (${widget.role})';
   }
 
   void _onBatchChanged(ProductBatch? batch) {
@@ -64,9 +76,7 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
   }
 
   void _submit() {
-    final consumedBy = _consumedByController.text.trim().isEmpty
-        ? null
-        : _consumedByController.text.trim();
+    final consumedBy = _currentUserLabel();
 
     if (_isAllSelected) {
       if (widget.product.quantity <= 0) return;
@@ -130,7 +140,7 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
               items: [
                 const DropdownMenuItem<ProductBatch?>(
                   value: null,
-                  child: Text('All Batches', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: Colors.deepPurple)),
+                  child: Text('All Batches', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryOrange)),
                 ),
                 ...widget.product.batches.map((b) {
                   final dateStr = b.expiryDate == null
@@ -167,18 +177,6 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
                 fillColor: _isAllSelected ? Colors.grey.shade100 : null,
               ),
             ),
-            const SizedBox(height: 16),
-            const Text('Taken By (Optional)',
-                style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.labelText)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _consumedByController,
-              decoration: InputDecoration(
-                hintText: 'e.g. Owner, or employee name',
-                contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-              ),
-            ),
           ],
         ),
       ),
@@ -190,7 +188,7 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
         ElevatedButton(
           onPressed: _submit,
           style: ElevatedButton.styleFrom(
-            backgroundColor: Colors.deepPurple,
+            backgroundColor: AppColors.primaryOrange,
             foregroundColor: Colors.white,
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
           ),
