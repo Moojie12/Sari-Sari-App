@@ -6,9 +6,10 @@ import '../../../shared/widgets/custom_text_field.dart';
 import '../../../shared/widgets/primary_button.dart';
 import 'employee_profile_controller.dart';
 
-/// "Edit Profile" screen: lets the employee update their own name,
-/// username, email, and contact number. Role stays read-only — it's
-/// assigned by the Owner.
+/// "Edit Profile" screen: lets the employee update their own name (with
+/// middle initial), email, and contact number. Fields here match exactly
+/// what's shown on "Profile Information" — there is no username field,
+/// since Profile Information doesn't show one either.
 class EmployeeEditProfilePage extends StatefulWidget {
   const EmployeeEditProfilePage({super.key});
 
@@ -20,8 +21,8 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
   final _controller = EmployeeProfileController();
 
   late final TextEditingController _firstNameController;
+  late final TextEditingController _middleInitialController;
   late final TextEditingController _lastNameController;
-  late final TextEditingController _usernameController;
   late final TextEditingController _emailController;
   late final TextEditingController _contactController;
 
@@ -30,8 +31,8 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
     super.initState();
     final profile = _controller.profile;
     _firstNameController = TextEditingController(text: profile.firstName);
+    _middleInitialController = TextEditingController(text: profile.middleInitial);
     _lastNameController = TextEditingController(text: profile.lastName);
-    _usernameController = TextEditingController(text: profile.username);
     _emailController = TextEditingController(text: profile.email);
     _contactController = TextEditingController(text: profile.contactNumber);
   }
@@ -39,8 +40,8 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
   @override
   void dispose() {
     _firstNameController.dispose();
+    _middleInitialController.dispose();
     _lastNameController.dispose();
-    _usernameController.dispose();
     _emailController.dispose();
     _contactController.dispose();
     super.dispose();
@@ -48,12 +49,12 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
 
   void _saveChanges() async {
     final firstName = _firstNameController.text.trim();
+    final middleInitial = _middleInitialController.text.trim();
     final lastName = _lastNameController.text.trim();
-    final username = _usernameController.text.trim();
     final email = _emailController.text.trim();
     final contact = _contactController.text.trim();
 
-    if (firstName.isEmpty || lastName.isEmpty || username.isEmpty || email.isEmpty) {
+    if (firstName.isEmpty || lastName.isEmpty || email.isEmpty) {
       TopNotification.show(context, 'Please fill in all required fields.', isError: true);
       return;
     }
@@ -81,8 +82,8 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
 
     _controller.updateProfile(
       firstName: firstName,
+      middleInitial: middleInitial,
       lastName: lastName,
-      username: username,
       email: email,
       contactNumber: contact,
     );
@@ -122,6 +123,7 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
+                    flex: 3,
                     child: CustomTextField(
                       hint: 'First Name',
                       icon: Icons.person_outline,
@@ -130,19 +132,20 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
+                    flex: 1,
                     child: CustomTextField(
-                      hint: 'Last Name',
-                      icon: Icons.person_outline,
-                      controller: _lastNameController,
+                      hint: 'M.I.',
+                      icon: Icons.badge_outlined,
+                      controller: _middleInitialController,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 14),
               CustomTextField(
-                hint: 'Username',
-                icon: Icons.alternate_email,
-                controller: _usernameController,
+                hint: 'Last Name',
+                icon: Icons.person_outline,
+                controller: _lastNameController,
               ),
               const SizedBox(height: 14),
               CustomTextField(
@@ -157,27 +160,6 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
                 icon: Icons.phone_outlined,
                 controller: _contactController,
                 keyboardType: TextInputType.phone,
-              ),
-              const SizedBox(height: 14),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  color: AppColors.lightPeach.withValues(alpha: 0.5),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.info_outline, size: 16, color: AppColors.secondaryText),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        'Role: ${_controller.profile.role} — assigned by the Owner and cannot be changed here.',
-                        style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.9), fontSize: 12),
-                      ),
-                    ),
-                  ],
-                ),
               ),
               const SizedBox(height: 24),
               PrimaryButton(

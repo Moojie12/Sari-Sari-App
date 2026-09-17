@@ -27,8 +27,8 @@ class EmployeeProfileController extends ChangeNotifier {
 
   EmployeeProfile _profile = const EmployeeProfile(
     firstName: 'Juan',
+    middleInitial: 'D',
     lastName: 'Dela Cruz',
-    username: 'juan.delacruz',
     email: 'juan.delacruz@sarisari.com',
     contactNumber: '0917 123 4567',
     role: 'Employee',
@@ -42,17 +42,33 @@ class EmployeeProfileController extends ChangeNotifier {
 
   void updateProfile({
     String? firstName,
+    String? middleInitial,
     String? lastName,
-    String? username,
     String? email,
     String? contactNumber,
   }) {
     _profile = _profile.copyWith(
       firstName: firstName,
+      middleInitial: middleInitial,
       lastName: lastName,
-      username: username,
       email: email,
       contactNumber: contactNumber,
+    );
+    notifyListeners();
+  }
+
+  /// Sets or clears (pass `null`) the profile photo. Kept separate from
+  /// [updateProfile] since `copyWith` can't tell "leave unchanged" apart
+  /// from "clear this" for a nullable field.
+  void setPhoto(String? photoPath) {
+    _profile = EmployeeProfile(
+      firstName: _profile.firstName,
+      middleInitial: _profile.middleInitial,
+      lastName: _profile.lastName,
+      email: _profile.email,
+      contactNumber: _profile.contactNumber,
+      role: _profile.role,
+      photoPath: photoPath,
     );
     notifyListeners();
   }

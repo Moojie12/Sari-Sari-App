@@ -2,12 +2,17 @@ import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
 import 'customer_edit_profile_page.dart';
+import 'customer_profile_controller.dart';
 
+/// "Profile Information" screen: read-only view of the customer's name
+/// (with middle initial), email, contact number, and account type.
 class CustomerProfileInfoPage extends StatelessWidget {
   const CustomerProfileInfoPage({super.key});
 
   @override
   Widget build(BuildContext context) {
+    final controller = CustomerProfileController();
+
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
       appBar: AppBar(
@@ -32,68 +37,73 @@ class CustomerProfileInfoPage extends StatelessWidget {
           ),
         ],
       ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Center(
-              child: Column(
-                children: [
-                  CircleAvatar(
-                    radius: 40,
-                    backgroundColor: Color(0xFFFEEAD2), // Matching the alpha logic but static for brevity
-                    child: Text(
-                      'JD',
-                      style: TextStyle(
-                        color: AppColors.primaryOrange,
-                        fontSize: 26,
-                        fontWeight: FontWeight.bold,
+      body: ListenableBuilder(
+        listenable: controller,
+        builder: (context, _) {
+          final profile = controller.profile;
+          return SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Column(
+                    children: [
+                      CircleAvatar(
+                        radius: 40,
+                        backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.12),
+                        child: Text(
+                          profile.initials,
+                          style: const TextStyle(
+                            color: AppColors.primaryOrange,
+                            fontSize: 26,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(height: 12),
+                      Text(
+                        profile.fullName,
+                        style: const TextStyle(
+                          color: AppColors.darkText,
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Customer',
+                        style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+                      ),
+                    ],
                   ),
-                  SizedBox(height: 12),
-                  Text(
-                    'Juan Dela Cruz',
-                    style: TextStyle(
-                      color: AppColors.darkText,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                    ),
+                ),
+                const SizedBox(height: 28),
+                Container(
+                  decoration: BoxDecoration(
+                    color: AppColors.cardWhite,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
                   ),
-                  SizedBox(height: 4),
-                  Text(
-                    'Customer',
-                    style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+                  child: Column(
+                    children: [
+                      _InfoRow(icon: Icons.person_outline, label: 'Full Name', value: profile.fullName),
+                      _InfoRow(icon: Icons.email_outlined, label: 'Email', value: profile.email),
+                      _InfoRow(icon: Icons.phone_outlined, label: 'Contact Number', value: profile.contactNumber),
+                      const _InfoRow(icon: Icons.badge_outlined, label: 'Account Type', value: 'Customer', isLast: true),
+                    ],
                   ),
-                ],
-              ),
+                ),
+              ],
             ),
-            const SizedBox(height: 28),
-            Container(
-              decoration: BoxDecoration(
-                color: AppColors.cardWhite,
-                borderRadius: BorderRadius.circular(16),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.05),
-                    blurRadius: 10,
-                    offset: const Offset(0, 4),
-                  ),
-                ],
-              ),
-              child: const Column(
-                children: [
-                  _InfoRow(icon: Icons.person_outline, label: 'Full Name', value: 'Juan Dela Cruz'),
-                  _InfoRow(icon: Icons.alternate_email, label: 'Username', value: 'juan_dc'),
-                  _InfoRow(icon: Icons.email_outlined, label: 'Email', value: 'juan.delacruz@email.com'),
-                  _InfoRow(icon: Icons.phone_outlined, label: 'Contact Number', value: '+63 912 345 6789'),
-                  _InfoRow(icon: Icons.badge_outlined, label: 'Account Type', value: 'Customer', isLast: true),
-                ],
-              ),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }

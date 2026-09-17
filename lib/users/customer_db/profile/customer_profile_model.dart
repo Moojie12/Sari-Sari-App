@@ -1,19 +1,18 @@
 import 'package:flutter/foundation.dart';
 
-/// Store-staff profile shown on the "Profile Information" screen and
-/// edited from "Edit Profile" — name (with middle initial), email,
-/// contact number, and role, per the Employee Profile spec. There is no
-/// username field: Profile Information doesn't show one, so Edit Profile
-/// doesn't have one to edit either.
+/// Customer profile shown on the "Profile Information" screen and edited
+/// from "Edit Profile" — name (with middle initial), email, and contact
+/// number. Mirrors [EmployeeProfile] but has no username or role field:
+/// a customer's role is always "Customer" and there is no separate
+/// username, only account credentials used at login.
 @immutable
-class EmployeeProfile {
-  const EmployeeProfile({
+class CustomerProfile {
+  const CustomerProfile({
     required this.firstName,
     this.middleInitial = '',
     required this.lastName,
     required this.email,
     required this.contactNumber,
-    required this.role,
     this.photoPath,
   });
 
@@ -26,12 +25,8 @@ class EmployeeProfile {
   final String contactNumber;
 
   /// Local file path of the uploaded profile photo, or null when the
-  /// employee hasn't added one yet (the avatar falls back to initials).
+  /// customer hasn't added one yet (the avatar falls back to initials).
   final String? photoPath;
-
-  /// e.g. "Cashier", "Inventory Staff" — shown read-only; role is assigned
-  /// by the Owner, not editable from the Employee side.
-  final String role;
 
   /// e.g. "Juan D. Dela Cruz" — middle initial (when set) is inserted
   /// between the first and last name.
@@ -51,21 +46,19 @@ class EmployeeProfile {
     return combined.isNotEmpty ? combined : '?';
   }
 
-  EmployeeProfile copyWith({
+  CustomerProfile copyWith({
     String? firstName,
     String? middleInitial,
     String? lastName,
     String? email,
     String? contactNumber,
-    String? role,
   }) {
-    return EmployeeProfile(
+    return CustomerProfile(
       firstName: firstName ?? this.firstName,
       middleInitial: middleInitial ?? this.middleInitial,
       lastName: lastName ?? this.lastName,
       email: email ?? this.email,
       contactNumber: contactNumber ?? this.contactNumber,
-      role: role ?? this.role,
       photoPath: photoPath,
     );
   }

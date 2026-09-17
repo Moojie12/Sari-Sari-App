@@ -12,6 +12,7 @@ import 'employee_my_consumables_page.dart';
 import 'employee_profile_controller.dart';
 import 'employee_profile_info_page.dart';
 import 'employee_profile_model.dart';
+import 'package:sari_sari/shared/widgets/editable_profile_avatar.dart';
 
 /// Employee "Profile" tab: a menu into every Employee Profile feature —
 /// Profile Information, Edit Profile, Messages, Notifications, Change
@@ -71,7 +72,10 @@ class EmployeeProfilePage extends StatelessWidget {
             const SizedBox(height: 24),
             ListenableBuilder(
               listenable: profileController,
-              builder: (context, _) => _ProfileHeaderCard(profile: profileController.profile),
+              builder: (context, _) => _ProfileHeaderCard(
+                profile: profileController.profile,
+                onPhotoChanged: profileController.setPhoto,
+              ),
             ),
             const SizedBox(height: 28),
             const Text(
@@ -180,9 +184,10 @@ class EmployeeProfilePage extends StatelessWidget {
 
 /// Avatar + name + role summary shown above the menu.
 class _ProfileHeaderCard extends StatelessWidget {
-  const _ProfileHeaderCard({required this.profile});
+  const _ProfileHeaderCard({required this.profile, required this.onPhotoChanged});
 
   final EmployeeProfile profile;
+  final ValueChanged<String?> onPhotoChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -195,17 +200,11 @@ class _ProfileHeaderCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          CircleAvatar(
+          EditableProfileAvatar(
+            initials: profile.initials,
+            photoPath: profile.photoPath,
+            onPhotoChanged: onPhotoChanged,
             radius: 30,
-            backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.12),
-            child: Text(
-              profile.initials,
-              style: const TextStyle(
-                color: AppColors.primaryOrange,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
           ),
           const SizedBox(width: 14),
           Expanded(

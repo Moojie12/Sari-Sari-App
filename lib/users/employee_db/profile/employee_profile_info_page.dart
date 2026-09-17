@@ -3,11 +3,17 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import 'employee_edit_profile_page.dart';
 import 'employee_profile_controller.dart';
+import 'package:sari_sari/shared/widgets/editable_profile_avatar.dart';
 
 /// "Profile Information" screen: read-only view of the employee's name,
-/// username, email, contact number, and role.
+/// email, contact number, and role.
 class EmployeeProfileInfoPage extends StatelessWidget {
-  const EmployeeProfileInfoPage({super.key});
+  const EmployeeProfileInfoPage({super.key, this.role});
+
+  /// Overrides the role shown on this screen (e.g. 'Owner' when this page
+  /// is reused from the Owner Profile tab). Falls back to the signed-in
+  /// employee's own stored role when not provided.
+  final String? role;
 
   @override
   Widget build(BuildContext context) {
@@ -41,6 +47,7 @@ class EmployeeProfileInfoPage extends StatelessWidget {
         listenable: controller,
         builder: (context, _) {
           final profile = controller.profile;
+          final displayRole = role ?? profile.role;
           return SingleChildScrollView(
             padding: const EdgeInsets.fromLTRB(24, 24, 24, 24),
             child: Column(
@@ -49,17 +56,11 @@ class EmployeeProfileInfoPage extends StatelessWidget {
                 Center(
                   child: Column(
                     children: [
-                      CircleAvatar(
+                      EditableProfileAvatar(
+                        initials: profile.initials,
+                        photoPath: profile.photoPath,
+                        onPhotoChanged: controller.setPhoto,
                         radius: 40,
-                        backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.12),
-                        child: Text(
-                          profile.initials,
-                          style: const TextStyle(
-                            color: AppColors.primaryOrange,
-                            fontSize: 26,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
                       ),
                       const SizedBox(height: 12),
                       Text(
@@ -72,7 +73,7 @@ class EmployeeProfileInfoPage extends StatelessWidget {
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        profile.role,
+                        displayRole,
                         style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 13),
                       ),
                     ],
@@ -87,10 +88,9 @@ class EmployeeProfileInfoPage extends StatelessWidget {
                   child: Column(
                     children: [
                       _InfoRow(icon: Icons.person_outline, label: 'Full Name', value: profile.fullName),
-                      _InfoRow(icon: Icons.alternate_email, label: 'Username', value: profile.username),
                       _InfoRow(icon: Icons.email_outlined, label: 'Email', value: profile.email),
                       _InfoRow(icon: Icons.phone_outlined, label: 'Contact Number', value: profile.contactNumber),
-                      _InfoRow(icon: Icons.badge_outlined, label: 'Role', value: profile.role, isLast: true),
+                      _InfoRow(icon: Icons.badge_outlined, label: 'Role', value: displayRole, isLast: true),
                     ],
                   ),
                 ),
