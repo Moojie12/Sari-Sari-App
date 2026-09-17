@@ -16,12 +16,14 @@ class EmployeeBatchDetailSheet extends StatefulWidget {
     required this.inventory,
     required this.onEditProduct,
     required this.onArchiveProduct,
+    required this.onConsumeProduct,
   });
 
   final EmployeeProduct product;
   final EmployeeInventoryController inventory;
   final VoidCallback onEditProduct;
   final VoidCallback onArchiveProduct;
+  final VoidCallback onConsumeProduct;
 
   @override
   State<EmployeeBatchDetailSheet> createState() => _EmployeeBatchDetailSheetState();
@@ -213,6 +215,21 @@ class _EmployeeBatchDetailSheetState extends State<EmployeeBatchDetailSheet> {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.amber.shade800,
                 foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: widget.onConsumeProduct,
+              icon: const Icon(Icons.set_meal_outlined, size: 18),
+              label: const Text('Consumables (Personal Use)', style: TextStyle(fontWeight: FontWeight.bold)),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: Colors.deepPurple,
+                side: const BorderSide(color: Colors.deepPurple),
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),

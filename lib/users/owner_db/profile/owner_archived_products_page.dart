@@ -138,7 +138,7 @@ class _ArchivedStockCard extends StatelessWidget {
             width: 50,
             height: 50,
             decoration:
-                BoxDecoration(color: AppColors.lightBackground, borderRadius: BorderRadius.circular(12)),
+            BoxDecoration(color: AppColors.lightBackground, borderRadius: BorderRadius.circular(12)),
             child: item.image != null
                 ? const Icon(Icons.image, color: AppColors.primaryOrange, size: 24)
                 : const Icon(Icons.image_outlined, color: AppColors.placeholderColor, size: 24),
@@ -158,6 +158,11 @@ class _ArchivedStockCard extends StatelessWidget {
                 Text('Qty: ${item.quantity} · Batch: ${item.batchId}',
                     style: const TextStyle(color: AppColors.darkText, fontSize: 12, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
+                _buildMiniStat(
+                  item.reason.label,
+                  item.reason == StockRemovalReason.consumable ? Colors.deepPurple : Colors.red,
+                ),
+                const SizedBox(height: 4),
                 Row(
                   children: [
                     _buildMiniStat('Cap: ₱${item.capital.toStringAsFixed(2)}', Colors.blueGrey),
@@ -168,6 +173,9 @@ class _ArchivedStockCard extends StatelessWidget {
                   ],
                 ),
                 const SizedBox(height: 4),
+                if (item.consumedBy != null)
+                  Text('Taken by: ${item.consumedBy}',
+                      style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
                 Text('Expiry: $dateStr',
                     style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
                 Text('Archived on: $archivedDate',
@@ -209,4 +217,3 @@ class _ArchivedStockCard extends StatelessWidget {
     );
   }
 }
-

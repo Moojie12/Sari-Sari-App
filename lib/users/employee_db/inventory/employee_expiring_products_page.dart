@@ -6,6 +6,7 @@ import 'employee_expiry_badge.dart';
 import 'employee_product_model.dart';
 import 'employee_edit_product_page.dart';
 import 'employee_archive_stock_dialog.dart';
+import 'employee_consume_stock_dialog.dart';
 
 class EmployeeExpiringProductsPage extends StatelessWidget {
   const EmployeeExpiringProductsPage({super.key, required this.inventory});
@@ -36,6 +37,10 @@ class EmployeeExpiringProductsPage extends StatelessWidget {
           Navigator.pop(sheetContext);
           _showArchiveDialog(context, product);
         },
+        onConsumeProduct: () {
+          Navigator.pop(sheetContext);
+          _showConsumeDialog(context, product);
+        },
       ),
     );
   }
@@ -44,6 +49,16 @@ class EmployeeExpiringProductsPage extends StatelessWidget {
     showDialog(
       context: context,
       builder: (context) => EmployeeArchiveStockDialog(
+        product: product,
+        inventory: inventory,
+      ),
+    );
+  }
+
+  void _showConsumeDialog(BuildContext context, EmployeeProduct product) {
+    showDialog(
+      context: context,
+      builder: (context) => EmployeeConsumeStockDialog(
         product: product,
         inventory: inventory,
       ),

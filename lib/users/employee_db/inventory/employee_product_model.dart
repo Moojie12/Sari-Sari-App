@@ -131,22 +131,22 @@ class EmployeeProduct {
   /// status across all batches currently in stock.
   ExpiryStatus get expiryStatus {
     if (hasExpiredBatch) return ExpiryStatus.expired;
-    
+
     final activeBatches = batches.where((b) => b.quantity > 0);
     if (activeBatches.isEmpty) return ExpiryStatus.none;
-    
+
     bool has5Days = false;
     bool has2Weeks = false;
-    
+
     for (final b in activeBatches) {
       final status = b.expiryStatus();
       if (status == ExpiryStatus.fiveDays) has5Days = true;
       if (status == ExpiryStatus.twoWeeks) has2Weeks = true;
     }
-    
+
     if (has5Days) return ExpiryStatus.fiveDays;
     if (has2Weeks) return ExpiryStatus.twoWeeks;
-    
+
     return ExpiryStatus.none;
   }
 
@@ -178,6 +178,28 @@ class EmployeeProduct {
   }
 }
 
+/// Why stock was pulled out of active inventory — distinguishes stock that
+/// is simply lost (spoiled, damaged, expired) from stock that was taken by
+/// the owner or an employee for their own use (Consumables). Both reduce
+/// the physical stock the same way, but only [consumable] represents a
+/// deliberate withdrawal that should be logged as a personal-use cost
+/// rather than spoilage.
+enum StockRemovalReason {
+  wastage,
+  consumable,
+}
+
+extension StockRemovalReasonLabel on StockRemovalReason {
+  String get label {
+    switch (this) {
+      case StockRemovalReason.wastage:
+        return 'Wastage / Expired';
+      case StockRemovalReason.consumable:
+        return 'Consumables (Personal Use)';
+    }
+  }
+}
+
 /// Represents stock that has been removed from active inventory but kept
 /// for record-keeping/owner review.
 @immutable
@@ -195,6 +217,8 @@ class ArchivedStockItem {
     this.capital = 0.0,
     this.revenue = 0.0,
     this.profit = 0.0,
+    this.reason = StockRemovalReason.wastage,
+    this.consumedBy,
   });
 
   final String id;
@@ -210,4 +234,12 @@ class ArchivedStockItem {
   final double capital;
   final double revenue;
   final double profit;
+
+  /// Why this stock left inventory — wastage/expiry vs. a Consumables
+  /// (personal use) withdrawal by the owner or an employee.
+  final StockRemovalReason reason;
+
+  /// Optional free-text note on who took it, for [StockRemovalReason.consumable]
+  /// records (e.g. "Owner", "Employee - Juan").
+  final String? consumedBy;
 }
