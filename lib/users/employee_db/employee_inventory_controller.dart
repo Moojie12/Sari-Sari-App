@@ -143,6 +143,7 @@ class EmployeeInventoryController extends ChangeNotifier {
     final trimmedName = name.trim();
     final trimmedBarcode = barcode.trim();
     if (trimmedName.isEmpty) return null;
+    if (price < 0 || capital < 0) return null;
     if (isBarcodeTaken(trimmedBarcode)) return null;
 
     final product = EmployeeProduct(

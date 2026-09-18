@@ -6,6 +6,8 @@ import '../purchases/customer_order_model.dart';
 import '../profile/customer_address_model.dart';
 import '../profile/customer_address_controller.dart';
 import '../profile/customer_add_edit_address_page.dart';
+import "../profile/customer_profile_controller.dart";
+import '../profile/customer_profile_controller.dart';
 import 'customer_order_confirmation_page.dart';
 
 class CustomerCheckoutPage extends StatefulWidget {
@@ -58,7 +60,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
     }).toList();
 
     final order = CustomerOrder(
-      customerName: 'Juan Dela Cruz',
+      customerName: CustomerProfileController.instance.profile.fullName.isEmpty ? 'Customer' : CustomerProfileController.instance.profile.fullName,
       orderId: orderId,
       orderDate: DateTime.now(),
       items: items,

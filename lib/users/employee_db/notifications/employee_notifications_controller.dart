@@ -28,15 +28,7 @@ class EmployeeNotificationsController extends ChangeNotifier {
 
   final List<EmployeeNotification> _dynamicNotifications = [];
 
-  final List<EmployeeNotification> _mockNotifications = [
-    EmployeeNotification(
-      id: 'order-1001',
-      type: EmployeeNotificationType.newOrder,
-      title: 'New Order Received',
-      message: 'Order #1001 from Maria Santos is ready for preparation.',
-      timestamp: DateTime.now().subtract(const Duration(minutes: 20)),
-    ),
-  ];
+  final List<EmployeeNotification> _mockNotifications = [];
 
   /// Full notification list, newest first: live inventory alerts plus the
   /// mock order/task entries, each with its read state applied.

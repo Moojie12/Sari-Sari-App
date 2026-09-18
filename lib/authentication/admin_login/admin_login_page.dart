@@ -12,6 +12,50 @@ class AdminLoginPage extends StatefulWidget {
 }
 
 class _AdminLoginPageState extends State<AdminLoginPage> {
+  final _adminIdController = TextEditingController();
+  final _passwordController = TextEditingController();
+  String? _adminIdError;
+  String? _passwordError;
+
+  @override
+  void dispose() {
+    _adminIdController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  void _handleLogin() {
+    setState(() {
+      _adminIdError = null;
+      _passwordError = null;
+    });
+
+    final adminId = _adminIdController.text.trim();
+    final password = _passwordController.text;
+
+    if (adminId.isEmpty) {
+      setState(() => _adminIdError = 'Please enter admin ID');
+      return;
+    }
+
+    if (password.isEmpty) {
+      setState(() => _passwordError = 'Please enter password');
+      return;
+    }
+
+    // Frontend-only authentication for Owner Admin
+    if (adminId == 'nicomaglente06@gmail.com' && password == 'Nico12') {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const AdminDashboard()),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Invalid admin credentials')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -81,9 +125,11 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                 ),
               ),
               const SizedBox(height: 8),
-              const CustomTextField(
+              CustomTextField(
+                controller: _adminIdController,
                 hint: 'Enter admin ID',
                 icon: Icons.badge_outlined,
+                errorText: _adminIdError,
               ),
               const SizedBox(height: 20),
               const Text(
@@ -95,20 +141,17 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                 ),
               ),
               const SizedBox(height: 8),
-              const CustomTextField(
+              CustomTextField(
+                controller: _passwordController,
                 hint: 'Enter password',
                 icon: Icons.lock_outline,
                 isPassword: true,
+                errorText: _passwordError,
               ),
               const SizedBox(height: 32),
               PrimaryButton(
                 label: 'Login as Admin',
-                onPressed: () {
-                  Navigator.pushReplacement(
-                    context,
-                    MaterialPageRoute(builder: (context) => const AdminDashboard()),
-                  );
-                },
+                onPressed: _handleLogin,
               ),
               const SizedBox(height: 20),
               const Center(

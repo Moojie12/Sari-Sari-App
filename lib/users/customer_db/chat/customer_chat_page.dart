@@ -161,14 +161,14 @@ class _CustomerChatPageState extends State<CustomerChatPage> {
             ),
             const SizedBox(height: 24),
             _StaffRow(
-              name: 'Juan Dela Cruz',
+              name: 'Nico Maglente',
               role: 'Store Owner',
               icon: Icons.storefront_outlined,
             ),
             const SizedBox(height: 16),
             _StaffRow(
-              name: 'Pedro Penduko',
-              role: 'Store Assistant',
+              name: 'Store Staff',
+              role: 'Assistant',
               icon: Icons.badge_outlined,
             ),
           ],

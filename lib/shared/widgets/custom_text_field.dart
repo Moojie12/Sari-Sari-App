@@ -17,6 +17,7 @@ class CustomTextField extends StatefulWidget {
     this.controller,
     this.keyboardType = TextInputType.text,
     this.trailing,
+    this.errorText,
   });
 
   final String hint;
@@ -24,6 +25,7 @@ class CustomTextField extends StatefulWidget {
   final bool isPassword;
   final TextEditingController? controller;
   final TextInputType keyboardType;
+  final String? errorText;
 
   /// Optional extra widget shown after the field (e.g. a scan-ID button).
   /// Ignored when [isPassword] is true, since that slot is used for the
@@ -45,6 +47,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
       keyboardType: widget.keyboardType,
       decoration: InputDecoration(
         hintText: widget.hint,
+        errorText: widget.errorText,
         hintStyle: const TextStyle(
           color: AppColors.placeholderColor,
           fontSize: 12,

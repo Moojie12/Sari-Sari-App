@@ -127,7 +127,7 @@ class OwnerHomePage extends StatelessWidget {
                           ),
                           const SizedBox(height: 6),
                           const Text(
-                            "₱ 12,450.00",
+                            "₱ 0.00",
                             style: TextStyle(
                               color: Colors.white,
                               fontSize: 34,
@@ -144,9 +144,9 @@ class OwnerHomePage extends StatelessWidget {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceAround,
                               children: [
-                                _MiniStat(label: 'TRANSACTIONS', value: '48'),
+                                _MiniStat(label: 'TRANSACTIONS', value: '0'),
                                 Container(width: 1, height: 20, color: Colors.white24),
-                                _MiniStat(label: 'NET PROFIT', value: '₱ 3,210'),
+                                _MiniStat(label: 'NET PROFIT', value: '₱ 0'),
                               ],
                             ),
                           ),

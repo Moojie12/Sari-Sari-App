@@ -152,7 +152,7 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _LoginCard extends StatelessWidget {
+class _LoginCard extends StatefulWidget {
   const _LoginCard({
     required this.selectedRole,
     required this.onRoleSelected,
@@ -160,6 +160,75 @@ class _LoginCard extends StatelessWidget {
 
   final String selectedRole;
   final Function(String) onRoleSelected;
+
+  @override
+  State<_LoginCard> createState() => _LoginCardState();
+}
+
+class _LoginCardState extends State<_LoginCard> {
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
+  String? _emailError;
+  String? _passwordError;
+
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
+
+  void _handleLogin() {
+    setState(() {
+      _emailError = null;
+      _passwordError = null;
+    });
+
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
+
+    if (email.isEmpty) {
+      setState(() => _emailError = 'Please enter your email');
+      return;
+    }
+    if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      setState(() => _emailError = 'Please enter a valid email address');
+      return;
+    }
+
+    if (password.isEmpty) {
+      setState(() => _passwordError = 'Please enter your password');
+      return;
+    }
+
+    // Frontend-only authentication for Owner Admin
+    if (widget.selectedRole == 'owner') {
+      if (email == 'nicomaglente06@gmail.com' && password == 'Nico12') {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const OwnerDb()),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Invalid owner credentials')),
+        );
+      }
+      return;
+    }
+
+    // For Employee and Customer, we allow any for now as per frontend-only demo
+    Widget destination;
+    if (widget.selectedRole == 'employee') {
+      destination = const EmployeeDb();
+    } else {
+      destination = const CustomerDb();
+    }
+
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(builder: (context) => destination),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -200,8 +269,8 @@ class _LoginCard extends StatelessWidget {
                   child: RoleSelectorCard(
                     label: 'Owner',
                     icon: Icons.storefront_outlined,
-                    isSelected: selectedRole == 'owner',
-                    onTap: () => onRoleSelected('owner'),
+                    isSelected: widget.selectedRole == 'owner',
+                    onTap: () => widget.onRoleSelected('owner'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -209,8 +278,8 @@ class _LoginCard extends StatelessWidget {
                   child: RoleSelectorCard(
                     label: 'Employee',
                     icon: Icons.badge_outlined,
-                    isSelected: selectedRole == 'employee',
-                    onTap: () => onRoleSelected('employee'),
+                    isSelected: widget.selectedRole == 'employee',
+                    onTap: () => widget.onRoleSelected('employee'),
                   ),
                 ),
                 const SizedBox(width: 8),
@@ -218,8 +287,8 @@ class _LoginCard extends StatelessWidget {
                   child: RoleSelectorCard(
                     label: 'Customer',
                     icon: Icons.person_outline,
-                    isSelected: selectedRole == 'customer',
-                    onTap: () => onRoleSelected('customer'),
+                    isSelected: widget.selectedRole == 'customer',
+                    onTap: () => widget.onRoleSelected('customer'),
                   ),
                 ),
               ],
@@ -235,10 +304,12 @@ class _LoginCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 7),
-            const CustomTextField(
+            CustomTextField(
+              controller: _emailController,
               hint: 'Enter your email',
               icon: Icons.email_outlined,
               keyboardType: TextInputType.emailAddress,
+              errorText: _emailError,
             ),
             const SizedBox(height: 18),
 
@@ -251,10 +322,12 @@ class _LoginCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 7),
-            const CustomTextField(
+            CustomTextField(
+              controller: _passwordController,
               hint: 'Enter your password',
               icon: Icons.lock_outline,
               isPassword: true,
+              errorText: _passwordError,
             ),
             const SizedBox(height: 9),
 
@@ -287,21 +360,7 @@ class _LoginCard extends StatelessWidget {
             const SizedBox(height: 10),
             PrimaryButton(
               label: 'Login',
-              onPressed: () {
-                Widget destination;
-                if (selectedRole == 'owner') {
-                  destination = const OwnerDb();
-                } else if (selectedRole == 'employee') {
-                  destination = const EmployeeDb();
-                } else {
-                  destination = const CustomerDb();
-                }
-
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => destination),
-                );
-              },
+              onPressed: _handleLogin,
             ),
             const SizedBox(height: 14),
 

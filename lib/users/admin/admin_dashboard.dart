@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import '../../authentication/login/login_page.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -10,23 +11,33 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard> {
   int _selectedIndex = 0;
+  bool _isSidebarOpen = true;
 
   @override
   Widget build(BuildContext context) {
+    final bool isMobile = MediaQuery.of(context).size.width < 900;
+    
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
+      drawer: isMobile ? Drawer(child: _buildSidebar(isDrawer: true)) : null,
+      appBar: isMobile ? AppBar(
+        backgroundColor: Colors.white,
+        elevation: 0,
+        iconTheme: const IconThemeData(color: AppColors.darkText),
+        title: const Text('Tindahan ni Eca Admin', style: TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold)),
+      ) : null,
       body: Row(
         children: [
           // Sidebar
-          _buildSidebar(),
+          if (!isMobile) _buildSidebar(),
           // Main Content
           Expanded(
             child: Column(
               children: [
-                _buildHeader(),
+                if (!isMobile) _buildHeader(),
                 Expanded(
                   child: SingleChildScrollView(
-                    padding: const EdgeInsets.all(32),
+                    padding: EdgeInsets.all(isMobile ? 16 : 32),
                     child: _buildBody(),
                   ),
                 ),
@@ -38,12 +49,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildSidebar() {
+  Widget _buildSidebar({bool isDrawer = false}) {
     return Container(
       width: 260,
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: Colors.white,
-        border: Border(right: BorderSide(color: AppColors.borderColor, width: 1)),
+        border: isDrawer ? null : const Border(right: BorderSide(color: AppColors.borderColor, width: 1)),
       ),
       child: Column(
         children: [
@@ -90,44 +101,68 @@ class _AdminDashboardState extends State<AdminDashboard> {
             icon: Icons.dashboard_outlined,
             label: 'Dashboard',
             isSelected: _selectedIndex == 0,
-            onTap: () => setState(() => _selectedIndex = 0),
+            onTap: () {
+              setState(() => _selectedIndex = 0);
+              if (isDrawer) Navigator.pop(context);
+            },
           ),
           _SidebarItem(
             icon: Icons.inventory_2_outlined,
             label: 'Inventory',
             isSelected: _selectedIndex == 1,
-            onTap: () => setState(() => _selectedIndex = 1),
+            onTap: () {
+              setState(() => _selectedIndex = 1);
+              if (isDrawer) Navigator.pop(context);
+            },
           ),
           _SidebarItem(
             icon: Icons.receipt_long_outlined,
             label: 'Orders',
             isSelected: _selectedIndex == 2,
-            onTap: () => setState(() => _selectedIndex = 2),
+            onTap: () {
+              setState(() => _selectedIndex = 2);
+              if (isDrawer) Navigator.pop(context);
+            },
           ),
           _SidebarItem(
             icon: Icons.analytics_outlined,
             label: 'Analytics',
             isSelected: _selectedIndex == 3,
-            onTap: () => setState(() => _selectedIndex = 3),
+            onTap: () {
+              setState(() => _selectedIndex = 3);
+              if (isDrawer) Navigator.pop(context);
+            },
           ),
           _SidebarItem(
             icon: Icons.people_outline,
             label: 'Employees',
             isSelected: _selectedIndex == 4,
-            onTap: () => setState(() => _selectedIndex = 4),
+            onTap: () {
+              setState(() => _selectedIndex = 4);
+              if (isDrawer) Navigator.pop(context);
+            },
           ),
           const Spacer(),
           _SidebarItem(
             icon: Icons.settings_outlined,
             label: 'Settings',
             isSelected: _selectedIndex == 5,
-            onTap: () => setState(() => _selectedIndex = 5),
+            onTap: () {
+              setState(() => _selectedIndex = 5);
+              if (isDrawer) Navigator.pop(context);
+            },
           ),
           _SidebarItem(
             icon: Icons.logout,
             label: 'Logout',
             isSelected: false,
-            onTap: () {},
+            onTap: () {
+              Navigator.pushAndRemoveUntil(
+                context,
+                MaterialPageRoute(builder: (context) => LoginPage()),
+                    (route) => false,
+              );
+            },
           ),
           const SizedBox(height: 32),
         ],
@@ -144,9 +179,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
       ),
       child: Row(
         children: [
-          const Text(
-            'Dashboard Overview',
-            style: TextStyle(
+          Text(
+            _selectedIndex == 0 ? 'Dashboard Overview' : 
+            _selectedIndex == 1 ? 'Inventory Management' :
+            _selectedIndex == 2 ? 'Order Records' :
+            _selectedIndex == 3 ? 'System Analytics' :
+            _selectedIndex == 4 ? 'Employee Management' : 'Settings',
+            style: const TextStyle(
               fontSize: 22,
               fontWeight: FontWeight.bold,
               color: AppColors.darkText,
@@ -179,14 +218,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
             crossAxisAlignment: CrossAxisAlignment.end,
             mainAxisSize: MainAxisSize.min,
             children: [
-              Text('Admin', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText)),
+              Text('Nico Maglente', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText)),
               Text('Store Owner', style: TextStyle(fontSize: 12, color: AppColors.secondaryText)),
             ],
           ),
           const SizedBox(width: 12),
           const CircleAvatar(
             backgroundColor: AppColors.primaryOrange,
-            child: Text('G', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            child: Text('N', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -194,36 +233,67 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Widget _buildBody() {
+    if (_selectedIndex != 0) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            const SizedBox(height: 100),
+            Icon(Icons.construction_rounded, size: 64, color: AppColors.placeholderColor.withValues(alpha: 0.5)),
+            const SizedBox(height: 16),
+            const Text('Feature Coming Soon', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.secondaryText)),
+            const SizedBox(height: 8),
+            const Text('This part of the management portal is currently under development.', style: TextStyle(color: AppColors.placeholderColor)),
+          ],
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Row(
-          children: [
-            Expanded(child: _buildSummaryCard('Total Sales', '₱ 124,500.00', Icons.payments_outlined, Colors.green, '+12.5%')),
-            const SizedBox(width: 24),
-            Expanded(child: _buildSummaryCard('Total Orders', '1,240', Icons.shopping_bag_outlined, Colors.blue, '+8.2%')),
-            const SizedBox(width: 24),
-            Expanded(child: _buildSummaryCard('Low Stock', '12', Icons.inventory_outlined, Colors.orange, '-2 items')),
-            const SizedBox(width: 24),
-            Expanded(child: _buildSummaryCard('Active Customers', '856', Icons.people_alt_outlined, Colors.purple, '+5.4%')),
-          ],
-        ),
+        LayoutBuilder(builder: (context, constraints) {
+          final bool isSmall = constraints.maxWidth < 1100;
+          return Wrap(
+            spacing: 24,
+            runSpacing: 24,
+            children: [
+              _buildSummaryCard('Total Sales', '₱ 0.00', Icons.payments_outlined, Colors.green, '0%', width: isSmall ? constraints.maxWidth / 2 - 12 : constraints.maxWidth / 4 - 18),
+              _buildSummaryCard('Total Orders', '0', Icons.shopping_bag_outlined, Colors.blue, '0%', width: isSmall ? constraints.maxWidth / 2 - 12 : constraints.maxWidth / 4 - 18),
+              _buildSummaryCard('Low Stock', '0', Icons.inventory_outlined, Colors.orange, '0 items', width: isSmall ? constraints.maxWidth / 2 - 12 : constraints.maxWidth / 4 - 18),
+              _buildSummaryCard('Active Customers', '0', Icons.people_alt_outlined, Colors.purple, '0%', width: isSmall ? constraints.maxWidth / 2 - 12 : constraints.maxWidth / 4 - 18),
+            ],
+          );
+        }),
         const SizedBox(height: 32),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(flex: 2, child: _buildRecentOrders()),
-            const SizedBox(width: 24),
-            Expanded(child: _buildTopProducts()),
-          ],
-        ),
+        LayoutBuilder(builder: (context, constraints) {
+           final bool isSmall = constraints.maxWidth < 1000;
+           if (isSmall) {
+             return Column(
+               children: [
+                 _buildRecentOrders(),
+                 const SizedBox(height: 24),
+                 _buildTopProducts(),
+               ],
+             );
+           }
+           return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(flex: 2, child: _buildRecentOrders()),
+              const SizedBox(width: 24),
+              Expanded(child: _buildTopProducts()),
+            ],
+          );
+        }),
       ],
     );
   }
 
-  Widget _buildSummaryCard(String title, String value, IconData icon, Color color, String trend) {
+  Widget _buildSummaryCard(String title, String value, IconData icon, Color color, String trend, {double? width}) {
     final bool isNegative = trend.startsWith('-');
     return Container(
+      width: width,
       padding: const EdgeInsets.all(24),
       decoration: BoxDecoration(
         color: Colors.white,
@@ -291,47 +361,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              const Text(
-                'Recent Orders',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText),
-              ),
-              TextButton(
-                onPressed: () {},
-                child: const Text('View All', style: TextStyle(color: AppColors.primaryOrange)),
-              ),
-            ],
+          Text(
+            'Recent Orders',
+            style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText),
           ),
-          const SizedBox(height: 24),
-          Table(
-            columnWidths: const {
-              0: FlexColumnWidth(1.5),
-              1: FlexColumnWidth(3),
-              2: FlexColumnWidth(2),
-              3: FlexColumnWidth(2),
-              4: FlexColumnWidth(2),
-            },
-            children: [
-              TableRow(
-                decoration: const BoxDecoration(
-                  border: Border(bottom: BorderSide(color: AppColors.borderColor, width: 1)),
-                ),
-                children: [
-                  _tableHeader('Order ID'),
-                  _tableHeader('Customer'),
-                  _tableHeader('Date'),
-                  _tableHeader('Amount'),
-                  _tableHeader('Status'),
-                ],
-              ),
-              ...List.generate(6, (index) => _buildOrderRow(index)),
-            ],
+          SizedBox(height: 40),
+          Center(
+            child: Text('No recent orders found', style: TextStyle(color: AppColors.secondaryText)),
           ),
+          SizedBox(height: 40),
         ],
       ),
     );
@@ -414,28 +455,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
       ),
-      child: Column(
+      child: const Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text(
+          Text(
             'Top Selling Products',
             style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText),
           ),
-          const SizedBox(height: 24),
-          ...List.generate(5, (index) => _buildProductItem(index)),
-          const SizedBox(height: 16),
-          SizedBox(
-            width: double.infinity,
-            child: OutlinedButton(
-              onPressed: () {},
-              style: OutlinedButton.styleFrom(
-                side: const BorderSide(color: AppColors.primaryOrange),
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 16),
-              ),
-              child: const Text('View All Products', style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold)),
-            ),
+          SizedBox(height: 40),
+          Center(
+            child: Text('No data available', style: TextStyle(color: AppColors.secondaryText)),
           ),
+          SizedBox(height: 40),
         ],
       ),
     );

@@ -26,17 +26,17 @@ class EmployeeProfileController extends ChangeNotifier {
   factory EmployeeProfileController() => instance;
 
   EmployeeProfile _profile = const EmployeeProfile(
-    firstName: 'Juan',
-    middleInitial: 'D',
-    lastName: 'Dela Cruz',
-    email: 'juan.delacruz@sarisari.com',
-    contactNumber: '0917 123 4567',
-    role: 'Employee',
+    firstName: 'Nico',
+    middleInitial: '',
+    lastName: 'Maglente',
+    email: 'nicomaglente06@gmail.com',
+    contactNumber: '0900 000 0000',
+    role: 'Owner',
   );
 
   // Mock-only credential store — never sent anywhere, just lets the
   // Change Password screen validate "Current Password" against something.
-  String _password = 'password123';
+  String _password = 'Nico12';
 
   EmployeeProfile get profile => _profile;
 

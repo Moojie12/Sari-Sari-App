@@ -17,11 +17,11 @@ class CustomerProfileController extends ChangeNotifier {
   factory CustomerProfileController() => instance;
 
   CustomerProfile _profile = const CustomerProfile(
-    firstName: 'Juan',
-    middleInitial: 'D',
-    lastName: 'Dela Cruz',
-    email: 'juan.delacruz@email.com',
-    contactNumber: '+63 912 345 6789',
+    firstName: '',
+    middleInitial: '',
+    lastName: '',
+    email: '',
+    contactNumber: '',
   );
 
   CustomerProfile get profile => _profile;

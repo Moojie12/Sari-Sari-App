@@ -259,8 +259,13 @@ class _PickupTransactionsList extends StatelessWidget {
 class _WalkInTransactionsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    if (kEmployeeDummyProducts.isEmpty) {
+      return const Center(
+        child: Text('No walk-in transactions found', style: TextStyle(color: AppColors.secondaryText)),
+      );
+    }
     // Generate dummy walk-in receipts
-    final receipts = List.generate(5, (index) => _generateDummyReceipt(index));
+    final receipts = List.generate(kEmployeeDummyProducts.length > 5 ? 5 : kEmployeeDummyProducts.length, (index) => _generateDummyReceipt(index));
 
     return ListView.separated(
       padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
@@ -270,7 +275,7 @@ class _WalkInTransactionsList extends StatelessWidget {
         final receipt = receipts[index];
         return _HistoryCard(
           title: 'Walk-in Receipt #${receipt.receiptNumber}',
-          subtitle: 'Employee: Maria Santos · ${receipt.items.length} items',
+          subtitle: 'Employee: — · ${receipt.items.length} items',
           trailingText: '₱ ${receipt.totalAmount.toStringAsFixed(2)}',
           date: 'Today, 3:45 PM',
           status: 'Completed',
@@ -323,44 +328,8 @@ class _WalkInTransactionsList extends StatelessWidget {
 class _ActivityLogsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.all(24),
-      itemCount: 15,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.1),
-              child: const Icon(Icons.person, color: AppColors.primaryOrange, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  RichText(
-                    text: const TextSpan(
-                      style: TextStyle(color: AppColors.darkText, fontSize: 13),
-                      children: [
-                        TextSpan(text: 'Maria Santos ', style: TextStyle(fontWeight: FontWeight.bold)),
-                        TextSpan(text: '(Employee) '),
-                        TextSpan(text: 'adjusted stock for ', style: TextStyle(color: AppColors.secondaryText)),
-                        TextSpan(text: 'Bear Brand Milk', style: TextStyle(fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text('Today, 10:15 AM', style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.5), fontSize: 11)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
+    return const Center(
+      child: Text('No activity logs found', style: TextStyle(color: AppColors.secondaryText)),
     );
   }
 }

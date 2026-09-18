@@ -32,19 +32,40 @@ class _OwnerCreateEmployeePageState extends State<OwnerCreateEmployeePage> {
   }
 
   void _createEmployee() async {
+    final firstName = _firstNameController.text.trim();
+    final surname = _surnameController.text.trim();
+    final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
     // Basic validation
-    if (_firstNameController.text.isEmpty ||
-        _surnameController.text.isEmpty ||
-        _emailController.text.isEmpty ||
-        _phoneController.text.isEmpty ||
-        _passwordController.text.isEmpty) {
+    if (firstName.isEmpty ||
+        surname.isEmpty ||
+        email.isEmpty ||
+        phone.isEmpty ||
+        password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill in all required fields.')),
       );
       return;
     }
 
-    if (_passwordController.text != _confirmPasswordController.text) {
+    if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid email address.')),
+      );
+      return;
+    }
+
+    if (password.length < 8) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Password must be at least 8 characters long.')),
+      );
+      return;
+    }
+
+    if (password != confirmPassword) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Passwords do not match.')),
       );
@@ -55,7 +76,7 @@ class _OwnerCreateEmployeePageState extends State<OwnerCreateEmployeePage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirm Registration'),
-        content: Text('Do you want to register ${_firstNameController.text} as a new employee?'),
+        content: Text('Do you want to register $firstName as a new employee?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
           TextButton(

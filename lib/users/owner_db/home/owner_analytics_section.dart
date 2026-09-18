@@ -46,53 +46,7 @@ class _OwnerAnalyticsSectionState extends State<OwnerAnalyticsSection> {
   _AnalyticsType _selected = _AnalyticsType.descriptive;
 
   List<_AnalyticsInsight> _insightsFor(_AnalyticsType type) {
-    switch (type) {
-      case _AnalyticsType.descriptive:
-        return const [
-          _AnalyticsInsight(
-            title: 'Best Seller This Week',
-            detail: 'Coke 1.5L — 86 units sold',
-            icon: Icons.emoji_events_outlined,
-            color: Colors.blue,
-          ),
-          _AnalyticsInsight(
-            title: 'Peak Sales Hour',
-            detail: '5:00–7:00 PM, averaging ₱2,140/hr',
-            icon: Icons.schedule,
-            color: Colors.indigo,
-          ),
-        ];
-      case _AnalyticsType.predictive:
-        return const [
-          _AnalyticsInsight(
-            title: 'Demand Forecast',
-            detail: 'Instant noodles demand up ~18% next week',
-            icon: Icons.trending_up,
-            color: Colors.teal,
-          ),
-          _AnalyticsInsight(
-            title: 'Stock-Out Risk',
-            detail: 'Bottled water likely to run out in 3 days',
-            icon: Icons.warning_amber_rounded,
-            color: Colors.orange,
-          ),
-        ];
-      case _AnalyticsType.prescriptive:
-        return const [
-          _AnalyticsInsight(
-            title: 'Recommended Restock',
-            detail: 'Reorder 5 cases of Coke 1.5L before Friday',
-            icon: Icons.local_shipping_outlined,
-            color: Colors.green,
-          ),
-          _AnalyticsInsight(
-            title: 'Weather-Based Tip',
-            detail: 'Rain forecast — prioritize instant meals & umbrellas over cold drinks',
-            icon: Icons.tips_and_updates_outlined,
-            color: Colors.deepPurple,
-          ),
-        ];
-    }
+    return [];
   }
 
   @override
@@ -131,40 +85,55 @@ class _OwnerAnalyticsSectionState extends State<OwnerAnalyticsSection> {
           }).toList(),
         ),
         const SizedBox(height: 12),
-        ...insights.map((insight) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Container(
-            padding: const EdgeInsets.all(14),
+        if (insights.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
             decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-            child: Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(10),
-                  decoration: BoxDecoration(
-                    color: insight.color.withValues(alpha: 0.1),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Icon(insight.icon, color: insight.color, size: 20),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+            child: const Center(
+              child: Text(
+                'No analytics data available yet',
+                style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+              ),
+            ),
+          )
+        else
+          ...insights.map((insight) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Container(
+                  padding: const EdgeInsets.all(14),
+                  decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+                  child: Row(
                     children: [
-                      Text(insight.title,
-                          style: const TextStyle(
-                              color: AppColors.darkText, fontSize: 13, fontWeight: FontWeight.w700)),
-                      const SizedBox(height: 2),
-                      Text(insight.detail,
-                          style: TextStyle(
-                              color: AppColors.secondaryText.withValues(alpha: 0.85), fontSize: 12, height: 1.3)),
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: insight.color.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(insight.icon, color: insight.color, size: 20),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(insight.title,
+                                style: const TextStyle(
+                                    color: AppColors.darkText, fontSize: 13, fontWeight: FontWeight.w700)),
+                            const SizedBox(height: 2),
+                            Text(insight.detail,
+                                style: TextStyle(
+                                    color: AppColors.secondaryText.withValues(alpha: 0.85),
+                                    fontSize: 12,
+                                    height: 1.3)),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),
-              ],
-            ),
-          ),
-        )),
+              )),
       ],
     );
   }

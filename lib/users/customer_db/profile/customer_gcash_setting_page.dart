@@ -11,7 +11,7 @@ class CustomerGcashSettingPage extends StatefulWidget {
 
 class _CustomerGcashSettingPageState extends State<CustomerGcashSettingPage> {
   final _phoneController = TextEditingController(text: '0912 345 6789');
-  final _nameController = TextEditingController(text: 'JUAN DELA CRUZ');
+  final _nameController = TextEditingController(text: '');
 
   @override
   void dispose() {
