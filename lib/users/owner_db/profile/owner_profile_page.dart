@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../authentication/login/login_page.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/utils/top_notification.dart';
 import '../../employee_db/profile/employee_profile_controller.dart';
 import '../../employee_db/profile/employee_profile_model.dart';
 import '../../employee_db/profile/employee_change_password_page.dart';
@@ -14,6 +13,7 @@ import '../../employee_db/notifications/employee_notifications_page.dart';
 import '../history/owner_history_page.dart';
 import '../reports/owner_reports_page.dart';
 import '../reports/owner_shift_reports_page.dart';
+import '../owner_activity_logs_page.dart';
 import 'owner_archived_products_page.dart';
 import 'shop_settings_controller.dart';
 import 'owner_create_employee_page.dart';
@@ -438,7 +438,7 @@ class OwnerProfilePage extends StatelessWidget {
             const Text('Notify when items are within:'),
             const SizedBox(height: 16),
             DropdownButtonFormField<int>(
-              value: selectedDays,
+              initialValue: selectedDays,
               items: const [
                 DropdownMenuItem(value: 7, child: Text('7 Days')),
                 DropdownMenuItem(value: 15, child: Text('15 Days')),
