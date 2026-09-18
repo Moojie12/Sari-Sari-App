@@ -15,8 +15,10 @@ import '../history/owner_history_page.dart';
 import '../reports/owner_reports_page.dart';
 import '../reports/owner_shift_reports_page.dart';
 import 'owner_archived_products_page.dart';
+import '../../employee_db/profile/employee_my_consumables_page.dart';
 import 'shop_settings_controller.dart';
 import 'owner_create_employee_page.dart';
+import 'package:sari_sari/shared/widgets/editable_profile_avatar.dart';
 
 class OwnerProfilePage extends StatelessWidget {
   const OwnerProfilePage({super.key});
@@ -68,6 +70,7 @@ class OwnerProfilePage extends StatelessWidget {
               listenable: profileController,
               builder: (context, _) => _ProfileHeaderCard(
                 profile: profileController.profile.copyWith(role: 'Owner'),
+                onPhotoChanged: profileController.setPhoto,
               ),
             ),
             const SizedBox(height: 28),
@@ -78,7 +81,7 @@ class OwnerProfilePage extends StatelessWidget {
                 _MenuTile(
                   icon: Icons.badge_outlined,
                   label: 'Profile Information',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileInfoPage())),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileInfoPage(role: 'Owner'))),
                 ),
                 _MenuTile(
                   icon: Icons.person_add_alt_1_outlined,
@@ -165,8 +168,13 @@ class OwnerProfilePage extends StatelessWidget {
                 _MenuTile(
                   icon: Icons.archive_outlined,
                   label: 'Archived Products',
-                  isLast: true,
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerArchivedProductsPage())),
+                ),
+                _MenuTile(
+                  icon: Icons.set_meal_outlined,
+                  label: 'My Consumables',
+                  isLast: true,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeMyConsumablesPage(role: 'Owner'))),
                 ),
               ],
             ),
@@ -536,8 +544,9 @@ class OwnerProfilePage extends StatelessWidget {
 }
 
 class _ProfileHeaderCard extends StatelessWidget {
-  const _ProfileHeaderCard({required this.profile});
+  const _ProfileHeaderCard({required this.profile, required this.onPhotoChanged});
   final EmployeeProfile profile;
+  final ValueChanged<String?> onPhotoChanged;
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -546,10 +555,11 @@ class _ProfileHeaderCard extends StatelessWidget {
       decoration: BoxDecoration(color: AppColors.cardWhite, borderRadius: BorderRadius.circular(16)),
       child: Row(
         children: [
-          CircleAvatar(
+          EditableProfileAvatar(
+            initials: profile.initials,
+            photoPath: profile.photoPath,
+            onPhotoChanged: onPhotoChanged,
             radius: 30,
-            backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.12),
-            child: Text(profile.initials, style: const TextStyle(color: AppColors.primaryOrange, fontSize: 20, fontWeight: FontWeight.bold)),
           ),
           const SizedBox(width: 14),
           Expanded(

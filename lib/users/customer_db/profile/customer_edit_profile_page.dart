@@ -4,7 +4,12 @@ import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/custom_text_field.dart';
 import '../../../shared/widgets/primary_button.dart';
+import 'customer_profile_controller.dart';
 
+/// "Edit Profile" screen: lets the customer update their own name (with
+/// middle initial), email, and contact number. Fields here match exactly
+/// what's shown on "Profile Information" — there is no username field,
+/// since Profile Information doesn't show one either.
 class CustomerEditProfilePage extends StatefulWidget {
   const CustomerEditProfilePage({super.key});
 
@@ -13,23 +18,47 @@ class CustomerEditProfilePage extends StatefulWidget {
 }
 
 class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
-  final _firstNameController = TextEditingController(text: 'Juan');
-  final _lastNameController = TextEditingController(text: 'Dela Cruz');
-  final _usernameController = TextEditingController(text: 'juan_dc');
-  final _emailController = TextEditingController(text: 'juan.delacruz@email.com');
-  final _contactController = TextEditingController(text: '+63 912 345 6789');
+  final _controller = CustomerProfileController();
+
+  late final TextEditingController _firstNameController;
+  late final TextEditingController _middleInitialController;
+  late final TextEditingController _lastNameController;
+  late final TextEditingController _emailController;
+  late final TextEditingController _contactController;
+
+  @override
+  void initState() {
+    super.initState();
+    final profile = _controller.profile;
+    _firstNameController = TextEditingController(text: profile.firstName);
+    _middleInitialController = TextEditingController(text: profile.middleInitial);
+    _lastNameController = TextEditingController(text: profile.lastName);
+    _emailController = TextEditingController(text: profile.email);
+    _contactController = TextEditingController(text: profile.contactNumber);
+  }
 
   @override
   void dispose() {
     _firstNameController.dispose();
+    _middleInitialController.dispose();
     _lastNameController.dispose();
-    _usernameController.dispose();
     _emailController.dispose();
     _contactController.dispose();
     super.dispose();
   }
 
   void _saveChanges() async {
+    final firstName = _firstNameController.text.trim();
+    final middleInitial = _middleInitialController.text.trim();
+    final lastName = _lastNameController.text.trim();
+    final email = _emailController.text.trim();
+    final contact = _contactController.text.trim();
+
+    if (firstName.isEmpty || lastName.isEmpty || email.isEmpty) {
+      TopNotification.show(context, 'Please fill in all required fields.', isError: true);
+      return;
+    }
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -49,8 +78,16 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
     );
 
     if (confirmed != true) return;
-
     if (!mounted) return;
+
+    _controller.updateProfile(
+      firstName: firstName,
+      middleInitial: middleInitial,
+      lastName: lastName,
+      email: email,
+      contactNumber: contact,
+    );
+
     TopNotification.show(context, 'Profile updated successfully.');
     Navigator.pop(context);
   }
@@ -86,6 +123,7 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Expanded(
+                    flex: 3,
                     child: CustomTextField(
                       hint: 'First Name',
                       icon: Icons.person_outline,
@@ -94,19 +132,20 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
                   ),
                   const SizedBox(width: 8),
                   Expanded(
+                    flex: 1,
                     child: CustomTextField(
-                      hint: 'Last Name',
-                      icon: Icons.person_outline,
-                      controller: _lastNameController,
+                      hint: 'M.I.',
+                      icon: Icons.badge_outlined,
+                      controller: _middleInitialController,
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 14),
               CustomTextField(
-                hint: 'Username',
-                icon: Icons.alternate_email,
-                controller: _usernameController,
+                hint: 'Last Name',
+                icon: Icons.person_outline,
+                controller: _lastNameController,
               ),
               const SizedBox(height: 14),
               CustomTextField(

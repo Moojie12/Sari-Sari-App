@@ -192,7 +192,13 @@ class EmployeeInventoryController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void archiveStock(String productId, String batchId, double quantity) {
+  void archiveStock(
+      String productId,
+      String batchId,
+      double quantity, {
+        StockRemovalReason reason = StockRemovalReason.wastage,
+        String? consumedBy,
+      }) {
     if (quantity <= 0) return;
     final productIndex = _products.indexWhere((p) => p.id == productId);
     if (productIndex < 0) return;
@@ -215,6 +221,13 @@ class EmployeeInventoryController extends ChangeNotifier {
 
     _products[productIndex] = product.copyWith(batches: updatedBatches);
 
+    // Consumables (personal use by owner/employee) were never sold, so
+    // there's no revenue — the store simply eats the capital cost, which
+    // is what should come out of profit. Wastage keeps its original
+    // (sale-shaped) bookkeeping so existing wastage reports don't change.
+    final isConsumable = reason == StockRemovalReason.consumable;
+    final capitalCost = product.capital * actualQuantity;
+
     // Add to archive
     _archivedStock.add(ArchivedStockItem(
       id: 'arc_${DateTime.now().millisecondsSinceEpoch}',
@@ -226,15 +239,21 @@ class EmployeeInventoryController extends ChangeNotifier {
       category: product.category,
       expiryDate: batch.expiryDate,
       image: product.image,
-      capital: product.capital * actualQuantity,
-      revenue: product.price * actualQuantity,
-      profit: (product.price - product.capital) * actualQuantity,
+      capital: capitalCost,
+      revenue: isConsumable ? 0.0 : product.price * actualQuantity,
+      profit: isConsumable ? -capitalCost : (product.price - product.capital) * actualQuantity,
+      reason: reason,
+      consumedBy: consumedBy,
     ));
 
     notifyListeners();
   }
 
-  void archiveAllStock(String productId) {
+  void archiveAllStock(
+      String productId, {
+        StockRemovalReason reason = StockRemovalReason.wastage,
+        String? consumedBy,
+      }) {
     final productIndex = _products.indexWhere((p) => p.id == productId);
     if (productIndex < 0) return;
     final product = _products[productIndex];
@@ -243,10 +262,42 @@ class EmployeeInventoryController extends ChangeNotifier {
     final batches = List<ProductBatch>.from(product.batches);
     for (final batch in batches) {
       if (batch.quantity > 0) {
-        archiveStock(productId, batch.id, batch.quantity);
+        archiveStock(productId, batch.id, batch.quantity, reason: reason, consumedBy: consumedBy);
       }
     }
   }
+
+  /// Records stock the owner or an employee took for their own use
+  /// (Consumables) — deducts it from active stock exactly like
+  /// [archiveStock], but logs it with [StockRemovalReason.consumable] so
+  /// it shows up as a personal-use cost (not a sale) and is subtracted
+  /// from profit in the owner's reports.
+  void recordConsumable(
+      String productId,
+      String batchId,
+      double quantity, {
+        String? consumedBy,
+      }) {
+    archiveStock(
+      productId,
+      batchId,
+      quantity,
+      reason: StockRemovalReason.consumable,
+      consumedBy: consumedBy,
+    );
+  }
+
+  /// Same as [recordConsumable] but takes stock across every batch of the
+  /// product (used for the "All Batches" option in the Consumables dialog).
+  void recordConsumableAll(String productId, {String? consumedBy}) {
+    archiveAllStock(productId, reason: StockRemovalReason.consumable, consumedBy: consumedBy);
+  }
+
+  /// Total capital cost of everything ever pulled out for personal use —
+  /// what Consumables have cost the store, subtracted from profit.
+  double get totalConsumablesCost => _archivedStock
+      .where((a) => a.reason == StockRemovalReason.consumable)
+      .fold(0.0, (sum, a) => sum + a.capital);
 
   void restoreArchivedStock(String archivedId) {
     final arcIndex = _archivedStock.indexWhere((a) => a.id == archivedId);

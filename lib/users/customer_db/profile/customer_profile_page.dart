@@ -3,6 +3,8 @@ import '../../../authentication/login/login_page.dart';
 import '../../../core/theme/app_colors.dart';
 import 'customer_profile_info_page.dart';
 import 'customer_edit_profile_page.dart';
+import 'customer_profile_controller.dart';
+import 'package:sari_sari/shared/widgets/editable_profile_avatar.dart';
 import 'customer_change_password_page.dart';
 import 'customer_address_page.dart';
 import 'customer_gcash_setting_page.dart';
@@ -52,7 +54,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
               Navigator.pushAndRemoveUntil(
                 context,
                 MaterialPageRoute(builder: (context) => const LoginPage()),
-                (route) => false,
+                    (route) => false,
               );
             },
             child: const Text('Logout', style: TextStyle(color: Colors.red)),
@@ -64,12 +66,14 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
 
   @override
   Widget build(BuildContext context) {
+    final profileController = CustomerProfileController();
+
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SingleChildScrollView(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(24, 50, 24, 24),
-        child: _isLoading 
+        child: _isLoading
             ? const ProfileSkeleton()
             : Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -83,10 +87,15 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
               ),
             ),
             const SizedBox(height: 24),
-            const _ProfileHeaderCard(
-              fullName: 'Juan Dela Cruz',
-              role: 'Customer',
-              initials: 'JD',
+            ListenableBuilder(
+              listenable: profileController,
+              builder: (context, _) => _ProfileHeaderCard(
+                fullName: profileController.profile.fullName,
+                role: 'Customer',
+                initials: profileController.profile.initials,
+                photoPath: profileController.profile.photoPath,
+                onPhotoChanged: profileController.setPhoto,
+              ),
             ),
             const SizedBox(height: 28),
             const Text(
@@ -190,11 +199,15 @@ class _ProfileHeaderCard extends StatelessWidget {
     required this.fullName,
     required this.role,
     required this.initials,
+    required this.photoPath,
+    required this.onPhotoChanged,
   });
 
   final String fullName;
   final String role;
   final String initials;
+  final String? photoPath;
+  final ValueChanged<String?> onPhotoChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -214,17 +227,11 @@ class _ProfileHeaderCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          CircleAvatar(
+          EditableProfileAvatar(
+            initials: initials,
+            photoPath: photoPath,
+            onPhotoChanged: onPhotoChanged,
             radius: 30,
-            backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.12),
-            child: Text(
-              initials,
-              style: const TextStyle(
-                color: AppColors.primaryOrange,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -316,10 +323,10 @@ class _MenuTile extends StatelessWidget {
             border: isLast
                 ? null
                 : Border(
-                    bottom: BorderSide(
-                      color: AppColors.borderColor.withValues(alpha: 0.6),
-                    ),
-                  ),
+              bottom: BorderSide(
+                color: AppColors.borderColor.withValues(alpha: 0.6),
+              ),
+            ),
           ),
           child: Row(
             children: [
