@@ -7,7 +7,7 @@ import 'package:sari_sari/users/employee_db/pos/employee_pos_controller.dart';
 import 'package:sari_sari/users/employee_db/pos/employee_pos_page.dart';
 import 'package:sari_sari/users/owner_db/owner_floating_nav_bar.dart';
 import 'package:sari_sari/users/owner_db/home/owner_home_page.dart';
-import 'package:sari_sari/users/owner_db/inventory/owner_inventory_page.dart';
+import 'package:sari_sari/users/owner_db/owner_products_page.dart';
 import 'package:sari_sari/users/employee_db/inventory/employee_expiring_products_page.dart';
 import 'package:sari_sari/users/owner_db/profile/owner_profile_page.dart';
 import 'package:sari_sari/users/employee_db/orders/employee_orders_controller.dart';
@@ -78,7 +78,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
         },
       ),
       EmployeePosPage(inventory: _inventoryController, posController: _posController),
-      OwnerInventoryPage(inventory: _inventoryController),
+      OwnerProductsPage(inventory: _inventoryController),
       EmployeeOrdersPage(controller: _ordersController),
       const OwnerProfilePage(),
     ];

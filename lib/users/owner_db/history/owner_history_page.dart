@@ -60,25 +60,6 @@ class _OwnerTransactionHistoryPageState extends State<OwnerTransactionHistoryPag
   }
 }
 
-class OwnerActivityLogsPage extends StatelessWidget {
-  const OwnerActivityLogsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.lightBackground,
-      appBar: AppBar(
-        backgroundColor: AppColors.lightBackground,
-        elevation: 0,
-        foregroundColor: AppColors.darkText,
-        title: const Text('Employee Activity Logs',
-            style: TextStyle(fontWeight: FontWeight.bold)),
-      ),
-      body: _ActivityLogsList(),
-    );
-  }
-}
-
 class _DeliveryTransactionsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
@@ -314,53 +295,6 @@ class _WalkInTransactionsList extends StatelessWidget {
       paymentMethod: index % 2 == 0 ? EmployeePaymentMethod.cash : EmployeePaymentMethod.gCash,
       totalCapital: product.capital * qty,
       totalProfit: (product.price - product.capital) * qty,
-    );
-  }
-}
-
-
-
-class _ActivityLogsList extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    return ListView.separated(
-      padding: const EdgeInsets.all(24),
-      itemCount: 15,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) => Container(
-        padding: const EdgeInsets.all(16),
-        decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            CircleAvatar(
-              backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.1),
-              child: const Icon(Icons.person, color: AppColors.primaryOrange, size: 20),
-            ),
-            const SizedBox(width: 12),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  RichText(
-                    text: const TextSpan(
-                      style: TextStyle(color: AppColors.darkText, fontSize: 13),
-                      children: [
-                        TextSpan(text: 'Maria Santos ', style: TextStyle(fontWeight: FontWeight.bold)),
-                        TextSpan(text: '(Employee) '),
-                        TextSpan(text: 'adjusted stock for ', style: TextStyle(color: AppColors.secondaryText)),
-                        TextSpan(text: 'Bear Brand Milk', style: TextStyle(fontWeight: FontWeight.bold)),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text('Today, 10:15 AM', style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.5), fontSize: 11)),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
     );
   }
 }
@@ -621,5 +555,3 @@ class _HistoryCard extends StatelessWidget {
     );
   }
 }
-
-

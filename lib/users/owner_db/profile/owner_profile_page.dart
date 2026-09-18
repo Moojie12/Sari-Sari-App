@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../authentication/login/login_page.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/utils/top_notification.dart';
 import '../../employee_db/profile/employee_profile_controller.dart';
 import '../../employee_db/profile/employee_profile_model.dart';
 import '../../employee_db/profile/employee_change_password_page.dart';
@@ -16,7 +15,8 @@ import '../reports/owner_reports_page.dart';
 import '../reports/owner_shift_reports_page.dart';
 import 'owner_archived_products_page.dart';
 import 'shop_settings_controller.dart';
-import 'owner_create_employee_page.dart';
+import '../owner_users_page.dart';
+import '../owner_activity_logs_page.dart';
 
 class OwnerProfilePage extends StatelessWidget {
   const OwnerProfilePage({super.key});
@@ -81,17 +81,9 @@ class OwnerProfilePage extends StatelessWidget {
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileInfoPage())),
                 ),
                 _MenuTile(
-                  icon: Icons.person_add_alt_1_outlined,
-                  label: 'Create Employee',
-                  onTap: () async {
-                    final created = await Navigator.push<bool>(
-                      context,
-                      MaterialPageRoute(builder: (context) => const OwnerCreateEmployeePage()),
-                    );
-                    if (created == true && context.mounted) {
-                      _showSuccessDialog(context, 'Employee account created successfully.');
-                    }
-                  },
+                  icon: Icons.manage_accounts_outlined,
+                  label: 'User Management',
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerUsersPage())),
                 ),
                 _MenuTile(
                   icon: Icons.edit_outlined,
@@ -438,7 +430,7 @@ class OwnerProfilePage extends StatelessWidget {
             const Text('Notify when items are within:'),
             const SizedBox(height: 16),
             DropdownButtonFormField<int>(
-              value: selectedDays,
+              initialValue: selectedDays,
               items: const [
                 DropdownMenuItem(value: 7, child: Text('7 Days')),
                 DropdownMenuItem(value: 15, child: Text('15 Days')),

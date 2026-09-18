@@ -39,8 +39,7 @@ class _LoginPageState extends State<LoginPage> {
               flex: 10,
               child: Transform.translate(
                 offset: const Offset(0, -5), // I-overlap ang card sa image nang 5 pixels
-                child: Container(
-                  color: Colors.transparent,
+                child: SizedBox(
                   child: _LoginCard(
                     selectedRole: _selectedRole,
                     onRoleSelected: _onRoleSelected,
@@ -60,7 +59,10 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
+    // NOTE: no longer `const` here — Transform.scale, Image.asset, and
+    // Container below don't have const constructors, so keeping this
+    // `const` forced an invalid constant context on the whole subtree.
+    return SizedBox(
       width: double.infinity,
       height: double.infinity,
       child: Stack(
@@ -128,7 +130,7 @@ class _Header extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.3),
+                      color: Colors.black.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Text(

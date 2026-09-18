@@ -130,7 +130,6 @@ class _EmployeeBatchDetailSheetState extends State<EmployeeBatchDetailSheet> {
   @override
   Widget build(BuildContext context) {
     final batches = widget.product.batches;
-    final unitStr = widget.product.isWeightBased ? 'kg' : 'pcs';
 
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),

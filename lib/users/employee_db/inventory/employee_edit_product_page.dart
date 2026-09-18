@@ -441,7 +441,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                   ),
                   value: _isBulkMode,
                   onChanged: _toggleBulkMode,
-                  activeColor: AppColors.primaryOrange,
+                  activeThumbColor: AppColors.primaryOrange,
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
