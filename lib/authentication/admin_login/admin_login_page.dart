@@ -80,9 +80,17 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       return;
     }
 
-    // TODO: Check if user has admin/owner role using custom claims
-    // For now, we'll allow any authenticated user to access admin dashboard
-    // In production, you should verify the user's role from Firebase
+    // Check if user has admin/owner role using custom claims
+    final hasAdminRole = await AuthService().hasRole('owner');
+    if (!hasAdminRole) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Access denied. Owner role required.')),
+        );
+      }
+      return;
+    }
+
     if (mounted) {
       Navigator.pushReplacement(
         context,

@@ -122,7 +122,7 @@ class _ScannerScreenState extends State<_ScannerScreen> {
           MobileScanner(
             controller: _controller,
             onDetect: _onDetect,
-            errorBuilder: (context, error, child) => _CameraErrorView(error: error),
+            errorBuilder: (context, error) => _CameraErrorView(error: error),
           ),
 
           // Dimmed scrim with a clear cut-out over the scan area.

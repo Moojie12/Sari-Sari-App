@@ -61,9 +61,7 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
+    return SizedBox.expand(
       child: Stack(
         clipBehavior: Clip.none, // Payagan ang image na lumampas sa boundary
         children: [
@@ -129,7 +127,7 @@ class _Header extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.3),
+                      color: Colors.black.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Text(
@@ -228,7 +226,7 @@ class _LoginCardState extends State<_LoginCard> {
       return;
     }
 
-    // Sign in successful - navigate based on role
+    // Sign in successful - navigate based on actual role from custom claims
     final user = AuthService().currentUser;
     if (user == null) {
       if (mounted) {
@@ -239,13 +237,14 @@ class _LoginCardState extends State<_LoginCard> {
       return;
     }
 
-    // TODO: Implement role-based access control using custom claims
-    // For now, we'll navigate based on selected role in UI
-    // In production, you should verify the user's actual role from Firebase
+    // Verify user's actual role from Firebase custom claims
+    final bool isOwner = await AuthService().hasRole('owner');
+    final bool isEmployee = await AuthService().hasRole('employee');
+
     Widget destination;
-    if (widget.selectedRole == 'owner') {
+    if (isOwner) {
       destination = const OwnerDb();
-    } else if (widget.selectedRole == 'employee') {
+    } else if (isEmployee) {
       destination = const EmployeeDb();
     } else {
       destination = const CustomerDb();

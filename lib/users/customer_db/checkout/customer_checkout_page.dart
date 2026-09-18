@@ -6,7 +6,6 @@ import '../purchases/customer_order_model.dart';
 import '../profile/customer_address_model.dart';
 import '../profile/customer_address_controller.dart';
 import '../profile/customer_add_edit_address_page.dart';
-import "../profile/customer_profile_controller.dart";
 import '../profile/customer_profile_controller.dart';
 import 'customer_order_confirmation_page.dart';
 

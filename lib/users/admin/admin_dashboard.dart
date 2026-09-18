@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sari_sari/authentication/admin_login/admin_login_page.dart';
 import '../../core/theme/app_colors.dart';
 import '../../authentication/login/login_page.dart';
 
@@ -11,7 +12,6 @@ class AdminDashboard extends StatefulWidget {
 
 class _AdminDashboardState extends State<AdminDashboard> {
   int _selectedIndex = 0;
-  bool _isSidebarOpen = true;
 
   @override
   Widget build(BuildContext context) {
@@ -159,7 +159,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             onTap: () {
               Navigator.pushAndRemoveUntil(
                 context,
-                MaterialPageRoute(builder: (context) => LoginPage()),
+                MaterialPageRoute(builder: (context) => AdminLoginPage()),
                     (route) => false,
               );
             },
@@ -378,76 +378,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _tableHeader(String label) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 16, top: 8),
-      child: Text(
-        label,
-        style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.secondaryText, fontSize: 13),
-      ),
-    );
-  }
-
-  TableRow _buildOrderRow(int index) {
-    final List<String> statuses = ['Completed', 'Processing', 'Cancelled', 'Completed', 'Completed', 'Processing'];
-    final status = statuses[index];
-    final Color statusColor = status == 'Completed' 
-        ? Colors.green 
-        : status == 'Processing' 
-            ? Colors.orange 
-            : Colors.red;
-
-    return TableRow(
-      decoration: const BoxDecoration(
-        border: Border(bottom: BorderSide(color: AppColors.borderColor, width: 0.5)),
-      ),
-      children: [
-        _tableCell('#ORD-00${index + 1}'),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Row(
-            children: [
-              CircleAvatar(
-                radius: 12,
-                backgroundColor: AppColors.lightPeach,
-                child: Text(
-                  String.fromCharCode(65 + index),
-                  style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primaryOrange),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Text('Customer ${index + 1}', style: const TextStyle(color: AppColors.darkText, fontWeight: FontWeight.w500)),
-            ],
-          ),
-        ),
-        _tableCell('Oct 24, 2023'),
-        _tableCell('₱ ${450.00 + (index * 120)}'),
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-            decoration: BoxDecoration(
-              color: statusColor.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(8),
-            ),
-            child: Text(
-              status,
-              style: TextStyle(color: statusColor, fontSize: 12, fontWeight: FontWeight.bold),
-              textAlign: TextAlign.center,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _tableCell(String text) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 20),
-      child: Text(text, style: const TextStyle(color: AppColors.darkText, fontSize: 14)),
-    );
-  }
-
+  
+  
+  
   Widget _buildTopProducts() {
     return Container(
       padding: const EdgeInsets.all(24),
@@ -472,43 +405,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     );
   }
 
-  Widget _buildProductItem(int index) {
-    final products = ['Coke 1.5L', 'Lucky Me Noodles', 'Gardenia Bread', 'Bear Brand Milk', 'Safeguard Soap'];
-    final sales = ['86', '74', '62', '58', '45'];
-
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
-      child: Row(
-        children: [
-          Container(
-            width: 52,
-            height: 52,
-            decoration: BoxDecoration(
-              color: AppColors.lightBackground,
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.image_outlined, color: AppColors.placeholderColor),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(products[index], style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText, fontSize: 15)),
-                const SizedBox(height: 4),
-                Text('${sales[index]} units sold', style: const TextStyle(fontSize: 12, color: AppColors.secondaryText)),
-              ],
-            ),
-          ),
-          Text(
-            '₱ ${(25.00 + (index * 15)).toStringAsFixed(2)}',
-            style: const TextStyle(fontWeight: FontWeight.w900, color: AppColors.primaryOrange, fontSize: 15),
-          ),
-        ],
-      ),
-    );
   }
-}
 
 class _SidebarItem extends StatelessWidget {
   final IconData icon;

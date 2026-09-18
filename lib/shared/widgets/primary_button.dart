@@ -49,6 +49,7 @@ class PrimaryButton extends StatelessWidget {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-      );
-  }
+      ),
+  );
+	}
 }
