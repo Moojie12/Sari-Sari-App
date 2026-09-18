@@ -7,6 +7,7 @@ import 'widgets/role_selector_card.dart';
 import '../../users/customer_db/customer_db.dart';
 import '../../users/employee_db/employee_db.dart';
 import '../../users/owner_db/owner_db.dart';
+import '../../core/services/auth_service.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -18,12 +19,160 @@ class SignUpPage extends StatefulWidget {
 class _SignUpPageState extends State<SignUpPage> {
   String _selectedRole = 'customer';
 
+  // Form controllers
+  final _firstNameController = TextEditingController();
+  final _middleInitialController = TextEditingController();
+  final _surnameController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _phoneController = TextEditingController();
+  final _passwordController = TextEditingController();
+  final _confirmPasswordController = TextEditingController();
+
+  // Validation states
+  String? _firstNameError;
+  String? _surnameError;
+  String? _emailError;
+  String? _phoneError;
+  String? _passwordError;
+  String? _confirmPasswordError;
+  bool _isLoading = false;
+
+  VoidCallback get _signUpPressed => () { _handleSignUp(); };
+
+  @override
+  void initState() {
+    super.initState();
+  }
+
   void _onRoleSelected(String role) {
     setState(() {
       _selectedRole = role;
     });
   }
 
+  @override
+  void dispose() {
+    _firstNameController.dispose();
+    _middleInitialController.dispose();
+    _surnameController.dispose();
+    _emailController.dispose();
+    _phoneController.dispose();
+    _passwordController.dispose();
+    _confirmPasswordController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _handleSignUp() async {
+    // Reset errors
+    setState(() {
+      _firstNameError = null;
+      _surnameError = null;
+      _emailError = null;
+      _phoneError = null;
+      _passwordError = null;
+      _confirmPasswordError = null;
+      _isLoading = true;
+    });
+
+    // Get form values
+    final firstName = _firstNameController.text.trim();
+    final middleInitial = _middleInitialController.text.trim();
+    final surname = _surnameController.text.trim();
+    final email = _emailController.text.trim();
+    final phone = _phoneController.text.trim();
+    final password = _passwordController.text;
+    final confirmPassword = _confirmPasswordController.text;
+
+    // Validate form
+    bool isValid = true;
+
+    if (firstName.isEmpty) {
+      setState(() => _firstNameError = 'Please enter your first name');
+      isValid = false;
+    }
+
+    if (surname.isEmpty) {
+      setState(() => _surnameError = 'Please enter your surname');
+      isValid = false;
+    }
+
+    if (email.isEmpty) {
+      setState(() => _emailError = 'Please enter your email');
+      isValid = false;
+    } else if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      setState(() => _emailError = 'Please enter a valid email address');
+      isValid = false;
+    }
+
+    if (phone.isEmpty) {
+      setState(() => _phoneError = 'Please enter your phone number');
+      isValid = false;
+    } else if (!RegExp(r'^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$').hasMatch(phone)) {
+      setState(() => _phoneError = 'Please enter a valid phone number');
+      isValid = false;
+    }
+
+    if (password.isEmpty) {
+      setState(() => _passwordError = 'Please enter your password');
+      isValid = false;
+    } else if (password.length < 6) {
+      setState(() => _passwordError = 'Password must be at least 6 characters');
+      isValid = false;
+    }
+
+    if (confirmPassword.isEmpty) {
+      setState(() => _confirmPasswordError = 'Please confirm your password');
+      isValid = false;
+    } else if (password != confirmPassword) {
+      setState(() => _confirmPasswordError = 'Passwords do not match');
+      isValid = false;
+    }
+
+    if (!isValid) {
+      setState(() => _isLoading = false);
+      return;
+    }
+
+    // Attempt to create account with Firebase Auth
+    final displayName = '$firstName $middleInitial. $surname'.trim();
+    final errorMessage = await AuthService().createAccountWithEmailPassword(
+      email: email,
+      password: password,
+      displayName: displayName,
+    );
+
+    // Hide loading indicator
+    setState(() => _isLoading = false);
+
+    if (errorMessage != null) {
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+      }
+      return;
+    }
+
+    // Account created successfully - navigate based on role
+    Widget destination;
+    if (_selectedRole == 'owner') {
+      destination = const OwnerDb();
+    } else if (_selectedRole == 'employee') {
+      destination = const EmployeeDb();
+    } else {
+      destination = const CustomerDb();
+    }
+
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => destination),
+      );
+    }
+  }
+
+  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -43,6 +192,21 @@ class _SignUpPageState extends State<SignUpPage> {
                   child: _SignUpCard(
                     selectedRole: _selectedRole,
                     onRoleSelected: _onRoleSelected,
+                    firstNameController: _firstNameController,
+                    middleInitialController: _middleInitialController,
+                    surnameController: _surnameController,
+                    emailController: _emailController,
+                    phoneController: _phoneController,
+                    passwordController: _passwordController,
+                    confirmPasswordController: _confirmPasswordController,
+                    firstNameError: _firstNameError,
+                    surnameError: _surnameError,
+                    emailError: _emailError,
+                    phoneError: _phoneError,
+                    passwordError: _passwordError,
+                    confirmPasswordError: _confirmPasswordError,
+                    isLoading: _isLoading,
+                    handleSignUp: _handleSignUp,
                   ),
                 ),
               ),
@@ -155,10 +319,42 @@ class _SignUpCard extends StatelessWidget {
   const _SignUpCard({
     required this.selectedRole,
     required this.onRoleSelected,
+    required this.firstNameController,
+    required this.middleInitialController,
+    required this.surnameController,
+    required this.emailController,
+    required this.phoneController,
+    required this.passwordController,
+    required this.confirmPasswordController,
+    required this.firstNameError,
+    required this.surnameError,
+    required this.emailError,
+    required this.phoneError,
+    required this.passwordError,
+    required this.confirmPasswordError,
+    required this.isLoading,
+    required this.handleSignUp,
   });
 
   final String selectedRole;
   final Function(String) onRoleSelected;
+  final TextEditingController firstNameController;
+  final TextEditingController middleInitialController;
+  final TextEditingController surnameController;
+  final TextEditingController emailController;
+  final TextEditingController phoneController;
+  final TextEditingController passwordController;
+  final TextEditingController confirmPasswordController;
+  final String? firstNameError;
+  final String? surnameError;
+  final String? emailError;
+  final String? phoneError;
+  final String? passwordError;
+  final String? confirmPasswordError;
+  final bool isLoading;
+  final Future<void> Function() handleSignUp;
+
+  VoidCallback get _signUpCardOnPressed => () { handleSignUp(); return; };
 
   @override
   Widget build(BuildContext context) {
@@ -244,9 +440,11 @@ class _SignUpCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 7),
-                      const CustomTextField(
+                      CustomTextField(
+                        controller: firstNameController,
                         hint: 'First name',
                         icon: Icons.person_outline,
+                        errorText: firstNameError,
                       ),
                     ],
                   ),
@@ -266,10 +464,11 @@ class _SignUpCard extends StatelessWidget {
                         ),
                       ),
                       const SizedBox(height: 7),
-                      const CustomTextField(
-                        hint: 'M.I.',
-                        icon: Icons.short_text,
-                      ),
+                      CustomTextField(
+                      controller: middleInitialController,
+                      hint: 'M.I.',
+                      icon: Icons.short_text,
+                    ),
                     ],
                   ),
                 ),
@@ -286,9 +485,11 @@ class _SignUpCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 7),
-            const CustomTextField(
+            CustomTextField(
+              controller: surnameController,
               hint: 'Enter your surname',
               icon: Icons.person_outline,
+              errorText: surnameError,
             ),
             const SizedBox(height: 18),
 
@@ -301,10 +502,12 @@ class _SignUpCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 7),
-            const CustomTextField(
+            CustomTextField(
+              controller: emailController,
               hint: 'Enter your email',
               icon: Icons.email_outlined,
               keyboardType: TextInputType.emailAddress,
+              errorText: emailError,
             ),
             const SizedBox(height: 18),
 
@@ -317,10 +520,12 @@ class _SignUpCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 7),
-            const CustomTextField(
+            CustomTextField(
+              controller: phoneController,
               hint: 'Enter your phone number',
               icon: Icons.phone_outlined,
               keyboardType: TextInputType.phone,
+              errorText: phoneError,
             ),
             const SizedBox(height: 18),
 
@@ -333,10 +538,12 @@ class _SignUpCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 7),
-            const CustomTextField(
+            CustomTextField(
+              controller: passwordController,
               hint: 'Enter password',
               icon: Icons.lock_outline,
               isPassword: true,
+              errorText: passwordError,
             ),
             const SizedBox(height: 18),
 
@@ -349,30 +556,19 @@ class _SignUpCard extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 7),
-            const CustomTextField(
+            CustomTextField(
+              controller: confirmPasswordController,
               hint: 'Confirm password',
               icon: Icons.lock_outline,
               isPassword: true,
+              errorText: confirmPasswordError,
             ),
             const SizedBox(height: 24),
 
             PrimaryButton(
-              label: 'Sign Up',
-              onPressed: () {
-                Widget destination;
-                if (selectedRole == 'owner') {
-                  destination = const OwnerDb();
-                } else if (selectedRole == 'employee') {
-                  destination = const EmployeeDb();
-                } else {
-                  destination = const CustomerDb();
-                }
-
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(builder: (context) => destination),
-                );
-              },
+              label: isLoading ? 'Creating Account...' : 'Sign Up',
+              onPressed: _signUpCardOnPressed,
+              isLoading: isLoading,
             ),
             const SizedBox(height: 14),
 

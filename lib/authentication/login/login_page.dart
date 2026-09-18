@@ -9,6 +9,7 @@ import '../../users/customer_db/customer_db.dart';
 import '../../users/employee_db/employee_db.dart';
 import '../../users/owner_db/owner_db.dart';
 import '../signup/widgets/role_selector_card.dart';
+import '../../core/services/auth_service.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -170,6 +171,7 @@ class _LoginCardState extends State<_LoginCard> {
   final _passwordController = TextEditingController();
   String? _emailError;
   String? _passwordError;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -178,10 +180,11 @@ class _LoginCardState extends State<_LoginCard> {
     super.dispose();
   }
 
-  void _handleLogin() {
+  void _handleLogin() async {
     setState(() {
       _emailError = null;
       _passwordError = null;
+      _isLoading = true;
     });
 
     final email = _emailController.text.trim();
@@ -189,46 +192,74 @@ class _LoginCardState extends State<_LoginCard> {
 
     if (email.isEmpty) {
       setState(() => _emailError = 'Please enter your email');
+      _isLoading = false;
       return;
     }
     if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
       setState(() => _emailError = 'Please enter a valid email address');
+      _isLoading = false;
       return;
     }
 
     if (password.isEmpty) {
       setState(() => _passwordError = 'Please enter your password');
+      _isLoading = false;
       return;
     }
 
-    // Frontend-only authentication for Owner Admin
-    if (widget.selectedRole == 'owner') {
-      if (email == 'nicomaglente06@gmail.com' && password == 'Nico12') {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const OwnerDb()),
-        );
-      } else {
+    // Attempt sign in with Firebase Auth
+    final errorMessage = await AuthService().signInWithEmailPassword(
+      email: email,
+      password: password,
+    );
+
+    // Hide loading indicator
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+
+    if (errorMessage != null) {
+      // Show error message
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Invalid owner credentials')),
+          SnackBar(content: Text(errorMessage)),
         );
       }
       return;
     }
 
-    // For Employee and Customer, we allow any for now as per frontend-only demo
+    // Sign in successful - navigate based on role
+    final user = AuthService().currentUser;
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Authentication failed')),
+        );
+      }
+      return;
+    }
+
+    // TODO: Implement role-based access control using custom claims
+    // For now, we'll navigate based on selected role in UI
+    // In production, you should verify the user's actual role from Firebase
     Widget destination;
-    if (widget.selectedRole == 'employee') {
+    if (widget.selectedRole == 'owner') {
+      destination = const OwnerDb();
+    } else if (widget.selectedRole == 'employee') {
       destination = const EmployeeDb();
     } else {
       destination = const CustomerDb();
     }
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(builder: (context) => destination),
-    );
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => destination),
+      );
+    }
   }
+
+  VoidCallback get _loginOnPressed => () { _handleLogin(); };
 
   @override
   Widget build(BuildContext context) {
@@ -360,7 +391,8 @@ class _LoginCardState extends State<_LoginCard> {
             const SizedBox(height: 10),
             PrimaryButton(
               label: 'Login',
-              onPressed: _handleLogin,
+              onPressed: _loginOnPressed,
+              isLoading: _isLoading,
             ),
             const SizedBox(height: 14),
 
