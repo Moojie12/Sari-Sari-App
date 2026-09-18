@@ -8,6 +8,7 @@ import 'employee_product_model.dart';
 import 'employee_edit_product_page.dart';
 import 'employee_add_product_page.dart';
 import 'employee_archive_stock_dialog.dart';
+import 'employee_consume_stock_dialog.dart';
 
 /// Employee "Inventory" tab: view current stock and adjust it manually
 /// (Inventory and Stock Management feature).
@@ -90,6 +91,10 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
           Navigator.pop(sheetContext);
           _showArchiveDialog(product);
         },
+        onConsumeProduct: () {
+          Navigator.pop(sheetContext);
+          _showConsumeDialog(product);
+        },
       ),
     );
   }
@@ -98,6 +103,18 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
     showDialog(
       context: context,
       builder: (context) => EmployeeArchiveStockDialog(
+        product: product,
+        inventory: widget.inventory,
+      ),
+    );
+  }
+
+  /// Opens the Consumables dialog — used when the owner or an employee
+  /// takes stock for their own use rather than selling it.
+  void _showConsumeDialog(EmployeeProduct product) {
+    showDialog(
+      context: context,
+      builder: (context) => EmployeeConsumeStockDialog(
         product: product,
         inventory: widget.inventory,
       ),

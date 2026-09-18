@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../employee_db/employee_inventory_controller.dart';
 import '../../employee_db/orders/employee_orders_controller.dart';
+import '../../employee_db/inventory/employee_product_model.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
 
 enum OwnerReportType {
@@ -11,6 +12,7 @@ enum OwnerReportType {
   inventoryValue,
   restockChecklist,
   wastageLog,
+  consumablesLog,
   bestSellers,
   slowMoving,
   categoryPerformance,
@@ -29,6 +31,7 @@ class OwnerReportDetailScreen extends StatelessWidget {
       case OwnerReportType.inventoryValue: return 'Total Inventory Value';
       case OwnerReportType.restockChecklist: return 'Restock Checklist';
       case OwnerReportType.wastageLog: return 'Wastage & Expiry Log';
+      case OwnerReportType.consumablesLog: return 'Consumables (Personal Use) Log';
       case OwnerReportType.bestSellers: return 'Best Selling Products';
       case OwnerReportType.slowMoving: return 'Slow-Moving Inventory';
       case OwnerReportType.categoryPerformance: return 'Category Performance';
@@ -144,12 +147,15 @@ class OwnerReportDetailScreen extends StatelessWidget {
         final completed = orders.where((o) => o.status == OrderStatus.completed).toList();
         final revenue = completed.fold(0.0, (sum, o) => sum + o.subtotal);
         final capital = completed.fold(0.0, (sum, o) => sum + o.totalCapital);
-        final profit = revenue - capital;
+        final consumablesCost = inventory.totalConsumablesCost;
+        final profit = revenue - capital - consumablesCost;
         return Column(
           children: [
             _KpiRow(label: 'Total Revenue', value: '₱ ${revenue.toStringAsFixed(2)}', icon: Icons.payments, color: Colors.blue),
             const SizedBox(height: 12),
             _KpiRow(label: 'Total Capital', value: '₱ ${capital.toStringAsFixed(2)}', icon: Icons.shopping_bag, color: Colors.blueGrey),
+            const SizedBox(height: 12),
+            _KpiRow(label: 'Consumables (Personal Use)', value: '₱ ${consumablesCost.toStringAsFixed(2)}', icon: Icons.set_meal_outlined, color: Colors.deepPurple),
             const SizedBox(height: 12),
             _KpiRow(label: 'Net Profit', value: '₱ ${profit.toStringAsFixed(2)}', icon: Icons.trending_up, color: Colors.green),
           ],
@@ -168,8 +174,13 @@ class OwnerReportDetailScreen extends StatelessWidget {
           ],
         );
       case OwnerReportType.wastageLog:
-        final totalLoss = inventory.archivedStock.fold(0.0, (sum, a) => sum + a.capital);
+        final totalLoss = inventory.archivedStock
+            .where((a) => a.reason == StockRemovalReason.wastage)
+            .fold(0.0, (sum, a) => sum + a.capital);
         return _KpiRow(label: 'Total Capital Loss', value: '₱ ${totalLoss.toStringAsFixed(2)}', icon: Icons.delete_forever, color: Colors.red);
+      case OwnerReportType.consumablesLog:
+        final totalCost = inventory.totalConsumablesCost;
+        return _KpiRow(label: 'Total Consumables Cost', value: '₱ ${totalCost.toStringAsFixed(2)}', icon: Icons.set_meal_outlined, color: Colors.deepPurple);
       case OwnerReportType.restockChecklist:
         final count = inventory.lowStockProducts.length + inventory.outOfStockProducts.length;
         return _KpiRow(label: 'Items to Restock', value: '$count items', icon: Icons.warning_amber, color: Colors.red);
@@ -218,13 +229,28 @@ class OwnerReportDetailScreen extends StatelessWidget {
           ]).toList(),
         );
       case OwnerReportType.wastageLog:
-        final archived = inventory.archivedStock;
+        final archived =
+        inventory.archivedStock.where((a) => a.reason == StockRemovalReason.wastage).toList();
         return _ReportTable(
           title: 'Archive & Loss History',
           columns: const ['Item', 'Qty', 'Loss (Cap)'],
           rows: archived.map((a) => [
             a.productName,
             '${a.quantity} pcs',
+            '₱${a.capital.toStringAsFixed(2)}',
+          ]).toList(),
+        );
+      case OwnerReportType.consumablesLog:
+        final consumed = inventory.archivedStock
+            .where((a) => a.reason == StockRemovalReason.consumable)
+            .toList();
+        return _ReportTable(
+          title: 'Consumables History',
+          columns: const ['Item', 'Qty', 'Taken By', 'Cost'],
+          rows: consumed.map((a) => [
+            a.productName,
+            '${a.quantity} pcs',
+            a.consumedBy ?? '—',
             '₱${a.capital.toStringAsFixed(2)}',
           ]).toList(),
         );
