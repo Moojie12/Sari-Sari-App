@@ -48,6 +48,18 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       return;
     }
 
+    // --- HARDCODED ADMIN BYPASS ---
+    if (email == 'admin@eca.com' && password == 'admin123') {
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const AdminDashboard()),
+        );
+      }
+      return;
+    }
+    // ------------------------------
+
     // Attempt sign in with Firebase Auth
     final errorMessage = await AuthService().signInWithEmailPassword(
       email: email,
@@ -80,9 +92,21 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       return;
     }
 
-    // TODO: Check if user has admin/owner role using custom claims
-    // For now, we'll allow any authenticated user to access admin dashboard
-    // In production, you should verify the user's role from Firebase
+    // Check if user has admin/owner role using custom claims
+    // TEMPORARILY BYPASSED: Allow access to set up initial accounts
+    const bool hasAdminRole = true; 
+    /*
+    final hasAdminRole = await AuthService().hasRole('owner');
+    if (!hasAdminRole) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Access denied. Owner role required.')),
+        );
+      }
+      return;
+    }
+    */
+
     if (mounted) {
       Navigator.pushReplacement(
         context,

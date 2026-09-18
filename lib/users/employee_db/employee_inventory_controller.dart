@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../core/services/supabase_service.dart';
 
 import '../../core/expiry/expiry_checker.dart';
 import 'inventory/employee_batch_model.dart';
@@ -42,6 +43,8 @@ class StockReceivingResult {
 /// lets staff adjust stock manually).
 class EmployeeInventoryController extends ChangeNotifier {
   EmployeeInventoryController._() {
+    // Load initial categories from Supabase
+    _loadCategories();
     // Ensure initial dummy data is sorted.
     for (var i = 0; i < _products.length; i++) {
       final sortedBatches = List<ProductBatch>.from(_products[i].batches);
@@ -61,13 +64,19 @@ class EmployeeInventoryController extends ChangeNotifier {
 
   factory EmployeeInventoryController() => instance;
 
+  final SupabaseService _supabaseService = SupabaseService();
   final List<EmployeeProduct> _products = List.of(kEmployeeDummyProducts);
-  final List<String> _categories = List.of(kEmployeeProductCategories);
+  List<String> _categories = []; // Will be populated from Supabase
+  bool _categoriesLoading = true;
   final List<ArchivedStockItem> _archivedStock = [];
 
   List<EmployeeProduct> get products => List.unmodifiable(_products);
   List<ArchivedStockItem> get archivedStock => List.unmodifiable(_archivedStock);
+
+  /// Returns the list of categories. Returns empty list while loading.
   List<String> get categories => List.unmodifiable(_categories);
+
+  bool get isCategoriesLoading => _categoriesLoading;
 
   List<EmployeeProduct> get lowStockProducts =>
       _products.where((p) => p.stockStatus == EmployeeStockStatus.lowStock).toList();
@@ -114,7 +123,7 @@ class EmployeeInventoryController extends ChangeNotifier {
     if (trimmed.isEmpty) return products;
     return _products
         .where((p) =>
-    p.name.toLowerCase().contains(trimmed) || p.barcode.contains(trimmed))
+        p.name.toLowerCase().contains(trimmed) || p.barcode.contains(trimmed))
         .toList();
   }
 
@@ -127,6 +136,29 @@ class EmployeeInventoryController extends ChangeNotifier {
     if (trimmed.isEmpty) return false;
     return _products.any((p) => p.id != excludingProductId && p.barcode == trimmed);
   }
+
+  /// Loads categories from Supabase
+  Future<void> _loadCategories() async {
+    _categoriesLoading = true;
+    notifyListeners();
+    try {
+      final categories = await _supabaseService.getActiveCategories();
+      _categories = categories.map((cat) => cat['name'] as String).toList();
+      // Add "All" category at the beginning for UI filtering
+      if (!_categories.contains('All')) {
+        _categories.insert(0, 'All');
+      }
+    } catch (e) {
+      // Fallback to hardcoded categories if Supabase fails
+      _categories = List.of(kEmployeeProductCategories);
+    } finally {
+      _categoriesLoading = false;
+      notifyListeners();
+    }
+  }
+
+  /// Reloads categories from Supabase (useful for pull-to-refresh)
+  Future<void> reloadCategories() async => _loadCategories();
 
   /// Creates a brand-new product with no batches yet.
   EmployeeProduct? createProduct({
@@ -326,17 +358,62 @@ class EmployeeInventoryController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void addCategory(String category) {
-    if (!_categories.contains(category)) {
-      _categories.add(category);
-      notifyListeners();
+  /// Adds a new category via Supabase
+  Future<void> addCategory(String category, String createdByProfileId) async {
+    try {
+      // Check if category already exists (case-insensitive)
+      final exists = await _supabaseService.categoryNameExists(name: category);
+      if (exists) {
+        // Category already exists, just reload to get the latest state
+        await _loadCategories();
+        return;
+      }
+
+      // Create the category in Supabase
+      await _supabaseService.createCategory(
+        name: category,
+        createdByProfileId: createdByProfileId,
+      );
+
+      // Reload categories to get the updated list
+      await _loadCategories();
+    } catch (e) {
+      // If Supabase fails, fall back to local addition for offline support
+      if (!_categories.contains(category)) {
+        _categories.add(category);
+        notifyListeners();
+      }
     }
   }
 
-  void removeCategory(String category) {
-    if (category != 'All') {
-      _categories.remove(category);
-      notifyListeners();
+  /// Removes (archives) a category via Supabase
+  Future<void> removeCategory(String category, String archivedByProfileId) async {
+    if (category == 'All') return; // Don't allow archiving the 'All' filter
+
+    try {
+      // Find the category ID by name
+      final categories = await _supabaseService.getAllCategories();
+      final categoryItem = categories.firstWhere(
+        (cat) => cat['name'] == category && cat['is_archived'] == false,
+        orElse: () => {}, // Returns empty map if not found
+      );
+
+      if (categoryItem.isNotEmpty) {
+        // Archive the category in Supabase
+        await _supabaseService.archiveCategory(
+          id: categoryItem['id'],
+          archivedByProfileId: archivedByProfileId,
+        );
+
+        // Reload categories to get the updated list
+        await _loadCategories();
+      }
+    } catch (e) {
+      // If Supabase fails, fall back to local removal for offline support
+      if (_categories.contains(category)) {
+        _categories.remove(category);
+        notifyListeners();
+      }
     }
   }
 

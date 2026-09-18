@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../models/admin_models.dart';
 
 // ==================== TABLE PRIMITIVES ====================
 
@@ -163,7 +162,7 @@ Widget iconAction(
   );
 }
 
-// ==================== DIALOGS ====================
+// ==================== DIALOG PRIMITIVES ====================
 
 double dialogWidth(BuildContext context, double desired) {
   final screenWidth = MediaQuery.of(context).size.width;
@@ -290,9 +289,11 @@ Widget field(
       String? hint,
       String? prefix,
       bool numeric = false,
+      bool isPassword = false,
     }) {
   return TextField(
     controller: controller,
+    obscureText: isPassword,
     keyboardType: numeric
         ? const TextInputType.numberWithOptions(decimal: true)
         : TextInputType.text,
@@ -314,7 +315,7 @@ Widget field(
   );
 }
 
-// ==================== DASHBOARD BITS ====================
+// ==================== OTHER SHARED UI ====================
 
 Widget card({
   required String title,
@@ -562,7 +563,7 @@ Widget detailRow(String label, String value) {
   );
 }
 
-// ==================== PAGINATION ====================
+// ==================== PAGINATION HELPER ====================
 
 class Paged<T> {
   const Paged({
@@ -611,8 +612,10 @@ Widget paginationBar(Paged paged, String key, String noun, Map<String, int> page
       : 'Showing ${paged.start + 1}–${paged.end} of ${paged.total} $noun';
 
   final windowStart = (paged.page - 2).clamp(1, paged.totalPages).toInt();
-  final windowEnd = (windowStart + 4).clamp(1, paged.totalPages).toInt();
-  final adjustedStart = (windowEnd - 4).clamp(1, paged.totalPages).toInt();
+  final windowEnd =
+  (windowStart + 4).clamp(1, paged.totalPages).toInt();
+  final adjustedStart =
+  (windowEnd - 4).clamp(1, paged.totalPages).toInt();
 
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
@@ -635,8 +638,12 @@ Widget paginationBar(Paged paged, String key, String noun, Map<String, int> page
           ),
         ),
         if (paged.totalPages > 1)
-          Row(
-            mainAxisSize: MainAxisSize.min,
+          // Wrap (not Row) so the pager reflows onto a second line
+          // instead of overflowing when the container gets narrow.
+          Wrap(
+            spacing: 4,
+            runSpacing: 6,
+            crossAxisAlignment: WrapCrossAlignment.center,
             children: [
               _pageArrow(Icons.keyboard_double_arrow_left, 'First page',
                   paged.page > 1, () => onPageChange(key, 1)),
@@ -661,43 +668,52 @@ Widget paginationBar(Paged paged, String key, String noun, Map<String, int> page
   );
 }
 
-Widget _pageArrow(IconData icon, String tooltip, bool enabled, VoidCallback onTap) {
-  return IconButton(
-    tooltip: tooltip,
-    icon: Icon(icon, size: 18),
-    visualDensity: VisualDensity.compact,
-    color: AppColors.secondaryText,
-    disabledColor: AppColors.borderColor,
-    onPressed: enabled ? onTap : null,
+// Same 32x32 footprint as _pageNumber so arrows and number chips line up
+// on the same row instead of the arrows looking oversized next to them.
+Widget _pageArrow(
+    IconData icon, String tooltip, bool enabled, VoidCallback onTap) {
+  return SizedBox(
+    width: 32,
+    height: 32,
+    child: IconButton(
+      tooltip: tooltip,
+      icon: Icon(icon, size: 16),
+      splashRadius: 16,
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+      color: AppColors.secondaryText,
+      disabledColor: AppColors.borderColor,
+      onPressed: enabled ? onTap : null,
+    ),
   );
 }
 
 Widget _pageNumber(int page, bool isActive, VoidCallback onTap) {
-  return Padding(
-    padding: const EdgeInsets.symmetric(horizontal: 2),
-    child: InkWell(
-      borderRadius: BorderRadius.circular(8),
-      onTap: isActive ? null : onTap,
-      child: Container(
-        width: 32,
-        height: 32,
-        alignment: Alignment.center,
-        decoration: BoxDecoration(
-          color: isActive ? AppColors.primaryOrange : Colors.white,
-          borderRadius: BorderRadius.circular(8),
-          border: Border.all(
-            color: isActive
-                ? AppColors.primaryOrange
-                : AppColors.borderColor,
-          ),
+  // No inner Padding here — the parent Wrap's `spacing` supplies a
+  // uniform gap between every pager element (arrows + numbers alike).
+  return InkWell(
+    borderRadius: BorderRadius.circular(8),
+    onTap: isActive ? null : onTap,
+    child: Container(
+      width: 32,
+      height: 32,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: isActive ? AppColors.primaryOrange : Colors.white,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isActive
+              ? AppColors.primaryOrange
+              : AppColors.borderColor,
         ),
-        child: Text(
-          '$page',
-          style: TextStyle(
-            fontSize: 12.5,
-            fontWeight: FontWeight.w700,
-            color: isActive ? Colors.white : AppColors.secondaryText,
-          ),
+      ),
+      child: Text(
+        '$page',
+        style: TextStyle(
+          fontSize: 12.5,
+          fontWeight: FontWeight.w700,
+          color: isActive ? Colors.white : AppColors.secondaryText,
         ),
       ),
     ),

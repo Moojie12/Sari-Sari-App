@@ -12,6 +12,7 @@ class CategoriesSection extends StatefulWidget {
   final void Function(String, int) onPageChange;
   final void Function(AdminCategory?) onShowCategoryForm;
   final void Function(AdminCategory) onArchiveCategory;
+  final void Function(AdminCategory) onDeleteCategory;
 
   const CategoriesSection({
     super.key,
@@ -22,6 +23,7 @@ class CategoriesSection extends StatefulWidget {
     required this.onPageChange,
     required this.onShowCategoryForm,
     required this.onArchiveCategory,
+    required this.onDeleteCategory,
   });
 
   @override
@@ -104,6 +106,8 @@ class _CategoriesSectionState extends State<CategoriesSection> {
                           () => widget.onShowCategoryForm(category)),
                   iconAction(Icons.archive_outlined, 'Archive', Colors.orange,
                           () => widget.onArchiveCategory(category)),
+                  iconAction(Icons.delete_outline_rounded, 'Delete', Colors.red,
+                          () => widget.onDeleteCategory(category)),
                 ],
               ),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),

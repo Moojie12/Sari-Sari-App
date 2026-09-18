@@ -37,8 +37,6 @@ class _SignUpPageState extends State<SignUpPage> {
   String? _confirmPasswordError;
   bool _isLoading = false;
 
-  VoidCallback get _signUpPressed => () { _handleSignUp(); };
-
   @override
   void initState() {
     super.initState();
@@ -223,9 +221,7 @@ class _Header extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      height: double.infinity,
+    return SizedBox.expand(
       child: Stack(
         clipBehavior: Clip.none,
         children: [
@@ -291,7 +287,7 @@ class _Header extends StatelessWidget {
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
                     decoration: BoxDecoration(
-                      color: Colors.black.withOpacity(0.3),
+                      color: Colors.black.withValues(alpha: 0.3),
                       borderRadius: BorderRadius.circular(20),
                     ),
                     child: const Text(

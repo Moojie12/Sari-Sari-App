@@ -46,7 +46,7 @@ class _ArchiveSectionState extends State<ArchiveSection> {
       children: [
         Row(
           children: [
-            _tabButton('People', 0),
+            _tabButton('Users', 0),
             const SizedBox(width: 8),
             _tabButton('Products', 1),
             const SizedBox(width: 8),
@@ -89,7 +89,7 @@ class _ArchiveSectionState extends State<ArchiveSection> {
     widget.searchQuery.isEmpty || u.fullName.toLowerCase().contains(widget.searchQuery.toLowerCase())).toList();
 
     if (list.isEmpty) {
-      return emptyState(icon: Icons.person_off_outlined, title: 'No archived people', message: 'Accounts you archive will appear here.');
+      return emptyState(icon: Icons.person_off_outlined, title: 'No archived users', message: 'Accounts you archive will appear here.');
     }
 
     final paged = paginate(list, 'archived-users', widget.rowsPerPage, widget.pages);
@@ -115,7 +115,7 @@ class _ArchiveSectionState extends State<ArchiveSection> {
             ])),
           ],
       ],
-      footer: paginationBar(paged, 'archived-users', 'people', widget.pages, widget.onPageChange),
+      footer: paginationBar(paged, 'archived-users', 'users', widget.pages, widget.onPageChange),
     );
   }
 

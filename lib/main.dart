@@ -1,22 +1,18 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
 import 'core/splash/splash_page.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'firebase_options.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await Firebase.initializeApp(
-    options: const FirebaseOptions(
-      apiKey: 'AIzaSyD-xEjxWySz4ZV4Natb_8fjHSm8l3Sh5_w',
-      appId: '1:709594394959:web:09b1459f0fa9508b7c153a',
-      messagingSenderId: '709594394959',
-      projectId: 'tindahan-ni-eca-app',
-      storageBucket: 'tindahan-ni-eca-app.firebasestorage.app',
-      authDomain: 'tindahan-ni-eca-app.firebaseapp.com',
-      measurementId: 'G-4LV2PDV3NC',
-    ),
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+  await Supabase.initialize(
+    url: 'https://njqqfijxklxtdqljzqrx.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qcXFmaWp4a2x4dGRxbGp6cXJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3MDE5NDQsImV4cCI6MjEwNTI3Nzk0NH0.Tr6Azj3_ZK9UD_4fpOg3ecDEf17ZNHsgRSHFISBnE7E',
   );
   runApp(const SariSariApp());
 }
@@ -39,3 +35,4 @@ class SariSariApp extends StatelessWidget {
     );
   }
 }
+

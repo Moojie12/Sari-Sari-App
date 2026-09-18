@@ -901,7 +901,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
     if (!mounted) return;
 
     if (_isAddingNewCategory) {
-      widget.inventory.addCategory(category);
+      widget.inventory.addCategory(category, 'dummy-profile-id');
     }
 
     final product = widget.inventory.createProduct(

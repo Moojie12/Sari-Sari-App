@@ -14,6 +14,7 @@ class ProductsSection extends StatefulWidget {
   final void Function(AdminProduct?) onShowProductForm;
   final void Function(AdminProduct) onAdjustStock;
   final void Function(AdminProduct) onArchiveProduct;
+  final void Function(AdminProduct) onDeleteProduct;
   final void Function() onClearFilters;
 
   const ProductsSection({
@@ -27,6 +28,7 @@ class ProductsSection extends StatefulWidget {
     required this.onShowProductForm,
     required this.onAdjustStock,
     required this.onArchiveProduct,
+    required this.onDeleteProduct,
     required this.onClearFilters,
   });
 
@@ -322,6 +324,8 @@ class _ProductsSectionState extends State<ProductsSection> {
                           () => widget.onShowProductForm(product)),
                   iconAction(Icons.archive_outlined, 'Archive', Colors.orange,
                           () => widget.onArchiveProduct(product)),
+                  iconAction(Icons.delete_outline_rounded, 'Delete', Colors.red,
+                          () => widget.onDeleteProduct(product)),
                 ],
               ),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),

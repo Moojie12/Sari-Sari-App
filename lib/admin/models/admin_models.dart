@@ -94,6 +94,17 @@ String formatTime(DateTime? dt) {
 
 String formatShortDate(DateTime dt) => '${dt.day} ${_kMonths[dt.month - 1]}';
 
+/// e.g. "Sep 2026"
+String formatMonthYear(int year, int month) => '${_kMonths[month - 1]} $year';
+
+/// e.g. "12–18 Sep" or, if the week crosses a month boundary, "28 Sep – 4 Oct"
+String formatWeekRange(DateTime start, DateTime end) {
+  if (start.month == end.month) {
+    return '${start.day}–${end.day} ${_kMonths[start.month - 1]}';
+  }
+  return '${start.day} ${_kMonths[start.month - 1]} – ${end.day} ${_kMonths[end.month - 1]}';
+}
+
 String formatRelative(DateTime dt) {
   final diff = DateTime.now().difference(dt);
   if (diff.inMinutes < 1) return 'just now';
@@ -110,11 +121,12 @@ bool isSameDay(DateTime a, DateTime b) =>
 // MODELS
 // ============================================================
 
-enum AdminRole { owner, employee, customer }
+enum AdminRole { admin, owner, employee, customer }
 
 extension AdminRoleLabel on AdminRole {
   String get label {
     switch (this) {
+      case AdminRole.admin: return 'Admin';
       case AdminRole.owner: return 'Owner';
       case AdminRole.employee: return 'Employee';
       case AdminRole.customer: return 'Customer';
@@ -126,13 +138,15 @@ extension AdminRoleLabel on AdminRole {
 class AdminUser {
   const AdminUser({
     required this.id,
-    required this.fullName,
+    required this.firstName,
+    required this.middleInitial,
+    required this.surname,
     required this.username,
     required this.email,
     required this.phone,
     required this.role,
     required this.status,
-    required this.verificationStatus,
+    this.password,
     this.createdAt,
     this.updatedAt,
     this.isArchived = false,
@@ -141,37 +155,40 @@ class AdminUser {
   });
 
   final String id;
-  final String fullName;
+  final String firstName;
+  final String middleInitial;
+  final String surname;
   final String username;
   final String email;
   final String phone;
   final AdminRole role;
   final String status;
-  final String verificationStatus;
+  final String? password;
   final DateTime? createdAt;
   final DateTime? updatedAt;
   final bool isArchived;
   final DateTime? archivedAt;
   final String? archivedBy;
 
-  bool get isActive => status == 'Active';
-  bool get isVerified => verificationStatus == 'Verified';
+  String get fullName => '$firstName ${middleInitial.isNotEmpty ? '$middleInitial. ' : ''}$surname'.trim();
+
+  bool get isActive => status == 'Enabled';
 
   String get initials {
-    final parts = fullName.trim().split(RegExp(r'\s+'));
-    if (parts.isEmpty || parts.first.isEmpty) return '?';
-    if (parts.length == 1) return parts.first[0].toUpperCase();
-    return (parts.first[0] + parts.last[0]).toUpperCase();
+    if (firstName.isEmpty || surname.isEmpty) return '?';
+    return (firstName[0] + surname[0]).toUpperCase();
   }
 
   AdminUser copyWith({
-    String? fullName,
+    String? firstName,
+    String? middleInitial,
+    String? surname,
     String? username,
     String? email,
     String? phone,
     AdminRole? role,
     String? status,
-    String? verificationStatus,
+    String? password,
     DateTime? updatedAt,
     bool? isArchived,
     DateTime? archivedAt,
@@ -180,13 +197,15 @@ class AdminUser {
   }) {
     return AdminUser(
       id: id,
-      fullName: fullName ?? this.fullName,
+      firstName: firstName ?? this.firstName,
+      middleInitial: middleInitial ?? this.middleInitial,
+      surname: surname ?? this.surname,
       username: username ?? this.username,
       email: email ?? this.email,
       phone: phone ?? this.phone,
       role: role ?? this.role,
       status: status ?? this.status,
-      verificationStatus: verificationStatus ?? this.verificationStatus,
+      password: password ?? this.password,
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isArchived: isArchived ?? this.isArchived,
@@ -454,6 +473,90 @@ class AdminSale {
   }
 }
 
+String buildReceiptText(AdminSale sale, {String storeName = 'Sari-Sari Hub'}) {
+  const width = 34;
+  final buffer = StringBuffer();
+  String center(String text) {
+    if (text.length >= width) return text;
+    final pad = ((width - text.length) / 2).floor();
+    return ' ' * pad + text;
+  }
+  String spread(String left, String right) {
+    final gap = width - left.length - right.length;
+    return gap <= 0 ? '$left $right' : left + ' ' * gap + right;
+  }
+  buffer.writeln(center(storeName.toUpperCase()));
+  buffer.writeln(center('Bacoor, Cavite'));
+  buffer.writeln(center('Thank you for shopping!'));
+  buffer.writeln('-' * width);
+  buffer.writeln(spread('Receipt', sale.receiptNumber));
+  buffer.writeln(spread('Date', formatDateTime(sale.timestamp)));
+  buffer.writeln(spread('Cashier', sale.cashierName));
+  buffer.writeln(spread('Customer', sale.customerName));
+  buffer.writeln('-' * width);
+  for (final item in sale.items) {
+    buffer.writeln(item.productName);
+    buffer.writeln(spread('  ${formatQuantity(item.quantity, item.unit)} x ${formatPeso(item.unitPrice)}', formatPeso(item.lineTotal)));
+  }
+  buffer.writeln('-' * width);
+  buffer.writeln(spread('Subtotal', formatPeso(sale.subtotal)));
+  if (sale.discount > 0) buffer.writeln(spread('Discount', '-${formatPeso(sale.discount)}'));
+  buffer.writeln(spread('TOTAL', formatPeso(sale.total)));
+  buffer.writeln(spread(sale.paymentMethod.label, formatPeso(sale.amountPaid)));
+  buffer.writeln(spread('Change', formatPeso(sale.change)));
+  buffer.writeln('-' * width);
+  if (!sale.isCompleted) {
+    buffer.writeln(center('*** ${sale.status.label.toUpperCase()} ***'));
+    if (sale.voidReason != null) buffer.writeln(center(sale.voidReason!));
+  }
+  buffer.writeln(center('This is not an official receipt'));
+  return buffer.toString();
+}
+
+@immutable
+class ProductSalesStat {
+  const ProductSalesStat({
+    required this.productId,
+    required this.productName,
+    required this.unit,
+    required this.unitsSold,
+    required this.revenue,
+  });
+  final String productId;
+  final String productName;
+  final String unit;
+  final double unitsSold;
+  final double revenue;
+}
+
+@immutable
+class DaySales {
+  const DaySales(this.day, this.total, this.orders);
+  final DateTime day;
+  final double total;
+  final int orders;
+}
+
+/// Sales total for a Monday-to-Sunday calendar week.
+@immutable
+class WeekSales {
+  const WeekSales(this.weekStart, this.weekEnd, this.total, this.orders);
+  final DateTime weekStart;
+  final DateTime weekEnd;
+  final double total;
+  final int orders;
+}
+
+/// Sales total for a calendar month.
+@immutable
+class MonthSales {
+  const MonthSales(this.year, this.month, this.total, this.orders);
+  final int year;
+  final int month;
+  final double total;
+  final int orders;
+}
+
 enum AuditAction { create, update, archive, restore, permanentDelete, voidSale }
 
 extension AuditActionLabel on AuditAction {
@@ -493,28 +596,4 @@ class AdminAuditLog {
   final String previousStatus;
   final String newStatus;
   final String? note;
-}
-
-@immutable
-class ProductSalesStat {
-  const ProductSalesStat({
-    required this.productId,
-    required this.productName,
-    required this.unit,
-    required this.unitsSold,
-    required this.revenue,
-  });
-  final String productId;
-  final String productName;
-  final String unit;
-  final double unitsSold;
-  final double revenue;
-}
-
-@immutable
-class DaySales {
-  const DaySales(this.day, this.total, this.orders);
-  final DateTime day;
-  final double total;
-  final int orders;
 }

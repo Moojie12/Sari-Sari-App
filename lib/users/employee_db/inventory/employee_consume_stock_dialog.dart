@@ -135,7 +135,7 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
                 style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.labelText)),
             const SizedBox(height: 8),
             DropdownButtonFormField<ProductBatch?>(
-              value: _selectedBatch,
+              initialValue: _selectedBatch,
               isExpanded: true,
               items: [
                 const DropdownMenuItem<ProductBatch?>(

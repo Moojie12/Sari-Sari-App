@@ -1032,7 +1032,7 @@ class _NewProductSheetState extends State<_NewProductSheet> {
     if (category.isEmpty) return;
 
     if (_isAddingNewCategory) {
-      widget.inventory.addCategory(category);
+      widget.inventory.addCategory(category, 'dummy-profile-id');
     }
 
     final product = widget.inventory.createProduct(

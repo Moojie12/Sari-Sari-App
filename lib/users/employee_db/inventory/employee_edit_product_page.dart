@@ -244,7 +244,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
     if (!mounted) return;
 
     if (_isAddingNewCategory) {
-      widget.inventory.addCategory(category);
+      widget.inventory.addCategory(category, 'dummy-profile-id');
     }
 
     widget.inventory.updateProduct(
@@ -441,7 +441,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                   ),
                   value: _isBulkMode,
                   onChanged: _toggleBulkMode,
-                  activeColor: AppColors.primaryOrange,
+                  activeThumbColor: AppColors.primaryOrange,
                   contentPadding: EdgeInsets.zero,
                 ),
               ),
