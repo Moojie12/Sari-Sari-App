@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sari_sari/authentication/admin_login/admin_login_page.dart';
 import '../../core/theme/app_colors.dart';
-import '../../authentication/login/login_page.dart';
+
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
