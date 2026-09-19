@@ -30,19 +30,19 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
   final _searchController = TextEditingController();
   final _quantityController = TextEditingController();
 
-  // ---- Bulk / Set Entry Calculator ---------------------------------------
+  // ---- Bulk Entry Calculator ---------------------------------------
   // Lets staff receiving a batch for pcs-based products enter what they
-  // paid for a whole set/bulk pack instead of counting pieces by hand.
+  // paid for a whole bulk pack instead of counting pieces by hand.
   // Opening the calculator auto-fills Quantity Received (Total Pcs) above
   // and surfaces the computed per-piece cost, which gets recorded on the
   // batch's notes for traceability.
   bool _showBulkCalculator = false;
-  final _setPriceController = TextEditingController();
-  final _pcsPerSetController = TextEditingController();
-  final _numberOfSetsController = TextEditingController();
-  String? _setPriceError;
-  String? _pcsPerSetError;
-  String? _numberOfSetsError;
+  final _bulkPriceController = TextEditingController();
+  final _pcsPerBulkController = TextEditingController();
+  final _numberOfBulkController = TextEditingController();
+  String? _bulkPriceError;
+  String? _pcsPerBulkError;
+  String? _numberOfBulkError;
   double? _bulkCapitalPerPc;
   double? _bulkTotalQuantity;
 
@@ -61,9 +61,9 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
   void dispose() {
     _searchController.dispose();
     _quantityController.dispose();
-    _setPriceController.dispose();
-    _pcsPerSetController.dispose();
-    _numberOfSetsController.dispose();
+    _bulkPriceController.dispose();
+    _pcsPerBulkController.dispose();
+    _numberOfBulkController.dispose();
     super.dispose();
   }
 
@@ -71,9 +71,9 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
     setState(() {
       _showBulkCalculator = !_showBulkCalculator;
       if (!_showBulkCalculator) {
-        _setPriceError = null;
-        _pcsPerSetError = null;
-        _numberOfSetsError = null;
+        _bulkPriceError = null;
+        _pcsPerBulkError = null;
+        _numberOfBulkError = null;
         _bulkCapitalPerPc = null;
         _bulkTotalQuantity = null;
       }
@@ -81,24 +81,24 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
   }
 
   /// Recomputes Batch Cost Price (per pc) and Added Batch Quantity (Total
-  /// Pcs) from the Set Price / Pcs per Set / Number of Sets inputs, then
+  /// Pcs) from the Bulk Price / Pcs per Bulk / Number of Bulk inputs, then
   /// writes the total straight into `_quantityController` (the same field
   /// `_submit` reads). Guards against divide-by-zero / invalid input by
   /// leaving the computed values blank until the inputs check out.
   void _recalcBulk() {
-    final setPrice = double.tryParse(_setPriceController.text.trim());
-    final pcsPerSet = int.tryParse(_pcsPerSetController.text.trim());
-    final numberOfSets = int.tryParse(_numberOfSetsController.text.trim());
+    final bulkPrice = double.tryParse(_bulkPriceController.text.trim());
+    final pcsPerBulk = int.tryParse(_pcsPerBulkController.text.trim());
+    final numberOfBulk = int.tryParse(_numberOfBulkController.text.trim());
 
     setState(() {
-      if (setPrice != null && setPrice >= 0 && pcsPerSet != null && pcsPerSet > 0) {
-        _bulkCapitalPerPc = setPrice / pcsPerSet;
+      if (bulkPrice != null && bulkPrice >= 0 && pcsPerBulk != null && pcsPerBulk > 0) {
+        _bulkCapitalPerPc = bulkPrice / pcsPerBulk;
       } else {
         _bulkCapitalPerPc = null;
       }
 
-      if (pcsPerSet != null && pcsPerSet > 0 && numberOfSets != null && numberOfSets >= 0) {
-        final totalQuantity = pcsPerSet * numberOfSets;
+      if (pcsPerBulk != null && pcsPerBulk > 0 && numberOfBulk != null && numberOfBulk >= 0) {
+        final totalQuantity = pcsPerBulk * numberOfBulk;
         _bulkTotalQuantity = totalQuantity.toDouble();
         _quantityController.text = totalQuantity.toString();
       } else {
@@ -207,17 +207,17 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
   bool _validateBulkCalculator() {
     if (!_showBulkCalculator) return true;
 
-    final setPrice = double.tryParse(_setPriceController.text.trim());
-    final pcsPerSet = int.tryParse(_pcsPerSetController.text.trim());
-    final numberOfSets = int.tryParse(_numberOfSetsController.text.trim());
+    final bulkPrice = double.tryParse(_bulkPriceController.text.trim());
+    final pcsPerBulk = int.tryParse(_pcsPerBulkController.text.trim());
+    final numberOfBulk = int.tryParse(_numberOfBulkController.text.trim());
 
     setState(() {
-      _setPriceError = (setPrice == null || setPrice < 0) ? 'Enter a valid set price.' : null;
-      _pcsPerSetError = (pcsPerSet == null || pcsPerSet <= 0) ? 'Must be greater than 0.' : null;
-      _numberOfSetsError = (numberOfSets == null || numberOfSets <= 0) ? 'Must be greater than 0.' : null;
+      _bulkPriceError = (bulkPrice == null || bulkPrice <= 0) ? 'Bulk Price must be greater than 0.' : null;
+      _pcsPerBulkError = (pcsPerBulk == null || pcsPerBulk <= 0) ? 'Must be a positive whole number.' : null;
+      _numberOfBulkError = (numberOfBulk == null || numberOfBulk <= 0) ? 'Must be a positive whole number.' : null;
     });
 
-    if (_setPriceError != null || _pcsPerSetError != null || _numberOfSetsError != null) return false;
+    if (_bulkPriceError != null || _pcsPerBulkError != null || _numberOfBulkError != null) return false;
 
     // Make sure Quantity Received / the computed cost reflect the latest inputs.
     _recalcBulk();
@@ -245,12 +245,12 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
 
     final quantity = double.parse(_quantityController.text.trim());
 
-    // When the Bulk / Set calculator was used, keep the computed per-piece
+    // When the Bulk calculator was used, keep the computed per-piece
     // cost on record with this batch (the data model doesn't carry a
     // dedicated cost field, so it's captured in the batch notes).
     final bulkNotes = (_showBulkCalculator && _bulkCapitalPerPc != null)
-        ? 'Bulk/Set entry: ₱${_setPriceController.text.trim()} ÷ ${_pcsPerSetController.text.trim()} pcs/set × '
-        '${_numberOfSetsController.text.trim()} set(s) → Cost/pc ₱${_bulkCapitalPerPc!.toStringAsFixed(2)}'
+        ? 'Bulk entry: ₱${_bulkPriceController.text.trim()} ÷ ${_pcsPerBulkController.text.trim()} pcs/bulk × '
+        '${_numberOfBulkController.text.trim()} bulk(s) → Capital/pc ₱${_bulkCapitalPerPc!.toStringAsFixed(2)}'
         : null;
 
     final result = widget.inventory.receiveStock(
@@ -593,7 +593,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
             child: OutlinedButton.icon(
               onPressed: _toggleBulkCalculator,
               icon: Icon(_showBulkCalculator ? Icons.calculate : Icons.calculate_outlined, size: 18),
-              label: Text(_showBulkCalculator ? 'Hide Bulk / Set Calculator' : 'Restock using Bulk / Set Calculator'),
+              label: Text(_showBulkCalculator ? 'Hide Bulk Calculator' : 'Restock using Bulk Calculator'),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primaryOrange,
                 side: const BorderSide(color: AppColors.primaryOrange),
@@ -615,20 +615,20 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Enter the cost of the whole set/bulk pack — Batch Cost Price (per pc) and the Quantity Received below fill in automatically.',
+                    'Enter the bulk purchase details below — Capital per Pc and Total Pcs will be calculated.',
                     style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.9), fontSize: 11),
                   ),
                   const SizedBox(height: 12),
-                  _buildLabel('Set Price (₱) *'),
+                  _buildLabel('Bulk Price (₱) *'),
                   const SizedBox(height: 8),
                   TextField(
-                    controller: _setPriceController,
+                    controller: _bulkPriceController,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     onChanged: (_) => _recalcBulk(),
                     decoration: InputDecoration(
-                      hintText: 'e.g. 500.00',
+                      hintText: 'e.g. 720.00',
                       prefixText: '₱ ',
-                      errorText: _setPriceError,
+                      errorText: _bulkPriceError,
                       filled: true,
                       fillColor: Colors.white,
                       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
@@ -643,15 +643,15 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildLabel('Pcs per Set *'),
+                            _buildLabel('Pcs per Bulk *'),
                             const SizedBox(height: 8),
                             TextField(
-                              controller: _pcsPerSetController,
+                              controller: _pcsPerBulkController,
                               keyboardType: TextInputType.number,
                               onChanged: (_) => _recalcBulk(),
                               decoration: InputDecoration(
-                                hintText: 'e.g. 50',
-                                errorText: _pcsPerSetError,
+                                hintText: 'e.g. 12',
+                                errorText: _pcsPerBulkError,
                                 filled: true,
                                 fillColor: Colors.white,
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
@@ -666,15 +666,15 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildLabel('Number of Sets *'),
+                            _buildLabel('Number of Bulk *'),
                             const SizedBox(height: 8),
                             TextField(
-                              controller: _numberOfSetsController,
+                              controller: _numberOfBulkController,
                               keyboardType: TextInputType.number,
                               onChanged: (_) => _recalcBulk(),
                               decoration: InputDecoration(
-                                hintText: 'e.g. 2',
-                                errorText: _numberOfSetsError,
+                                hintText: 'e.g. 5',
+                                errorText: _numberOfBulkError,
                                 filled: true,
                                 fillColor: Colors.white,
                                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
@@ -690,7 +690,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      const Text('Batch Cost Price (per pc)', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                      const Text('Capital per Pc', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
                       Text(
                         _bulkCapitalPerPc == null ? '—' : '₱${_bulkCapitalPerPc!.toStringAsFixed(2)}',
                         style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText),
@@ -708,7 +708,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
                         const SizedBox(width: 6),
                         Expanded(
                           child: Text(
-                            'Adding ${_bulkTotalQuantity!.toStringAsFixed(_bulkTotalQuantity! == _bulkTotalQuantity!.roundToDouble() ? 0 : 2)} pcs '
+                            'Adding ${_bulkTotalQuantity!.toStringAsFixed(0)} pcs '
                                 'at ₱${_bulkCapitalPerPc!.toStringAsFixed(2)}/pc capital to ${product.name}.',
                             style: const TextStyle(fontSize: 12, color: AppColors.primaryOrange, fontWeight: FontWeight.w600),
                           ),
@@ -722,7 +722,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
           ],
           const SizedBox(height: 18),
         ],
-        _buildLabel(bulkModeActive ? 'Added Batch Quantity (Total Pcs) *' : 'Quantity Received *'),
+        _buildLabel(bulkModeActive ? 'Total Pcs *' : 'Quantity Received *'),
         const SizedBox(height: 8),
         TextField(
           controller: _quantityController,
@@ -888,7 +888,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
           Text('Quantity Received: $quantity pcs', style: const TextStyle(fontSize: 12, color: AppColors.darkText)),
           if (_showBulkCalculator && _bulkCapitalPerPc != null)
             Text(
-              'Capital Cost: ₱${_bulkCapitalPerPc!.toStringAsFixed(2)}/pc (via Bulk / Set Calculator)',
+              'Capital per Pc: ₱${_bulkCapitalPerPc!.toStringAsFixed(2)} (via Bulk Calculator)',
               style: const TextStyle(fontSize: 12, color: AppColors.darkText),
             ),
           Text(

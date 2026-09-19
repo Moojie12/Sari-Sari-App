@@ -413,9 +413,8 @@ class EmployeeInventoryController extends ChangeNotifier {
   /// Receives several batches for the same product in one go.
   List<StockReceivingResult> receiveBatches({
     required String productId,
-    required List<({double quantity, DateTime? expiryDate})> batches,
+    required List<({double quantity, DateTime? expiryDate, String? notes})> batches,
     String? supplier,
-    String? notes,
   }) {
     final results = <StockReceivingResult>[];
     for (final batch in batches) {
@@ -425,7 +424,7 @@ class EmployeeInventoryController extends ChangeNotifier {
         quantity: batch.quantity,
         expiryDate: batch.expiryDate,
         supplier: supplier,
-        notes: notes,
+        notes: batch.notes,
       );
       if (result != null) results.add(result);
     }

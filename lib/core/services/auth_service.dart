@@ -43,10 +43,10 @@ class AuthService {
         email: email,
         password: password,
       );
-      
+
       if (credential.user != null) {
         await credential.user!.updateDisplayName(displayName);
-        
+
         // As a fallback / default helper, save the user info in Firestore.
         // Since role isn't passed here, we can try to infer it from the email or set 'customer' as default.
         String inferredRole = 'customer';
@@ -55,7 +55,7 @@ class AuthService {
         } else if (email.toLowerCase().contains('employee')) {
           inferredRole = 'employee';
         }
-        
+
         await _firestore.collection('users').doc(credential.user!.uid).set({
           'uid': credential.user!.uid,
           'email': email,
