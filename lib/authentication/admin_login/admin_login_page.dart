@@ -3,6 +3,7 @@ import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/custom_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../users/admin/admin_dashboard.dart';
+import '../../core/services/auth_service.dart';
 
 class AdminLoginPage extends StatefulWidget {
   const AdminLoginPage({super.key});
@@ -16,6 +17,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
   final _passwordController = TextEditingController();
   String? _adminIdError;
   String? _passwordError;
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -24,37 +26,80 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     super.dispose();
   }
 
-  void _handleLogin() {
+  void _handleLogin() async {
     setState(() {
       _adminIdError = null;
       _passwordError = null;
+      _isLoading = true;
     });
 
-    final adminId = _adminIdController.text.trim();
+    final email = _adminIdController.text.trim();
     final password = _passwordController.text;
 
-    if (adminId.isEmpty) {
-      setState(() => _adminIdError = 'Please enter admin ID');
+    if (email.isEmpty) {
+      setState(() => _adminIdError = 'Please enter your email');
+      _isLoading = false;
       return;
     }
 
     if (password.isEmpty) {
-      setState(() => _passwordError = 'Please enter password');
+      setState(() => _passwordError = 'Please enter your password');
+      _isLoading = false;
       return;
     }
 
-    // Frontend-only authentication for Owner Admin
-    if (adminId == 'nicomaglente06@gmail.com' && password == 'Nico12') {
+    // Attempt sign in with Firebase Auth
+    final errorMessage = await AuthService().signInWithEmailPassword(
+      email: email,
+      password: password,
+    );
+
+    // Hide loading indicator
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+
+    if (errorMessage != null) {
+      // Show error message
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+      }
+      return;
+    }
+
+    // Sign in successful - check if user has admin/owner role
+    final user = AuthService().currentUser;
+    if (user == null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Authentication failed')),
+        );
+      }
+      return;
+    }
+
+    // Check if user has admin/owner role using custom claims
+    final hasAdminRole = await AuthService().hasRole('owner');
+    if (!hasAdminRole) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Access denied. Owner role required.')),
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const AdminDashboard()),
       );
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Invalid admin credentials')),
-      );
     }
   }
+
+  VoidCallback get _loginPressed => () { _handleLogin(); };
 
   @override
   Widget build(BuildContext context) {
@@ -151,7 +196,8 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
               const SizedBox(height: 32),
               PrimaryButton(
                 label: 'Login as Admin',
-                onPressed: _handleLogin,
+                onPressed: _loginPressed,
+                isLoading: _isLoading,
               ),
               const SizedBox(height: 20),
               const Center(

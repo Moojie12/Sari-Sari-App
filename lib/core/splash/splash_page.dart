@@ -18,7 +18,7 @@ class _SplashPageState extends State<SplashPage> {
     _navigateToHome();
   }
 
-  _navigateToHome() async {
+  Future<void> _navigateToHome() async {
     await Future.delayed(const Duration(seconds: 3));
     if (!mounted) return;
     

@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../models/admin_models.dart';
 
 // ==================== TABLE PRIMITIVES ====================
 
@@ -360,7 +359,7 @@ Widget card({
                 ],
               ),
             ),
-            if (trailing != null) trailing,
+            if (trailing != null) ...[trailing],
           ],
         ),
         const SizedBox(height: 18),

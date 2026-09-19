@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/custom_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
-import 'otp_verification_page.dart';
+import '../../core/services/auth_service.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -14,12 +14,53 @@ class ForgotPasswordPage extends StatefulWidget {
 
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final TextEditingController _emailController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
     _emailController.dispose();
     super.dispose();
   }
+
+  Future<void> _sendPasswordReset() async {
+    final email = _emailController.text.trim();
+
+    if (email.isEmpty) {
+      setState(() {});
+      return;
+    }
+
+    if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
+      setState(() {});
+      return;
+    }
+
+    setState(() => _isLoading = true);
+
+    final errorMessage = await AuthService().sendPasswordResetEmail(email);
+
+    setState(() => _isLoading = false);
+
+    if (errorMessage != null) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(errorMessage)),
+        );
+      }
+      return;
+    }
+
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Password reset link sent! Please check your email.'),
+          backgroundColor: AppColors.primaryOrange,
+        ),
+      );
+    }
+  }
+
+  VoidCallback get _sendPressed => () { _sendPasswordReset(); };
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +91,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Enter your email address below and we will send you a 4-digit verification code.',
+                'Enter your email address below and we will send you a password reset link.',
                 style: TextStyle(
                   color: AppColors.secondaryText,
                   fontSize: 14,
@@ -75,35 +116,9 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               ),
               const SizedBox(height: 32),
               PrimaryButton(
-                label: 'Send Code',
-                onPressed: () {
-                  if (_emailController.text.trim().isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Please enter your email address.'),
-                        backgroundColor: Colors.redAccent,
-                      ),
-                    );
-                    return;
-                  }
-
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Verification code sent successfully!'),
-                      backgroundColor: AppColors.primaryOrange,
-                    ),
-                  );
-
-                  // Mag-navigate patungo sa OTP Verification Page dala ang email ng user
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => OtpVerificationPage(
-                        email: _emailController.text.trim(),
-                      ),
-                    ),
-                  );
-                },
+                label: _isLoading ? 'Sending...' : 'Send Reset Link',
+                onPressed: _sendPressed,
+                isLoading: _isLoading,
               ),
               const SizedBox(height: 24),
               Center(
