@@ -361,7 +361,7 @@ Widget card({
                 ],
               ),
             ),
-            if (trailing != null) trailing,
+            if (trailing != null) ...[trailing],
           ],
         ),
         const SizedBox(height: 18),

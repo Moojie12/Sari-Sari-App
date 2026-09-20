@@ -21,7 +21,6 @@ class AdminController extends ChangeNotifier {
   int _userSeq = 0;
   int _productSeq = 0;
   int _categorySeq = 0;
-  int _saleSeq = 0;
   int _logSeq = 0;
 
   // ==================== READ ====================
