@@ -326,6 +326,7 @@ class _QuantityCard extends StatelessWidget {
   const _QuantityCard({
     required this.quantity,
     required this.enabled,
+    required this.enabledQuantity,
     required this.subtotal,
     required this.onDecrement,
     required this.onIncrement,
@@ -333,6 +334,7 @@ class _QuantityCard extends StatelessWidget {
 
   final int quantity;
   final bool enabled;
+  final double enabledQuantity;
   final double subtotal;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;

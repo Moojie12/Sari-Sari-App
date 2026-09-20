@@ -94,7 +94,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
 
     // Check if user has admin/owner role using custom claims
     // TEMPORARILY BYPASSED: Allow access to set up initial accounts
-    const bool hasAdminRole = true; 
     /*
     final hasAdminRole = await AuthService().hasRole('owner');
     if (!hasAdminRole) {
