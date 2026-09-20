@@ -82,6 +82,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       category: ep.category,
       price: ep.currentPrice,
       capital: ep.capital,
+      sellableQuantity: ep.sellableQuantity,
       image: ep.image ?? '',
       availability: availability,
       isOnSale: ep.hasExpiringSoonBatch,

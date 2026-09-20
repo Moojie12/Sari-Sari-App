@@ -37,7 +37,7 @@ class _CustomerProductDetailsPageState
   double get _subtotal => widget.product.price * _quantity;
 
   void _incrementQuantity() {
-    if (_quantity >= 8) return;
+    if (_quantity >= widget.product.sellableQuantity.toInt()) return;
     setState(() => _quantity++);
   }
 
@@ -196,6 +196,7 @@ class _CustomerProductDetailsPageState
               _QuantityCard(
                 quantity: _quantity,
                 enabled: !_isOutOfStock,
+                enabledQuantity: widget.product.sellableQuantity,
                 subtotal: _subtotal,
                 onDecrement: _decrementQuantity,
                 onIncrement: _incrementQuantity,
@@ -338,7 +339,7 @@ class _QuantityCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final atMax = quantity >= 8;
+    final maxAvailable = quantity >= enabledQuantity.toInt();
 
     return Container(
       width: double.infinity,
@@ -386,20 +387,20 @@ class _QuantityCard extends StatelessWidget {
                 ),
                 _QuantityButton(
                   icon: Icons.add,
-                  onPressed: enabled && !atMax ? onIncrement : null,
+                  onPressed: enabled && !maxAvailable ? onIncrement : null,
                 ),
               ],
             ),
           ),
           const SizedBox(height: 10),
           Text(
-            atMax ? 'Maximum quantity reached' : 'Up to 8 per order',
+            maxAvailable ? 'Maximum quantity reached' : 'Only ${enabledQuantity.toInt()} items available',
             style: TextStyle(
-              color: atMax
+              color: maxAvailable
                   ? AppColors.primaryOrange
                   : AppColors.secondaryText.withValues(alpha: 0.7),
               fontSize: 12,
-              fontWeight: atMax ? FontWeight.w600 : FontWeight.normal,
+              fontWeight: maxAvailable ? FontWeight.w600 : FontWeight.normal,
             ),
           ),
           const SizedBox(height: 16),
