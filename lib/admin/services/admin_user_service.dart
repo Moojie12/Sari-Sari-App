@@ -89,7 +89,6 @@ class AdminUserService extends ChangeNotifier {
     required String firstName,
     String middleInitial = '',
     required String surname,
-    required String username,
     required String email,
     required String phone,
     required AdminRole role,
@@ -101,9 +100,6 @@ class AdminUserService extends ChangeNotifier {
       // Basic validation
       if (firstName.trim().isEmpty) return 'Enter the person\'s first name.';
       if (surname.trim().isEmpty) return 'Enter the person\'s surname.';
-      if (username.trim().isEmpty) return 'Enter a username.';
-      if (username.trim().length < 3) return 'Username needs at least 3 characters.';
-      if (username.contains(' ')) return 'Username cannot contain spaces.';
       if (email.trim().isEmpty) return 'Enter an email address.';
       if (!_isValidEmail(email.trim())) return 'That email address doesn\'t look right.';
       if (phone.trim().isEmpty) return 'Enter a mobile number.';
@@ -112,13 +108,6 @@ class AdminUserService extends ChangeNotifier {
       if (password.isEmpty) return 'Enter a password.';
       if (password.length < 6) return 'Password must be at least 6 characters.';
       if (password != confirmPassword) return 'Passwords do not match.';
-
-      // Check if username already exists
-      if (_users.any((u) =>
-          !u.isArchived &&
-          u.username.toLowerCase() == username.trim().toLowerCase())) {
-        return 'That username is already taken.';
-      }
 
       // Check if email already exists
       if (_users.any((u) =>
@@ -152,7 +141,6 @@ class AdminUserService extends ChangeNotifier {
         'role': role.toString().split('.').last, // Convert AdminRole.admin to 'admin'
         'status': status,
         'phone': phone.trim(),
-        'username': username.trim(),
         'firstName': firstName.trim(),
         'middleInitial': middleInitial.trim(),
         'surname': surname.trim(),
@@ -181,7 +169,6 @@ class AdminUserService extends ChangeNotifier {
     required String firstName,
     String middleInitial = '',
     required String surname,
-    required String username,
     required String email,
     required String phone,
     required AdminRole role,
@@ -196,20 +183,10 @@ class AdminUserService extends ChangeNotifier {
       // Basic validation
       if (firstName.trim().isEmpty) return 'Enter the person\'s first name.';
       if (surname.trim().isEmpty) return 'Enter the person\'s surname.';
-      if (username.trim().isEmpty) return 'Enter a username.';
-      if (username.trim().length < 3) return 'Username needs at least 3 characters.';
-      if (username.contains(' ')) return 'Username cannot contain spaces.';
       if (email.trim().isEmpty) return 'Enter an email address.';
       if (!_isValidEmail(email.trim())) return 'That email address doesn\'t look right.';
       if (phone.trim().isEmpty) return 'Enter a mobile number.';
       if (!_isValidPhone(phone.trim())) return 'Enter a valid mobile number (7–15 digits).';
-
-      // Check if username already exists (excluding current user)
-      final usernameTaken = _users.any((u) =>
-          u.id != id &&
-          !u.isArchived &&
-          u.username.toLowerCase() == username.trim().toLowerCase());
-      if (usernameTaken) return 'That username is already taken.';
 
       // Check if email already exists (excluding current user)
       final emailTaken = _users.any((u) =>
@@ -233,7 +210,6 @@ class AdminUserService extends ChangeNotifier {
         'role': role.toString().split('.').last,
         'status': status,
         'phone': phone.trim(),
-        'username': username.trim(),
         'firstName': firstName.trim(),
         'middleInitial': middleInitial.trim(),
         'surname': surname.trim(),
@@ -254,7 +230,6 @@ class AdminUserService extends ChangeNotifier {
         firstName: firstName.trim(),
         middleInitial: middleInitial.trim(),
         surname: surname.trim(),
-        username: username.trim(),
         email: email.trim(),
         phone: phone.trim(),
         role: role,
@@ -320,13 +295,6 @@ class AdminUserService extends ChangeNotifier {
       final user = _users[index];
       if (!user.isArchived) return 'That account is already active.';
 
-      // Check if username is now taken by another active user
-      final usernameTaken = _users.any((u) =>
-          u.id != id &&
-          !u.isArchived &&
-          u.username.toLowerCase() == user.username.toLowerCase());
-      if (usernameTaken) return 'Someone else now uses the username "${user.username}". Rename one of them first.';
-
       // Update in Supabase
       final userData = {
         'isArchived': false,
@@ -354,7 +322,7 @@ class AdminUserService extends ChangeNotifier {
 
   Future<String?> permanentlyDeleteUser(String id) async {
     try {
-      final user = userById(id);
+      final user = maybeUserById(id);
       if (user == null) return 'That account no longer exists.';
       if (!user.isArchived) return 'Archive the account before deleting it.';
 
@@ -418,7 +386,6 @@ class AdminUserService extends ChangeNotifier {
       firstName: data['first_name'] as String? ?? data['firstName'] as String? ?? '',
       middleInitial: data['middle_initial'] as String? ?? data['middleInitial'] as String? ?? '',
       surname: data['surname'] as String? ?? '',
-      username: data['username'] as String? ?? '',
       email: data['email'] as String? ?? '',
       phone: data['phone'] as String? ?? '',
       role: role,

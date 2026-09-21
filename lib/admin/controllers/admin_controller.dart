@@ -239,7 +239,6 @@ class AdminController extends ChangeNotifier {
   String? _validateUserFields({
     required String firstName,
     required String surname,
-    required String username,
     required String email,
     required String phone,
     String? password,
@@ -248,9 +247,6 @@ class AdminController extends ChangeNotifier {
   }) {
     if (firstName.trim().isEmpty) return 'Enter the person\'s first name.';
     if (surname.trim().isEmpty) return 'Enter the person\'s surname.';
-    if (username.trim().isEmpty) return 'Enter a username.';
-    if (username.trim().length < 3) return 'Username needs at least 3 characters.';
-    if (username.contains(' ')) return 'Username cannot contain spaces.';
     if (email.trim().isEmpty) return 'Enter an email address.';
     if (!_emailPattern.hasMatch(email.trim())) return 'That email address doesn\'t look right.';
     if (phone.trim().isEmpty) return 'Enter a mobile number.';
@@ -261,11 +257,6 @@ class AdminController extends ChangeNotifier {
       if (password.length < 6) return 'Password must be at least 6 characters.';
       if (password != confirmPassword) return 'Passwords do not match.';
     }
-
-    final takenUsername = _users.any((u) =>
-    u.id != excludeId &&
-        u.username.toLowerCase() == username.trim().toLowerCase());
-    if (takenUsername) return 'That username is already taken.';
 
     final takenEmail = _users.any((u) =>
     u.id != excludeId &&
@@ -333,7 +324,6 @@ class AdminController extends ChangeNotifier {
     required String firstName,
     String middleInitial = '',
     required String surname,
-    required String username,
     required String email,
     required String phone,
     required String password,
@@ -344,7 +334,6 @@ class AdminController extends ChangeNotifier {
     final error = _validateUserFields(
       firstName: firstName,
       surname: surname,
-      username: username,
       email: email,
       phone: phone,
       password: password,
@@ -357,7 +346,6 @@ class AdminController extends ChangeNotifier {
       firstName: firstName.trim(),
       middleInitial: middleInitial.trim(),
       surname: surname.trim(),
-      username: username.trim(),
       email: email.trim(),
       phone: phone.trim(),
       password: password,
@@ -378,7 +366,6 @@ class AdminController extends ChangeNotifier {
         required String firstName,
         String middleInitial = '',
         required String surname,
-        required String username,
         required String email,
         required String phone,
         required AdminRole role,
@@ -390,7 +377,6 @@ class AdminController extends ChangeNotifier {
     final error = _validateUserFields(
       firstName: firstName,
       surname: surname,
-      username: username,
       email: email,
       phone: phone,
       excludeId: id,
@@ -410,7 +396,6 @@ class AdminController extends ChangeNotifier {
       firstName: firstName.trim(),
       middleInitial: middleInitial.trim(),
       surname: surname.trim(),
-      username: username.trim(),
       email: email.trim(),
       phone: phone.trim(),
       role: role,
@@ -453,12 +438,6 @@ class AdminController extends ChangeNotifier {
     if (index == -1) return 'That account no longer exists.';
     final user = _users[index];
     if (!user.isArchived) return 'That account is already active.';
-
-    final usernameTaken = _users.any((u) =>
-    u.id != id &&
-        !u.isArchived &&
-        u.username.toLowerCase() == user.username.toLowerCase());
-    if (usernameTaken) return 'Someone else now uses the username "${user.username}". Rename one of them first.';
 
     _users[index] = user.copyWith(
       isArchived: false,
@@ -866,13 +845,12 @@ class AdminController extends ChangeNotifier {
     addCategory('Household', 'Detergent, soap, dishwashing liquid', 220);
     addCategory('Frozen goods', 'Discontinued — no freezer since March', 200, archived: true);
 
-    void addUser(String fName, String mi, String sName, String username, String email, String phone, AdminRole role, int daysAgo, {String status = 'Enabled', bool archived = false}) {
+    void addUser(String fName, String mi, String sName, String email, String phone, AdminRole role, int daysAgo, {String status = 'Enabled', bool archived = false}) {
       _users.add(AdminUser(
         id: _nextUserId(),
         firstName: fName,
         middleInitial: mi,
         surname: sName,
-        username: username,
         email: email,
         phone: phone,
         role: role,
@@ -886,17 +864,17 @@ class AdminController extends ChangeNotifier {
       ));
     }
 
-    addUser('Nico', '', 'Maglente', 'nico.m', 'nico@sarisarihub.ph', '0917 555 0100', AdminRole.admin, 365);
-    addUser('Maria', '', 'Santos', 'maria.santos', 'maria@sarisarihub.ph', '0917 555 0101', AdminRole.owner, 240);
-    addUser('Jun', '', 'Dela Cruz', 'jun.dc', 'jun@sarisarihub.ph', '0918 555 0142', AdminRole.employee, 180);
-    addUser('Aileen', '', 'Reyes', 'aileen.r', 'aileen@sarisarihub.ph', '0927 555 0177', AdminRole.employee, 120);
-    addUser('Noel', '', 'Bautista', 'noel.b', 'noel@sarisarihub.ph', '0916 555 0188', AdminRole.employee, 95, status: 'Disabled');
-    addUser('Rosa', '', 'Lim', 'rosa.lim', 'rosa.lim@gmail.com', '0905 555 0211', AdminRole.customer, 88);
-    addUser('Ernesto', '', 'Villa', 'ernie.v', 'ernesto.villa@gmail.com', '0939 555 0250', AdminRole.customer, 62);
-    addUser('Grace', '', 'Ocampo', 'grace.o', 'grace.ocampo@yahoo.com', '0921 555 0299', AdminRole.customer, 40);
-    addUser('Ricky', '', 'Tan', 'ricky.tan', 'ricky.tan@gmail.com', '0908 555 0303', AdminRole.customer, 30);
-    addUser('Delia', '', 'Mercado', 'delia.m', 'delia.mercado@gmail.com', '0919 555 0344', AdminRole.customer, 150, archived: true);
-    addUser('Boy', '', 'Fernandez', 'boy.f', 'boy.fernandez@gmail.com', '0947 555 0361', AdminRole.employee, 210, archived: true);
+    addUser('Nico', '', 'Maglente', 'nico@sarisarihub.ph', '0917 555 0100', AdminRole.admin, 365);
+    addUser('Maria', '', 'Santos', 'maria@sarisarihub.ph', '0917 555 0101', AdminRole.owner, 240);
+    addUser('Jun', '', 'Dela Cruz', 'jun@sarisarihub.ph', '0918 555 0142', AdminRole.employee, 180);
+    addUser('Aileen', '', 'Reyes', 'aileen@sarisarihub.ph', '0927 555 0177', AdminRole.employee, 120);
+    addUser('Noel', '', 'Bautista', 'noel@sarisarihub.ph', '0916 555 0188', AdminRole.employee, 95, status: 'Disabled');
+    addUser('Rosa', '', 'Lim', 'rosa.lim@gmail.com', '0905 555 0211', AdminRole.customer, 88);
+    addUser('Ernesto', '', 'Villa', 'ernesto.villa@gmail.com', '0939 555 0250', AdminRole.customer, 62);
+    addUser('Grace', '', 'Ocampo', 'grace.ocampo@yahoo.com', '0921 555 0299', AdminRole.customer, 40);
+    addUser('Ricky', '', 'Tan', 'ricky.tan@gmail.com', '0908 555 0303', AdminRole.customer, 30);
+    addUser('Delia', '', 'Mercado', 'delia.mercado@gmail.com', '0919 555 0344', AdminRole.customer, 150, archived: true);
+    addUser('Boy', '', 'Fernandez', 'boy.fernandez@gmail.com', '0947 555 0361', AdminRole.employee, 210, archived: true);
 
     void addProduct(String name, String categoryId, String description, double price, double cost, double quantity, String unit, String barcode, {int? expiresInDays, double threshold = kDefaultLowStockThreshold, bool archived = false}) {
       final category = categoryById(categoryId)!;

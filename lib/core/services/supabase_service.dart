@@ -923,11 +923,10 @@ class SupabaseService {
     try {
       // Map camelCase fields to snake_case to match profiles table schema
       final mappedUpdates = <String, dynamic>{};
-      
+
       if (updates.containsKey('firstName')) mappedUpdates['first_name'] = updates['firstName'];
       if (updates.containsKey('middleInitial')) mappedUpdates['middle_initial'] = updates['middleInitial'];
       if (updates.containsKey('surname')) mappedUpdates['surname'] = updates['surname'];
-      if (updates.containsKey('username')) mappedUpdates['username'] = updates['username'];
       if (updates.containsKey('email')) mappedUpdates['email'] = updates['email'];
       if (updates.containsKey('phone')) mappedUpdates['phone'] = updates['phone'];
       if (updates.containsKey('role')) mappedUpdates['role'] = updates['role'];
@@ -939,8 +938,8 @@ class SupabaseService {
 
       // Always ensure firebase_uid is set if it's a new record
       mappedUpdates['firebase_uid'] = firebaseUid;
-      
-      // Remove 'id' if it's in the updates to avoid UUID conversion errors 
+
+      // Remove 'id' if it's in the updates to avoid UUID conversion errors
       // with the Firebase UID. Supabase will manage the UUID 'id' column.
       mappedUpdates.remove('id');
 

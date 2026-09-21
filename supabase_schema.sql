@@ -13,7 +13,6 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   first_name text NOT NULL,
   middle_initial text DEFAULT ''::text,
   surname text NOT NULL,
-  username text NOT NULL UNIQUE,
   email text NOT NULL UNIQUE,
   phone text,
   role text NOT NULL CHECK (role = ANY (ARRAY['admin'::text, 'owner'::text, 'employee'::text, 'customer'::text])),

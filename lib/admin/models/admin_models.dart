@@ -142,7 +142,6 @@ class AdminUser {
     required this.firstName,
     required this.middleInitial,
     required this.surname,
-    required this.username,
     required this.email,
     required this.phone,
     required this.role,
@@ -159,7 +158,6 @@ class AdminUser {
   final String firstName;
   final String middleInitial;
   final String surname;
-  final String username;
   final String email;
   final String phone;
   final AdminRole role;
@@ -184,7 +182,6 @@ class AdminUser {
     String? firstName,
     String? middleInitial,
     String? surname,
-    String? username,
     String? email,
     String? phone,
     AdminRole? role,
@@ -201,7 +198,6 @@ class AdminUser {
       firstName: firstName ?? this.firstName,
       middleInitial: middleInitial ?? this.middleInitial,
       surname: surname ?? this.surname,
-      username: username ?? this.username,
       email: email ?? this.email,
       phone: phone ?? this.phone,
       role: role ?? this.role,

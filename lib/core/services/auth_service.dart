@@ -41,8 +41,8 @@ class AuthService {
               'email': firebaseUser.email,
               'displayName': firebaseUser.displayName,
               'firstName': firebaseUser.displayName?.split(' ').first ?? '',
-              'surname': (firebaseUser.displayName?.split(' ').length ?? 0) > 1 
-                  ? firebaseUser.displayName!.split(' ').last 
+              'surname': (firebaseUser.displayName?.split(' ').length ?? 0) > 1
+                  ? firebaseUser.displayName!.split(' ').last
                   : '',
             },
           );

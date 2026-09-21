@@ -51,7 +51,6 @@ class _UsersSectionState extends State<UsersSection> {
       final matchesQuery = query.isEmpty ||
           u.fullName.toLowerCase().contains(query) ||
           u.email.toLowerCase().contains(query) ||
-          u.username.toLowerCase().contains(query) ||
           u.phone.contains(query);
       final matchesRole =
           _userRoleFilter == 'All roles' || u.role.label == _userRoleFilter;
@@ -225,27 +224,14 @@ class _UsersSectionState extends State<UsersSection> {
                     ),
                     const SizedBox(width: 12),
                     Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            user.fullName,
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.darkText,
-                              fontSize: 13.5,
-                            ),
-                          ),
-                          Text(
-                            '@${user.username}',
-                            overflow: TextOverflow.ellipsis,
-                            style: const TextStyle(
-                              fontSize: 11.5,
-                              color: AppColors.placeholderColor,
-                            ),
-                          ),
-                        ],
+                      child: Text(
+                        user.fullName,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.darkText,
+                          fontSize: 13.5,
+                        ),
                       ),
                     ),
                   ],

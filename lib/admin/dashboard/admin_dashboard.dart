@@ -89,7 +89,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
     final _middleInitialController = TextEditingController(text: user?.middleInitial ?? '');
     final _surnameController = TextEditingController(text: user?.surname ?? '');
     final _emailController = TextEditingController(text: user?.email ?? '');
-    final _usernameController = TextEditingController(text: user?.username ?? '');
     final _phoneController = TextEditingController(text: user?.phone ?? '');
     final _passwordController = TextEditingController();
     final _confirmPasswordController = TextEditingController();
@@ -152,14 +151,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       if (!value.contains('@')) return 'Invalid email';
                       return null;
                     },
-                  ),
-                  TextFormField(
-                    controller: _usernameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Username',
-                      icon: Icon(Icons.alternate_email),
-                    ),
-                    validator: (value) => value == null || value.isEmpty ? 'Required' : null,
                   ),
                   TextFormField(
                     controller: _phoneController,
@@ -233,7 +224,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 final mi = _middleInitialController.text.trim();
                 final surname = _surnameController.text.trim();
                 final email = _emailController.text.trim();
-                final username = _usernameController.text.trim();
                 final phone = _phoneController.text.trim();
 
                 try {
@@ -245,7 +235,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       middleInitial: mi,
                       surname: surname,
                       email: email,
-                      username: username,
                       phone: phone,
                       role: _selectedRole,
                       status: _isEnabled ? 'Enabled' : 'Disabled',
@@ -256,7 +245,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       middleInitial: mi,
                       surname: surname,
                       email: email,
-                      username: username,
                       phone: phone,
                       role: _selectedRole,
                       status: _isEnabled ? 'Enabled' : 'Disabled',

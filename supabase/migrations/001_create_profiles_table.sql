@@ -5,7 +5,6 @@ create table profiles (
   first_name text not null,
   middle_initial text default '',
   surname text not null,
-  username text unique not null,
   email text unique not null,
   phone text,
   role text not null check (role in ('admin', 'owner', 'employee', 'customer')),
