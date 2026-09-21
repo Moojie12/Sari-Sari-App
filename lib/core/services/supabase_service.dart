@@ -8,6 +8,7 @@ class SupabaseService {
   factory SupabaseService() => _instance;
 
   SupabaseClient get _client => Supabase.instance.client;
+  SupabaseClient get client => _client;
 
   // =============================================
   // PRODUCT OPERATIONS
@@ -18,8 +19,8 @@ class SupabaseService {
     try {
       final response = await _client
           .from('products')
-          .select('*, product_batches!left(quantity, expiry_date)');
-      return response;
+          .select('*, product_batches!left(*)');
+      return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       throw Exception('Failed to fetch products: $e');
     }
@@ -70,6 +71,12 @@ class SupabaseService {
         // or we need to ensure the name is what's sent.
         mappedData['category'] = mappedData.remove('category_id');
       }
+
+      // Ensure category exists before inserting product to satisfy foreign key constraint
+      final categoryName = mappedData['category']?.toString();
+      if (categoryName != null && categoryName.trim().isNotEmpty) {
+        await ensureCategoryExists(categoryName.trim());
+      }
       
       final response = await _client
           .from('products')
@@ -94,6 +101,11 @@ class SupabaseService {
       
       if (mappedUpdates.containsKey('category_id')) {
         mappedUpdates['category'] = mappedUpdates.remove('category_id');
+      }
+
+      final categoryName = mappedUpdates['category']?.toString();
+      if (categoryName != null && categoryName.trim().isNotEmpty) {
+        await ensureCategoryExists(categoryName.trim());
       }
 
       final response = await _client
@@ -1132,6 +1144,25 @@ class SupabaseService {
       }
     } catch (e) {
       throw Exception('Failed to check category name existence: $e');
+    }
+  }
+
+  /// Ensures a category exists in the categories table.
+  /// If it doesn't exist, it creates it so foreign key constraints on products table are satisfied.
+  Future<void> ensureCategoryExists(String name) async {
+    final trimmed = name.trim();
+    if (trimmed.isEmpty) return;
+    try {
+      final exists = await categoryNameExists(name: trimmed);
+      if (!exists) {
+        await _client.from('categories').insert({
+          'name': trimmed,
+          'description': '',
+          'is_archived': false,
+        });
+      }
+    } catch (_) {
+      // Ignore if concurrent creation happened
     }
   }
 

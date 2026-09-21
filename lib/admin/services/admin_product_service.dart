@@ -1,20 +1,17 @@
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/admin_models.dart';
 import '../../core/services/supabase_service.dart';
-import '../../core/services/auth_service.dart';
 
 /// Service for handling product operations using Supabase as the data source
 class AdminProductService extends ChangeNotifier {
   AdminProductService({
     SupabaseService? supabaseService,
-    AuthService? authService,
-  }) : _supabaseService = supabaseService ?? SupabaseService(),
-       _authService = authService ?? AuthService() {
+  }) : _supabaseService = supabaseService ?? SupabaseService() {
     initialize();
   }
 
   final SupabaseService _supabaseService;
-  final AuthService _authService;
 
   // Cached data
   List<AdminProduct> _products = [];
@@ -23,6 +20,7 @@ class AdminProductService extends ChangeNotifier {
   bool _isInitialized = false;
   bool _isLoading = false;
   String? _error;
+  RealtimeChannel? _realtimeChannel;
 
   // ==================== GETTERS ====================
 
@@ -62,12 +60,54 @@ class AdminProductService extends ChangeNotifier {
         _loadCategories(),
       ]);
 
-      _isInitialized = true;
+      _subscribeToRealtime();
     } catch (e) {
       _error = e.toString();
     } finally {
+      _isInitialized = true;
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  void _subscribeToRealtime() {
+    if (_realtimeChannel != null) return;
+    try {
+      _realtimeChannel = _supabaseService.client
+          .channel('public:admin_inventory')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'products',
+            callback: (payload) {
+              _loadProducts().then((_) => notifyListeners()).catchError((e) {
+                debugPrint('Realtime product reload failed: $e');
+              });
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'product_batches',
+            callback: (payload) {
+              _loadProducts().then((_) => notifyListeners()).catchError((e) {
+                debugPrint('Realtime batch reload failed: $e');
+              });
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'categories',
+            callback: (payload) {
+              _loadCategories().then((_) => notifyListeners()).catchError((e) {
+                debugPrint('Realtime category reload failed: $e');
+              });
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      debugPrint('Failed to subscribe to Supabase realtime in AdminProductService: $e');
     }
   }
 
@@ -92,7 +132,23 @@ class AdminProductService extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
-    await initialize();
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      await Future.wait([
+        _loadProducts(),
+        _loadCategories(),
+      ]);
+      _subscribeToRealtime();
+      _isInitialized = true;
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   // ==================== PRODUCT OPERATIONS ====================
@@ -252,7 +308,7 @@ class AdminProductService extends ChangeNotifier {
       final product = _products[index];
       if (product.isArchived) return 'That product is already archived.';
 
-      _supabaseService.updateProduct(id, {
+      await _supabaseService.updateProduct(id, {
         'is_archived': true,
         'archived_at': DateTime.now().toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
@@ -286,7 +342,7 @@ class AdminProductService extends ChangeNotifier {
       if (category == null || category.isArchived)
         return 'Its category "${product.categoryName}" is archived.';
 
-      _supabaseService.updateProduct(id, {
+      await _supabaseService.updateProduct(id, {
         'is_archived': false,
         'archived_at': null,
         'updated_at': DateTime.now().toIso8601String(),
@@ -309,15 +365,13 @@ class AdminProductService extends ChangeNotifier {
 
   Future<String?> permanentlyDeleteProduct(String id) async {
     try {
-      final product = productById(id);
-      if (product == null) return 'That product no longer exists.';
+      final index = _products.indexWhere((p) => p.id == id);
+      if (index == -1) return 'That product no longer exists.';
+      final product = _products[index];
 
       if (!product.isArchived) return 'Archive the product before deleting it.';
 
-      // TODO: Check if product appears in sales
-      // For now we'll allow deletion of archived products
-
-      _supabaseService.deleteProduct(id);
+      await _supabaseService.deleteProduct(id);
 
       _products.removeWhere((p) => p.id == id);
       notifyListeners();
@@ -615,5 +669,11 @@ class AdminProductService extends ChangeNotifier {
           : null,
       archivedBy: data['archived_by'] as String?,
     );
+  }
+
+  @override
+  void dispose() {
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
   }
 }

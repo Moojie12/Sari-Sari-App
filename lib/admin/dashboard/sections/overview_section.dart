@@ -33,43 +33,63 @@ class OverviewSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    // Wait for services to initialize
-    if (!productService.isInitialized ||
-        !userService.isInitialized ||
-        !categoryService.isInitialized ||
-        !saleService.isInitialized ||
-        !auditService.isInitialized ||
-        !analyticsService.isInitialized) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: AppColors.primaryOrange,
-        ),
-      );
-    }
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        productService,
+        userService,
+        categoryService,
+        saleService,
+        auditService,
+        analyticsService,
+      ]),
+      builder: (context, _) {
+        final anyLoading = productService.isLoading ||
+            userService.isLoading ||
+            categoryService.isLoading ||
+            saleService.isLoading ||
+            auditService.isLoading ||
+            analyticsService.isLoading;
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        _twoColumn(
-          _buildSalesChartCard(),
-          _buildTopSellersCard(),
-          flexA: 3,
-          flexB: 2,
-        ),
-        const SizedBox(height: 20),
-        _threeColumn([
-          _buildDailySalesCard(),
-          _buildWeeklySalesCard(),
-          _buildMonthlySalesCard(),
-        ]),
-        const SizedBox(height: 20),
-        _twoColumn(
-          _buildLowStockCard(),
-          _buildRecentActivityCard(),
-          flexA: 3,
-          flexB: 2,
-        ),
-      ],
+        final allInitialized = productService.isInitialized &&
+            userService.isInitialized &&
+            categoryService.isInitialized &&
+            saleService.isInitialized &&
+            auditService.isInitialized &&
+            analyticsService.isInitialized;
+
+        if (!allInitialized && anyLoading) {
+          return const Center(
+            child: CircularProgressIndicator(
+              color: AppColors.primaryOrange,
+            ),
+          );
+        }
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _twoColumn(
+              _buildSalesChartCard(),
+              _buildTopSellersCard(),
+              flexA: 3,
+              flexB: 2,
+            ),
+            const SizedBox(height: 20),
+            _threeColumn([
+              _buildDailySalesCard(),
+              _buildWeeklySalesCard(),
+              _buildMonthlySalesCard(),
+            ]),
+            const SizedBox(height: 20),
+            _twoColumn(
+              _buildLowStockCard(),
+              _buildRecentActivityCard(),
+              flexA: 3,
+              flexB: 2,
+            ),
+          ],
+        );
+      },
     );
   }
 

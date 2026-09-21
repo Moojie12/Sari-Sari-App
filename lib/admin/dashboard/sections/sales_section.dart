@@ -57,14 +57,16 @@ class _SalesSectionState extends State<SalesSection> {
 
   @override
   Widget build(BuildContext context) {
-    // Wait for service to initialize
-    if (!widget.saleService.isInitialized) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: AppColors.primaryOrange,
-        ),
-      );
-    }
+    return ListenableBuilder(
+      listenable: widget.saleService,
+      builder: (context, _) {
+        if (!widget.saleService.isInitialized && widget.saleService.isLoading) {
+          return const Center(
+            child: CircularProgressIndicator(
+              color: AppColors.primaryOrange,
+            ),
+          );
+        }
 
     final sales = _filteredSales();
 
@@ -105,6 +107,8 @@ class _SalesSectionState extends State<SalesSection> {
         else
           _buildTable(sales),
       ],
+    );
+      },
     );
   }
 

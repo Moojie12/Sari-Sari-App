@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/admin_models.dart';
 import '../../core/services/supabase_service.dart';
 import '../../core/services/auth_service.dart';
@@ -22,6 +23,7 @@ class AdminCategoryService extends ChangeNotifier {
   bool _isInitialized = false;
   bool _isLoading = false;
   String? _error;
+  RealtimeChannel? _realtimeChannel;
 
   // ==================== GETTERS ====================
 
@@ -48,12 +50,34 @@ class AdminCategoryService extends ChangeNotifier {
 
     try {
       await _loadCategories();
-      _isInitialized = true;
+      _subscribeToRealtime();
     } catch (e) {
       _error = e.toString();
     } finally {
+      _isInitialized = true;
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  void _subscribeToRealtime() {
+    if (_realtimeChannel != null) return;
+    try {
+      _realtimeChannel = _supabaseService.client
+          .channel('public:admin_categories')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'categories',
+            callback: (payload) {
+              _loadCategories().then((_) => notifyListeners()).catchError((e) {
+                debugPrint('Realtime category reload failed: $e');
+              });
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      debugPrint('Failed to subscribe to Supabase realtime in AdminCategoryService: $e');
     }
   }
 
@@ -68,7 +92,20 @@ class AdminCategoryService extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
-    await initialize();
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    try {
+      await _loadCategories();
+      _subscribeToRealtime();
+      _isInitialized = true;
+    } catch (e) {
+      _error = e.toString();
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
   }
 
   // ==================== CATEGORY OPERATIONS ====================
@@ -264,5 +301,11 @@ class AdminCategoryService extends ChangeNotifier {
           : null,
       archivedBy: data['archived_by'] as String?,
     );
+  }
+
+  @override
+  void dispose() {
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
   }
 }

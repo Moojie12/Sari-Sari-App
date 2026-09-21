@@ -191,75 +191,88 @@ class _ArchivedSectionState extends State<ArchivedSection> {
 
   @override
   Widget build(BuildContext context) {
-    // Wait for services to initialize
-    if (!widget.productService.isInitialized ||
-        !widget.userService.isInitialized ||
-        !widget.categoryService.isInitialized) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: AppColors.primaryOrange,
-        ),
-      );
-    }
+    return ListenableBuilder(
+      listenable: Listenable.merge([
+        widget.productService,
+        widget.userService,
+        widget.categoryService,
+      ]),
+      builder: (context, _) {
+        final anyLoading = widget.productService.isLoading ||
+            widget.userService.isLoading ||
+            widget.categoryService.isLoading;
+        final allInitialized = widget.productService.isInitialized &&
+            widget.userService.isInitialized &&
+            widget.categoryService.isInitialized;
 
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        // Defensive check: If the layout hasn't determined a width yet, wait.
-        // This prevents "Cannot hit test a render box with no size" errors.
-        if (constraints.maxWidth <= 0) {
-          return const SizedBox.shrink();
+        if (!allInitialized && anyLoading) {
+          return const Center(
+            child: CircularProgressIndicator(
+              color: AppColors.primaryOrange,
+            ),
+          );
         }
 
-        return DefaultTabController(
-          length: 3,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              toolbar(
-                filters: [
-                  dropdownFilter(
-                    label: 'Type',
-                    value: _archiveTypeFilter,
-                    options: const ['All', 'Products', 'Users', 'Categories'],
-                    onChanged: (value) => setState(() {
-                      _archiveTypeFilter = value;
-                    }),
+        return LayoutBuilder(
+          builder: (context, constraints) {
+            // Defensive check: If the layout hasn't determined a width yet, wait.
+            // This prevents "Cannot hit test a render box with no size" errors.
+            if (constraints.maxWidth <= 0) {
+              return const SizedBox.shrink();
+            }
+
+            return DefaultTabController(
+              length: 3,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  toolbar(
+                    filters: [
+                      dropdownFilter(
+                        label: 'Type',
+                        value: _archiveTypeFilter,
+                        options: const ['All', 'Products', 'Users', 'Categories'],
+                        onChanged: (value) => setState(() {
+                          _archiveTypeFilter = value;
+                        }),
+                      ),
+                    ],
+                    action: primaryButton(
+                      icon: Icons.restore_from_trash,
+                      label: 'Restore All',
+                      onPressed: () {
+                        // TODO: Implement restore all functionality
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  TabBar(
+                    labelColor: AppColors.primaryOrange,
+                    unselectedLabelColor: AppColors.secondaryText,
+                    indicatorColor: AppColors.primaryOrange,
+                    tabs: const [
+                      Tab(text: 'Products'),
+                      Tab(text: 'Users'),
+                      Tab(text: 'Categories'),
+                    ],
+                  ),
+                  const SizedBox(height: 20),
+                  // Use a constrained height for TabBarView inside a Column
+                  // or use Expanded if the parent provides constraints.
+                  SizedBox(
+                    height: 600, // Provide a default height to ensure rendering
+                    child: TabBarView(
+                      children: [
+                        SingleChildScrollView(child: _buildArchivedProductsTab()),
+                        SingleChildScrollView(child: _buildArchivedUsersTab()),
+                        SingleChildScrollView(child: _buildArchivedCategoriesTab()),
+                      ],
+                    ),
                   ),
                 ],
-                action: primaryButton(
-                  icon: Icons.restore_from_trash,
-                  label: 'Restore All',
-                  onPressed: () {
-                    // TODO: Implement restore all functionality
-                  },
-                ),
               ),
-              const SizedBox(height: 10),
-              TabBar(
-                labelColor: AppColors.primaryOrange,
-                unselectedLabelColor: AppColors.secondaryText,
-                indicatorColor: AppColors.primaryOrange,
-                tabs: const [
-                  Tab(text: 'Products'),
-                  Tab(text: 'Users'),
-                  Tab(text: 'Categories'),
-                ],
-              ),
-              const SizedBox(height: 20),
-              // Use a constrained height for TabBarView inside a Column
-              // or use Expanded if the parent provides constraints.
-              SizedBox(
-                height: 600, // Provide a default height to ensure rendering
-                child: TabBarView(
-                  children: [
-                    SingleChildScrollView(child: _buildArchivedProductsTab()),
-                    SingleChildScrollView(child: _buildArchivedUsersTab()),
-                    SingleChildScrollView(child: _buildArchivedCategoriesTab()),
-                  ],
-                ),
-              ),
-            ],
-          ),
+            );
+          },
         );
       },
     );

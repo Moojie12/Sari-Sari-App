@@ -1,19 +1,18 @@
+import 'package:firebase_auth/firebase_auth.dart';
+import 'dart:async';
+// lib/admin/services/admin_user_service.dart
 import 'package:flutter/foundation.dart';
 import '../models/admin_models.dart';
-import '../../core/services/supabase_service.dart';
 import '../../core/services/auth_service.dart';
 
-/// Service for handling user operations using Supabase as the data source
+/// Service for handling user operations using Firebase Realtime Database as the data source
 class AdminUserService extends ChangeNotifier {
   AdminUserService({
-    SupabaseService? supabaseService,
     AuthService? authService,
-  }) : _supabaseService = supabaseService ?? SupabaseService(),
-       _authService = authService ?? AuthService() {
+  }) : _authService = authService ?? AuthService() {
     initialize();
   }
 
-  final SupabaseService _supabaseService;
   final AuthService _authService;
 
   // Cached data
@@ -22,6 +21,7 @@ class AdminUserService extends ChangeNotifier {
   bool _isInitialized = false;
   bool _isLoading = false;
   String? _error;
+  StreamSubscription<User?>? _authSubscription;
 
   // ==================== GETTERS ====================
 
@@ -40,36 +40,128 @@ class AdminUserService extends ChangeNotifier {
   // ==================== INITIALIZATION ====================
 
   Future<void> initialize() async {
-    if (_isInitialized) return;
+    // Listen to auth state changes to reload users when login/logout occurs
+    _authSubscription ??= _authService.authStateChanges.listen((User? user) {
+      debugPrint('[AdminUserService] Auth state changed: user = ${user?.uid ?? 'null'} (${user?.email})');
+      if (user != null) {
+        _loadUsers();
+      } else {
+        _users = [];
+        _isInitialized = true;
+        notifyListeners();
+      }
+    });
+
+    if (_isInitialized && !_isLoading && _users.isNotEmpty) return;
 
     _isLoading = true;
     _error = null;
     notifyListeners();
+    debugPrint('[AdminUserService] Initializing AdminUserService...');
 
     try {
-      await _loadUsers();
-      _isInitialized = true;
+      // Ensure we check current user; if authenticated, load users immediately
+      final currentUser = _authService.currentUser;
+      if (currentUser != null) {
+        debugPrint('[AdminUserService] Current user authenticated: ${currentUser.email}, loading users...');
+        await _loadUsers();
+      } else {
+        // Wait briefly for Firebase Auth to restore session
+        final initialUser = await _authService.authStateChanges.first.timeout(
+          const Duration(seconds: 2),
+          onTimeout: () => null,
+        );
+        if (initialUser != null) {
+          debugPrint('[AdminUserService] Session restored for: ${initialUser.email}, loading users...');
+          await _loadUsers();
+        } else {
+          debugPrint('[AdminUserService] No authenticated user detected yet.');
+          _users = [];
+        }
+      }
     } catch (e) {
       _error = e.toString();
+      debugPrint('[AdminUserService] Failed to initialize AdminUserService: $e');
     } finally {
+      _isInitialized = true;
       _isLoading = false;
       notifyListeners();
     }
   }
 
   Future<void> _loadUsers() async {
+    _isLoading = true;
+    _error = null;
+    notifyListeners();
+
+    final dbUrl = _authService.database.app.options.databaseURL;
+    final projectId = _authService.database.app.options.projectId;
+    final currentUser = _authService.currentUser;
+
+    debugPrint('[AdminUserService._loadUsers] Fetching /users from Firebase RTDB...');
+    debugPrint('[AdminUserService._loadUsers] Firebase project ID: $projectId');
+    debugPrint('[AdminUserService._loadUsers] Firebase database URL: $dbUrl');
+    debugPrint('[AdminUserService._loadUsers] Current user: ${currentUser?.email} (${currentUser?.uid})');
+
     try {
-      // Get all profiles from Supabase
-      final supabaseUsers = await _supabaseService.getAllProfiles();
-      _users = supabaseUsers.map(_fromSupabaseUser).toList();
-    } catch (e) {
+      final snapshot = await _authService.database
+          .ref()
+          .child('users')
+          .get();
+
+      debugPrint('[AdminUserService._loadUsers] snapshot.exists: ${snapshot.exists}');
+
+      if (!snapshot.exists) {
+        _users = [];
+        debugPrint('[AdminUserService._loadUsers] NO USERS FOUND AT PATH:');
+        debugPrint('  - Firebase project: $projectId');
+        debugPrint('  - Firebase database: $dbUrl');
+        debugPrint('  - /users path: ${snapshot.ref.path}');
+        debugPrint('  - snapshot.exists: ${snapshot.exists}');
+        debugPrint('  - snapshot.value: ${snapshot.value}');
+      } else {
+        final rawValue = snapshot.value;
+        debugPrint('[AdminUserService._loadUsers] Tracing Firebase /users -> snapshot.value:');
+        debugPrint('  - Raw snapshot.value type: ${rawValue.runtimeType}');
+
+        final List<AdminUser> parsedUsers = [];
+
+        if (rawValue is Map) {
+          rawValue.forEach((key, val) {
+            final id = key.toString();
+            if (val is Map) {
+              try {
+                final user = _fromFirebaseUser(id, val);
+                parsedUsers.add(user);
+                debugPrint('  -> [_fromFirebaseUser] Parsed user $id: ${user.fullName} | ${user.email} | ${user.role.label} | ${user.status} | isArchived: ${user.isArchived}');
+              } catch (e, stack) {
+                debugPrint('  -> [ERROR] Failed parsing user $id: $e\n$stack');
+              }
+            } else {
+              debugPrint('  -> [SKIP] User entry at $id is not a Map: $val');
+            }
+          });
+        }
+
+        _users = parsedUsers;
+        debugPrint('[AdminUserService._loadUsers] Tracing snapshot.value -> _fromFirebaseUser() -> _users -> allUsers:');
+        debugPrint('  - _users count: ${_users.length}');
+        debugPrint('  - allUsers count: ${allUsers.length}');
+        debugPrint('  - activeUsers count: ${activeUsers.length}');
+        debugPrint('  - archivedUsers count: ${archivedUsers.length}');
+      }
+    } catch (e, stack) {
       _error = 'Failed to load users: $e';
-      rethrow;
+      debugPrint('[AdminUserService._loadUsers] Error loading users: $e\n$stack');
+    } finally {
+      _isLoading = false;
+      _isInitialized = true;
+      notifyListeners();
     }
   }
 
   Future<void> refresh() async {
-    await initialize();
+    await _loadUsers();
   }
 
   // ==================== USER OPERATIONS ====================
@@ -83,7 +175,7 @@ class AdminUserService extends ChangeNotifier {
   }
 
   AdminUser userById(String id) =>
-    _users.firstWhere((u) => u.id == id, orElse: () => throw StateError('User with id $id not found'));
+      _users.firstWhere((u) => u.id == id, orElse: () => throw StateError('User with id $id not found'));
 
   Future<String?> createUser({
     required String firstName,
@@ -98,10 +190,10 @@ class AdminUserService extends ChangeNotifier {
   }) async {
     try {
       // Basic validation
-      if (firstName.trim().isEmpty) return 'Enter the person\'s first name.';
-      if (surname.trim().isEmpty) return 'Enter the person\'s surname.';
+      if (firstName.trim().isEmpty) return "Enter the person's first name.";
+      if (surname.trim().isEmpty) return "Enter the person's surname.";
       if (email.trim().isEmpty) return 'Enter an email address.';
-      if (!_isValidEmail(email.trim())) return 'That email address doesn\'t look right.';
+      if (!_isValidEmail(email.trim())) return "That email address doesn't look right.";
       if (phone.trim().isEmpty) return 'Enter a mobile number.';
       if (!_isValidPhone(phone.trim())) return 'Enter a valid mobile number (7–15 digits).';
 
@@ -109,14 +201,14 @@ class AdminUserService extends ChangeNotifier {
       if (password.length < 6) return 'Password must be at least 6 characters.';
       if (password != confirmPassword) return 'Passwords do not match.';
 
-      // Check if email already exists
+      // Check if email already exists (in active users)
       if (_users.any((u) =>
           !u.isArchived &&
           u.email.toLowerCase() == email.trim().toLowerCase())) {
         return 'That email is already registered.';
       }
 
-      // Create user in Firebase Auth first
+      // Create user in Firebase Auth
       final authResult = await _authService.createAccountWithEmailPassword(
         email: email.trim(),
         password: password,
@@ -133,26 +225,24 @@ class AdminUserService extends ChangeNotifier {
         return 'Failed to get current user after creation.';
       }
 
-      // Prepare user data for Supabase
+      // Prepare user data for Firebase Realtime Database
       final userData = {
-        'id': firebaseUser.uid,
+        'uid': firebaseUser.uid,
         'email': email.trim(),
         'displayName': '$firstName ${middleInitial.isNotEmpty ? '$middleInitial. ' : ''}$surname'.trim(),
-        'role': role.toString().split('.').last, // Convert AdminRole.admin to 'admin'
-        'status': status,
-        'phone': phone.trim(),
         'firstName': firstName.trim(),
         'middleInitial': middleInitial.trim(),
         'surname': surname.trim(),
-        'createdAt': DateTime.now().toIso8601String(),
-        'updatedAt': DateTime.now().toIso8601String(),
+        'phone': phone.trim(),
+        'role': role.toString().split('.').last, // Convert AdminRole.admin to 'admin'
+        'status': status,
         'isArchived': false,
+        'createdAt': DateTime.now().millisecondsSinceEpoch,
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
       };
 
-      // Create/update profile in Supabase
-      await _supabaseService.updateUserProfile(firebaseUser.uid, userData);
-
-      // Also update Firebase Realtime Database for role sync (handled by AuthService)
+      // Create profile in Firebase Realtime Database
+      await _authService.database.ref().child('users/${firebaseUser.uid}').set(userData);
 
       // Reload users to get the newly created user
       await _loadUsers();
@@ -181,10 +271,10 @@ class AdminUserService extends ChangeNotifier {
       final existing = _users[index];
 
       // Basic validation
-      if (firstName.trim().isEmpty) return 'Enter the person\'s first name.';
-      if (surname.trim().isEmpty) return 'Enter the person\'s surname.';
+      if (firstName.trim().isEmpty) return "Enter the person's first name.";
+      if (surname.trim().isEmpty) return "Enter the person's surname.";
       if (email.trim().isEmpty) return 'Enter an email address.';
-      if (!_isValidEmail(email.trim())) return 'That email address doesn\'t look right.';
+      if (!_isValidEmail(email.trim())) return "That email address doesn't look right.";
       if (phone.trim().isEmpty) return 'Enter a mobile number.';
       if (!_isValidPhone(phone.trim())) return 'Enter a valid mobile number (7–15 digits).';
 
@@ -205,25 +295,18 @@ class AdminUserService extends ChangeNotifier {
 
       // Prepare update data
       final userData = {
-        'email': email.trim(),
-        'displayName': '$firstName ${middleInitial.isNotEmpty ? '$middleInitial. ' : ''}$surname'.trim(),
-        'role': role.toString().split('.').last,
-        'status': status,
-        'phone': phone.trim(),
         'firstName': firstName.trim(),
         'middleInitial': middleInitial.trim(),
         'surname': surname.trim(),
-        'updatedAt': DateTime.now().toIso8601String(),
+        'email': email.trim(),
+        'phone': phone.trim(),
+        'role': role.toString().split('.').last,
+        'status': status,
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
       };
 
-      // Update Firebase Auth display name
-      final firebaseUser = _authService.currentUser;
-      if (firebaseUser != null && firebaseUser.uid == id) {
-        await firebaseUser.updateDisplayName(userData['displayName'] as String);
-      }
-
-      // Update profile in Supabase
-      await _supabaseService.updateUserProfile(id, userData);
+      // Update profile in Firebase Realtime Database
+      await _authService.database.ref().child('users/$id').update(userData);
 
       // Update local cache
       final updatedUser = existing.copyWith(
@@ -258,17 +341,17 @@ class AdminUserService extends ChangeNotifier {
         final remainingOwners = activeUsers
             .where((u) => u.role == AdminRole.owner && u.id != id)
             .length;
-        if (remainingOwners == 0) return 'You can\'t archive the only owner account.';
+        if (remainingOwners == 0) return "You can't archive the only owner account.";
       }
 
-      // Update in Supabase
-      final userData = {
+      // Update in Firebase Realtime Database
+      await _authService.database.ref().child('users/$id').update({
         'isArchived': true,
-        'archivedAt': DateTime.now().toIso8601String(),
-        'updatedAt': DateTime.now().toIso8601String(),
-      };
-
-      await _supabaseService.updateUserProfile(id, userData);
+        'archivedAt': DateTime.now().millisecondsSinceEpoch,
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+        // Optionally store who archived it? We don't have current user id here easily.
+        // We could get it from authService.currentUser?.uid, but let's skip for now.
+      });
 
       // Update local cache
       final updatedUser = user.copyWith(
@@ -295,14 +378,12 @@ class AdminUserService extends ChangeNotifier {
       final user = _users[index];
       if (!user.isArchived) return 'That account is already active.';
 
-      // Update in Supabase
-      final userData = {
+      // Update in Firebase Realtime Database
+      await _authService.database.ref().child('users/$id').update({
         'isArchived': false,
         'archivedAt': null,
-        'updatedAt': DateTime.now().toIso8601String(),
-      };
-
-      await _supabaseService.updateUserProfile(id, userData);
+        'updatedAt': DateTime.now().millisecondsSinceEpoch,
+      });
 
       // Update local cache
       final updatedUser = user.copyWith(
@@ -326,11 +407,13 @@ class AdminUserService extends ChangeNotifier {
       if (user == null) return 'That account no longer exists.';
       if (!user.isArchived) return 'Archive the account before deleting it.';
 
-      // TODO: Check if user is attached to past sales
-      // For now we'll allow deletion of archived users
+      // Delete from Firebase Realtime Database
+      await _authService.database.ref().child('users/$id').remove();
 
-      // Delete from Supabase
-      await _supabaseService.deleteUserProfile(id);
+      // TODO: Optionally delete the Firebase Auth user? 
+      // For now, we only delete the profile. The Auth user remains but without a profile.
+      // If you want to delete the Auth user as well, you can call:
+      // await _authService.deleteAuthUser(id); // but we don't have that method.
 
       // Remove from local cache
       _users.removeWhere((u) => u.id == id);
@@ -345,63 +428,124 @@ class AdminUserService extends ChangeNotifier {
   // ==================== HELPER METHODS ====================
 
   bool _isValidEmail(String email) {
-    final emailRegExp = RegExp(r'^[\w.+-]+@[\w-]+(\.[\w-]+)+$');
+    final emailRegExp = RegExp(r'^[\\w.+-]+@[\\w-]+(\\.[\\w-]+)+$');
     return emailRegExp.hasMatch(email);
   }
 
   bool _isValidPhone(String phone) {
-    final phoneRegExp = RegExp(r'^[0-9+\-\s()]{7,15}$');
+    final phoneRegExp = RegExp(r'^[0-9+\\-\\s()]{7,15}$');
     return phoneRegExp.hasMatch(phone);
   }
 
   // ==================== DATA TRANSFORMATION ====================
 
-  AdminUser _fromSupabaseUser(Map<String, dynamic> data) {
-    // Parse role from string
-    AdminRole role = AdminRole.customer; // default
-    try {
-      final roleString = data['role'] as String? ?? 'customer';
-      switch (roleString.toLowerCase()) {
-        case 'admin':
-          role = AdminRole.admin;
-          break;
-        case 'owner':
-          role = AdminRole.owner;
-          break;
-        case 'employee':
-          role = AdminRole.employee;
-          break;
-        case 'customer':
-          role = AdminRole.customer;
-          break;
-        default:
-          role = AdminRole.customer;
-      }
-    } catch (e) {
-      role = AdminRole.customer;
+  AdminUser _fromFirebaseUser(String id, Map<dynamic, dynamic> data) {
+    debugPrint('[AdminUserService._fromFirebaseUser] Parsing user $id with keys: ${data.keys.toList()}');
+
+    // 1. Role parsing
+    AdminRole role = AdminRole.customer;
+    final roleString = data['role']?.toString().toLowerCase().trim() ?? 'customer';
+    switch (roleString) {
+      case 'admin':
+        role = AdminRole.admin;
+        break;
+      case 'owner':
+        role = AdminRole.owner;
+        break;
+      case 'employee':
+        role = AdminRole.employee;
+        break;
+      case 'customer':
+      default:
+        role = AdminRole.customer;
+        break;
     }
 
-    return AdminUser(
-      id: data['firebase_uid'] as String? ?? data['id'] as String,
-      firstName: data['first_name'] as String? ?? data['firstName'] as String? ?? '',
-      middleInitial: data['middle_initial'] as String? ?? data['middleInitial'] as String? ?? '',
-      surname: data['surname'] as String? ?? '',
-      email: data['email'] as String? ?? '',
-      phone: data['phone'] as String? ?? '',
+    // 2. Names parsing with displayName fallback
+    String firstName = data['firstName']?.toString().trim() ?? '';
+    String middleInitial = data['middleInitial']?.toString().trim() ?? '';
+    String surname = data['surname']?.toString().trim() ?? '';
+
+    if (firstName.isEmpty && surname.isEmpty) {
+      final displayName = data['displayName']?.toString().trim() ?? '';
+      if (displayName.isNotEmpty) {
+        final parts = displayName.split(RegExp(r'\s+'));
+        if (parts.length == 1) {
+          firstName = parts[0];
+        } else if (parts.length == 2) {
+          firstName = parts[0];
+          surname = parts[1];
+        } else {
+          firstName = parts[0];
+          if (parts[1].endsWith('.') || parts[1].length <= 2) {
+            middleInitial = parts[1].replaceAll('.', '');
+            surname = parts.sublist(2).join(' ');
+          } else {
+            surname = parts.sublist(1).join(' ');
+          }
+        }
+      } else {
+        final email = data['email']?.toString().trim() ?? '';
+        final username = data['username']?.toString().trim() ?? '';
+        if (username.isNotEmpty) {
+          firstName = username;
+        } else if (email.contains('@')) {
+          firstName = email.split('@').first;
+        } else {
+          firstName = 'User';
+        }
+      }
+    }
+
+    final email = data['email']?.toString().trim() ?? '';
+    final phone = data['phone']?.toString().trim() ?? '';
+    final status = data['status']?.toString().trim() ?? 'Enabled';
+
+    final createdAt = _parseDateTime(data['createdAt'] ?? data['created_at']);
+    final updatedAt = _parseDateTime(data['updatedAt'] ?? data['updated_at']);
+
+    final isArchived = (data['isArchived'] as bool?) ??
+        (data['is_archived'] as bool?) ??
+        false;
+    final archivedAt = _parseDateTime(data['archivedAt'] ?? data['archived_at']);
+    final archivedBy = data['archivedBy']?.toString() ?? data['archived_by']?.toString();
+
+    final user = AdminUser(
+      id: id,
+      firstName: firstName,
+      middleInitial: middleInitial,
+      surname: surname,
+      email: email,
+      phone: phone,
       role: role,
-      status: data['status'] as String? ?? 'Enabled',
-      password: data['password'] as String?,
-      createdAt: data['created_at'] != null
-          ? DateTime.parse(data['created_at'] as String)
-          : null,
-      updatedAt: data['updated_at'] != null
-          ? DateTime.parse(data['updated_at'] as String)
-          : null,
-      isArchived: (data['is_archived'] ?? data['isArchived']) as bool? ?? false,
-      archivedAt: (data['archived_at'] ?? data['archivedAt']) != null
-          ? DateTime.parse((data['archived_at'] ?? data['archivedAt']) as String)
-          : null,
-      archivedBy: (data['archived_by'] ?? data['archivedBy']) as String?,
+      status: status,
+      password: null,
+      createdAt: createdAt,
+      updatedAt: updatedAt,
+      isArchived: isArchived,
+      archivedAt: archivedAt,
+      archivedBy: archivedBy,
     );
+    debugPrint('[AdminUserService._fromFirebaseUser] Successfully parsed user $id: ${user.fullName} (${user.email})');
+    return user;
+  }
+
+  DateTime? _parseDateTime(dynamic val) {
+    if (val == null) return null;
+    if (val is int) return DateTime.fromMillisecondsSinceEpoch(val);
+    if (val is num) return DateTime.fromMillisecondsSinceEpoch(val.toInt());
+    if (val is String) {
+      final asInt = int.tryParse(val);
+      if (asInt != null) return DateTime.fromMillisecondsSinceEpoch(asInt);
+      return DateTime.tryParse(val);
+    }
+    return null;
+  }
+
+  @override
+  void dispose() {
+    _authSubscription?.cancel();
+    _authSubscription = null;
+    super.dispose();
   }
 }

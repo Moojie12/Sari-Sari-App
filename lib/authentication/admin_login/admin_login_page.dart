@@ -48,18 +48,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       return;
     }
 
-    // --- HARDCODED ADMIN BYPASS ---
-    if (email == 'admin@eca.com' && password == 'admin123') {
-      if (mounted) {
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const AdminDashboard()),
-        );
-      }
-      return;
-    }
-    // ------------------------------
-
     // Attempt sign in with Firebase Auth
     final errorMessage = await AuthService().signInWithEmailPassword(
       email: email,

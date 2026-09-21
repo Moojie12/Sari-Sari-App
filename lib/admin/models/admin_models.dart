@@ -169,13 +169,23 @@ class AdminUser {
   final DateTime? archivedAt;
   final String? archivedBy;
 
-  String get fullName => '$firstName ${middleInitial.isNotEmpty ? '$middleInitial. ' : ''}$surname'.trim();
+  String get fullName {
+    final name = '$firstName ${middleInitial.isNotEmpty ? '$middleInitial. ' : ''}$surname'.trim();
+    if (name.isNotEmpty) return name;
+    if (email.contains('@')) return email.split('@').first;
+    return 'User';
+  }
 
   bool get isActive => status == 'Enabled';
 
   String get initials {
-    if (firstName.isEmpty || surname.isEmpty) return '?';
-    return (firstName[0] + surname[0]).toUpperCase();
+    if (firstName.isNotEmpty && surname.isNotEmpty) {
+      return (firstName[0] + surname[0]).toUpperCase();
+    }
+    if (firstName.isNotEmpty) return firstName[0].toUpperCase();
+    if (surname.isNotEmpty) return surname[0].toUpperCase();
+    if (email.isNotEmpty) return email[0].toUpperCase();
+    return '?';
   }
 
   AdminUser copyWith({

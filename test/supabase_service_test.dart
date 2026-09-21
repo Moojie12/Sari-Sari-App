@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:sari_sari/core/services/supabase_service.dart';
 
@@ -12,6 +13,8 @@ void main() {
   late SupabaseService service;
 
   setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
     // Initialize Supabase with mock storage to avoid platform channel errors
     await Supabase.initialize(
       url: 'https://mock.supabase.co',

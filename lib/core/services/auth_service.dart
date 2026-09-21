@@ -1,7 +1,8 @@
 // lib/core/services/auth_service.dart
+import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
-import 'supabase_service.dart';
+import '../../firebase_options.dart';
 
 /// Authentication service using Firebase Auth with Realtime Database integration
 class AuthService {
@@ -10,7 +11,10 @@ class AuthService {
   factory AuthService() => _instance;
 
   final FirebaseAuth _auth = FirebaseAuth.instance;
-  final FirebaseDatabase _database = FirebaseDatabase.instance;
+  late final FirebaseDatabase _database = FirebaseDatabase.instanceFor(
+    app: Firebase.app(),
+    databaseURL: DefaultFirebaseOptions.currentPlatform.databaseURL,
+  );
 
   User? get currentUser => _auth.currentUser;
   Stream<User?> get authStateChanges => _auth.authStateChanges();
@@ -30,30 +34,35 @@ class AuthService {
         password: password,
       );
 
-      // Synchronize user data between Firebase and Supabase after successful sign-in
+      // Sync user data to Realtime Database if missing
       final User? firebaseUser = _auth.currentUser;
       if (firebaseUser != null) {
         try {
-          // Sync Firebase user data to Supabase
-          await SupabaseService().updateUserProfile(
-            firebaseUser.uid,
-            {
+          final snapshot = await _database.ref().child('users/${firebaseUser.uid}').get();
+          if (!snapshot.exists) {
+            // User not in database, create it
+            String inferredRole = 'customer';
+            final emailLower = firebaseUser.email?.toLowerCase() ?? '';
+            if (emailLower.contains('admin')) {
+              inferredRole = 'admin';
+            } else if (emailLower.contains('owner')) {
+              inferredRole = 'owner';
+            } else if (emailLower.contains('employee')) {
+              inferredRole = 'employee';
+            }
+            await _database.ref().child('users/${firebaseUser.uid}').set({
+              'uid': firebaseUser.uid,
               'email': firebaseUser.email,
-              'displayName': firebaseUser.displayName,
-              'firstName': firebaseUser.displayName?.split(' ').first ?? '',
-              'surname': (firebaseUser.displayName?.split(' ').length ?? 0) > 1
-                  ? firebaseUser.displayName!.split(' ').last
-                  : '',
-            },
-          );
-
-          // Sync Supabase profile data to Firebase
-          final supabaseUser = await SupabaseService().getOrCreateUserProfile(firebaseUser.uid);
-          await _database.ref().child('users/${firebaseUser.uid}').set(supabaseUser);
+              'displayName': firebaseUser.displayName ?? (emailLower.contains('admin') ? 'Administrator' : 'User'),
+              'role': inferredRole,
+              'status': 'Enabled',
+              'isArchived': false,
+              'createdAt': ServerValue.timestamp,
+            });
+          }
         } catch (e) {
-          // Log synchronization error but don't fail sign-in
           // ignore: avoid_print
-          print('Warning: Failed to synchronize user data after sign-in: $e');
+          print('Warning: Failed to sync user data to Realtime Database after sign-in: $e');
         }
       }
 
@@ -64,7 +73,6 @@ class AuthService {
       return 'An unexpected error occurred. Please try again.';
     }
   }
-
   /// Create account with email and password
   /// Returns null on success, or error message on failure
   Future<String?> createAccountWithEmailPassword({
@@ -88,7 +96,9 @@ class AuthService {
       // 3. Determine role based on email
       String inferredRole = 'customer';
       final emailLower = email.toLowerCase();
-      if (emailLower.contains('owner')) {
+      if (emailLower.contains('admin')) {
+        inferredRole = 'admin';
+      } else if (emailLower.contains('owner')) {
         inferredRole = 'owner';
       } else if (emailLower.contains('employee')) {
         inferredRole = 'employee';

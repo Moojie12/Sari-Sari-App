@@ -47,15 +47,17 @@ class _UsersSectionState extends State<UsersSection> {
     }
 
     final query = widget.searchQuery.toLowerCase().trim();
-    final list = widget.userService.activeUsers.where((u) {
+    final list = widget.userService.allUsers.where((u) {
       final matchesQuery = query.isEmpty ||
           u.fullName.toLowerCase().contains(query) ||
           u.email.toLowerCase().contains(query) ||
           u.phone.contains(query);
       final matchesRole =
           _userRoleFilter == 'All roles' || u.role.label == _userRoleFilter;
-      final matchesStatus =
-          _userStatusFilter == 'All' || u.status == _userStatusFilter;
+      final matchesStatus = _userStatusFilter == 'All' ||
+          (_userStatusFilter == 'Archived'
+              ? u.isArchived
+              : (!u.isArchived && u.status == _userStatusFilter));
       return matchesQuery && matchesRole && matchesStatus;
     }).toList();
 
@@ -101,18 +103,52 @@ class _UsersSectionState extends State<UsersSection> {
 
   @override
   Widget build(BuildContext context) {
-    // Wait for service to initialize
-    if (!widget.userService.isInitialized) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: AppColors.primaryOrange,
-        ),
-      );
-    }
-
     return ListenableBuilder(
       listenable: widget.userService,
       builder: (context, _) {
+        if (!widget.userService.isInitialized || widget.userService.isLoading) {
+          return const Center(
+            child: CircularProgressIndicator(
+              color: AppColors.primaryOrange,
+            ),
+          );
+        }
+
+        if (widget.userService.error != null && widget.userService.allUsers.isEmpty) {
+          return Center(
+            child: Padding(
+              padding: const EdgeInsets.all(24.0),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.error_outline, color: Colors.red, size: 48),
+                  const SizedBox(height: 12),
+                  Text(
+                    'Failed to load users from Firebase Realtime Database',
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    widget.userService.error!,
+                    style: const TextStyle(color: AppColors.secondaryText),
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 16),
+                  ElevatedButton.icon(
+                    onPressed: () => widget.userService.refresh(),
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryOrange,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          );
+        }
+
         final users = _filteredUsers();
 
         return Column(
@@ -139,7 +175,7 @@ class _UsersSectionState extends State<UsersSection> {
                 dropdownFilter(
                   label: 'State',
                   value: _userStatusFilter,
-                  options: const ['All', 'Enabled', 'Disabled'],
+                  options: const ['All', 'Enabled', 'Disabled', 'Archived'],
                   onChanged: (value) => setState(() {
                     _userStatusFilter = value;
                     widget.onPageChange('users', 1);
@@ -161,7 +197,7 @@ class _UsersSectionState extends State<UsersSection> {
                     : 'No users yet',
                 message: _hasFilters
                     ? 'Try a different role, status or search term.'
-                    : 'Add the owner, your staff and your regular customers here.',
+                    : 'No user accounts found under /users in Firebase Realtime Database.',
                 actionLabel: _hasFilters ? 'Clear filters' : 'Add user',
                 onAction: _hasFilters
                     ? () {
@@ -225,7 +261,7 @@ class _UsersSectionState extends State<UsersSection> {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        user.fullName,
+                        user.fullName.isNotEmpty ? user.fullName : 'Unnamed User',
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
                           fontWeight: FontWeight.w600,
@@ -242,7 +278,7 @@ class _UsersSectionState extends State<UsersSection> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  user.email,
+                  user.email.isNotEmpty ? user.email : '—',
                   overflow: TextOverflow.ellipsis,
                   style: const TextStyle(
                       fontSize: 13, color: AppColors.darkText),
@@ -251,7 +287,7 @@ class _UsersSectionState extends State<UsersSection> {
                 Row(
                   children: [
                     Text(
-                      user.phone,
+                      user.phone.isNotEmpty ? user.phone : 'No phone',
                       style: const TextStyle(
                         fontSize: 11.5,
                         color: AppColors.placeholderColor,
@@ -263,8 +299,10 @@ class _UsersSectionState extends State<UsersSection> {
             )),
             cell(_rolePill(user.role)),
             cell(statusPill(
-              user.status,
-              user.isActive ? Colors.green : AppColors.placeholderColor,
+              user.isArchived ? 'Archived' : user.status,
+              user.isArchived
+                  ? Colors.orange
+                  : (user.isActive ? Colors.green : AppColors.placeholderColor),
             )),
             cell(Text(
               formatDate(user.createdAt),
@@ -272,8 +310,6 @@ class _UsersSectionState extends State<UsersSection> {
                   fontSize: 12.5, color: AppColors.secondaryText),
             )),
             cell(
-              // spaceEvenly gives the three icons even breathing room
-              // instead of sitting flush against each other.
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
@@ -281,8 +317,12 @@ class _UsersSectionState extends State<UsersSection> {
                           () => widget.onShowUserDetail(user)),
                   iconAction(Icons.edit_outlined, 'Edit', Colors.blue,
                           () => widget.onShowUserForm(user)),
-                  iconAction(Icons.archive_outlined, 'Archive', Colors.orange,
-                          () => widget.onArchiveUser(user)),
+                  if (user.isArchived)
+                    iconAction(Icons.unarchive_outlined, 'Restore', Colors.teal,
+                            () => widget.userService.restoreUser(user.id))
+                  else
+                    iconAction(Icons.archive_outlined, 'Archive', Colors.orange,
+                            () => widget.onArchiveUser(user)),
                   iconAction(Icons.delete_outline_rounded, 'Delete', Colors.red,
                           () => widget.onDeleteUser(user)),
                 ],

@@ -29,35 +29,39 @@ class ActivitySection extends StatefulWidget {
 class _ActivitySectionState extends State<ActivitySection> {
   @override
   Widget build(BuildContext context) {
-    // Wait for service to initialize
-    if (!widget.auditService.isInitialized) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: AppColors.primaryOrange,
-        ),
-      );
-    }
+    return ListenableBuilder(
+      listenable: widget.auditService,
+      builder: (context, _) {
+        if (!widget.auditService.isInitialized && widget.auditService.isLoading) {
+          return const Center(
+            child: CircularProgressIndicator(
+              color: AppColors.primaryOrange,
+            ),
+          );
+        }
 
-    final query = widget.searchQuery.toLowerCase().trim();
-    final list = widget.auditService.allAuditLogs.where((log) {
-      return query.isEmpty ||
-          log.entityName.toLowerCase().contains(query) ||
-          log.performedBy.toLowerCase().contains(query) ||
-          log.entityType.toLowerCase().contains(query);
-    }).toList();
+        final query = widget.searchQuery.toLowerCase().trim();
+        final list = widget.auditService.allAuditLogs.where((log) {
+          return query.isEmpty ||
+              log.entityName.toLowerCase().contains(query) ||
+              log.performedBy.toLowerCase().contains(query) ||
+              log.entityType.toLowerCase().contains(query);
+        }).toList();
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        if (list.isEmpty)
-          emptyState(
-            icon: Icons.history,
-            title: 'No activity found',
-            message: 'System logs will appear here as changes are made.',
-          )
-        else
-          _buildTable(list),
-      ],
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            if (list.isEmpty)
+              emptyState(
+                icon: Icons.history,
+                title: 'No activity found',
+                message: 'System logs will appear here as changes are made.',
+              )
+            else
+              _buildTable(list),
+          ],
+        );
+      },
     );
   }
 

@@ -1,4 +1,6 @@
+import 'dart:math';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/services/supabase_service.dart';
 
 import '../../core/expiry/expiry_checker.dart';
@@ -43,21 +45,10 @@ class StockReceivingResult {
 /// lets staff adjust stock manually).
 class EmployeeInventoryController extends ChangeNotifier {
   EmployeeInventoryController._() {
-    // Load initial categories from Supabase
+    // Load initial categories and products from Supabase
     _loadCategories();
-    // Ensure initial dummy data is sorted.
-    for (var i = 0; i < _products.length; i++) {
-      final sortedBatches = List<ProductBatch>.from(_products[i].batches);
-      sortedBatches.sort((a, b) {
-        final aDate = a.expiryDate;
-        final bDate = b.expiryDate;
-        if (aDate == null && bDate == null) return 0;
-        if (aDate == null) return 1;
-        if (bDate == null) return -1;
-        return aDate.compareTo(bDate);
-      });
-      _products[i] = _products[i].copyWith(batches: sortedBatches);
-    }
+    _loadProducts();
+    _subscribeToRealtime();
   }
 
   static final EmployeeInventoryController instance = EmployeeInventoryController._();
@@ -65,10 +56,13 @@ class EmployeeInventoryController extends ChangeNotifier {
   factory EmployeeInventoryController() => instance;
 
   final SupabaseService _supabaseService = SupabaseService();
-  final List<EmployeeProduct> _products = List.of(kEmployeeDummyProducts);
+  final List<EmployeeProduct> _products = [];
   List<String> _categories = []; // Will be populated from Supabase
   bool _categoriesLoading = true;
+  bool _productsLoading = true;
   final List<ArchivedStockItem> _archivedStock = [];
+  final Map<String, Future<void>> _pendingProductSaves = {};
+  RealtimeChannel? _realtimeChannel;
 
   List<EmployeeProduct> get products => List.unmodifiable(_products);
   List<ArchivedStockItem> get archivedStock => List.unmodifiable(_archivedStock);
@@ -77,6 +71,7 @@ class EmployeeInventoryController extends ChangeNotifier {
   List<String> get categories => List.unmodifiable(_categories);
 
   bool get isCategoriesLoading => _categoriesLoading;
+  bool get isProductsLoading => _productsLoading;
 
   List<EmployeeProduct> get lowStockProducts =>
       _products.where((p) => p.stockStatus == EmployeeStockStatus.lowStock).toList();
@@ -160,6 +155,115 @@ class EmployeeInventoryController extends ChangeNotifier {
   /// Reloads categories from Supabase (useful for pull-to-refresh)
   Future<void> reloadCategories() async => _loadCategories();
 
+  void _subscribeToRealtime() {
+    if (_realtimeChannel != null) return;
+    try {
+      _realtimeChannel = _supabaseService.client
+          .channel('public:employee_inventory')
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'products',
+            callback: (payload) {
+              _loadProducts();
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'product_batches',
+            callback: (payload) {
+              _loadProducts();
+            },
+          )
+          .onPostgresChanges(
+            event: PostgresChangeEvent.all,
+            schema: 'public',
+            table: 'categories',
+            callback: (payload) {
+              _loadCategories();
+            },
+          )
+          .subscribe();
+    } catch (e) {
+      debugPrint('Failed to subscribe to employee inventory realtime: $e');
+    }
+  }
+
+  /// Loads products and their batches from Supabase
+  Future<void> _loadProducts() async {
+    _productsLoading = true;
+    notifyListeners();
+    try {
+      final supabaseProducts = await _supabaseService.getProductsWithInventory();
+      _products.clear();
+      for (final p in supabaseProducts) {
+        if (p['is_archived'] == true) continue;
+        _products.add(_fromSupabaseProduct(p));
+      }
+    } catch (e) {
+      debugPrint('Error loading products from Supabase: $e');
+    } finally {
+      _productsLoading = false;
+      notifyListeners();
+    }
+  }
+
+  EmployeeProduct _fromSupabaseProduct(Map<String, dynamic> data) {
+    final batches = <ProductBatch>[];
+    if (data['product_batches'] != null && data['product_batches'] is List) {
+      for (var b in data['product_batches']) {
+        final qty = (b['quantity'] as num?)?.toDouble() ?? 0.0;
+        if (qty > 0) {
+          batches.add(ProductBatch(
+            id: b['id']?.toString() ?? '',
+            quantity: qty,
+            expiryDate: b['expiry_date'] != null
+                ? DateTime.tryParse(b['expiry_date'] as String)
+                : null,
+            supplier: b['supplier'] as String?,
+            notes: b['notes'] as String?,
+          ));
+        }
+      }
+    }
+
+    batches.sort((a, b) {
+      final aDate = a.expiryDate;
+      final bDate = b.expiryDate;
+      if (aDate == null && bDate == null) return 0;
+      if (aDate == null) return 1;
+      if (bDate == null) return -1;
+      return aDate.compareTo(bDate);
+    });
+
+    return EmployeeProduct(
+      id: data['id']?.toString() ?? '',
+      name: data['name']?.toString() ?? '',
+      category: data['category']?.toString() ?? '',
+      price: (data['price'] as num?)?.toDouble() ?? 0.0,
+      capital: (data['capital'] as num?)?.toDouble() ?? 0.0,
+      unit: data['unit']?.toString() ?? 'pcs',
+      barcode: data['barcode']?.toString() ?? '',
+      image: data['image']?.toString(),
+      batches: batches,
+      lowStockThreshold: (data['low_stock_threshold'] as num?)?.toDouble() ?? 10.0,
+      isWeightBased: data['is_weight_based'] as bool? ?? false,
+    );
+  }
+
+  /// Reloads products from Supabase (useful for pull-to-refresh)
+  Future<void> reloadProducts() async => _loadProducts();
+
+  String _generateUuid() {
+    final random = Random.secure();
+    final bytes = List<int>.generate(16, (_) => random.nextInt(256));
+    bytes[6] = (bytes[6] & 0x0f) | 0x40;
+    bytes[8] = (bytes[8] & 0x3f) | 0x80;
+    final hex = bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
+    return '${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}';
+  }
+
   /// Creates a brand-new product with no batches yet.
   EmployeeProduct? createProduct({
     required String name,
@@ -178,8 +282,9 @@ class EmployeeInventoryController extends ChangeNotifier {
     if (price < 0 || capital < 0) return null;
     if (isBarcodeTaken(trimmedBarcode)) return null;
 
+    final productId = _generateUuid();
     final product = EmployeeProduct(
-      id: _nextProductId(),
+      id: productId,
       name: trimmedName,
       category: category,
       price: price,
@@ -193,7 +298,37 @@ class EmployeeInventoryController extends ChangeNotifier {
     );
     _products.add(product);
     notifyListeners();
+
+    _saveProductToSupabase(product);
+
     return product;
+  }
+
+  Future<void> _saveProductToSupabase(EmployeeProduct product) {
+    final future = () async {
+      try {
+        final productData = {
+          'id': product.id,
+          'name': product.name,
+          'category': product.category,
+          'price': product.price,
+          'capital': product.capital,
+          'unit': product.unit,
+          if (product.barcode.isNotEmpty) 'barcode': product.barcode,
+          'image': product.image,
+          'low_stock_threshold': product.lowStockThreshold,
+          'is_weight_based': product.isWeightBased,
+          'is_archived': false,
+        };
+        await _supabaseService.addProduct(productData);
+      } catch (e) {
+        debugPrint('Error saving product to Supabase: $e');
+      } finally {
+        _pendingProductSaves.remove(product.id);
+      }
+    }();
+    _pendingProductSaves[product.id] = future;
+    return future;
   }
 
   void updateProduct({
@@ -223,6 +358,50 @@ class EmployeeInventoryController extends ChangeNotifier {
       isWeightBased: isWeightBased,
     );
     notifyListeners();
+
+    _updateProductInSupabase(
+      productId: productId,
+      name: name,
+      category: category,
+      price: price,
+      capital: capital,
+      unit: unit,
+      barcode: barcode,
+      image: image,
+      lowStockThreshold: lowStockThreshold,
+      isWeightBased: isWeightBased,
+    );
+  }
+
+  Future<void> _updateProductInSupabase({
+    required String productId,
+    String? name,
+    String? category,
+    double? price,
+    double? capital,
+    String? unit,
+    String? barcode,
+    String? image,
+    double? lowStockThreshold,
+    bool? isWeightBased,
+  }) async {
+    try {
+      final updates = <String, dynamic>{};
+      if (name != null) updates['name'] = name.trim();
+      if (category != null) updates['category'] = category;
+      if (price != null) updates['price'] = price;
+      if (capital != null) updates['capital'] = capital;
+      if (unit != null) updates['unit'] = unit;
+      if (barcode != null) updates['barcode'] = barcode.trim().isEmpty ? null : barcode.trim();
+      if (image != null) updates['image'] = image;
+      if (lowStockThreshold != null) updates['low_stock_threshold'] = lowStockThreshold;
+      if (isWeightBased != null) updates['is_weight_based'] = isWeightBased;
+      updates['updated_at'] = DateTime.now().toIso8601String();
+
+      await _supabaseService.updateProduct(productId, updates);
+    } catch (e) {
+      debugPrint('Error updating product in Supabase: $e');
+    }
   }
 
   void archiveStock(
@@ -280,6 +459,20 @@ class EmployeeInventoryController extends ChangeNotifier {
     ));
 
     notifyListeners();
+
+    _updateBatchInSupabase(batchId, newBatchQty <= 0 ? 0.0 : newBatchQty);
+    _supabaseService.recordInventoryTransaction({
+      'product_id': productId,
+      'product_batch_id': batchId,
+      'transaction_type': isConsumable ? 'consumable' : 'wastage',
+      'quantity': actualQuantity,
+      'unit_price': product.capital,
+      'total_amount': capitalCost,
+      'notes': 'Archived from mobile app (${reason.label})${consumedBy != null ? ' by $consumedBy' : ''}',
+    }).catchError((e) {
+      debugPrint('Error logging archive transaction: $e');
+      return <String, dynamic>{};
+    });
   }
 
   void archiveAllStock(
@@ -356,6 +549,15 @@ class EmployeeInventoryController extends ChangeNotifier {
   void deleteProduct(String productId) {
     _products.removeWhere((p) => p.id == productId);
     notifyListeners();
+
+    _supabaseService.updateProduct(productId, {
+      'is_archived': true,
+      'archived_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+    }).catchError((e) {
+      debugPrint('Error archiving product in Supabase: $e');
+      return <String, dynamic>{};
+    });
   }
 
   /// Adds a new category via Supabase
@@ -449,8 +651,10 @@ class EmployeeInventoryController extends ChangeNotifier {
       );
       batchId = existing.id;
       outcome = StockReceivingOutcome.mergedIntoExistingBatch;
+
+      _updateBatchInSupabase(batchId, batchQuantity);
     } else {
-      batchId = _nextBatchId(product);
+      batchId = _generateUuid();
       batchQuantity = quantity;
       batches.add(ProductBatch(
         id: batchId,
@@ -462,6 +666,15 @@ class EmployeeInventoryController extends ChangeNotifier {
       outcome = wasNewProduct
           ? StockReceivingOutcome.newProduct
           : StockReceivingOutcome.newBatchCreated;
+
+      _saveBatchToSupabase(
+        productId: productId,
+        batchId: batchId,
+        quantity: quantity,
+        expiryDate: expiryDate,
+        supplier: supplier,
+        notes: notes,
+      );
     }
 
     // Sort batches by expiry date: nearest expiry first.
@@ -531,14 +744,6 @@ class EmployeeInventoryController extends ChangeNotifier {
     return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
-  String _nextProductId() {
-    final existingNumbers = _products
-        .map((p) => int.tryParse(p.id.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0)
-        .toList();
-    final next = (existingNumbers.isEmpty ? 0 : existingNumbers.reduce((a, b) => a > b ? a : b)) + 1;
-    return 'p$next';
-  }
-
   /// Deducts [quantity] from one specific batch.
   bool deductFromBatch(String productId, String batchId, double quantity) {
     final productIndex = _products.indexWhere((p) => p.id == productId);
@@ -559,6 +764,8 @@ class EmployeeInventoryController extends ChangeNotifier {
     }
     _products[productIndex] = product.copyWith(batches: updatedBatches);
     notifyListeners();
+
+    _updateBatchInSupabase(batchId, newQuantity <= 0 ? 0.0 : newQuantity);
     return true;
   }
 
@@ -573,10 +780,18 @@ class EmployeeInventoryController extends ChangeNotifier {
       final batches = List<ProductBatch>.of(product.batches);
       final noExpiryIndex = batches.indexWhere((b) => b.expiryDate == null);
       if (noExpiryIndex >= 0) {
+        final newQty = batches[noExpiryIndex].quantity + delta;
         batches[noExpiryIndex] =
-            batches[noExpiryIndex].copyWith(quantity: batches[noExpiryIndex].quantity + delta);
+            batches[noExpiryIndex].copyWith(quantity: newQty);
+        _updateBatchInSupabase(batches[noExpiryIndex].id, newQty);
       } else {
-        batches.add(ProductBatch(id: _nextBatchId(product), quantity: delta));
+        final newBatchId = _generateUuid();
+        batches.add(ProductBatch(id: newBatchId, quantity: delta));
+        _saveBatchToSupabase(
+          productId: productId,
+          batchId: newBatchId,
+          quantity: delta,
+        );
       }
 
       batches.sort((a, b) {
@@ -611,6 +826,7 @@ class EmployeeInventoryController extends ChangeNotifier {
       } else {
         batches[index] = batches[index].copyWith(quantity: newQty);
       }
+      _updateBatchInSupabase(target.id, newQty <= 0 ? 0.0 : newQty);
       remaining -= take;
     }
     _products[productIndex] = product.copyWith(batches: batches);
@@ -628,11 +844,42 @@ class EmployeeInventoryController extends ChangeNotifier {
     return true;
   }
 
-  String _nextBatchId(EmployeeProduct product) {
-    final existingNumbers = product.batches
-        .map((b) => int.tryParse(b.id.replaceAll(RegExp(r'[^0-9]'), '')) ?? 0)
-        .toList();
-    final next = (existingNumbers.isEmpty ? 0 : existingNumbers.reduce((a, b) => a > b ? a : b)) + 1;
-    return 'B${next.toString().padLeft(3, '0')}';
+  Future<void> _updateBatchInSupabase(String batchId, double newQuantity) async {
+    try {
+      await _supabaseService.updateBatchQuantity(batchId, newQuantity);
+    } catch (e) {
+      debugPrint('Error updating batch in Supabase: $e');
+    }
+  }
+
+  Future<void> _saveBatchToSupabase({
+    required String productId,
+    required String batchId,
+    required double quantity,
+    DateTime? expiryDate,
+    String? supplier,
+    String? notes,
+  }) async {
+    try {
+      if (_pendingProductSaves.containsKey(productId)) {
+        await _pendingProductSaves[productId];
+      }
+      await _supabaseService.addProductBatch(productId, {
+        'id': batchId,
+        'quantity': quantity,
+        if (expiryDate != null) 'expiry_date': expiryDate.toIso8601String(),
+        'supplier': supplier,
+        'notes': notes,
+        'received_date': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('Error saving batch to Supabase: $e');
+    }
+  }
+
+  @override
+  void dispose() {
+    _realtimeChannel?.unsubscribe();
+    super.dispose();
   }
 }

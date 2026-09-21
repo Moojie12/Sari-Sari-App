@@ -130,19 +130,20 @@ class _ProductsSectionState extends State<ProductsSection> {
 
   @override
   Widget build(BuildContext context) {
-    // Wait for services to initialize
-    if (!widget.productService.isInitialized ||
-        !widget.categoryService.isInitialized) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: AppColors.primaryOrange,
-        ),
-      );
-    }
-
     return ListenableBuilder(
-      listenable: widget.productService,
+      listenable: Listenable.merge([widget.productService, widget.categoryService]),
       builder: (context, _) {
+        final anyLoading = widget.productService.isLoading || widget.categoryService.isLoading;
+        final allInitialized = widget.productService.isInitialized && widget.categoryService.isInitialized;
+
+        if (!allInitialized && anyLoading) {
+          return const Center(
+            child: CircularProgressIndicator(
+              color: AppColors.primaryOrange,
+            ),
+          );
+        }
+
         final products = _filteredProducts();
         final categoryOptions = [
           'All categories',

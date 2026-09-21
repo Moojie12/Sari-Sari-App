@@ -38,10 +38,10 @@ class AdminAuditService extends ChangeNotifier {
 
     try {
       await _loadAuditLogs();
-      _isInitialized = true;
     } catch (e) {
       _error = e.toString();
     } finally {
+      _isInitialized = true;
       _isLoading = false;
       notifyListeners();
     }

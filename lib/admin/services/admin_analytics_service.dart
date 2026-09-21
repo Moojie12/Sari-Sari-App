@@ -54,11 +54,10 @@ class AdminAnalyticsService extends ChangeNotifier {
         _loadProducts(),
         _loadSales(),
       ]);
-
-      _isInitialized = true;
     } catch (e) {
       _error = e.toString();
     } finally {
+      _isInitialized = true;
       _isLoading = false;
       notifyListeners();
     }

@@ -36,50 +36,56 @@ class CategoriesSection extends StatefulWidget {
 class _CategoriesSectionState extends State<CategoriesSection> {
   @override
   Widget build(BuildContext context) {
-    // Wait for services to initialize
-    if (!widget.categoryService.isInitialized ||
-        !widget.productService.isInitialized) {
-      return const Center(
-        child: CircularProgressIndicator(
-          color: AppColors.primaryOrange,
-        ),
-      );
-    }
+    return ListenableBuilder(
+      listenable: Listenable.merge([widget.categoryService, widget.productService]),
+      builder: (context, _) {
+        final anyLoading = widget.categoryService.isLoading || widget.productService.isLoading;
+        final allInitialized = widget.categoryService.isInitialized && widget.productService.isInitialized;
 
-    final query = widget.searchQuery.toLowerCase().trim();
-    final categories = widget.categoryService.activeCategories
-        .where((c) =>
-    query.isEmpty ||
-        c.name.toLowerCase().contains(query) ||
-        c.description.toLowerCase().contains(query))
-        .toList()
-      ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+        if (!allInitialized && anyLoading) {
+          return const Center(
+            child: CircularProgressIndicator(
+              color: AppColors.primaryOrange,
+            ),
+          );
+        }
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        toolbar(
-          filters: const [],
-          action: primaryButton(
-            icon: Icons.create_new_folder_outlined,
-            label: 'Add Category',
-            onPressed: () => widget.onShowCategoryForm(null),
-          ),
-        ),
-        const SizedBox(height: 20),
-        if (categories.isEmpty)
-          emptyState(
-            icon: Icons.sell_outlined,
-            title: widget.searchQuery.isEmpty
-                ? 'No categories yet'
-                : 'No categories match "${widget.searchQuery}"',
-            message: 'Group your products for better organization.',
-            actionLabel: 'Add Category',
-            onAction: () => widget.onShowCategoryForm(null),
-          )
-        else
-          _buildTable(categories),
-      ],
+        final query = widget.searchQuery.toLowerCase().trim();
+        final categories = widget.categoryService.activeCategories
+            .where((c) =>
+        query.isEmpty ||
+            c.name.toLowerCase().contains(query) ||
+            c.description.toLowerCase().contains(query))
+            .toList()
+          ..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            toolbar(
+              filters: const [],
+              action: primaryButton(
+                icon: Icons.create_new_folder_outlined,
+                label: 'Add Category',
+                onPressed: () => widget.onShowCategoryForm(null),
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (categories.isEmpty)
+              emptyState(
+                icon: Icons.sell_outlined,
+                title: widget.searchQuery.isEmpty
+                    ? 'No categories yet'
+                    : 'No categories match "${widget.searchQuery}"',
+                message: 'Group your products for better organization.',
+                actionLabel: 'Add Category',
+                onAction: () => widget.onShowCategoryForm(null),
+              )
+            else
+              _buildTable(categories),
+          ],
+        );
+      },
     );
   }
 
