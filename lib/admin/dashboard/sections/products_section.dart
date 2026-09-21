@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../models/admin_models.dart';
-import '../../controllers/admin_controller.dart';
+import '../../services/admin_product_service.dart';
+import '../../services/admin_category_service.dart';
 import '../widgets/dashboard_shared.dart';
 
 class ProductsSection extends StatefulWidget {
-  final AdminController controller;
+  final AdminProductService productService;
+  final AdminCategoryService categoryService;
   final String searchQuery;
   final int rowsPerPage;
   final Map<String, int> pages;
@@ -19,7 +21,8 @@ class ProductsSection extends StatefulWidget {
 
   const ProductsSection({
     super.key,
-    required this.controller,
+    required this.productService,
+    required this.categoryService,
     required this.searchQuery,
     required this.rowsPerPage,
     required this.pages,
@@ -44,8 +47,14 @@ class _ProductsSectionState extends State<ProductsSection> {
   bool _productAsc = true;
 
   List<AdminProduct> _filteredProducts() {
+    // Wait for services to initialize
+    if (!widget.productService.isInitialized ||
+        !widget.categoryService.isInitialized) {
+      return [];
+    }
+
     final query = widget.searchQuery.toLowerCase().trim();
-    final list = widget.controller.activeProducts.where((p) {
+    final list = widget.productService.activeProducts.where((p) {
       final matchesQuery = query.isEmpty ||
           p.name.toLowerCase().contains(query) ||
           p.barcode.contains(query) ||
@@ -121,84 +130,99 @@ class _ProductsSectionState extends State<ProductsSection> {
 
   @override
   Widget build(BuildContext context) {
-    final products = _filteredProducts();
-    final categoryOptions = [
-      'All categories',
-      ...widget.controller.activeCategories.map((c) => c.name),
-    ];
-    final categoryValue = categoryOptions.contains(_productCategoryFilter)
-        ? _productCategoryFilter
-        : 'All categories';
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        toolbar(
-          filters: [
-            dropdownFilter(
-              label: 'Category',
-              value: categoryValue,
-              options: categoryOptions,
-              onChanged: (value) => setState(() {
-                _productCategoryFilter = value;
-                widget.onPageChange('products', 1);
-              }),
-            ),
-            dropdownFilter(
-              label: 'Unit',
-              value: _productUnitFilter,
-              options: ['All units', ...kProductUnits],
-              onChanged: (value) => setState(() {
-                _productUnitFilter = value;
-                widget.onPageChange('products', 1);
-              }),
-            ),
-            dropdownFilter(
-              label: 'Stock',
-              value: _productStockFilter,
-              options: const [
-                'All stock',
-                'Low stock',
-                'Out of stock',
-                'Expiring soon',
-              ],
-              onChanged: (value) => setState(() {
-                _productStockFilter = value;
-                widget.onPageChange('products', 1);
-              }),
-            ),
-          ],
-          action: primaryButton(
-            icon: Icons.add_box_outlined,
-            label: 'Add product',
-            onPressed: () => widget.onShowProductForm(null),
-          ),
+    // Wait for services to initialize
+    if (!widget.productService.isInitialized ||
+        !widget.categoryService.isInitialized) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primaryOrange,
         ),
-        const SizedBox(height: 20),
-        if (products.isEmpty)
-          emptyState(
-            icon: Icons.inventory_2_outlined,
-            title: _hasFilters
-                ? 'No products match those filters'
-                : 'No products yet',
-            message: _hasFilters
-                ? 'Try clearing the category, unit or stock filter.'
-                : 'Add what you sell so it shows up at the till.',
-            actionLabel: _hasFilters ? 'Clear filters' : 'Add product',
-            onAction: _hasFilters
-                ? () {
-              setState(() {
-                _productCategoryFilter = 'All categories';
-                _productUnitFilter = 'All units';
-                _productStockFilter = 'All stock';
-              });
-              widget.onClearFilters();
-            }
-                : () => widget.onShowProductForm(null),
-          )
-        else
-          _buildTable(products),
-      ],
+      );
+    }
+
+    return ListenableBuilder(
+      listenable: widget.productService,
+      builder: (context, _) {
+        final products = _filteredProducts();
+        final categoryOptions = [
+          'All categories',
+          ...widget.categoryService.activeCategories.map((c) => c.name),
+        ];
+        final categoryValue = categoryOptions.contains(_productCategoryFilter)
+            ? _productCategoryFilter
+            : 'All categories';
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            toolbar(
+              filters: [
+                dropdownFilter(
+                  label: 'Category',
+                  value: categoryValue,
+                  options: categoryOptions,
+                  onChanged: (value) => setState(() {
+                    _productCategoryFilter = value;
+                    widget.onPageChange('products', 1);
+                  }),
+                ),
+                dropdownFilter(
+                  label: 'Unit',
+                  value: _productUnitFilter,
+                  options: ['All units', ...kProductUnits],
+                  onChanged: (value) => setState(() {
+                    _productUnitFilter = value;
+                    widget.onPageChange('products', 1);
+                  }),
+                ),
+                dropdownFilter(
+                  label: 'Stock',
+                  value: _productStockFilter,
+                  options: const [
+                    'All stock',
+                    'Low stock',
+                    'Out of stock',
+                    'Expiring soon',
+                  ],
+                  onChanged: (value) => setState(() {
+                    _productStockFilter = value;
+                    widget.onPageChange('products', 1);
+                  }),
+                ),
+              ],
+              action: primaryButton(
+                icon: Icons.add_box_outlined,
+                label: 'Add product',
+                onPressed: () => widget.onShowProductForm(null),
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (products.isEmpty)
+              emptyState(
+                icon: Icons.inventory_2_outlined,
+                title: _hasFilters
+                    ? 'No products match those filters'
+                    : 'No products yet',
+                message: _hasFilters
+                    ? 'Try clearing the category, unit or stock filter.'
+                    : 'Add what you sell so it shows up at the till.',
+                actionLabel: _hasFilters ? 'Clear filters' : 'Add product',
+                onAction: _hasFilters
+                    ? () {
+                      setState(() {
+                        _productCategoryFilter = 'All categories';
+                        _productUnitFilter = 'All units';
+                        _productStockFilter = 'All stock';
+                      });
+                      widget.onClearFilters();
+                    }
+                    : () => widget.onShowProductForm(null),
+              )
+            else
+              _buildTable(products),
+          ],
+        );
+      },
     );
   }
 

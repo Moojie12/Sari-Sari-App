@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/custom_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
-import '../../users/admin/admin_dashboard.dart';
+import '../../admin/dashboard/admin_dashboard.dart';
 import '../../core/services/auth_service.dart';
 
 class AdminLoginPage extends StatefulWidget {

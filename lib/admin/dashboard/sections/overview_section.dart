@@ -1,23 +1,52 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../models/admin_models.dart';
-import '../../controllers/admin_controller.dart';
+import '../../services/admin_product_service.dart';
+import '../../services/admin_user_service.dart';
+import '../../services/admin_category_service.dart';
+import '../../services/admin_sale_service.dart';
+import '../../services/admin_audit_service.dart';
+import '../../services/admin_analytics_service.dart';
 import '../widgets/dashboard_shared.dart';
 
 class OverviewSection extends StatelessWidget {
-  final AdminController controller;
+  final AdminProductService productService;
+  final AdminUserService userService;
+  final AdminCategoryService categoryService;
+  final AdminSaleService saleService;
+  final AdminAuditService auditService;
+  final AdminAnalyticsService analyticsService;
   final Function(AdminSection) onGoTo;
   final Function(AdminProduct) onAdjustStock;
 
   const OverviewSection({
     super.key,
-    required this.controller,
+    required this.productService,
+    required this.userService,
+    required this.categoryService,
+    required this.saleService,
+    required this.auditService,
+    required this.analyticsService,
     required this.onGoTo,
     required this.onAdjustStock,
   });
 
   @override
   Widget build(BuildContext context) {
+    // Wait for services to initialize
+    if (!productService.isInitialized ||
+        !userService.isInitialized ||
+        !categoryService.isInitialized ||
+        !saleService.isInitialized ||
+        !auditService.isInitialized ||
+        !analyticsService.isInitialized) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primaryOrange,
+        ),
+      );
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -67,14 +96,22 @@ class OverviewSection extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
+        // If width is zero (e.g. during initial layout), return a placeholder or empty container
+        // to avoid "Cannot hit test a render box with no size" errors.
+        if (width <= 0) return const SizedBox.shrink();
+
         final columns = width < 700 ? 1 : (width < 1180 ? 2 : 3);
         const spacing = 20.0;
         final cardWidth = (width - spacing * (columns - 1)) / columns;
+        
+        // Ensure cardWidth is at least a reasonable minimum
+        final effectiveCardWidth = cardWidth < 100 ? width : cardWidth;
+
         return Wrap(
           spacing: spacing,
           runSpacing: spacing,
           children: [
-            for (final c in cards) SizedBox(width: cardWidth, child: c),
+            for (final c in cards) SizedBox(width: effectiveCardWidth, child: c),
           ],
         );
       },
@@ -82,7 +119,7 @@ class OverviewSection extends StatelessWidget {
   }
 
   Widget _buildSalesChartCard() {
-    final data = controller.salesByDay(7);
+    final data = analyticsService.salesByDay(7);
     final maxValue = data.fold<double>(
         0, (max, d) => d.total > max ? d.total : max);
     final weekTotal = data.fold<double>(0, (sum, d) => sum + d.total);
@@ -151,7 +188,7 @@ class OverviewSection extends StatelessWidget {
   }
 
   Widget _buildTopSellersCard() {
-    final stats = controller.topSellingProducts(limit: 5);
+    final stats = analyticsService.topSellingProducts(limit: 5);
     final topRevenue = stats.isEmpty ? 0.0 : stats.first.revenue;
 
     return card(
@@ -160,68 +197,68 @@ class OverviewSection extends StatelessWidget {
       child: stats.isEmpty
           ? _inlineEmpty('No sales recorded yet.')
           : Column(
-        children: [
-          for (final stat in stats)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Row(
+            children: [
+              for (final stat in stats)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Text(
-                          stat.productName,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.darkText,
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              stat.productName,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.darkText,
+                              ),
+                            ),
                           ),
+                          const SizedBox(width: 10),
+                          Text(
+                            formatPeso(stat.revenue),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: AppColors.darkText,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: LinearProgressIndicator(
+                          value: (topRevenue <= 0)
+                              ? 0
+                              : (stat.revenue / topRevenue).clamp(0.0, 1.0),
+                          minHeight: 6,
+                          backgroundColor: AppColors.lightBackground,
+                          valueColor: const AlwaysStoppedAnimation<Color>(
+                              AppColors.primaryOrange),
                         ),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(height: 4),
                       Text(
-                        formatPeso(stat.revenue),
+                        '${formatQuantity(stat.unitsSold, stat.unit)} sold',
                         style: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w700,
-                          color: AppColors.darkText,
+                          fontSize: 11.5,
+                          color: AppColors.placeholderColor,
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 6),
-                  ClipRRect(
-                    borderRadius: BorderRadius.circular(4),
-                    child: LinearProgressIndicator(
-                      value: topRevenue == 0
-                          ? 0
-                          : stat.revenue / topRevenue,
-                      minHeight: 6,
-                      backgroundColor: AppColors.lightBackground,
-                      valueColor: const AlwaysStoppedAnimation<Color>(
-                          AppColors.primaryOrange),
-                    ),
-                  ),
-                  const SizedBox(height: 4),
-                  Text(
-                    '${formatQuantity(stat.unitsSold, stat.unit)} sold',
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      color: AppColors.placeholderColor,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
+                ),
+            ],
+          ),
     );
   }
 
   Widget _buildDailySalesCard() {
-    final days = controller.salesByDay(7);
+    final days = analyticsService.salesByDay(7);
     final now = DateTime.now();
     return _periodListCard(
       title: 'Daily sales',
@@ -239,7 +276,7 @@ class OverviewSection extends StatelessWidget {
   }
 
   Widget _buildWeeklySalesCard() {
-    final weeks = controller.salesByWeek(6);
+    final weeks = analyticsService.salesByWeek(6);
     final now = DateTime.now();
     final nowMidnight = DateTime(now.year, now.month, now.day);
     return _periodListCard(
@@ -259,7 +296,7 @@ class OverviewSection extends StatelessWidget {
   }
 
   Widget _buildMonthlySalesCard() {
-    final months = controller.salesByMonth(6);
+    final months = analyticsService.salesByMonth(6);
     final now = DateTime.now();
     return _periodListCard(
       title: 'Monthly sales',
@@ -290,92 +327,92 @@ class OverviewSection extends StatelessWidget {
       child: !hasAnySales
           ? _inlineEmpty('No sales recorded yet.')
           : Column(
-        children: [
-          for (final row in rows)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                children: [
-                  Container(
-                    width: 6,
-                    height: 6,
-                    margin: const EdgeInsets.only(right: 10),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: row.isCurrent
-                          ? AppColors.primaryOrange
-                          : Colors.transparent,
-                    ),
-                  ),
-                  Expanded(
-                    child: Text(
-                      row.label,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight:
-                        row.isCurrent ? FontWeight.w700 : FontWeight.w500,
-                        color: row.isCurrent
-                            ? AppColors.darkText
-                            : AppColors.secondaryText,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${row.orders}',
-                    style: const TextStyle(
-                      fontSize: 11.5,
-                      color: AppColors.placeholderColor,
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  SizedBox(
-                    width: 78,
-                    child: Text(
-                      formatPeso(row.total),
-                      textAlign: TextAlign.right,
-                      style: TextStyle(
-                        fontSize: 12.5,
-                        fontWeight: FontWeight.w700,
-                        color: row.total == 0
-                            ? AppColors.placeholderColor
-                            : AppColors.darkText,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          const Divider(height: 18),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text(
-                'Total',
-                style: TextStyle(
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w700,
-                  color: AppColors.secondaryText,
+              for (final row in rows)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        margin: const EdgeInsets.only(right: 10),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: row.isCurrent
+                              ? AppColors.primaryOrange
+                              : Colors.transparent,
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          row.label,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight:
+                            row.isCurrent ? FontWeight.w700 : FontWeight.w500,
+                            color: row.isCurrent
+                                ? AppColors.darkText
+                                : AppColors.secondaryText,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        '${row.orders}',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          color: AppColors.placeholderColor,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      SizedBox(
+                        width: 78,
+                        child: Text(
+                          formatPeso(row.total),
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: row.total == 0
+                                ? AppColors.placeholderColor
+                                : AppColors.darkText,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-              Text(
-                formatPeso(total),
-                style: const TextStyle(
-                  fontSize: 13.5,
-                  fontWeight: FontWeight.w800,
-                  color: AppColors.primaryOrange,
+            const Divider(height: 18),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                const Text(
+                  'Total',
+                  style: TextStyle(
+                    fontSize: 12.5,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.secondaryText,
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
-      ),
+                Text(
+                  formatPeso(total),
+                  style: const TextStyle(
+                    fontSize: 13.5,
+                    fontWeight: FontWeight.w800,
+                    color: AppColors.primaryOrange,
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
     );
   }
 
   Widget _buildLowStockCard() {
-    final items = controller.lowStockProducts.take(6).toList();
+    final items = analyticsService.lowStockProducts.take(6).toList();
 
     return card(
       title: 'Restock list',
@@ -383,65 +420,65 @@ class OverviewSection extends StatelessWidget {
       trailing: items.isEmpty
           ? null
           : TextButton(
-        onPressed: () => onGoTo(AdminSection.products),
-        child: const Text('See all'),
-      ),
+            onPressed: () => onGoTo(AdminSection.products),
+            child: const Text('See all'),
+          ),
       child: items.isEmpty
           ? _inlineEmpty('Everything is well stocked.')
           : Column(
-        children: [
-          for (final product in items)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          product.name,
-                          overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
-                            fontSize: 13.5,
-                            fontWeight: FontWeight.w600,
-                            color: AppColors.darkText,
-                          ),
+            children: [
+              for (final product in items)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 12),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              product.name,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontSize: 13.5,
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.darkText,
+                              ),
+                            ),
+                            Text(
+                              product.categoryName,
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: AppColors.placeholderColor,
+                              ),
+                            ),
+                          ],
                         ),
-                        Text(
-                          product.categoryName,
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            color: AppColors.placeholderColor,
-                          ),
-                        ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(width: 12),
+                      statusPill(
+                        product.isOutOfStock
+                            ? 'Out of stock'
+                            : formatQuantity(product.quantity, product.unit),
+                        product.isOutOfStock ? Colors.red : Colors.orange,
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        tooltip: 'Adjust stock',
+                        icon: const Icon(Icons.add_circle_outline, size: 20),
+                        color: AppColors.primaryOrange,
+                        onPressed: () => onAdjustStock(product),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 12),
-                  statusPill(
-                    product.isOutOfStock
-                        ? 'Out of stock'
-                        : formatQuantity(product.quantity, product.unit),
-                    product.isOutOfStock ? Colors.red : Colors.orange,
-                  ),
-                  const SizedBox(width: 8),
-                  IconButton(
-                    tooltip: 'Adjust stock',
-                    icon: const Icon(Icons.add_circle_outline, size: 20),
-                    color: AppColors.primaryOrange,
-                    onPressed: () => onAdjustStock(product),
-                  ),
-                ],
-              ),
-            ),
-        ],
-      ),
+                ),
+            ],
+          ),
     );
   }
 
   Widget _buildRecentActivityCard() {
-    final logs = controller.allAuditLogs.take(6).toList();
+    final logs = auditService.allAuditLogs.take(6).toList();
 
     return card(
       title: 'Recent changes',
@@ -453,50 +490,50 @@ class OverviewSection extends StatelessWidget {
       child: logs.isEmpty
           ? _inlineEmpty('Nothing has changed yet.')
           : Column(
-        children: [
-          for (final log in logs)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 14),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Container(
-                    margin: const EdgeInsets.only(top: 4),
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: _actionColor(log.action),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          '${log.action.label} ${log.entityType.toLowerCase()} "${log.entityName}"',
-                          style: const TextStyle(
-                            fontSize: 13,
-                            color: AppColors.darkText,
-                            fontWeight: FontWeight.w500,
-                          ),
+            children: [
+              for (final log in logs)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 14),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        margin: const EdgeInsets.only(top: 4),
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: _actionColor(log.action),
+                          shape: BoxShape.circle,
                         ),
-                        Text(
-                          '${log.performedBy} · ${formatRelative(log.timestamp)}',
-                          style: const TextStyle(
-                            fontSize: 11.5,
-                            color: AppColors.placeholderColor,
-                          ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              '${log.action.label} ${log.entityType.toLowerCase()} "${log.entityName}"',
+                              style: const TextStyle(
+                                fontSize: 13,
+                                color: AppColors.darkText,
+                                fontWeight: FontWeight.w500,
+                              ),
+                            ),
+                            Text(
+                              '${log.performedBy} · ${formatRelative(log.timestamp)}',
+                              style: const TextStyle(
+                                fontSize: 11.5,
+                                color: AppColors.placeholderColor,
+                              ),
+                            ),
+                          ],
                         ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                ],
-              ),
-            ),
-        ],
-      ),
+                ),
+            ],
+          ),
     );
   }
 
@@ -532,6 +569,16 @@ class OverviewSection extends StatelessWidget {
       ),
     );
   }
+}
+
+String formatPesoCompact(double value) {
+  if (value.abs() >= 1000000) {
+    return '₱${(value / 1000000).toStringAsFixed(1)}M';
+  }
+  if (value.abs() >= 1000) {
+    return '₱${(value / 1000).toStringAsFixed(1)}k';
+  }
+  return '₱${value.toStringAsFixed(0)}';
 }
 
 /// One row in a daily/weekly/monthly sales list card.

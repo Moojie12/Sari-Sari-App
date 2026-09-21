@@ -1,11 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../models/admin_models.dart';
-import '../../controllers/admin_controller.dart';
+import '../../services/admin_audit_service.dart';
 import '../widgets/dashboard_shared.dart';
 
 class ActivitySection extends StatefulWidget {
-  final AdminController controller;
+  final AdminAuditService auditService;
   final String searchQuery;
   final int rowsPerPage;
   final Map<String, int> pages;
@@ -14,7 +14,7 @@ class ActivitySection extends StatefulWidget {
 
   const ActivitySection({
     super.key,
-    required this.controller,
+    required this.auditService,
     required this.searchQuery,
     required this.rowsPerPage,
     required this.pages,
@@ -29,8 +29,17 @@ class ActivitySection extends StatefulWidget {
 class _ActivitySectionState extends State<ActivitySection> {
   @override
   Widget build(BuildContext context) {
+    // Wait for service to initialize
+    if (!widget.auditService.isInitialized) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primaryOrange,
+        ),
+      );
+    }
+
     final query = widget.searchQuery.toLowerCase().trim();
-    final list = widget.controller.allAuditLogs.where((log) {
+    final list = widget.auditService.allAuditLogs.where((log) {
       return query.isEmpty ||
           log.entityName.toLowerCase().contains(query) ||
           log.performedBy.toLowerCase().contains(query) ||

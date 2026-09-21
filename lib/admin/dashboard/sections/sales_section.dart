@@ -1,10 +1,11 @@
 import 'package:flutter/material.dart';
+import '../../../core/theme/app_colors.dart';
 import '../../models/admin_models.dart';
-import '../../controllers/admin_controller.dart';
+import '../../services/admin_sale_service.dart';
 import '../widgets/dashboard_shared.dart';
 
 class SalesSection extends StatefulWidget {
-  final AdminController controller;
+  final AdminSaleService saleService;
   final String searchQuery;
   final int rowsPerPage;
   final Map<String, int> pages;
@@ -17,7 +18,7 @@ class SalesSection extends StatefulWidget {
 
   const SalesSection({
     super.key,
-    required this.controller,
+    required this.saleService,
     required this.searchQuery,
     required this.rowsPerPage,
     required this.pages,
@@ -37,8 +38,13 @@ class _SalesSectionState extends State<SalesSection> {
   String _saleStatusFilter = 'All';
 
   List<AdminSale> _filteredSales() {
+    // Wait for service to initialize
+    if (!widget.saleService.isInitialized) {
+      return [];
+    }
+
     final query = widget.searchQuery.toLowerCase().trim();
-    return widget.controller.allSales.where((sale) {
+    return widget.saleService.allSales.where((sale) {
       final matchesQuery = query.isEmpty ||
           sale.receiptNumber.toLowerCase().contains(query) ||
           sale.cashierName.toLowerCase().contains(query) ||
@@ -51,6 +57,15 @@ class _SalesSectionState extends State<SalesSection> {
 
   @override
   Widget build(BuildContext context) {
+    // Wait for service to initialize
+    if (!widget.saleService.isInitialized) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primaryOrange,
+        ),
+      );
+    }
+
     final sales = _filteredSales();
 
     return Column(

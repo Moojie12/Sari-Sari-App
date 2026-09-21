@@ -12,6 +12,7 @@ enum AdminSection {
   sales,
   archived,
   activity,
+  settings,
 }
 
 // ============================================================

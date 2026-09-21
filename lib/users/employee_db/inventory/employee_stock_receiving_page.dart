@@ -133,12 +133,12 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
       _expiryError = null;
       _unmatchedBarcode = null;
       _showBulkCalculator = false;
-      _setPriceController.clear();
-      _pcsPerSetController.clear();
-      _numberOfSetsController.clear();
-      _setPriceError = null;
-      _pcsPerSetError = null;
-      _numberOfSetsError = null;
+      _bulkPriceController.clear();
+      _pcsPerBulkController.clear();
+      _numberOfBulkController.clear();
+      _bulkPriceError = null;
+      _pcsPerBulkError = null;
+      _numberOfBulkError = null;
       _bulkCapitalPerPc = null;
       _bulkTotalQuantity = null;
     });

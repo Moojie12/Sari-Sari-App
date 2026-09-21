@@ -48,7 +48,6 @@ class _PendingBatch {
   }
 
   void recalcBulk() {
-    final bulkPrice = double.tryParse(bulkPriceController.text.trim());
     final pcsPerBulk = int.tryParse(pcsPerBulkController.text.trim());
     final numberOfBulk = int.tryParse(numberOfBulkController.text.trim());
 

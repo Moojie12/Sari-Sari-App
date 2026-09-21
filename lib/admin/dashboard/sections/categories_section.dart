@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../models/admin_models.dart';
-import '../../controllers/admin_controller.dart';
+import '../../services/admin_category_service.dart';
+import '../../services/admin_product_service.dart';
 import '../widgets/dashboard_shared.dart';
 
 class CategoriesSection extends StatefulWidget {
-  final AdminController controller;
+  final AdminCategoryService categoryService;
+  final AdminProductService productService;
   final String searchQuery;
   final int rowsPerPage;
   final Map<String, int> pages;
@@ -16,7 +18,8 @@ class CategoriesSection extends StatefulWidget {
 
   const CategoriesSection({
     super.key,
-    required this.controller,
+    required this.categoryService,
+    required this.productService,
     required this.searchQuery,
     required this.rowsPerPage,
     required this.pages,
@@ -33,8 +36,18 @@ class CategoriesSection extends StatefulWidget {
 class _CategoriesSectionState extends State<CategoriesSection> {
   @override
   Widget build(BuildContext context) {
+    // Wait for services to initialize
+    if (!widget.categoryService.isInitialized ||
+        !widget.productService.isInitialized) {
+      return const Center(
+        child: CircularProgressIndicator(
+          color: AppColors.primaryOrange,
+        ),
+      );
+    }
+
     final query = widget.searchQuery.toLowerCase().trim();
-    final categories = widget.controller.activeCategories
+    final categories = widget.categoryService.activeCategories
         .where((c) =>
     query.isEmpty ||
         c.name.toLowerCase().contains(query) ||
@@ -96,7 +109,7 @@ class _CategoriesSectionState extends State<CategoriesSection> {
               style: const TextStyle(color: AppColors.secondaryText, fontSize: 13),
             )),
             cell(Text(
-              '${widget.controller.getActiveProductCountForCategory(category.id)} products',
+              '${widget.productService.getActiveProductCountForCategory(category.id)} products',
               style: const TextStyle(fontSize: 13),
             )),
             cell(

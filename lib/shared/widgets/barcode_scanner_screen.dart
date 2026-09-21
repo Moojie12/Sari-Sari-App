@@ -122,7 +122,7 @@ class _ScannerScreenState extends State<_ScannerScreen> {
           MobileScanner(
             controller: _controller,
             onDetect: _onDetect,
-            errorBuilder: (BuildContext context, MobileScannerException error, Widget? child) {
+            errorBuilder: (BuildContext context, MobileScannerException error) {
       return _CameraErrorView(error: error);
     },
           ),
