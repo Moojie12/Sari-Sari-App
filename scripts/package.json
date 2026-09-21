@@ -1,0 +1,15 @@
+{
+  "name": "sari-sari-firebase-scripts",
+  "version": "1.0.0",
+  "description": "Scripts for Sari-Sari Firebase integration",
+  "main": "backfill-firebase-users.js",
+  "scripts": {
+    "backfill": "node backfill-firebase-users.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "firebase-admin": "^11.8.0"
+  }
+}

@@ -1,0 +1,26 @@
+{
+  "rules": {
+    "users": {
+      "$uid": {
+        ".read": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'owner')",
+        ".write": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'owner')",
+        "email": {
+          ".validate": "newData.isString() && newData.val().matches(/^[^@]+@[^@]+\\\\.[^@]+$/)",
+          ".write": "!data.exists()"
+        },
+        "displayName": {
+          ".validate": "newData.isString() && newData.val().length >= 1 && newData.val().length <= 50",
+          ".write": "!data.exists()"
+        },
+        "role": {
+          ".validate": "newData.isString() && (newData.val() == 'owner' || newData.val() == 'employee' || newData.val() == 'customer')",
+          ".write": "!data.exists()"
+        },
+        "createdAt": {
+          ".validate": "newData.isNumber()",
+          ".write": "!data.exists()"
+        }
+      }
+    }
+  }
+}

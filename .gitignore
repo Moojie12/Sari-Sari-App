@@ -43,6 +43,20 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+# Agent related
+.agents/
+.artifacts/
+.claude/
+.github/
+
+# Web related
+node_modules/
+.firebase/
+
+# Backups
+*.backup
+*.template
+
 # Widget Preview related
 .widget_preview/
 .agentbridge/

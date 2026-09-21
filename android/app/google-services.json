@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "709594394959",
+    "firebase_url": "https://tindahan-ni-eca-app-default-rtdb.firebaseio.com",
+    "project_id": "tindahan-ni-eca-app",
+    "storage_bucket": "tindahan-ni-eca-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:709594394959:android:2bd5f4e63b9bf2327c153a",
+        "android_client_info": {
+          "package_name": "com.example.sari_sari"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAkPm_c-56XbbBrDyGRDhTMXFL3HBbCWzI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
