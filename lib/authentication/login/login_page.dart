@@ -11,6 +11,7 @@ import '../../users/owner_db/owner_db.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/diagnostic/backend_diagnostic_page.dart';
 import '../../shared/utils/top_notification.dart';
+import '../admin_login/admin_login_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -411,6 +412,27 @@ class _LoginCardState extends State<_LoginCard> {
               ),
             ),
             const SizedBox(height: 8),
+
+            Center(
+              child: TextButton.icon(
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const AdminLoginPage()),
+                  );
+                },
+                icon: const Icon(Icons.admin_panel_settings_outlined, size: 16, color: AppColors.primaryOrange),
+                label: const Text(
+                  'Admin Portal',
+                  style: TextStyle(
+                    color: AppColors.primaryOrange,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(height: 4),
 
             const Center(
               child: Text(

@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart';
 import '../theme/app_colors.dart';
 import '../../authentication/login/login_page.dart';
-import '../../authentication/admin_login/admin_login_page.dart';
-import '../../admin/dashboard/admin_dashboard.dart';
 import '../../users/owner_db/owner_db.dart';
 import '../../users/employee_db/employee_db.dart';
 import '../../users/customer_db/customer_db.dart';
@@ -24,6 +21,12 @@ class _SplashPageState extends State<SplashPage> {
   }
 
   Future<void> _navigateToHome() async {
+    try {
+      if (Uri.base.toString().toLowerCase().contains('admin')) {
+        return;
+      }
+    } catch (_) {}
+
     await Future.delayed(const Duration(seconds: 3));
     if (!mounted) return;
 
@@ -31,56 +34,45 @@ class _SplashPageState extends State<SplashPage> {
     final user = AuthService().currentUser;
 
     if (user != null) {
-      // User is logged in, determine which page to show based on platform and role
-      if (kIsWeb) {
-        // On web, always go to admin dashboard
-        if (mounted) {
-          Navigator.pushReplacement(
-            context,
-            MaterialPageRoute(builder: (context) => const AdminDashboard()),
-          );
-        }
-      } else {
-        // On mobile, check role once and go to appropriate database
-        try {
-          final bool isOwner = await AuthService().hasRole('owner');
-          final bool isEmployee = await AuthService().hasRole('employee');
+      // Check role and go to appropriate database (works for both web and mobile)
+      try {
+        final bool isOwner = await AuthService().hasRole('owner');
+        final bool isEmployee = await AuthService().hasRole('employee');
 
-          if (mounted) {
-            if (isOwner) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const OwnerDb()),
-              );
-            } else if (isEmployee) {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const EmployeeDb()),
-              );
-            } else {
-              Navigator.pushReplacement(
-                context,
-                MaterialPageRoute(builder: (context) => const CustomerDb()),
-              );
-            }
-          }
-        } catch (e) {
-          // If there's an error checking roles, default to customer db
-          if (mounted) {
+        if (mounted) {
+          if (isOwner) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const OwnerDb()),
+            );
+          } else if (isEmployee) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (context) => const EmployeeDb()),
+            );
+          } else {
             Navigator.pushReplacement(
               context,
               MaterialPageRoute(builder: (context) => const CustomerDb()),
             );
           }
         }
+      } catch (e) {
+        // If there's an error checking roles, default to customer db
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => const CustomerDb()),
+          );
+        }
       }
     } else {
-      // User is not logged in, show login page
+      // User is not logged in, show main login page (for Owner, Employee, and Customer)
       if (mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(
-            builder: (context) => kIsWeb ? const AdminLoginPage() : const LoginPage(),
+            builder: (context) => const LoginPage(),
           ),
         );
       }
