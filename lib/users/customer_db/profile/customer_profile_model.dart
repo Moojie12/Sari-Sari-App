@@ -52,6 +52,8 @@ class CustomerProfile {
     String? lastName,
     String? email,
     String? contactNumber,
+    String? photoPath,
+    bool clearPhoto = false,
   }) {
     return CustomerProfile(
       firstName: firstName ?? this.firstName,
@@ -59,7 +61,7 @@ class CustomerProfile {
       lastName: lastName ?? this.lastName,
       email: email ?? this.email,
       contactNumber: contactNumber ?? this.contactNumber,
-      photoPath: photoPath,
+      photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
     );
   }
 }

@@ -23,72 +23,53 @@ class LoginPage extends StatefulWidget {
 class _LoginPageState extends State<LoginPage> {
   int _logoTapCount = 0;
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: Colors.white, // Iniba mula sa AppColors.primaryOrange
-      body: SafeArea(
-        top: false, // Papayagan ang Header na umabot sa pinaka-itaas (Status Bar)
-        child: Column(
-          children: [
-            Expanded(
-              flex: 5,
-              child: _Header(
-                onLogoTap: () {
-                  setState(() {
-                    _logoTapCount++;
-                    if (_logoTapCount >= 3) {
-                      _logoTapCount = 0;
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => const BackendDiagnosticPage(),
-                        ),
-                      );
-                    }
-                  });
-                  // Reset tap count after 2 seconds
-                  Future.delayed(const Duration(seconds: 2), () {
-                    if (mounted) {
-                      setState(() => _logoTapCount = 0);
-                    }
-                  });
-                },
-              ),
-            ),
-            Expanded(
-              flex: 10,
-              child: Transform.translate(
-                offset: const Offset(0, 35), // Lowered the box further
-                child: Container(
-                  color: Colors.transparent,
-                  child: const _LoginCard(),
-                ),
-              ),
-            ),
-          ],
+  void _handleLogoTap() {
+    setState(() => _logoTapCount++);
+
+    if (_logoTapCount >= 3) {
+      _logoTapCount = 0;
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => const BackendDiagnosticPage(),
         ),
-      ),
-    );
+      );
+    }
+
+    // Reset tap count after 2 seconds
+    Future.delayed(const Duration(seconds: 2), () {
+      if (mounted) {
+        setState(() => _logoTapCount = 0);
+      }
+    });
   }
-}
-
-class _Header extends StatelessWidget {
-  const _Header({required this.onLogoTap});
-
-  final VoidCallback onLogoTap;
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox.expand(
-      child: Stack(
-        clipBehavior: Clip.none, // Payagan ang image na lumampas sa boundary
+    final size = MediaQuery.of(context).size;
+    final topPadding = MediaQuery.of(context).padding.top;
+
+    // Height of the "header zone" that holds the logo/title/tagline.
+    final headerHeight = size.height * 0.40;
+    // How far the background image bleeds PAST the header zone, so it's
+    // still visible behind the card where the card overlaps upward.
+    const imageOverlap = 60.0;
+    // How far the card rises up INTO the header zone/image.
+    const cardOverlap = 30.0;
+
+    return Scaffold(
+      // Matches the card's own color, so if the card ends before the
+      // physical bottom of the screen there's no visible color seam.
+      backgroundColor: AppColors.cardWhite,
+      body: Stack(
         children: [
+          // Background image. Extended past headerHeight so there's no
+          // gap of plain Scaffold-white behind the card's rounded top.
           Positioned(
             top: 0,
             left: 0,
             right: 0,
-            bottom: -10, // Palabisin ang image nang 10 pixels sa ilalim
+            height: headerHeight + imageOverlap,
             child: Transform.scale(
               scale: 1.15,
               alignment: const Alignment(0, -0.96),
@@ -99,72 +80,101 @@ class _Header extends StatelessWidget {
               ),
             ),
           ),
-          Center(
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  GestureDetector(
-                    onTap: onLogoTap,
-                    child: Container(
-                      width: 78,
-                      height: 78,
-                      decoration: BoxDecoration(
+
+          // Logo + title + tagline, laid out within the header zone only.
+          Positioned(
+            top: topPadding,
+            left: 0,
+            right: 0,
+            height: headerHeight - topPadding,
+            child: Center(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 24),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    GestureDetector(
+                      onTap: _handleLogoTap,
+                      child: Container(
+                        width: 78,
+                        height: 78,
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.12),
+                              blurRadius: 15,
+                              offset: const Offset(0, 6),
+                            ),
+                          ],
+                        ),
+                        child: ClipOval(
+                          child: Image.asset(
+                            'assets/images/logo.png',
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    const Text(
+                      'Tindahan ni Eca',
+                      style: TextStyle(
                         color: Colors.white,
-                        shape: BoxShape.circle,
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.12),
-                            blurRadius: 15,
-                            offset: const Offset(0, 6),
+                        fontSize: 28,
+                        fontWeight: FontWeight.w900,
+                        shadows: [
+                          Shadow(
+                            color: Colors.black54,
+                            offset: Offset(0, 2),
+                            blurRadius: 10,
                           ),
                         ],
                       ),
-                      child: ClipOval(
-                        child: Image.asset(
-                          'assets/images/logo.png',
-                          fit: BoxFit.cover,
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 12,
+                        vertical: 4,
+                      ),
+                      decoration: BoxDecoration(
+                        color: Colors.black.withValues(alpha: 0.3),
+                        borderRadius: BorderRadius.circular(20),
+                      ),
+                      child: const Text(
+                        'Stock, Sell, Check, Buy',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          letterSpacing: 1.2,
                         ),
                       ),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  const Text(
-                    'Tindahan ni Eca',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 28,
-                      fontWeight: FontWeight.w900,
-                      shadows: [
-                        Shadow(
-                          color: Colors.black54,
-                          offset: Offset(0, 2),
-                          blurRadius: 10,
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 6),
-                  Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    decoration: BoxDecoration(
-                      color: Colors.black.withValues(alpha: 0.3),
-                      borderRadius: BorderRadius.circular(20),
-                    ),
-                    child: const Text(
-                      'Stock, Sell, Check, Buy',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        letterSpacing: 1.2,
-                      ),
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
+            ),
+          ),
+
+          // Login card — rises up to overlap the bottom of the image by
+          // `cardOverlap` px. Because the image now extends behind this
+          // overlap zone (see imageOverlap above), the rounded top corners
+          // sit over the photo instead of exposing flat Scaffold-white.
+          Positioned(
+            top: headerHeight - cardOverlap,
+            left: 0,
+            right: 0,
+            // No `bottom: 0` here on purpose — the card should size itself
+            // to its own content, not get force-stretched down to the
+            // bottom of the screen (that stretching was the cause of the
+            // big empty gap after "Your Everything Store").
+            child: SafeArea(
+              top: false,
+              child: _LoginCard(),
             ),
           ),
         ],
@@ -280,8 +290,10 @@ class _LoginCardState extends State<_LoginCard> {
       decoration: const BoxDecoration(
         color: AppColors.cardWhite,
         borderRadius: BorderRadius.only(
-          topLeft: Radius.circular(22),
-          topRight: Radius.circular(22),
+          topLeft: Radius.circular(40),
+          topRight: Radius.circular(40),
+          bottomLeft: Radius.zero,
+          bottomRight: Radius.zero,
         ),
       ),
       child: SingleChildScrollView(
@@ -411,28 +423,7 @@ class _LoginCardState extends State<_LoginCard> {
                 ],
               ),
             ),
-            const SizedBox(height: 8),
-
-            Center(
-              child: TextButton.icon(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const AdminLoginPage()),
-                  );
-                },
-                icon: const Icon(Icons.admin_panel_settings_outlined, size: 16, color: AppColors.primaryOrange),
-                label: const Text(
-                  'Admin Portal',
-                  style: TextStyle(
-                    color: AppColors.primaryOrange,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(height: 4),
+            const SizedBox(height: 12),
 
             const Center(
               child: Text(
@@ -440,7 +431,7 @@ class _LoginCardState extends State<_LoginCard> {
                 style: TextStyle(color: AppColors.secondaryText, fontSize: 9),
               ),
             ),
-          ],
+          ]
         ),
       ),
     );

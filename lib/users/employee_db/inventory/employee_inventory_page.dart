@@ -9,6 +9,7 @@ import 'employee_edit_product_page.dart';
 import 'employee_add_product_page.dart';
 import 'employee_archive_stock_dialog.dart';
 import 'employee_consume_stock_dialog.dart';
+import '../../../shared/widgets/product_image.dart';
 
 /// Employee "Inventory" tab: view current stock and adjust it manually
 /// (Inventory and Stock Management feature).
@@ -318,13 +319,11 @@ class _InventoryItemCard extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Container(
+            ProductImage(
+              image: product.image,
               width: 56,
               height: 56,
-              decoration: BoxDecoration(color: AppColors.lightBackground, borderRadius: BorderRadius.circular(12)),
-              child: product.image != null
-                  ? const Icon(Icons.image, color: AppColors.primaryOrange, size: 26)
-                  : const Icon(Icons.image_outlined, color: AppColors.placeholderColor, size: 26),
+              borderRadius: 12,
             ),
             const SizedBox(width: 14),
             Expanded(

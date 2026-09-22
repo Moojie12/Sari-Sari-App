@@ -10,15 +10,25 @@ import 'employee_change_password_page.dart';
 import 'employee_edit_profile_page.dart';
 import 'employee_my_consumables_page.dart';
 import 'employee_profile_controller.dart';
-import 'employee_profile_info_page.dart';
 import 'employee_profile_model.dart';
-import 'package:sari_sari/shared/widgets/editable_profile_avatar.dart';
+import '../../../shared/widgets/editable_profile_avatar.dart';
 
 /// Employee "Profile" tab: a menu into every Employee Profile feature —
 /// Profile Information, Edit Profile, Messages, Notifications, Change
 /// Password, and Logout.
-class EmployeeProfilePage extends StatelessWidget {
+class EmployeeProfilePage extends StatefulWidget {
   const EmployeeProfilePage({super.key});
+
+  @override
+  State<EmployeeProfilePage> createState() => _EmployeeProfilePageState();
+}
+
+class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
+  @override
+  void initState() {
+    super.initState();
+    EmployeeProfileController.instance.loadProfile();
+  }
 
   void _showLogoutConfirmation(BuildContext context) {
     showDialog(
@@ -49,9 +59,9 @@ class EmployeeProfilePage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final profileController = EmployeeProfileController();
-    final messagesController = EmployeeMessagesController();
-    final notificationsController = EmployeeNotificationsController();
+    final profileController = EmployeeProfileController.instance;
+    final messagesController = EmployeeMessagesController.instance;
+    final notificationsController = EmployeeNotificationsController.instance;
 
     return Scaffold(
       backgroundColor: Colors.transparent,
@@ -72,14 +82,16 @@ class EmployeeProfilePage extends StatelessWidget {
             const SizedBox(height: 24),
             ListenableBuilder(
               listenable: profileController,
-              builder: (context, _) => _ProfileHeaderCard(
-                profile: profileController.profile,
-                onPhotoChanged: profileController.setPhoto,
-              ),
+              builder: (context, _) {
+                final profile = profileController.profile;
+                return _ProfileHeaderCard(
+                  profile: profile,
+                );
+              },
             ),
             const SizedBox(height: 28),
             const Text(
-              'Account',
+              'Account Actions',
               style: TextStyle(
                 color: AppColors.darkText,
                 fontSize: 16,
@@ -89,14 +101,6 @@ class EmployeeProfilePage extends StatelessWidget {
             const SizedBox(height: 12),
             _MenuCard(
               children: [
-                _MenuTile(
-                  icon: Icons.badge_outlined,
-                  label: 'Profile Information',
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const EmployeeProfileInfoPage()),
-                  ),
-                ),
                 _MenuTile(
                   icon: Icons.edit_outlined,
                   label: 'Edit Profile',
@@ -184,10 +188,11 @@ class EmployeeProfilePage extends StatelessWidget {
 
 /// Avatar + name + role summary shown above the menu.
 class _ProfileHeaderCard extends StatelessWidget {
-  const _ProfileHeaderCard({required this.profile, required this.onPhotoChanged});
+  const _ProfileHeaderCard({
+    required this.profile,
+  });
 
   final EmployeeProfile profile;
-  final ValueChanged<String?> onPhotoChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -203,8 +208,8 @@ class _ProfileHeaderCard extends StatelessWidget {
           EditableProfileAvatar(
             initials: profile.initials,
             photoPath: profile.photoPath,
-            onPhotoChanged: onPhotoChanged,
             radius: 30,
+            isEditable: false,
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -212,7 +217,7 @@ class _ProfileHeaderCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  profile.fullName,
+                  profile.fullName.trim().isEmpty ? 'Employee' : profile.fullName,
                   style: const TextStyle(
                     color: AppColors.darkText,
                     fontSize: 16,
@@ -222,14 +227,22 @@ class _ProfileHeaderCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  profile.role,
-                  style: TextStyle(
-                    color: AppColors.secondaryText.withValues(alpha: 0.8),
-                    fontSize: 12,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  child: Text(
+                    profile.role,
+                    style: const TextStyle(
+                      color: AppColors.primaryOrange,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),

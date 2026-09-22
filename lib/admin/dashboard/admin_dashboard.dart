@@ -394,12 +394,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 children: [
                   TextFormField(
                     controller: nameController0,
-                    decoration: const InputDecoration(labelText: 'Product Name', icon: Icon(Icons.inventory)),
+                    decoration: const InputDecoration(labelText: 'Product Name', icon: Icon(Icons.inventory), hintText: 'e.g. Jasmine Rice'),
                     validator: (value) => (value == null || value.isEmpty) ? 'Required' : null,
                   ),
                   TextFormField(
                     controller: barcodeController,
-                    decoration: const InputDecoration(labelText: 'Barcode', icon: Icon(Icons.barcode_reader)),
+                    decoration: const InputDecoration(labelText: 'Barcode', icon: Icon(Icons.barcode_reader), hintText: 'Leave blank if none'),
                   ),
                   TextFormField(
                     controller: descriptionController,
@@ -411,7 +411,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       Expanded(
                         child: TextFormField(
                           controller: priceController,
-                          decoration: const InputDecoration(labelText: 'Price (₱)', icon: Icon(Icons.attach_money)),
+                          decoration: const InputDecoration(labelText: 'Price (₱)', icon: Icon(Icons.attach_money), hintText: 'e.g. 50'),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         ),
                       ),
@@ -419,7 +419,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       Expanded(
                         child: TextFormField(
                           controller: costController,
-                          decoration: const InputDecoration(labelText: 'Cost (₱)'),
+                          decoration: const InputDecoration(labelText: 'Cost (₱)', hintText: 'e.g. 40'),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         ),
                       ),
@@ -430,7 +430,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       Expanded(
                         child: TextFormField(
                           controller: quantityController,
-                          decoration: const InputDecoration(labelText: 'Stock', icon: Icon(Icons.numbers)),
+                          decoration: const InputDecoration(labelText: 'Stock', icon: Icon(Icons.numbers), hintText: 'e.g. 100'),
                           keyboardType: TextInputType.number,
                         ),
                       ),
@@ -438,7 +438,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       Expanded(
                         child: TextFormField(
                           controller: unitController,
-                          decoration: const InputDecoration(labelText: 'Unit'),
+                          decoration: const InputDecoration(labelText: 'Unit', hintText: 'e.g. piece'),
                         ),
                       ),
                     ],
@@ -616,7 +616,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
               }
 
               final quantity = int.tryParse(quantityController.text.trim()) ?? 0;
-              final unit = unitController.text.trim();
 
               try {
                 await _productService.adjustStock(
@@ -1277,21 +1276,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           onRestoreCategory: (category) => _restoreCategory(context, category),
           onDeleteCategory: (category) => _deleteCategoryFromArchived(context, category),
           onClearFilters: () => setState(() {}),
-        );
-      default:
-        // For sections that aren't implemented yet, show a placeholder
-        return Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const SizedBox(height: 100),
-              const Icon(Icons.construction_rounded, size: 64, color: AppColors.placeholderColor),
-              const SizedBox(height: 16),
-              Text('Feature Coming Soon', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.placeholderColor)),
-              const SizedBox(height: 8),
-              Text('This part of the management portal is currently under development.', style: TextStyle(color: AppColors.placeholderColor)),
-            ],
-          ),
         );
     }
   }

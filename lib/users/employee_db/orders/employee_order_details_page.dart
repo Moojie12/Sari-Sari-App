@@ -5,6 +5,7 @@ import 'employee_orders_controller.dart';
 import 'employee_orders_page.dart';
 import '../messages/employee_chat_page.dart';
 import '../messages/employee_messages_controller.dart';
+import '../messages/employee_message_model.dart';
 
 class EmployeeOrderDetailsPage extends StatelessWidget {
   const EmployeeOrderDetailsPage({
@@ -35,7 +36,7 @@ class EmployeeOrderDetailsPage extends StatelessWidget {
         builder: (context, _) {
           // Re-fetch order from controller to get latest status if updated
           final currentOrder = controller.orders.firstWhere(
-            (o) => o.orderId == order.orderId,
+                (o) => o.orderId == order.orderId,
             orElse: () => order,
           );
 
@@ -219,15 +220,45 @@ class _OrderInfoSection extends StatelessWidget {
               const Text('Customer Name', style: TextStyle(color: AppColors.secondaryText, fontSize: 14)),
               InkWell(
                 onTap: () {
-                  final messagesController = EmployeeMessagesController.instance;
-                  final thread = messagesController.threads.firstWhere(
-                    (t) => t.recipient.name == order.customerName,
-                    orElse: () => messagesController.threads.firstWhere((t) => t.recipient.isCustomer),
-                  );
+                  final messagesController =
+                      EmployeeMessagesController.instance;
+
+                  // Find a thread belonging to this customer first.
+                  // Dart infers the actual thread type from the controller,
+                  // so this does not depend on a ChatThread declaration here.
+                  final matchingName = messagesController.threads
+                      .where(
+                        (t) => t.recipient?.name == order.customerName,
+                  )
+                      .toList();
+
+                  final thread = matchingName.isNotEmpty
+                      ? matchingName.first
+                      : messagesController.threads
+                      .where(
+                        (t) => t.recipient?.isCustomer == true,
+                  )
+                      .firstOrNull ??
+                      (messagesController.threads.isNotEmpty
+                          ? messagesController.threads.first
+                          : null);
+
+                  // A thread without a recipient cannot be opened.
+                  if (thread == null || thread.recipient == null) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(
+                        content: Text('No chat thread available'),
+                      ),
+                    );
+                    return;
+                  }
+
                   Navigator.push(
                     context,
                     MaterialPageRoute(
-                      builder: (context) => EmployeeChatPage(recipientId: thread.recipient.id),
+                      builder: (context) => EmployeeChatPage(
+                        recipientId: thread.recipient!.id,
+                      ),
                     ),
                   );
                 },

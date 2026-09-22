@@ -95,6 +95,7 @@ class _CustomerPurchasesPageState extends State<CustomerPurchasesPage> with Sing
                       _OrderList(
                         orders: widget.orderController.getOrdersByStatus([OrderStatus.pending]),
                         emptyMessage: 'No orders waiting for payment.',
+                        onRefresh: widget.orderController.refresh,
                       ),
                       _OrderList(
                         orders: widget.orderController.getOrdersByStatus([
@@ -104,10 +105,12 @@ class _CustomerPurchasesPageState extends State<CustomerPurchasesPage> with Sing
                           OrderStatus.readyForPickup,
                         ]),
                         emptyMessage: 'No orders waiting for shipment.',
+                        onRefresh: widget.orderController.refresh,
                       ),
                       _OrderList(
                         orders: widget.orderController.getOrdersByStatus([OrderStatus.outForDelivery]),
                         emptyMessage: 'No orders to receive.',
+                        onRefresh: widget.orderController.refresh,
                       ),
                       _OrderList(
                         orders: widget.orderController.getOrdersByStatus([
@@ -115,6 +118,7 @@ class _CustomerPurchasesPageState extends State<CustomerPurchasesPage> with Sing
                           OrderStatus.completed,
                         ]),
                         emptyMessage: 'No completed orders yet.',
+                        onRefresh: widget.orderController.refresh,
                       ),
                     ],
                   );
@@ -129,46 +133,67 @@ class _CustomerPurchasesPageState extends State<CustomerPurchasesPage> with Sing
 }
 
 class _OrderList extends StatelessWidget {
-  const _OrderList({required this.orders, required this.emptyMessage});
+  const _OrderList({
+    required this.orders,
+    required this.emptyMessage,
+    required this.onRefresh,
+  });
   final List<CustomerOrder> orders;
   final String emptyMessage;
+  final RefreshCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
     if (orders.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
+      return RefreshIndicator(
+        color: AppColors.primaryOrange,
+        onRefresh: onRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(24),
           children: [
-            const Icon(Icons.shopping_bag_outlined, size: 48, color: AppColors.placeholderColor),
-            const SizedBox(height: 12),
-            Text(
-              emptyMessage,
-              style: const TextStyle(color: AppColors.secondaryText),
+            SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.shopping_bag_outlined, size: 48, color: AppColors.placeholderColor),
+                  const SizedBox(height: 12),
+                  Text(
+                    emptyMessage,
+                    style: const TextStyle(color: AppColors.secondaryText),
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       );
     }
 
-    return ListView.separated(
-      padding: const EdgeInsets.all(24),
-      itemCount: orders.length,
-      separatorBuilder: (context, index) => const SizedBox(height: 16),
-      itemBuilder: (context, index) {
-        final order = orders[index];
-        return _OrderCard(
-          order: order,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => CustomerOrderDetailsPage(order: order),
-              ),
-            );
-          },
-        );
-      },
+    return RefreshIndicator(
+      color: AppColors.primaryOrange,
+      onRefresh: onRefresh,
+      child: ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
+        itemCount: orders.length,
+        separatorBuilder: (context, index) => const SizedBox(height: 16),
+        itemBuilder: (context, index) {
+          final order = orders[index];
+          return _OrderCard(
+            order: order,
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => CustomerOrderDetailsPage(order: order),
+                ),
+              );
+            },
+          );
+        },
+      ),
     );
   }
 }

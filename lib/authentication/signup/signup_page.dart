@@ -7,6 +7,7 @@ import '../../users/customer_db/customer_db.dart';
 import '../../users/employee_db/employee_db.dart';
 import '../../users/owner_db/owner_db.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/services/supabase_service.dart';
 import '../../shared/utils/top_notification.dart';
 
 class SignUpPage extends StatefulWidget {
@@ -140,6 +141,33 @@ class _SignUpPageState extends State<SignUpPage> {
         TopNotification.show(context, errorMessage, isError: true);
       }
       return;
+    }
+
+    // Save profile information to Supabase
+    final currentUser = AuthService().currentUser;
+    if (currentUser != null) {
+      String inferredRole = 'customer';
+      final emailLower = email.toLowerCase();
+      if (emailLower.contains('admin')) {
+        inferredRole = 'admin';
+      } else if (emailLower.contains('owner')) {
+        inferredRole = 'owner';
+      } else if (emailLower.contains('employee')) {
+        inferredRole = 'employee';
+      }
+
+      try {
+        await SupabaseService().updateUserProfile(currentUser.uid, {
+          'firstName': firstName,
+          'middleInitial': middleInitial,
+          'surname': surname,
+          'email': email,
+          'phone': phone,
+          'role': inferredRole,
+        });
+      } catch (e) {
+        debugPrint('Error syncing profile to Supabase on signup: $e');
+      }
     }
 
     // Account created successfully - navigate based on actual role

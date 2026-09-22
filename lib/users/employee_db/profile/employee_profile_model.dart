@@ -58,6 +58,8 @@ class EmployeeProfile {
     String? email,
     String? contactNumber,
     String? role,
+    String? photoPath,
+    bool clearPhoto = false,
   }) {
     return EmployeeProfile(
       firstName: firstName ?? this.firstName,
@@ -66,7 +68,7 @@ class EmployeeProfile {
       email: email ?? this.email,
       contactNumber: contactNumber ?? this.contactNumber,
       role: role ?? this.role,
-      photoPath: photoPath,
+      photoPath: clearPhoto ? null : (photoPath ?? this.photoPath),
     );
   }
 }

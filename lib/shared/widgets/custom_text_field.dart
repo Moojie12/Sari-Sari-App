@@ -12,19 +12,21 @@ class CustomTextField extends StatefulWidget {
   const CustomTextField({
     super.key,
     required this.hint,
-    required this.icon,
+    this.icon,
     this.isPassword = false,
     this.controller,
     this.keyboardType = TextInputType.text,
+    this.textAlign = TextAlign.start,
     this.trailing,
     this.errorText,
   });
 
   final String hint;
-  final IconData icon;
+  final IconData? icon;
   final bool isPassword;
   final TextEditingController? controller;
   final TextInputType keyboardType;
+  final TextAlign textAlign;
   final String? errorText;
 
   /// Optional extra widget shown after the field (e.g. a scan-ID button).
@@ -45,6 +47,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
       controller: widget.controller,
       obscureText: widget.isPassword ? _obscureText : false,
       keyboardType: widget.keyboardType,
+      textAlign: widget.textAlign,
       decoration: InputDecoration(
         hintText: widget.hint,
         errorText: widget.errorText,
@@ -57,11 +60,13 @@ class _CustomTextFieldState extends State<CustomTextField> {
           fontSize: 11,
           fontWeight: FontWeight.w500,
         ),
-        prefixIcon: Icon(
-          widget.icon,
-          size: 18,
-          color: widget.errorText != null ? Colors.redAccent : AppColors.primaryOrange,
-        ),
+        prefixIcon: widget.icon != null
+            ? Icon(
+                widget.icon,
+                size: 18,
+                color: widget.errorText != null ? Colors.redAccent : AppColors.primaryOrange,
+              )
+            : null,
         suffixIcon: widget.isPassword
             ? IconButton(
           onPressed: () => setState(() => _obscureText = !_obscureText),

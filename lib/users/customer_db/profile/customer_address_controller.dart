@@ -1,10 +1,17 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'customer_address_model.dart';
 
 class CustomerAddressController extends ChangeNotifier {
-  CustomerAddressController._();
+  CustomerAddressController._() {
+    _loadAddresses();
+  }
+
   static final CustomerAddressController instance = CustomerAddressController._();
   factory CustomerAddressController() => instance;
+
+  static const _storageKey = 'customer_saved_addresses_v1';
 
   final List<CustomerAddress> _addresses = [
     const CustomerAddress(
@@ -25,15 +32,56 @@ class CustomerAddressController extends ChangeNotifier {
   CustomerAddress? get defaultAddress => 
       _addresses.where((a) => a.isDefault).firstOrNull ?? _addresses.firstOrNull;
 
-  void addAddress(CustomerAddress address) {
+  Future<void> _loadAddresses() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonStr = prefs.getString(_storageKey);
+      if (jsonStr != null && jsonStr.isNotEmpty) {
+        final decoded = jsonDecode(jsonStr);
+        if (decoded is List) {
+          _addresses.clear();
+          for (final item in decoded) {
+            if (item is Map<String, dynamic>) {
+              _addresses.add(CustomerAddress.fromJson(item));
+            }
+          }
+          notifyListeners();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading customer addresses: $e');
+    }
+  }
+
+  Future<void> _saveAddresses() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final jsonList = _addresses.map((a) => a.toJson()).toList();
+      await prefs.setString(_storageKey, jsonEncode(jsonList));
+    } catch (e) {
+      debugPrint('Error saving customer addresses: $e');
+    }
+  }
+
+  bool addAddress(CustomerAddress address) {
+    if (address.address.trim().isEmpty || address.type.trim().isEmpty) {
+      return false;
+    }
+
     if (address.isDefault) {
       _clearDefaults();
     }
     _addresses.add(address);
     notifyListeners();
+    _saveAddresses();
+    return true;
   }
 
-  void updateAddress(CustomerAddress updated) {
+  bool updateAddress(CustomerAddress updated) {
+    if (updated.address.trim().isEmpty || updated.type.trim().isEmpty) {
+      return false;
+    }
+
     final index = _addresses.indexWhere((a) => a.id == updated.id);
     if (index >= 0) {
       if (updated.isDefault) {
@@ -41,12 +89,19 @@ class CustomerAddressController extends ChangeNotifier {
       }
       _addresses[index] = updated;
       notifyListeners();
+      _saveAddresses();
+      return true;
     }
+    return false;
   }
 
   void deleteAddress(String id) {
     _addresses.removeWhere((a) => a.id == id);
+    if (_addresses.isNotEmpty && !_addresses.any((a) => a.isDefault)) {
+      _addresses[0] = _addresses[0].copyWith(isDefault: true);
+    }
     notifyListeners();
+    _saveAddresses();
   }
 
   void setDefault(String id) {
@@ -55,6 +110,7 @@ class CustomerAddressController extends ChangeNotifier {
     if (index >= 0) {
       _addresses[index] = _addresses[index].copyWith(isDefault: true);
       notifyListeners();
+      _saveAddresses();
     }
   }
 

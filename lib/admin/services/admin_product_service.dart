@@ -658,7 +658,7 @@ class AdminProductService extends ChangeNotifier {
     return AdminCategory(
       id: data['id'] as String,
       name: data['name'] as String,
-      description: data['description'] as String ?? '',
+      description: (data['description'] as String?) ?? '',
       createdAt: data['created_at'] != null
           ? DateTime.parse(data['created_at'] as String)
           : null,

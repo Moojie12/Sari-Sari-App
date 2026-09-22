@@ -1,8 +1,14 @@
-import 'package:flutter/material.dart';
+import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../../../core/services/auth_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
+import '../../../shared/widgets/product_image.dart';
 import '../employee_inventory_controller.dart';
 import 'employee_product_model.dart';
 
@@ -592,16 +598,11 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
         children: [
           Row(
             children: [
-              Container(
+              ProductImage(
+                image: product.image,
                 width: 52,
                 height: 52,
-                decoration: BoxDecoration(
-                  color: AppColors.lightBackground,
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: product.image != null
-                    ? const Icon(Icons.image, color: AppColors.primaryOrange, size: 28)
-                    : const Icon(Icons.image_outlined, color: AppColors.placeholderColor, size: 28),
+                borderRadius: 12,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -932,6 +933,7 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
                       onChanged: (_) => setState(() => batch.recalcBulk()),
                       decoration: InputDecoration(
                         labelText: 'Bulk Price',
+                        hintText: 'e.g. 720',
                         errorText: batch.bulkPriceError,
                         isDense: true,
                         prefixText: '₱',
@@ -1004,6 +1006,7 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
                           if (batch.quantityError != null) setState(() => batch.quantityError = null);
                         },
                         decoration: InputDecoration(
+                          hintText: 'e.g. 10',
                           errorText: batch.quantityError,
                           isDense: true,
                           filled: true,
@@ -1074,16 +1077,11 @@ class _ProductResultTile extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                Container(
+                ProductImage(
+                  image: product.image,
                   width: 44,
                   height: 44,
-                  decoration: BoxDecoration(
-                    color: AppColors.lightBackground,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: product.image != null
-                      ? const Icon(Icons.image, color: AppColors.primaryOrange, size: 22)
-                      : const Icon(Icons.inventory_2_outlined, color: AppColors.placeholderColor, size: 22),
+                  borderRadius: 10,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1321,8 +1319,28 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
     if (confirmed != true) return;
     if (!mounted) return;
 
+    setState(() => _isSaving = true);
+    String? finalImageUrl = _imagePath;
+    if (_imagePath != null && !_imagePath!.startsWith('http') && !_imagePath!.startsWith('data:image')) {
+      try {
+        final file = File(_imagePath!);
+        if (file.existsSync()) {
+          final uploadedUrl = await SupabaseService().uploadProductImage(
+            name.isNotEmpty ? name : 'prod',
+            file,
+          );
+          if (uploadedUrl != null) {
+            finalImageUrl = uploadedUrl;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error uploading product photo: $e');
+      }
+    }
+
     if (_isAddingNewCategory) {
-      widget.inventory.addCategory(category, 'dummy-profile-id');
+      final currentUserId = AuthService().currentUser?.uid ?? 'system';
+      widget.inventory.addCategory(category, currentUserId);
     }
 
     final product = widget.inventory.createProduct(
@@ -1332,12 +1350,15 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
       capital: capital!,
       unit: _isWeightBased ? 'kg' : 'pcs',
       barcode: barcode,
-      image: _imagePath,
+      image: finalImageUrl,
       isWeightBased: _isWeightBased,
     );
 
     if (product == null) {
-      setState(() => _barcodeError = 'This barcode is already used by another product.');
+      setState(() {
+        _isSaving = false;
+        _barcodeError = 'This barcode is already used by another product.';
+      });
       return;
     }
 
@@ -1353,14 +1374,113 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
       notes: bulkNotes,
     );
 
+    if (!mounted) return;
+    setState(() => _isSaving = false);
     TopNotification.show(context, 'New product "$name" created.');
     Navigator.pop(context, product);
   }
 
+  final ImagePicker _picker = ImagePicker();
+  bool _isSaving = false;
+
   Future<void> _pickImage() async {
-    setState(() {
-      _imagePath = 'assets/products/placeholder.png';
-    });
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.cardWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.borderColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Product Photo',
+                    style: TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined, color: AppColors.primaryOrange),
+                title: const Text('Take Photo'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _processImagePick(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined, color: AppColors.primaryOrange),
+                title: const Text('Choose from Gallery'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _processImagePick(ImageSource.gallery);
+                },
+              ),
+              if (_imagePath != null)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.red),
+                  title: const Text('Remove Photo', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    setState(() => _imagePath = null);
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _processImagePick(ImageSource source) async {
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        imageQuality: 85,
+      );
+      if (picked != null) {
+        final file = File(picked.path);
+        final fileSize = await file.length();
+        const maxBytes = 5 * 1024 * 1024; // 5 MB maximum validation
+        if (fileSize > maxBytes) {
+          if (mounted) {
+            final mb = (fileSize / (1024 * 1024)).toStringAsFixed(1);
+            TopNotification.show(
+              context,
+              'Image exceeds 5MB limit ($mb MB). Please choose a smaller image.',
+              isError: true,
+            );
+          }
+          return;
+        }
+
+        setState(() {
+          _imagePath = picked.path;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        TopNotification.show(context, "Couldn't access image. Please check app permissions.", isError: true);
+      }
+    }
   }
 
   @override
@@ -1405,9 +1525,29 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                         Text('Add Photo', style: TextStyle(color: AppColors.primaryOrange, fontSize: 10)),
                       ],
                     )
-                        : ClipRRect(
-                      borderRadius: BorderRadius.circular(16),
-                      child: const Icon(Icons.image, size: 50, color: AppColors.primaryOrange),
+                        : Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        ProductImage(
+                          image: _imagePath,
+                          width: 100,
+                          height: 100,
+                          borderRadius: 16,
+                        ),
+                        Positioned(
+                          right: 6,
+                          bottom: 6,
+                          child: Container(
+                            padding: const EdgeInsets.all(4),
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                              boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
+                            ),
+                            child: const Icon(Icons.edit, size: 14, color: AppColors.primaryOrange),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
                 ),
@@ -1491,7 +1631,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                         controller: _bulkPriceController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         onChanged: (_) => _recalcBulk(),
-                        decoration: _fieldDecoration('e.g. 720.00', prefixText: '₱ ', errorText: _bulkPriceError),
+                        decoration: _fieldDecoration('e.g. 720', prefixText: '₱ ', errorText: _bulkPriceError),
                       ),
                       const SizedBox(height: 12),
                       Row(
@@ -1547,7 +1687,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                           enabled: !_isBulkMode,
                           readOnly: _isBulkMode,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: _fieldDecoration('e.g. 40.00', prefixText: '₱ ', errorText: _capitalError, suffixIcon: _isBulkMode ? const Icon(Icons.calculate_outlined, size: 18, color: AppColors.secondaryText) : null),
+                          decoration: _fieldDecoration('e.g. 40', prefixText: '₱ ', errorText: _capitalError, suffixIcon: _isBulkMode ? const Icon(Icons.calculate_outlined, size: 18, color: AppColors.secondaryText) : null),
                         ),
                       ],
                     ),
@@ -1562,7 +1702,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                         TextField(
                           controller: _priceController,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                          decoration: _fieldDecoration('e.g. 55.00', prefixText: '₱ ', errorText: _priceError),
+                          decoration: _fieldDecoration('e.g. 50', prefixText: '₱ ', errorText: _priceError),
                         ),
                       ],
                     ),
@@ -1581,7 +1721,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                       readOnly: _isBulkMode,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       decoration: _fieldDecoration(
-                        'e.g. 10.50',
+                        _isWeightBased ? 'e.g. 10' : 'e.g. 100',
                         errorText: _quantityError,
                         suffixIcon: (!_isWeightBased && _isBulkMode) ? const Icon(Icons.calculate_outlined, size: 18, color: AppColors.secondaryText) : null,
                       ),
@@ -1648,14 +1788,20 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
               SizedBox(
                 width: double.infinity,
                 child: ElevatedButton(
-                  onPressed: _continue,
+                  onPressed: _isSaving ? null : _continue,
                   style: ElevatedButton.styleFrom(
                     backgroundColor: AppColors.primaryOrange,
                     foregroundColor: Colors.white,
                     padding: const EdgeInsets.symmetric(vertical: 16),
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   ),
-                  child: const Text('Continue', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Continue', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
             ],

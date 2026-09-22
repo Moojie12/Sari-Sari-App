@@ -1,5 +1,10 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:firebase_storage/firebase_storage.dart';
+import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth_service.dart';
+import '../../users/customer_db/purchases/customer_order_model.dart';
 
 /// Service for handling all Supabase database operations
 class SupabaseService {
@@ -321,6 +326,306 @@ class SupabaseService {
     } catch (e) {
       throw Exception('Failed to fetch all orders: $e');
     }
+  }
+
+  /// Get all orders with embedded order_items
+  Future<List<Map<String, dynamic>>> getAllOrdersWithItems() async {
+    try {
+      final response = await _client
+          .from('orders')
+          .select('*, order_items(*)')
+          .order('placed_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Failed to fetch orders with items from Supabase: $e');
+      return [];
+    }
+  }
+
+  /// Get profile ID by Firebase UID (or create profile row if missing)
+  Future<String?> getProfileIdByFirebaseUid(String firebaseUid) async {
+    try {
+      final response = await _client
+          .from('profiles')
+          .select('id')
+          .eq('firebase_uid', firebaseUid)
+          .maybeSingle();
+      if (response != null && response['id'] != null) {
+        return response['id'] as String?;
+      }
+
+      // Profile doesn't exist in Supabase yet — create a basic profile row
+      final firebaseUser = AuthService().currentUser;
+      final email = (firebaseUser?.email != null && firebaseUser!.email!.isNotEmpty)
+          ? firebaseUser.email!
+          : 'customer@sarisari.com';
+      final displayName = firebaseUser?.displayName ?? 'Customer';
+      final parts = displayName.split(' ');
+      final firstName = parts.isNotEmpty && parts.first.isNotEmpty ? parts.first : 'Customer';
+      final surname = parts.length > 1 && parts.last.isNotEmpty ? parts.sublist(1).join(' ') : 'User';
+      // Generate username from email or display name
+      final username = (displayName.replaceAll(' ', '_').toLowerCase());
+
+      String role = 'customer';
+      final emailLower = email.toLowerCase();
+      if (emailLower.contains('owner')) {
+        role = 'owner';
+      } else if (emailLower.contains('employee')) {
+        role = 'employee';
+      } else if (emailLower.contains('admin')) {
+        role = 'admin';
+      }
+
+      final newProfile = await _client
+          .from('profiles')
+          .upsert({
+            'firebase_uid': firebaseUid,
+            'first_name': firstName,
+            'middle_initial': '',
+            'surname': surname,
+            'username': username,
+            'email': email,
+            'role': role,
+            'status': 'Enabled',
+          }, onConflict: 'firebase_uid')
+          .select('id')
+          .single();
+
+      return newProfile['id'] as String?;
+    } catch (e) {
+      debugPrint('Error looking up or creating profile by firebase_uid: $e');
+    }
+    return null;
+  }
+
+  /// Ensure a product exists in Supabase products table so foreign keys on order_items are valid
+  Future<String?> ensureProductExistsInSupabase({
+    required String productId,
+    required String productName,
+    required double price,
+    required double capital,
+  }) async {
+    try {
+      final isUuid = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(productId);
+
+      if (isUuid) {
+        final existing = await _client.from('products').select('id').eq('id', productId).maybeSingle();
+        if (existing != null && existing['id'] != null) {
+          return existing['id'] as String;
+        }
+      }
+
+      // Check if product exists by name
+      final existingByName = await _client.from('products').select('id').eq('name', productName).maybeSingle();
+      if (existingByName != null && existingByName['id'] != null) {
+        return existingByName['id'] as String;
+      }
+
+      // Ensure category exists
+      await ensureCategoryExists('General');
+
+      // Create product in Supabase products table
+      final newProd = await _client.from('products').insert({
+        if (isUuid) 'id': productId,
+        'name': productName,
+        'category': 'General',
+        'price': price,
+        'capital': capital,
+        'low_stock_threshold': 5,
+        'is_weight_based': false,
+      }).select('id').single();
+
+      return newProd['id'] as String?;
+    } catch (e) {
+      debugPrint('Error ensuring product exists in Supabase: $e');
+    }
+    return null;
+  }
+
+  /// Save or update a customer order in Supabase database
+  Future<String?> saveCustomerOrder(CustomerOrder order) async {
+    try {
+      String? profileId;
+      final firebaseUser = AuthService().currentUser;
+      final firebaseUid = order.userId ?? firebaseUser?.uid;
+      if (firebaseUid != null && firebaseUid.isNotEmpty) {
+        profileId = await getProfileIdByFirebaseUid(firebaseUid);
+      }
+
+      if (profileId == null) {
+        final fallback = await _client.from('profiles').select('id').limit(1).maybeSingle();
+        if (fallback != null && fallback['id'] != null) {
+          profileId = fallback['id'] as String?;
+        } else {
+          // Create a default profile row if profiles table is completely empty
+          final sysProfile = await _client.from('profiles').insert({
+            'firebase_uid': 'system_default_guest',
+            'first_name': 'Guest',
+            'middle_initial': '',
+            'surname': 'Customer',
+            'username': 'guest',
+            'email': 'guest@sarisari.com',
+            'role': 'customer',
+            'status': 'Enabled',
+          }).select('id').single();
+          profileId = sysProfile['id'] as String?;
+        }
+      }
+
+      if (profileId == null) {
+        throw Exception('Failed to resolve or create profile ID for user.');
+      }
+
+      final orderData = <String, dynamic>{
+        'user_id': profileId,
+        'order_number': order.orderId,
+        'status': order.status.name,
+        'customer_name': order.customerName,
+        'customer_contact': '', // Using empty string as we don't have phone/email in order model
+        'delivery_address': order.deliveryAddress ?? '',
+        'order_notes': '', // Using empty string as we don't have notes in order model
+        'total_amount': order.totalAmount,
+        'total_items': order.items.fold<int>(0, (sum, i) => sum + i.quantity),
+        'placed_at': order.orderDate.toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+
+      final response = await _client
+          .from('orders')
+          .upsert(orderData, onConflict: 'order_number')
+          .select('id')
+          .single();
+
+      final dbOrderId = response['id'] as String;
+
+      // Insert order items if present
+      if (order.items.isNotEmpty) {
+        await _client.from('order_items').delete().eq('order_id', dbOrderId);
+
+        final List<Map<String, dynamic>> itemsData = [];
+        for (final item in order.items) {
+          final validProdId = await ensureProductExistsInSupabase(
+            productId: item.productId,
+            productName: item.productName,
+            price: item.price,
+            capital: item.capital,
+          );
+
+          if (validProdId != null) {
+            itemsData.add({
+              'order_id': dbOrderId,
+              'product_id': validProdId,
+              'product_name': item.productName,
+              'unit_price': item.price,
+              'quantity': item.quantity,
+              'total_price': item.subtotal,
+            });
+          }
+        }
+
+        if (itemsData.isNotEmpty) {
+          await _client.from('order_items').insert(itemsData);
+        }
+      }
+
+      debugPrint('Successfully saved order #${order.orderId} to Supabase database with ID: $dbOrderId');
+      return dbOrderId;
+    } catch (e, stackTrace) {
+      debugPrint('Failed to save customer order to Supabase: $e');
+      debugPrint('Stack trace: $stackTrace');
+      return null;
+    }
+  }
+
+  /// Update order status in Supabase database with resilience against missing columns or strict constraints
+  Future<bool> updateOrderStatusInDb(String orderNumberOrDbId, String status, [String? paymentStatus]) async {
+    final nowIso = DateTime.now().toIso8601String();
+
+    Future<bool> tryUpdate(Map<String, dynamic> data) async {
+      final res = await _client
+          .from('orders')
+          .update(data)
+          .eq('order_number', orderNumberOrDbId)
+          .select('id');
+      if (res.isNotEmpty) return true;
+
+      final resById = await _client
+          .from('orders')
+          .update(data)
+          .eq('id', orderNumberOrDbId)
+          .select('id');
+      return resById.isNotEmpty;
+    }
+
+    // 1. Attempt with status and optional payment_status
+    try {
+      final payload = <String, dynamic>{
+        'status': status,
+        'updated_at': nowIso,
+      };
+      if (paymentStatus != null && paymentStatus.isNotEmpty) {
+        payload['payment_status'] = paymentStatus;
+      }
+      final success = await tryUpdate(payload);
+      if (success) {
+        debugPrint('Successfully updated order $orderNumberOrDbId status to $status in Supabase.');
+        return true;
+      }
+    } catch (e) {
+      final errStr = e.toString().toLowerCase();
+      debugPrint('Initial update attempt for order $orderNumberOrDbId failed: $e');
+
+      // If failed because payment_status column does not exist in the schema cache
+      if (errStr.contains('payment_status') || errStr.contains('pgrst204')) {
+        try {
+          final success = await tryUpdate({
+            'status': status,
+            'updated_at': nowIso,
+          });
+          if (success) {
+            debugPrint('Updated order $orderNumberOrDbId status to $status (omitted payment_status).');
+            return true;
+          }
+        } catch (innerErr) {
+          final innerStr = innerErr.toString().toLowerCase();
+          debugPrint('Update without payment_status failed: $innerErr');
+          if (innerStr.contains('check constraint') || innerStr.contains('23514')) {
+            return await _fallbackStatusConstraintUpdate(tryUpdate, orderNumberOrDbId, status, nowIso);
+          }
+        }
+      } else if (errStr.contains('check constraint') || errStr.contains('23514')) {
+        return await _fallbackStatusConstraintUpdate(tryUpdate, orderNumberOrDbId, status, nowIso);
+      }
+    }
+
+    return false;
+  }
+
+  Future<bool> _fallbackStatusConstraintUpdate(
+    Future<bool> Function(Map<String, dynamic>) tryUpdate,
+    String orderNumberOrDbId,
+    String requestedStatus,
+    String nowIso,
+  ) async {
+    try {
+      String fallbackStatus = 'processing';
+      if (requestedStatus == 'completed') fallbackStatus = 'completed';
+      if (requestedStatus == 'cancelled') fallbackStatus = 'cancelled';
+      if (requestedStatus == 'pending') fallbackStatus = 'pending';
+
+      final success = await tryUpdate({
+        'status': fallbackStatus,
+        'order_notes': '[status:$requestedStatus]',
+        'updated_at': nowIso,
+      });
+      if (success) {
+        debugPrint('Updated order $orderNumberOrDbId with fallback status $fallbackStatus [status:$requestedStatus].');
+        return true;
+      }
+    } catch (e) {
+      debugPrint('Fallback status update also failed: $e');
+    }
+    return false;
   }
 
   /// Update order status
@@ -887,19 +1192,39 @@ class SupabaseService {
   /// Get or create user profile (linked to Firebase Auth UID)
   Future<Map<String, dynamic>> getOrCreateUserProfile(String firebaseUid) async {
     try {
-      // Try to get existing profile using firebase_uid column
+      // 1. Try to get existing profile using firebase_uid column
       final response = await _client
           .from('profiles')
           .select()
           .eq('firebase_uid', firebaseUid)
-          .single();
-      return response;
-    } catch (e) {
-      if (e.toString().contains('No rows found')) {
-        // Return empty or create if needed - usually created via createUserProfile
-        return {};
+          .maybeSingle();
+      if (response != null && response.isNotEmpty) {
+        return response;
       }
-      throw Exception('Failed to get user profile: $e');
+
+      // 2. Try to match by email of current auth user to bridge existing profile
+      final currentUser = AuthService().currentUser;
+      final email = currentUser?.email;
+      if (email != null && email.isNotEmpty) {
+        final byEmail = await _client
+            .from('profiles')
+            .select()
+            .eq('email', email)
+            .maybeSingle();
+        if (byEmail != null && byEmail.isNotEmpty) {
+          // Link this profile to the current firebase_uid
+          await _client
+              .from('profiles')
+              .update({'firebase_uid': firebaseUid})
+              .eq('id', byEmail['id']);
+          return byEmail;
+        }
+      }
+
+      return {};
+    } catch (e) {
+      debugPrint('Failed to get user profile: $e');
+      return {};
     }
   }
 
@@ -912,20 +1237,6 @@ class SupabaseService {
       return response;
     } catch (e) {
       throw Exception('Failed to fetch all profiles: $e');
-    }
-  }
-
-  /// Create a new user profile
-  Future<Map<String, dynamic>> _createUserProfile(String firebaseUid) async {
-    try {
-      final response = await _client
-          .from('profiles')
-          .insert({'id': firebaseUid})
-          .select()
-          .single();
-      return response;
-    } catch (e) {
-      throw Exception('Failed to create user profile: $e');
     }
   }
 
@@ -943,6 +1254,10 @@ class SupabaseService {
       if (updates.containsKey('phone')) mappedUpdates['phone'] = updates['phone'];
       if (updates.containsKey('role')) mappedUpdates['role'] = updates['role'];
       if (updates.containsKey('status')) mappedUpdates['status'] = updates['status'];
+      if (updates.containsKey('avatarUrl')) mappedUpdates['avatar_url'] = updates['avatarUrl'];
+      if (updates.containsKey('avatar_url')) mappedUpdates['avatar_url'] = updates['avatar_url'];
+      if (updates.containsKey('photoPath')) mappedUpdates['avatar_url'] = updates['photoPath'];
+      if (updates.containsKey('photo_url')) mappedUpdates['avatar_url'] = updates['photo_url'];
       if (updates.containsKey('updatedAt')) mappedUpdates['updated_at'] = updates['updatedAt'];
       if (updates.containsKey('isArchived')) mappedUpdates['is_archived'] = updates['isArchived'];
       if (updates.containsKey('archivedAt')) mappedUpdates['archived_at'] = updates['archivedAt'];
@@ -973,6 +1288,118 @@ class SupabaseService {
       return response;
     } catch (e) {
       throw Exception('Failed to update user profile: $e');
+    }
+  }
+
+  /// Upload profile avatar image for a specific user with 5MB validation.
+  /// Generates a unique user-scoped path and uploads to Supabase Storage,
+  /// with automatic fallback to Firebase Storage or Base64 database data.
+  Future<String?> uploadProfileAvatar(String userId, File file) async {
+    try {
+      final fileSize = await file.length();
+      const maxBytes = 5 * 1024 * 1024; // 5MB limit
+      if (fileSize > maxBytes) {
+        throw Exception('Image size exceeds 5MB limit.');
+      }
+
+      final ext = file.path.split('.').last.toLowerCase();
+      final validExt = (ext == 'png' || ext == 'webp') ? ext : 'jpg';
+      final fileName = '${userId}_${DateTime.now().millisecondsSinceEpoch}.$validExt';
+      final storagePath = '$userId/$fileName';
+      final bytes = await file.readAsBytes();
+
+      // 1. Try Supabase Storage 'avatars' bucket
+      try {
+        await _client.storage.from('avatars').uploadBinary(
+          storagePath,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: 'image/$validExt',
+            upsert: true,
+          ),
+        );
+        final publicUrl = _client.storage.from('avatars').getPublicUrl(storagePath);
+        return publicUrl;
+      } catch (storageError) {
+        debugPrint('Supabase storage upload error: $storageError');
+      }
+
+      // 2. Fallback to Firebase Storage
+      try {
+        final ref = FirebaseStorage.instance.ref().child('avatars/$storagePath');
+        await ref.putData(
+          bytes,
+          SettableMetadata(contentType: 'image/$validExt'),
+        );
+        final downloadUrl = await ref.getDownloadURL();
+        return downloadUrl;
+      } catch (fbError) {
+        debugPrint('Firebase storage upload error: $fbError');
+      }
+
+      // 3. Fallback to Base64 data URI stored in database
+      final base64String = base64Encode(bytes);
+      return 'data:image/$validExt;base64,$base64String';
+    } catch (e) {
+      debugPrint('Failed to upload profile avatar: $e');
+      return null;
+    }
+  }
+
+  /// Uploads a product image with 5MB maximum file size validation.
+  /// 1. Attempts Supabase Storage 'products' bucket.
+  /// 2. Falls back to Firebase Storage 'products/' path.
+  /// 3. Falls back to Base64 Data URI stored directly in database.
+  Future<String?> uploadProductImage(String productId, File file) async {
+    try {
+      final fileSize = await file.length();
+      const maxBytes = 5 * 1024 * 1024; // 5MB limit
+      if (fileSize > maxBytes) {
+        throw Exception('Image size exceeds 5MB limit.');
+      }
+
+      final ext = file.path.split('.').last.toLowerCase();
+      final validExt = (ext == 'png' || ext == 'webp') ? ext : 'jpg';
+      final safeId = productId.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
+      final fileName = '${safeId}_${DateTime.now().millisecondsSinceEpoch}.$validExt';
+      final storagePath = 'items/$fileName';
+      final bytes = await file.readAsBytes();
+
+      // 1. Try Supabase Storage 'products' bucket
+      try {
+        await _client.storage.from('products').uploadBinary(
+          storagePath,
+          bytes,
+          fileOptions: FileOptions(
+            contentType: 'image/$validExt',
+            upsert: true,
+          ),
+        );
+        final publicUrl = _client.storage.from('products').getPublicUrl(storagePath);
+        return publicUrl;
+      } catch (storageError) {
+        debugPrint('Supabase storage product upload error: $storageError');
+      }
+
+      // 2. Fallback to Firebase Storage
+      try {
+        final ref = FirebaseStorage.instance.ref().child('products/$storagePath');
+        await ref.putData(
+          bytes,
+          SettableMetadata(contentType: 'image/$validExt'),
+        );
+        final downloadUrl = await ref.getDownloadURL();
+        return downloadUrl;
+      } catch (fbError) {
+        debugPrint('Firebase storage product upload error: $fbError');
+      }
+
+      // 3. Fallback to Base64 data URI
+      final base64String = base64Encode(bytes);
+      return 'data:image/$validExt;base64,$base64String';
+    } catch (e) {
+      debugPrint('Failed to upload product image: $e');
+      return null;
     }
   }
 

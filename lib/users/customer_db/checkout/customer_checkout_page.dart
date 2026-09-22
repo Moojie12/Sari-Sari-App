@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/services/auth_service.dart';
 import '../customer_cart_controller.dart';
 import '../purchases/customer_order_controller.dart';
 import '../purchases/customer_order_model.dart';
@@ -57,6 +58,10 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       );
     }).toList();
 
+    // Get current user ID for the order
+    final currentUser = AuthService().currentUser;
+    final userId = currentUser?.uid;
+
     final order = CustomerOrder(
       customerName: CustomerProfileController.instance.profile.fullName.isEmpty ? 'Customer' : CustomerProfileController.instance.profile.fullName,
       orderId: orderId,
@@ -70,17 +75,17 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       deliveryFee: _orderType == OrderType.delivery ? _deliveryFee : 0,
       totalAmount: _total,
       status: OrderStatus.pending,
+      userId: userId, // Set the user ID
     );
 
     widget.orderController.placeOrder(order);
     widget.cartController.clearCart();
 
-    Navigator.pushAndRemoveUntil(
+    Navigator.pushReplacement(
       context,
       MaterialPageRoute(
         builder: (context) => CustomerOrderConfirmationPage(order: order),
       ),
-      (route) => route.isFirst,
     );
   }
 

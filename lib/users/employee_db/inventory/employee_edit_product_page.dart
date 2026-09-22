@@ -1,8 +1,14 @@
-import 'package:flutter/material.dart';
+import 'dart:io';
 
+import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
+
+import '../../../core/services/auth_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
+import '../../../shared/widgets/product_image.dart';
 import '../employee_inventory_controller.dart';
 import 'employee_product_model.dart';
 
@@ -41,6 +47,9 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
   String? _barcodeError;
   bool _isBarcodeEditingEnabled = false;
 
+  final ImagePicker _picker = ImagePicker();
+  bool _isSaving = false;
+
   @override
   void initState() {
     super.initState();
@@ -60,9 +69,103 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
   }
 
   Future<void> _pickImage() async {
-    setState(() {
-      _imagePath = 'assets/products/placeholder.png';
-    });
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.cardWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.borderColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Product Photo',
+                    style: TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined, color: AppColors.primaryOrange),
+                title: const Text('Take Photo'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _processImagePick(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined, color: AppColors.primaryOrange),
+                title: const Text('Choose from Gallery'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _processImagePick(ImageSource.gallery);
+                },
+              ),
+              if (_imagePath != null)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.red),
+                  title: const Text('Remove Photo', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    setState(() => _imagePath = null);
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _processImagePick(ImageSource source) async {
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1024,
+        imageQuality: 85,
+      );
+      if (picked != null) {
+        final file = File(picked.path);
+        final fileSize = await file.length();
+        const maxBytes = 5 * 1024 * 1024; // 5 MB maximum validation
+        if (fileSize > maxBytes) {
+          if (mounted) {
+            final mb = (fileSize / (1024 * 1024)).toStringAsFixed(1);
+            TopNotification.show(
+              context,
+              'Image exceeds 5MB limit ($mb MB). Please choose a smaller image.',
+              isError: true,
+            );
+          }
+          return;
+        }
+
+        setState(() {
+          _imagePath = picked.path;
+        });
+      }
+    } catch (_) {
+      if (mounted) {
+        TopNotification.show(context, "Couldn't access image. Please check app permissions.", isError: true);
+      }
+    }
   }
 
   Future<void> _onScanBarcode() async {
@@ -137,8 +240,28 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
     if (confirmed != true) return;
     if (!mounted) return;
 
+    setState(() => _isSaving = true);
+    String? finalImageUrl = _imagePath;
+    if (_imagePath != null && _imagePath != widget.product.image && !_imagePath!.startsWith('http') && !_imagePath!.startsWith('data:image')) {
+      try {
+        final file = File(_imagePath!);
+        if (file.existsSync()) {
+          final uploadedUrl = await SupabaseService().uploadProductImage(
+            widget.product.id,
+            file,
+          );
+          if (uploadedUrl != null) {
+            finalImageUrl = uploadedUrl;
+          }
+        }
+      } catch (e) {
+        debugPrint('Error uploading edited product photo: $e');
+      }
+    }
+
     if (_isAddingNewCategory) {
-      widget.inventory.addCategory(category, 'dummy-profile-id');
+      final currentUserId = AuthService().currentUser?.uid ?? 'system';
+      widget.inventory.addCategory(category, currentUserId);
     }
 
     widget.inventory.updateProduct(
@@ -148,11 +271,13 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
       price: price!,
       capital: capital!,
       barcode: barcode,
-      image: _imagePath,
+      image: finalImageUrl,
       lowStockThreshold: threshold,
       isWeightBased: _isWeightBased,
     );
 
+    if (!mounted) return;
+    setState(() => _isSaving = false);
     TopNotification.show(context, 'Product updated successfully');
     Navigator.pop(context);
   }
@@ -202,7 +327,12 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                     child: Stack(
                       fit: StackFit.expand,
                       children: [
-                        const Icon(Icons.image, size: 60, color: AppColors.primaryOrange),
+                        ProductImage(
+                          image: _imagePath,
+                          width: 120,
+                          height: 120,
+                          borderRadius: 20,
+                        ),
                         Positioned(
                           right: 8,
                           bottom: 8,
@@ -265,7 +395,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                         enabled: false,
                         readOnly: true,
                         decoration: _fieldDecoration(
-                          '0.00',
+                          'e.g. 40',
                           prefixText: '₱ ',
                           errorText: _capitalError,
                           suffixIcon: const Icon(Icons.lock_outline, size: 18, color: AppColors.placeholderColor),
@@ -286,7 +416,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         onChanged: (_) => setState(() {}),
                         decoration: _fieldDecoration(
-                          '0.00',
+                          'e.g. 50',
                           prefixText: '₱ ',
                           errorText: _priceError,
                         ),
@@ -382,14 +512,20 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: _save,
+                onPressed: _isSaving ? null : _save,
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryOrange,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 16),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
-                child: const Text('Save Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                child: _isSaving
+                    ? const SizedBox(
+                        width: 20,
+                        height: 20,
+                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                      )
+                    : const Text('Save Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
             ),
           ],

@@ -11,6 +11,7 @@ import 'employee_receipt_page.dart';
 import 'employee_batch_selection_sheet.dart';
 import 'employee_shift_controller.dart';
 import 'employee_shift_widgets.dart';
+import '../../../shared/widgets/product_image.dart';
 
 /// Employee "POS" tab: ring up a walk-in sale.
 ///
@@ -463,13 +464,12 @@ class _PosProductCard extends StatelessWidget {
                       alignment: Alignment.center,
                       child: Opacity(
                         opacity: isOut ? 0.4 : 1,
-                        child: product.image != null
-                            ? const Icon(Icons.image,
-                            size: 28,
-                            color: AppColors.primaryOrange)
-                            : Icon(Icons.image_outlined,
-                            size: 28,
-                            color: AppColors.primaryOrange.withValues(alpha: 0.4)),
+                        child: ProductImage(
+                          image: product.image,
+                          width: double.infinity,
+                          height: double.infinity,
+                          borderRadius: 10,
+                        ),
                       ),
                     ),
                   ),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import 'customer_order_model.dart';
+import 'customer_order_controller.dart';
 
 class CustomerOrderDetailsPage extends StatelessWidget {
   const CustomerOrderDetailsPage({super.key, required this.order});
@@ -8,42 +9,49 @@ class CustomerOrderDetailsPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.lightBackground,
-      appBar: AppBar(
-        title: const Text(
-          'Order Details',
-          style: TextStyle(color: AppColors.darkText, fontSize: 20, fontWeight: FontWeight.bold),
-        ),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.darkText),
-        centerTitle: true,
-      ),
-      body: SingleChildScrollView(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            _OrderInfoSection(order: order),
-            const SizedBox(height: 24),
-            _StatusTimeline(currentStatus: order.status, orderType: order.orderType),
-            if (order.status == OrderStatus.outForDelivery) ...[
-              const SizedBox(height: 24),
-              const _DeliveryMapPlaceholder(),
-            ],
-            const SizedBox(height: 24),
-            const Text('Products', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            _OrderItemsList(items: order.items),
-            const SizedBox(height: 24),
-            const Text('Order Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-            const SizedBox(height: 12),
-            _OrderDetailsCard(order: order),
-            const SizedBox(height: 32),
-          ],
-        ),
-      ),
+    return ListenableBuilder(
+      listenable: CustomerOrderController.instance,
+      builder: (context, _) {
+        final currentOrder = CustomerOrderController.instance.getOrderById(order.orderId) ?? order;
+
+        return Scaffold(
+          backgroundColor: AppColors.lightBackground,
+          appBar: AppBar(
+            title: const Text(
+              'Order Details',
+              style: TextStyle(color: AppColors.darkText, fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            backgroundColor: Colors.white,
+            elevation: 0,
+            iconTheme: const IconThemeData(color: AppColors.darkText),
+            centerTitle: true,
+          ),
+          body: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _OrderInfoSection(order: currentOrder),
+                const SizedBox(height: 24),
+                _StatusTimeline(currentStatus: currentOrder.status, orderType: currentOrder.orderType),
+                if (currentOrder.status == OrderStatus.outForDelivery) ...[
+                  const SizedBox(height: 24),
+                  const _DeliveryMapPlaceholder(),
+                ],
+                const SizedBox(height: 24),
+                const Text('Products', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                _OrderItemsList(items: currentOrder.items),
+                const SizedBox(height: 24),
+                const Text('Order Information', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                const SizedBox(height: 12),
+                _OrderDetailsCard(order: currentOrder),
+                const SizedBox(height: 32),
+              ],
+            ),
+          ),
+        );
+      },
     );
   }
 }

@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
+import '../../../shared/widgets/product_image.dart';
 import '../employee_inventory_controller.dart';
 import 'employee_product_model.dart';
 
@@ -506,16 +508,11 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
         children: [
           Row(
             children: [
-              Container(
+              ProductImage(
+                image: product.image,
                 width: 48,
                 height: 48,
-                decoration: BoxDecoration(
-                  color: AppColors.lightBackground,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: product.image != null
-                    ? const Icon(Icons.image, color: AppColors.primaryOrange, size: 24)
-                    : const Icon(Icons.image_outlined, color: AppColors.placeholderColor, size: 24),
+                borderRadius: 10,
               ),
               const SizedBox(width: 12),
               Expanded(
@@ -626,7 +623,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
                     onChanged: (_) => _recalcBulk(),
                     decoration: InputDecoration(
-                      hintText: 'e.g. 720.00',
+                      hintText: 'e.g. 720',
                       prefixText: '₱ ',
                       errorText: _bulkPriceError,
                       filled: true,
@@ -933,16 +930,11 @@ class _ProductResultTile extends StatelessWidget {
             padding: const EdgeInsets.all(12),
             child: Row(
               children: [
-                Container(
+                ProductImage(
+                  image: product.image,
                   width: 40,
                   height: 40,
-                  decoration: BoxDecoration(
-                    color: AppColors.lightBackground,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: product.image != null
-                      ? const Icon(Icons.image, color: AppColors.primaryOrange, size: 20)
-                      : const Icon(Icons.inventory_2_outlined, color: AppColors.placeholderColor, size: 20),
+                  borderRadius: 10,
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -1032,7 +1024,8 @@ class _NewProductSheetState extends State<_NewProductSheet> {
     if (category.isEmpty) return;
 
     if (_isAddingNewCategory) {
-      widget.inventory.addCategory(category, 'dummy-profile-id');
+      final currentUserId = AuthService().currentUser?.uid ?? 'system';
+      widget.inventory.addCategory(category, currentUserId);
     }
 
     final product = widget.inventory.createProduct(
@@ -1154,7 +1147,7 @@ class _NewProductSheetState extends State<_NewProductSheet> {
               TextField(
                 controller: _priceController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                decoration: _fieldDecoration('e.g. 45.00', prefixText: '₱ ', errorText: _priceError),
+                decoration: _fieldDecoration('e.g. 45', prefixText: '₱ ', errorText: _priceError),
               ),
               const SizedBox(height: 14),
               const Text('Barcode (optional)',

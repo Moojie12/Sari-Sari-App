@@ -618,7 +618,7 @@ class _ArchivedSectionState extends State<ArchivedSection> {
         3: FixedColumnWidth(120),
       },
       header: [
-        header('Category'),
+        sortableHeader('Category', 'name', _categorySort, _categoryAsc, _onCategorySort),
         header('Description'),
         header('Products'),
         header('Actions'),

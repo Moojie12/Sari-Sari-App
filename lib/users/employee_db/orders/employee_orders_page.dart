@@ -72,21 +72,25 @@ class _EmployeeOrdersPageState extends State<EmployeeOrdersPage> with SingleTick
               child: ListenableBuilder(
                 listenable: widget.controller,
                 builder: (context, _) {
-                  return TabBarView(
-                    controller: _tabController,
-                    children: [
-                      _DemandList(
-                        demandItems: widget.controller.demandItems,
-                        controller: widget.controller,
-                      ),
-                      _ActiveOrdersView(
-                        controller: widget.controller,
-                      ),
-                      _OrderList(
-                        orders: widget.controller.completedOrders,
-                        controller: widget.controller,
-                      ),
-                    ],
+                  return RefreshIndicator(
+                    color: AppColors.primaryOrange,
+                    onRefresh: widget.controller.refresh,
+                    child: TabBarView(
+                      controller: _tabController,
+                      children: [
+                        _DemandList(
+                          demandItems: widget.controller.demandItems,
+                          controller: widget.controller,
+                        ),
+                        _ActiveOrdersView(
+                          controller: widget.controller,
+                        ),
+                        _OrderList(
+                          orders: widget.controller.completedOrders,
+                          controller: widget.controller,
+                        ),
+                      ],
+                    ),
                   );
                 },
               ),

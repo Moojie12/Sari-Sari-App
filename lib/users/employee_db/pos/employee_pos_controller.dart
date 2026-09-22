@@ -1,8 +1,11 @@
 import 'package:flutter/foundation.dart';
 
+import '../../customer_db/purchases/customer_order_model.dart';
 import '../employee_inventory_controller.dart';
 import '../inventory/employee_batch_model.dart';
 import '../inventory/employee_product_model.dart';
+import '../orders/employee_orders_controller.dart';
+import '../../../core/services/auth_service.dart';
 
 enum EmployeePaymentMethod { cash, gCash }
 
@@ -198,6 +201,34 @@ class EmployeePosController extends ChangeNotifier {
       totalCapital: totalCapital,
       totalProfit: totalProfit,
     );
+
+    // Save walk-in POS sale to orders database via EmployeeOrderController
+    // Get current user ID for the order (if available)
+    final currentUser = AuthService().currentUser;
+    final userId = currentUser?.uid;
+
+    final posOrder = CustomerOrder(
+      orderId: receipt.receiptNumber,
+      customerName: 'Walk-in',
+      orderDate: receipt.dateTime,
+      items: _cart.map((item) => CustomerOrderItem(
+        productId: item.product.id,
+        productName: item.product.name,
+        price: item.unitPrice,
+        capital: item.capitalPrice,
+        quantity: item.quantity.round(),
+        subtotal: item.subtotal,
+      )).toList(),
+      orderType: OrderType.pickup,
+      paymentMethod: paymentMethod == EmployeePaymentMethod.gCash ? PaymentMethod.gCash : PaymentMethod.cashOnDelivery,
+      paymentStatus: PaymentStatus.paid,
+      subtotal: totalAmount,
+      deliveryFee: 0,
+      totalAmount: totalAmount,
+      status: OrderStatus.completed,
+      userId: userId, // Set the user ID
+    );
+    EmployeeOrderController.instance.placeOrder(posOrder);
 
     _receiptCounter++;
     _cart.clear();

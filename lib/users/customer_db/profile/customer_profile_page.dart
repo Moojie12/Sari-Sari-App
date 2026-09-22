@@ -1,15 +1,14 @@
 import 'package:flutter/material.dart';
 import '../../../authentication/login/login_page.dart';
 import '../../../core/theme/app_colors.dart';
-import 'customer_profile_info_page.dart';
 import 'customer_edit_profile_page.dart';
 import 'customer_profile_controller.dart';
-import 'package:sari_sari/shared/widgets/editable_profile_avatar.dart';
+import '../../../shared/widgets/editable_profile_avatar.dart';
 import 'customer_change_password_page.dart';
 import 'customer_address_page.dart';
 import 'customer_gcash_setting_page.dart';
 import '../chat/customer_chat_page.dart';
-import 'package:sari_sari/shared/widgets/skeleton.dart';
+import '../../../shared/widgets/skeleton.dart';
 
 /// Customer "Profile" tab: a menu into customer profile features,
 /// mirroring the employee dashboard layout but simplified.
@@ -31,7 +30,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
 
   void _simulateLoading() async {
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 600));
+    await CustomerProfileController.instance.loadProfile();
     if (mounted) {
       setState(() => _isLoading = false);
     }
@@ -89,17 +88,21 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
             const SizedBox(height: 24),
             ListenableBuilder(
               listenable: profileController,
-              builder: (context, _) => _ProfileHeaderCard(
-                fullName: profileController.profile.fullName,
-                role: 'Customer',
-                initials: profileController.profile.initials,
-                photoPath: profileController.profile.photoPath,
-                onPhotoChanged: profileController.setPhoto,
-              ),
+              builder: (context, _) {
+                final profile = profileController.profile;
+                final displayName = profile.fullName.trim().isEmpty ? 'Customer' : profile.fullName;
+
+                return _ProfileHeaderCard(
+                  fullName: displayName,
+                  role: 'Customer',
+                  initials: profile.initials,
+                  photoPath: profile.photoPath,
+                );
+              },
             ),
             const SizedBox(height: 28),
             const Text(
-              'Account',
+              'Settings & Options',
               style: TextStyle(
                 color: AppColors.darkText,
                 fontSize: 16,
@@ -109,16 +112,6 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
             const SizedBox(height: 12),
             _MenuCard(
               children: [
-                _MenuTile(
-                  icon: Icons.badge_outlined,
-                  label: 'Profile Information',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const CustomerProfileInfoPage()),
-                    );
-                  },
-                ),
                 _MenuTile(
                   icon: Icons.edit_outlined,
                   label: 'Edit Profile',
@@ -200,14 +193,12 @@ class _ProfileHeaderCard extends StatelessWidget {
     required this.role,
     required this.initials,
     required this.photoPath,
-    required this.onPhotoChanged,
   });
 
   final String fullName;
   final String role;
   final String initials;
   final String? photoPath;
-  final ValueChanged<String?> onPhotoChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -230,8 +221,8 @@ class _ProfileHeaderCard extends StatelessWidget {
           EditableProfileAvatar(
             initials: initials,
             photoPath: photoPath,
-            onPhotoChanged: onPhotoChanged,
             radius: 30,
+            isEditable: false,
           ),
           const SizedBox(width: 14),
           Expanded(
@@ -249,14 +240,22 @@ class _ProfileHeaderCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 4),
-                Text(
-                  role,
-                  style: TextStyle(
-                    color: AppColors.secondaryText.withValues(alpha: 0.8),
-                    fontSize: 14,
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
                   ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
+                  child: Text(
+                    role,
+                    style: const TextStyle(
+                      color: AppColors.primaryOrange,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
                 ),
               ],
             ),

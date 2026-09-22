@@ -338,8 +338,8 @@ class AdminSaleService extends ChangeNotifier {
       for (var itemData in data['order_items']) {
         items.add(SaleItem(
           productId: itemData['product_id'] as String,
-          productName: itemData['product_name'] as String ?? 'Unknown Product',
-          unit: itemData['unit'] as String ?? 'piece',
+          productName: (itemData['product_name'] as String?) ?? 'Unknown Product',
+          unit: (itemData['unit'] as String?) ?? 'piece',
           unitPrice: (itemData['unit_price'] as num).toDouble(),
           unitCost: (itemData['unit_cost'] as num).toDouble(),
           quantity: (itemData['quantity'] as num).toDouble(),
@@ -349,10 +349,10 @@ class AdminSaleService extends ChangeNotifier {
 
     return AdminSale(
       id: data['id'] as String,
-      receiptNumber: data['order_number'] as String ?? '',
-      cashierId: data['user_id'] as String ?? '',
-      cashierName: data['cashier_name'] as String ?? 'Unknown Cashier',
-      customerName: data['customer_name'] as String ?? 'Walk-in',
+      receiptNumber: (data['order_number'] as String?) ?? '',
+      cashierId: (data['user_id'] as String?) ?? '',
+      cashierName: (data['cashier_name'] as String?) ?? 'Unknown Cashier',
+      customerName: (data['customer_name'] as String?) ?? 'Walk-in',
       items: items,
       discount: (data['discount'] as num?)?.toDouble() ?? 0,
       paymentMethod: _parsePaymentMethod(data['payment_method'] as String?),

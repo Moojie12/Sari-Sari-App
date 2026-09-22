@@ -26,4 +26,18 @@ class CustomerAddress {
       isDefault: isDefault ?? this.isDefault,
     );
   }
+
+  Map<String, dynamic> toJson() => {
+    'id': id,
+    'type': type,
+    'address': address,
+    'isDefault': isDefault,
+  };
+
+  factory CustomerAddress.fromJson(Map<String, dynamic> json) => CustomerAddress(
+    id: json['id']?.toString() ?? '',
+    type: json['type']?.toString() ?? 'Home',
+    address: json['address']?.toString() ?? '',
+    isDefault: json['isDefault'] == true,
+  );
 }

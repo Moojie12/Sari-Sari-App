@@ -17,6 +17,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   phone text,
   role text NOT NULL CHECK (role = ANY (ARRAY['admin'::text, 'owner'::text, 'employee'::text, 'customer'::text])),
   status text NOT NULL DEFAULT 'Enabled'::text CHECK (status = ANY (ARRAY['Enabled'::text, 'Disabled'::text])),
+  avatar_url text,
   is_archived BOOLEAN DEFAULT false,
   archived_at timestamp with time zone,
   archived_by uuid REFERENCES public.profiles(id),
@@ -99,12 +100,16 @@ CREATE TABLE IF NOT EXISTS public.orders (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   user_id uuid NOT NULL REFERENCES public.profiles(id), -- This stores the cashier/user UID
   order_number text NOT NULL UNIQUE,
-  status text NOT NULL DEFAULT 'completed'::text CHECK (status = ANY (ARRAY['pending'::text, 'processing'::text, 'completed'::text, 'cancelled'::text, 'refunded'::text, 'voided'::text])),
+  status text NOT NULL DEFAULT 'completed'::text CHECK (status = ANY (ARRAY['pending'::text, 'confirmed'::text, 'preparing'::text, 'readyForShipment'::text, 'readyForPickup'::text, 'outForDelivery'::text, 'delivered'::text, 'completed'::text, 'cancelled'::text, 'refunded'::text, 'processing'::text, 'voided'::text])),
   total_amount numeric NOT NULL CHECK (total_amount >= 0::numeric),
+  subtotal numeric DEFAULT 0 CHECK (subtotal >= 0::numeric),
+  delivery_fee numeric DEFAULT 0 CHECK (delivery_fee >= 0::numeric),
   total_items integer NOT NULL CHECK (total_items >= 0),
   cashier_name text DEFAULT 'Unknown'::text,
   discount numeric DEFAULT 0 CHECK (discount >= 0),
   payment_method text DEFAULT 'cash'::text CHECK (payment_method = ANY (ARRAY['cash'::text, 'gcash'::text, 'maya'::text, 'card'::text])),
+  payment_status text DEFAULT 'unpaid'::text,
+  order_type text DEFAULT 'pickup'::text,
   amount_paid numeric DEFAULT 0 CHECK (amount_paid >= 0),
   customer_name text DEFAULT 'Walk-in'::text,
   customer_contact text,
@@ -448,3 +453,12 @@ ALTER TABLE public.pre_orders DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.pre_order_items DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.shipments DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.shop_settings DISABLE ROW LEVEL SECURITY;
+
+-- 5. STORAGE BUCKETS
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('avatars', 'avatars', true)
+ON CONFLICT (id) DO UPDATE SET public = true;
+
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('products', 'products', true)
+ON CONFLICT (id) DO UPDATE SET public = true;

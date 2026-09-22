@@ -30,4 +30,21 @@ class CustomerNotificationsController extends ChangeNotifier {
     _readIds.addAll(ids);
     notifyListeners();
   }
+
+  void addNotification({
+    required CustomerNotificationType type,
+    required String title,
+    required String message,
+  }) {
+    final notification = CustomerNotification(
+      id: 'notif_${DateTime.now().millisecondsSinceEpoch}_${_mockNotifications.length}',
+      type: type,
+      title: title,
+      message: message,
+      timestamp: DateTime.now(),
+      isRead: false,
+    );
+    _mockNotifications.insert(0, notification);
+    notifyListeners();
+  }
 }

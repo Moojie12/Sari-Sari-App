@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../authentication/login/login_page.dart';
 import '../../../core/theme/app_colors.dart';
-//import '../../../shared/utils/top_notification.dart';
+import 'package:sari_sari/shared/utils/top_notification.dart';
 import '../../employee_db/profile/employee_profile_controller.dart';
 import '../../employee_db/profile/employee_profile_model.dart';
 import '../../employee_db/profile/employee_change_password_page.dart';
 import '../../employee_db/profile/employee_edit_profile_page.dart';
-import '../../employee_db/profile/employee_profile_info_page.dart';
 import '../../employee_db/messages/employee_messages_controller.dart';
 import '../../employee_db/messages/employee_messages_page.dart';
 import '../../employee_db/notifications/employee_notifications_controller.dart';
@@ -18,10 +17,21 @@ import 'owner_archived_products_page.dart';
 import '../../employee_db/profile/employee_my_consumables_page.dart';
 import 'shop_settings_controller.dart';
 import 'owner_create_employee_page.dart';
-import 'package:sari_sari/shared/widgets/editable_profile_avatar.dart';
+import '../../../shared/widgets/editable_profile_avatar.dart';
 
-class OwnerProfilePage extends StatelessWidget {
+class OwnerProfilePage extends StatefulWidget {
   const OwnerProfilePage({super.key});
+
+  @override
+  State<OwnerProfilePage> createState() => _OwnerProfilePageState();
+}
+
+class _OwnerProfilePageState extends State<OwnerProfilePage> {
+  @override
+  void initState() {
+    super.initState();
+    EmployeeProfileController.instance.loadProfile();
+  }
 
   void _showLogoutConfirmation(BuildContext context) {
     showDialog(
@@ -68,21 +78,18 @@ class OwnerProfilePage extends StatelessWidget {
             const SizedBox(height: 24),
             ListenableBuilder(
               listenable: profileController,
-              builder: (context, _) => _ProfileHeaderCard(
-                profile: profileController.profile.copyWith(role: 'Owner'),
-                onPhotoChanged: profileController.setPhoto,
-              ),
+              builder: (context, _) {
+                final ownerProfile = profileController.profile.copyWith(role: 'Owner');
+                return _ProfileHeaderCard(
+                  profile: ownerProfile,
+                );
+              },
             ),
             const SizedBox(height: 28),
-            const Text('Account', style: TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold)),
+            const Text('Account Actions', style: TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             _MenuCard(
               children: [
-                _MenuTile(
-                  icon: Icons.badge_outlined,
-                  label: 'Profile Information',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeProfileInfoPage(role: 'Owner'))),
-                ),
                 _MenuTile(
                   icon: Icons.person_add_alt_1_outlined,
                   label: 'Create Employee',
@@ -493,60 +500,16 @@ class OwnerProfilePage extends StatelessWidget {
   }
 
   void _showSuccessDialog(BuildContext context, String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 10),
-            Container(
-              padding: const EdgeInsets.all(16),
-              decoration: BoxDecoration(
-                color: Colors.green.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
-              ),
-              child: const Icon(Icons.check_circle, color: Colors.green, size: 48),
-            ),
-            const SizedBox(height: 20),
-            const Text(
-              'Settings Updated',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: AppColors.secondaryText, fontSize: 14),
-            ),
-            const SizedBox(height: 10),
-          ],
-        ),
-        actions: [
-          SizedBox(
-            width: double.infinity,
-            child: ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryOrange,
-                foregroundColor: Colors.white,
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                padding: const EdgeInsets.symmetric(vertical: 12),
-              ),
-              child: const Text('OK', style: TextStyle(fontWeight: FontWeight.bold)),
-            ),
-          ),
-        ],
-      ),
-    );
+    TopNotification.showSuccessDialog(context, message, title: 'Settings Updated');
   }
 }
 
 class _ProfileHeaderCard extends StatelessWidget {
-  const _ProfileHeaderCard({required this.profile, required this.onPhotoChanged});
+  const _ProfileHeaderCard({
+    required this.profile,
+  });
   final EmployeeProfile profile;
-  final ValueChanged<String?> onPhotoChanged;
+
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -558,17 +521,30 @@ class _ProfileHeaderCard extends StatelessWidget {
           EditableProfileAvatar(
             initials: profile.initials,
             photoPath: profile.photoPath,
-            onPhotoChanged: onPhotoChanged,
             radius: 30,
+            isEditable: false,
           ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(profile.fullName, style: const TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold)),
+                Text(
+                  profile.fullName.trim().isEmpty ? 'Owner' : profile.fullName,
+                  style: const TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold),
+                ),
                 const SizedBox(height: 4),
-                Text(profile.role, style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 12)),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    profile.role,
+                    style: const TextStyle(color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
               ],
             ),
           ),

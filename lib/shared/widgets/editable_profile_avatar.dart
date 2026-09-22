@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -17,18 +18,20 @@ class EditableProfileAvatar extends StatefulWidget {
   const EditableProfileAvatar({
     super.key,
     required this.initials,
-    required this.onPhotoChanged,
+    this.onPhotoChanged,
     this.photoPath,
     this.radius = 30,
+    this.isEditable = true,
   });
 
   final String initials;
   final String? photoPath;
   final double radius;
+  final bool isEditable;
 
   /// Called with the new photo's local path, or `null` when the person
   /// removes their photo.
-  final ValueChanged<String?> onPhotoChanged;
+  final ValueChanged<String?>? onPhotoChanged;
 
   @override
   State<EditableProfileAvatar> createState() => _EditableProfileAvatarState();
@@ -48,7 +51,22 @@ class _EditableProfileAvatarState extends State<EditableProfileAvatar> {
         imageQuality: 85,
       );
       if (picked != null) {
-        widget.onPhotoChanged(picked.path);
+        final file = File(picked.path);
+        final fileSize = await file.length();
+        const maxBytes = 5 * 1024 * 1024; // 5 MB maximum validation
+        if (fileSize > maxBytes) {
+          if (mounted) {
+            final mb = (fileSize / (1024 * 1024)).toStringAsFixed(1);
+            TopNotification.show(
+              context,
+              'Image exceeds 5MB limit ($mb MB). Please choose a smaller image.',
+              isError: true,
+            );
+          }
+          return;
+        }
+
+        widget.onPhotoChanged?.call(picked.path);
       }
     } catch (_) {
       if (mounted) {
@@ -114,7 +132,7 @@ class _EditableProfileAvatarState extends State<EditableProfileAvatar> {
                   title: const Text('Remove Photo', style: TextStyle(color: Colors.redAccent)),
                   onTap: () {
                     Navigator.pop(sheetContext);
-                    widget.onPhotoChanged(null);
+                    widget.onPhotoChanged?.call(null);
                   },
                 ),
               const SizedBox(height: 8),
@@ -128,19 +146,33 @@ class _EditableProfileAvatarState extends State<EditableProfileAvatar> {
   @override
   Widget build(BuildContext context) {
     final hasPhoto = widget.photoPath != null && widget.photoPath!.isNotEmpty;
+    ImageProvider? imageProvider;
+    if (hasPhoto) {
+      final path = widget.photoPath!;
+      if (path.startsWith('http://') || path.startsWith('https://')) {
+        imageProvider = NetworkImage(path);
+      } else if (path.startsWith('data:image')) {
+        final commaIndex = path.indexOf(',');
+        if (commaIndex != -1) {
+          try {
+            final bytes = base64Decode(path.substring(commaIndex + 1));
+            imageProvider = MemoryImage(bytes);
+          } catch (_) {
+            imageProvider = null;
+          }
+        }
+      } else {
+        imageProvider = FileImage(File(path));
+      }
+    }
 
-    return GestureDetector(
-      onTap: () => _showPhotoOptions(context),
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          CircleAvatar(
-            radius: widget.radius,
-            backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.12),
-            backgroundImage: hasPhoto ? FileImage(File(widget.photoPath!)) : null,
-            child: hasPhoto
-                ? null
-                : Text(
+    final avatar = CircleAvatar(
+      radius: widget.radius,
+      backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.12),
+      backgroundImage: imageProvider,
+      child: hasPhoto
+          ? null
+          : Text(
               widget.initials,
               style: TextStyle(
                 color: AppColors.primaryOrange,
@@ -148,7 +180,18 @@ class _EditableProfileAvatarState extends State<EditableProfileAvatar> {
                 fontWeight: FontWeight.bold,
               ),
             ),
-          ),
+    );
+
+    if (!widget.isEditable || widget.onPhotoChanged == null) {
+      return avatar;
+    }
+
+    return GestureDetector(
+      onTap: () => _showPhotoOptions(context),
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          avatar,
           Positioned(
             bottom: -2,
             right: -2,

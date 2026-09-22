@@ -1,10 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
-import '../../employee_db/inventory/employee_dummy_products.dart';
 import '../../employee_db/orders/employee_orders_controller.dart';
-import '../../employee_db/pos/employee_pos_controller.dart';
-import '../../employee_db/pos/employee_receipt_page.dart';
+import '../../employee_db/messages/employee_chat_page.dart';
 
 class OwnerTransactionHistoryPage extends StatefulWidget {
   const OwnerTransactionHistoryPage({super.key});
@@ -104,7 +102,8 @@ class _DeliveryTransactionsList extends StatelessWidget {
             final order = orders[index];
             return _HistoryCard(
               title: 'Order #${order.orderId}',
-              subtitle: 'Customer: ${order.customerName} · ${order.items.length} items',
+              customerName: order.customerName,
+              itemsCount: order.items.length,
               trailingText: '₱ ${order.totalAmount.toStringAsFixed(2)}',
               date: order.formattedDate,
               status: order.status.label,
@@ -119,6 +118,17 @@ class _DeliveryTransactionsList extends StatelessWidget {
                     builder: (context) => CustomerOrderReceiptPage(order: order),
                   ),
                 );
+              },
+              onCustomerTap: () {
+                // Navigate to chat with the customer
+                if (order.userId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EmployeeChatPage(recipientId: order.userId!),
+                    ),
+                  );
+                }
               },
             );
           },
@@ -215,7 +225,7 @@ class _PickupTransactionsList extends StatelessWidget {
       listenable: controller,
       builder: (context, _) {
         final orders = controller.orders
-            .where((o) => o.orderType == OrderType.pickup && o.status == OrderStatus.completed)
+            .where((o) => o.orderType == OrderType.pickup && o.customerName != 'Walk-in' && o.status == OrderStatus.completed)
             .toList();
 
         if (orders.isEmpty) {
@@ -232,7 +242,8 @@ class _PickupTransactionsList extends StatelessWidget {
             final order = orders[index];
             return _HistoryCard(
               title: 'Pickup Order #${order.orderId}',
-              subtitle: 'Customer: ${order.customerName} · ${order.items.length} items',
+              customerName: order.customerName,
+              itemsCount: order.items.length,
               trailingText: '₱ ${order.totalAmount.toStringAsFixed(2)}',
               date: order.formattedDate,
               status: 'Picked-up',
@@ -248,6 +259,17 @@ class _PickupTransactionsList extends StatelessWidget {
                   ),
                 );
               },
+              onCustomerTap: () {
+                // Navigate to chat with the customer
+                if (order.userId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EmployeeChatPage(recipientId: order.userId!),
+                    ),
+                  );
+                }
+              },
             );
           },
         );
@@ -259,66 +281,60 @@ class _PickupTransactionsList extends StatelessWidget {
 class _WalkInTransactionsList extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    if (kEmployeeDummyProducts.isEmpty) {
-      return const Center(
-        child: Text('No walk-in transactions found', style: TextStyle(color: AppColors.secondaryText)),
-      );
-    }
-    // Generate dummy walk-in receipts
-    final receipts = List.generate(kEmployeeDummyProducts.length > 5 ? 5 : kEmployeeDummyProducts.length, (index) => _generateDummyReceipt(index));
+    final controller = EmployeeOrderController.instance;
+    return ListenableBuilder(
+      listenable: controller,
+      builder: (context, _) {
+        final orders = controller.orders
+            .where((o) => o.customerName == 'Walk-in' && o.status == OrderStatus.completed)
+            .toList();
 
-    return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-      itemCount: receipts.length,
-      separatorBuilder: (_, _) => const SizedBox(height: 12),
-      itemBuilder: (context, index) {
-        final receipt = receipts[index];
-        return _HistoryCard(
-          title: 'Walk-in Receipt #${receipt.receiptNumber}',
-          subtitle: 'Employee: — · ${receipt.items.length} items',
-          trailingText: '₱ ${receipt.totalAmount.toStringAsFixed(2)}',
-          date: 'Today, 3:45 PM',
-          status: 'Completed',
-          statusColor: Colors.green,
-          revenue: receipt.totalAmount,
-          capital: receipt.totalCapital,
-          profit: receipt.totalProfit,
-          onTap: () {
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (context) => EmployeeReceiptPage(
-                  receipt: receipt,
-                  actionLabel: 'Close',
-                ),
-              ),
+        if (orders.isEmpty) {
+          return const Center(
+            child: Text('No walk-in transactions found', style: TextStyle(color: AppColors.secondaryText)),
+          );
+        }
+
+        return ListView.separated(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          itemCount: orders.length,
+          separatorBuilder: (_, _) => const SizedBox(height: 12),
+          itemBuilder: (context, index) {
+            final order = orders[index];
+            return _HistoryCard(
+              title: 'Walk-in Receipt #${order.orderId}',
+              customerName: order.customerName,
+              itemsCount: order.items.length,
+              trailingText: '₱ ${order.totalAmount.toStringAsFixed(2)}',
+              date: order.formattedDate,
+              status: 'Completed',
+              statusColor: Colors.green,
+              revenue: order.subtotal,
+              capital: order.totalCapital,
+              profit: order.totalProfit,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CustomerOrderReceiptPage(order: order),
+                  ),
+                );
+              },
+              onCustomerTap: () {
+                // Navigate to chat with the customer
+                if (order.userId != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EmployeeChatPage(recipientId: order.userId!),
+                    ),
+                  );
+                }
+              },
             );
           },
         );
       },
-    );
-  }
-
-  EmployeeReceipt _generateDummyReceipt(int index) {
-    final product = kEmployeeDummyProducts[index % kEmployeeDummyProducts.length];
-    final double qty = 2.0;
-    return EmployeeReceipt(
-      receiptNumber: 'RC-1002$index',
-      dateTime: DateTime.now(),
-      items: [
-        EmployeePosCartItem(
-          product: product,
-          batchId: 'B001',
-          unitPrice: product.price,
-          capitalPrice: product.capital,
-          quantity: qty,
-        ),
-      ],
-      totalAmount: product.price * qty,
-      amountPaid: product.price * qty + 10,
-      paymentMethod: index % 2 == 0 ? EmployeePaymentMethod.cash : EmployeePaymentMethod.gCash,
-      totalCapital: product.capital * qty,
-      totalProfit: (product.price - product.capital) * qty,
     );
   }
 }
@@ -476,24 +492,28 @@ class _ReceiptRow extends StatelessWidget {
 class _HistoryCard extends StatelessWidget {
   const _HistoryCard({
     required this.title,
-    required this.subtitle,
+    required this.customerName,
+    required this.itemsCount,
     required this.trailingText,
     required this.date,
     this.status,
     this.statusColor,
     this.onTap,
+    this.onCustomerTap,
     this.capital,
     this.revenue,
     this.profit,
   });
 
   final String title;
-  final String subtitle;
+  final String customerName;
+  final int itemsCount;
   final String trailingText;
   final String date;
   final String? status;
   final Color? statusColor;
   final VoidCallback? onTap;
+  final VoidCallback? onCustomerTap;
 
   final double? capital;
   final double? revenue;
@@ -528,8 +548,7 @@ class _HistoryCard extends StatelessWidget {
                     children: [
                       Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
                       const SizedBox(height: 2),
-                      Text(subtitle,
-                          style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                      _buildSubtitle(),
                     ],
                   ),
                 ),
@@ -577,6 +596,28 @@ class _HistoryCard extends StatelessWidget {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildSubtitle() {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const Text('Customer: ',
+            style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+        GestureDetector(
+          onTap: onCustomerTap,
+          child: Text(
+            customerName,
+            style: const TextStyle(
+                color: AppColors.darkText,
+                fontSize: 12,
+                fontWeight: FontWeight.bold),
+          ),
+        ),
+        Text(' · $itemsCount items',
+            style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+      ],
     );
   }
 

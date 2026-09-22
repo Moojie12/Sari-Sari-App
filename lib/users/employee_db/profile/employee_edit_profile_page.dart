@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/custom_text_field.dart';
+import '../../../shared/widgets/editable_profile_avatar.dart';
 import '../../../shared/widgets/primary_button.dart';
 import 'employee_profile_controller.dart';
 
@@ -114,6 +115,27 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              Center(
+                child: ListenableBuilder(
+                  listenable: _controller,
+                  builder: (context, _) {
+                    return EditableProfileAvatar(
+                      initials: _controller.profile.initials,
+                      photoPath: _controller.profile.photoPath,
+                      onPhotoChanged: _controller.setPhoto,
+                      radius: 46,
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 8),
+              const Center(
+                child: Text(
+                  'Tap avatar to change photo',
+                  style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
+                ),
+              ),
+              const SizedBox(height: 24),
               const Text(
                 'Personal Information',
                 style: TextStyle(color: AppColors.secondaryText, fontSize: 15, fontWeight: FontWeight.w600),
@@ -124,30 +146,76 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
                 children: [
                   Expanded(
                     flex: 3,
-                    child: CustomTextField(
-                      hint: 'First Name',
-                      icon: Icons.person_outline,
-                      controller: _firstNameController,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'First Name',
+                          style: TextStyle(
+                            color: AppColors.labelText,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        CustomTextField(
+                          hint: 'First Name',
+                          icon: Icons.person_outline,
+                          controller: _firstNameController,
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 8),
+                  const SizedBox(width: 10),
                   Expanded(
                     flex: 1,
-                    child: CustomTextField(
-                      hint: 'M.I.',
-                      icon: Icons.badge_outlined,
-                      controller: _middleInitialController,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'M.I.',
+                          style: TextStyle(
+                            color: AppColors.labelText,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                          ),
+                        ),
+                        const SizedBox(height: 6),
+                        CustomTextField(
+                          hint: 'M.I.',
+                          textAlign: TextAlign.center,
+                          controller: _middleInitialController,
+                        ),
+                      ],
                     ),
                   ),
                 ],
               ),
               const SizedBox(height: 14),
+              const Text(
+                'Last Name',
+                style: TextStyle(
+                  color: AppColors.labelText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
               CustomTextField(
                 hint: 'Last Name',
-                icon: Icons.person_outline,
+                icon: Icons.badge_outlined,
                 controller: _lastNameController,
               ),
               const SizedBox(height: 14),
+              const Text(
+                'Email Address',
+                style: TextStyle(
+                  color: AppColors.labelText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
               CustomTextField(
                 hint: 'Email Address',
                 icon: Icons.email_outlined,
@@ -155,6 +223,15 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
                 keyboardType: TextInputType.emailAddress,
               ),
               const SizedBox(height: 14),
+              const Text(
+                'Contact Number',
+                style: TextStyle(
+                  color: AppColors.labelText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(height: 6),
               CustomTextField(
                 hint: 'Contact Number',
                 icon: Icons.phone_outlined,
