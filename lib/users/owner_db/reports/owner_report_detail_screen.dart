@@ -4,6 +4,7 @@ import '../../employee_db/employee_inventory_controller.dart';
 import '../../employee_db/orders/employee_orders_controller.dart';
 import '../../employee_db/inventory/employee_product_model.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
+import '../../../shared/utils/top_notification.dart';
 
 enum OwnerReportType {
   dailyRevenue,
@@ -63,12 +64,7 @@ class OwnerReportDetailScreen extends StatelessWidget {
     Future.delayed(const Duration(seconds: 2), () {
       if (context.mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Report saved to downloads as PDF'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+        TopNotification.show(context, 'Report saved to downloads as PDF');
       }
     });
   }

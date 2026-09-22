@@ -8,9 +8,9 @@ import '../forgot_password/forgot_password_page.dart';
 import '../../users/customer_db/customer_db.dart';
 import '../../users/employee_db/employee_db.dart';
 import '../../users/owner_db/owner_db.dart';
-import '../signup/widgets/role_selector_card.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/diagnostic/backend_diagnostic_page.dart';
+import '../../shared/utils/top_notification.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -20,14 +20,7 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  String _selectedRole = 'customer';
   int _logoTapCount = 0;
-
-  void _onRoleSelected(String role) {
-    setState(() {
-      _selectedRole = role;
-    });
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -65,13 +58,10 @@ class _LoginPageState extends State<LoginPage> {
             Expanded(
               flex: 10,
               child: Transform.translate(
-                offset: const Offset(0, -5), // I-overlap ang card sa image nang 5 pixels
+                offset: const Offset(0, 35), // Lowered the box further
                 child: Container(
                   color: Colors.transparent,
-                  child: _LoginCard(
-                    selectedRole: _selectedRole,
-                    onRoleSelected: _onRoleSelected,
-                  ),
+                  child: const _LoginCard(),
                 ),
               ),
             ),
@@ -183,13 +173,7 @@ class _Header extends StatelessWidget {
 }
 
 class _LoginCard extends StatefulWidget {
-  const _LoginCard({
-    required this.selectedRole,
-    required this.onRoleSelected,
-  });
-
-  final String selectedRole;
-  final Function(String) onRoleSelected;
+  const _LoginCard();
 
   @override
   State<_LoginCard> createState() => _LoginCardState();
@@ -250,9 +234,7 @@ class _LoginCardState extends State<_LoginCard> {
     if (errorMessage != null) {
       // Show error message
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
-        );
+        TopNotification.show(context, errorMessage, isError: true);
       }
       return;
     }
@@ -261,9 +243,7 @@ class _LoginCardState extends State<_LoginCard> {
     final user = AuthService().currentUser;
     if (user == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Authentication failed')),
-        );
+        TopNotification.show(context, 'Authentication failed', isError: true);
       }
       return;
     }
@@ -320,39 +300,6 @@ class _LoginCardState extends State<_LoginCard> {
             const Text(
               'Login account to get started',
               style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
-            ),
-            const SizedBox(height: 20),
-
-            // Role Selector in Login too
-            Row(
-              children: [
-                Expanded(
-                  child: RoleSelectorCard(
-                    label: 'Owner',
-                    icon: Icons.storefront_outlined,
-                    isSelected: widget.selectedRole == 'owner',
-                    onTap: () => widget.onRoleSelected('owner'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: RoleSelectorCard(
-                    label: 'Employee',
-                    icon: Icons.badge_outlined,
-                    isSelected: widget.selectedRole == 'employee',
-                    onTap: () => widget.onRoleSelected('employee'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: RoleSelectorCard(
-                    label: 'Customer',
-                    icon: Icons.person_outline,
-                    isSelected: widget.selectedRole == 'customer',
-                    onTap: () => widget.onRoleSelected('customer'),
-                  ),
-                ),
-              ],
             ),
             const SizedBox(height: 20),
 

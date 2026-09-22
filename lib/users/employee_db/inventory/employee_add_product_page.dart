@@ -1463,7 +1463,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                 )
               else
                 DropdownButtonFormField<String>(
-                  value: _category,
+                  initialValue: _category,
                   items: categories.map((category) => DropdownMenuItem(value: category, child: Text(category))).toList(),
                   onChanged: (value) {
                     if (value != null) setState(() => _category = value);

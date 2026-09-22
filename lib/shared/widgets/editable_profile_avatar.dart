@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../utils/top_notification.dart';
 
 /// Avatar used on every role's Profile tab and Profile Information screen.
 ///
@@ -51,9 +52,7 @@ class _EditableProfileAvatarState extends State<EditableProfileAvatar> {
       }
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text("Couldn't access that. Please check app permissions.")),
-        );
+        TopNotification.show(context, "Couldn't access that. Please check app permissions.", isError: true);
       }
     } finally {
       _isPicking = false;

@@ -4,6 +4,7 @@ import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/custom_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../core/services/auth_service.dart';
+import '../../shared/utils/top_notification.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -43,20 +44,13 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
 
     if (errorMessage != null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
-        );
+        TopNotification.show(context, errorMessage, isError: true);
       }
       return;
     }
 
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Password reset link sent! Please check your email.'),
-          backgroundColor: AppColors.primaryOrange,
-        ),
-      );
+      TopNotification.show(context, 'Password reset link sent! Please check your email.');
     }
   }
 

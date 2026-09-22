@@ -3,11 +3,11 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/custom_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
-import 'widgets/role_selector_card.dart';
 import '../../users/customer_db/customer_db.dart';
 import '../../users/employee_db/employee_db.dart';
 import '../../users/owner_db/owner_db.dart';
 import '../../core/services/auth_service.dart';
+import '../../shared/utils/top_notification.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -17,8 +17,6 @@ class SignUpPage extends StatefulWidget {
 }
 
 class _SignUpPageState extends State<SignUpPage> {
-  String _selectedRole = 'customer';
-
   // Form controllers
   final _firstNameController = TextEditingController();
   final _middleInitialController = TextEditingController();
@@ -40,12 +38,6 @@ class _SignUpPageState extends State<SignUpPage> {
   @override
   void initState() {
     super.initState();
-  }
-
-  void _onRoleSelected(String role) {
-    setState(() {
-      _selectedRole = role;
-    });
   }
 
   @override
@@ -145,18 +137,19 @@ class _SignUpPageState extends State<SignUpPage> {
     if (errorMessage != null) {
       // Show error message
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
-        );
+        TopNotification.show(context, errorMessage, isError: true);
       }
       return;
     }
 
-    // Account created successfully - navigate based on role
+    // Account created successfully - navigate based on actual role
+    final bool isOwner = await AuthService().hasRole('owner');
+    final bool isEmployee = await AuthService().hasRole('employee');
+
     Widget destination;
-    if (_selectedRole == 'owner') {
+    if (isOwner) {
       destination = const OwnerDb();
-    } else if (_selectedRole == 'employee') {
+    } else if (isEmployee) {
       destination = const EmployeeDb();
     } else {
       destination = const CustomerDb();
@@ -184,12 +177,10 @@ class _SignUpPageState extends State<SignUpPage> {
             Expanded(
               flex: 10, // Default base size na katulad ng sa login page upang pantay silang dalawa
               child: Transform.translate(
-                offset: const Offset(0, -5), // I-overlap ang card sa image nang 5 pixels
+                offset: const Offset(0, 35), // Match login page offset
                 child: Container(
                   color: Colors.transparent,
                   child: _SignUpCard(
-                    selectedRole: _selectedRole,
-                    onRoleSelected: _onRoleSelected,
                     firstNameController: _firstNameController,
                     middleInitialController: _middleInitialController,
                     surnameController: _surnameController,
@@ -313,8 +304,6 @@ class _Header extends StatelessWidget {
 
 class _SignUpCard extends StatelessWidget {
   const _SignUpCard({
-    required this.selectedRole,
-    required this.onRoleSelected,
     required this.firstNameController,
     required this.middleInitialController,
     required this.surnameController,
@@ -332,8 +321,6 @@ class _SignUpCard extends StatelessWidget {
     required this.handleSignUp,
   });
 
-  final String selectedRole;
-  final Function(String) onRoleSelected;
   final TextEditingController firstNameController;
   final TextEditingController middleInitialController;
   final TextEditingController surnameController;
@@ -382,39 +369,6 @@ class _SignUpCard extends StatelessWidget {
             const Text(
               'Fill up the form to join us',
               style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
-            ),
-            const SizedBox(height: 20),
-
-            // Role Selector
-            Row(
-              children: [
-                Expanded(
-                  child: RoleSelectorCard(
-                    label: 'Owner',
-                    icon: Icons.storefront_outlined,
-                    isSelected: selectedRole == 'owner',
-                    onTap: () => onRoleSelected('owner'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: RoleSelectorCard(
-                    label: 'Employee',
-                    icon: Icons.badge_outlined,
-                    isSelected: selectedRole == 'employee',
-                    onTap: () => onRoleSelected('employee'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: RoleSelectorCard(
-                    label: 'Customer',
-                    icon: Icons.person_outline,
-                    isSelected: selectedRole == 'customer',
-                    onTap: () => onRoleSelected('customer'),
-                  ),
-                ),
-              ],
             ),
             const SizedBox(height: 20),
 

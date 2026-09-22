@@ -93,8 +93,9 @@ class AdminSaleService extends ChangeNotifier {
       // Calculate totals
       final subtotal = items.fold<double>(0, (sum, item) => sum + item.lineTotal);
       final total = subtotal - discount;
-      if (amountPaid < total)
+      if (amountPaid < total) {
         return 'Amount paid is less than the total of ${formatPeso(total)}.';
+      }
 
       // Create order with items using Supabase RPC
       final orderNumber = 'OR-${DateTime.now().year}-${_generateSequenceNumber()}';

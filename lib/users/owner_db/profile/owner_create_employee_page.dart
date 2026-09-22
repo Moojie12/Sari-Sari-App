@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/custom_text_field.dart';
 import '../../../shared/widgets/primary_button.dart';
+import '../../../shared/utils/top_notification.dart';
 
 class OwnerCreateEmployeePage extends StatefulWidget {
   const OwnerCreateEmployeePage({super.key});
@@ -45,30 +46,22 @@ class _OwnerCreateEmployeePageState extends State<OwnerCreateEmployeePage> {
         email.isEmpty ||
         phone.isEmpty ||
         password.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please fill in all required fields.')),
-      );
+      TopNotification.show(context, 'Please fill in all required fields.', isError: true);
       return;
     }
 
     if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter a valid email address.')),
-      );
+      TopNotification.show(context, 'Please enter a valid email address.', isError: true);
       return;
     }
 
     if (password.length < 8) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Password must be at least 8 characters long.')),
-      );
+      TopNotification.show(context, 'Password must be at least 8 characters long.', isError: true);
       return;
     }
 
     if (password != confirmPassword) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwords do not match.')),
-      );
+      TopNotification.show(context, 'Passwords do not match.', isError: true);
       return;
     }
 

@@ -20,6 +20,7 @@ enum AdminSection {
 // ============================================================
 
 const List<String> kProductUnits = [
+  'pcs',
   'piece',
   'pack',
   'bottle',

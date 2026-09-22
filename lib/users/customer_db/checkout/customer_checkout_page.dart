@@ -7,6 +7,7 @@ import '../profile/customer_address_model.dart';
 import '../profile/customer_address_controller.dart';
 import '../profile/customer_add_edit_address_page.dart';
 import '../profile/customer_profile_controller.dart';
+import '../../../shared/utils/top_notification.dart';
 import 'customer_order_confirmation_page.dart';
 
 class CustomerCheckoutPage extends StatefulWidget {
@@ -40,9 +41,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
 
   void _handlePlaceOrder() {
     if (_orderType == OrderType.delivery && _selectedAddress == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a delivery address')),
-      );
+      TopNotification.show(context, 'Please select a delivery address', isError: true);
       return;
     }
 

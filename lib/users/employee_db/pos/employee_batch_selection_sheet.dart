@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/top_notification.dart';
 import '../inventory/employee_batch_model.dart';
 import '../inventory/employee_expiry_badge.dart';
 import '../inventory/employee_product_model.dart';
@@ -52,15 +53,15 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
   void _confirm() {
     final qty = double.tryParse(_quantityController.text.trim()) ?? _quantity;
     if (qty <= 0) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Please enter a valid quantity.')));
+      TopNotification.show(context, 'Please enter a valid quantity.', isError: true);
       return;
     }
     if (qty > _selected.quantity) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Only ${_selected.quantity} available in this batch.')));
+      TopNotification.show(context, 'Only ${_selected.quantity} available in this batch.', isError: true);
       return;
     }
     if (!widget.product.isWeightBased && qty != qty.roundToDouble()) {
-      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Regular products must use whole numbers.')));
+      TopNotification.show(context, 'Regular products must use whole numbers.', isError: true);
       return;
     }
     

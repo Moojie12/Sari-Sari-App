@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/custom_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
+import '../../shared/utils/top_notification.dart';
 
 class CreateNewPasswordPage extends StatefulWidget {
   const CreateNewPasswordPage({super.key});
@@ -98,32 +99,17 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
                 label: 'Save & Login',
                 onPressed: () {
                   if (_passwordController.text.isEmpty || _confirmPasswordController.text.isEmpty) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Please fill out all fields.'),
-                        backgroundColor: Colors.redAccent,
-                      ),
-                    );
+                    TopNotification.show(context, 'Please fill out all fields.', isError: true);
                     return;
                   }
                   
                   if (_passwordController.text != _confirmPasswordController.text) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Passwords do not match!'),
-                        backgroundColor: Colors.redAccent,
-                      ),
-                    );
+                    TopNotification.show(context, 'Passwords do not match!', isError: true);
                     return;
                   }
 
                   // Ipakita na successful
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Password changed successfully! Please login with your new password.'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  TopNotification.show(context, 'Password changed successfully! Please login with your new password.');
 
                   // I-pop pabalik hanggang sa marating ang Login screen
                   // Tatanggalin ang tatlong screen sa navigation stack (ForgotPassword -> Otp -> CreateNew)

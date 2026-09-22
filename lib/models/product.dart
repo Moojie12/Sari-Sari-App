@@ -10,7 +10,7 @@ class Product {
     required this.price,
     required this.capital,
     this.barcode,
-    this.unit = 'pcs',
+    this.unit = 'piece',
     this.image,
     required this.lowStockThreshold,
     required this.isWeightBased,

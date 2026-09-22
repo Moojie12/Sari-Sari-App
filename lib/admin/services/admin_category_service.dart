@@ -258,7 +258,6 @@ class AdminCategoryService extends ChangeNotifier {
   Future<String?> permanentlyDeleteCategory(String id) async {
     try {
       final category = categoryById(id);
-      if (category == null) return 'That category no longer exists.';
 
       if (!category.isArchived) return 'Archive the category before deleting it.';
 

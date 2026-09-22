@@ -11,6 +11,7 @@ import '../services/admin_sale_service.dart';
 import '../services/admin_audit_service.dart';
 import '../services/admin_analytics_service.dart';
 import '../../core/services/auth_service.dart';
+import '../../shared/utils/top_notification.dart';
 import './sections/overview_section.dart';
 import './sections/settings_section.dart';
 import './sections/users_section.dart';
@@ -84,17 +85,17 @@ class _AdminDashboardState extends State<AdminDashboard> {
     if (!mounted) return;
 
     final isEdit = user != null;
-    final _formKey = GlobalKey<FormState>();
-    final _firstNameController = TextEditingController(text: user?.firstName ?? '');
-    final _middleInitialController = TextEditingController(text: user?.middleInitial ?? '');
-    final _surnameController = TextEditingController(text: user?.surname ?? '');
-    final _emailController = TextEditingController(text: user?.email ?? '');
-    final _phoneController = TextEditingController(text: user?.phone ?? '');
-    final _passwordController = TextEditingController();
-    final _confirmPasswordController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final firstNameController = TextEditingController(text: user?.firstName ?? '');
+    final middleInitialController = TextEditingController(text: user?.middleInitial ?? '');
+    final surnameController = TextEditingController(text: user?.surname ?? '');
+    final emailController = TextEditingController(text: user?.email ?? '');
+    final phoneController = TextEditingController(text: user?.phone ?? '');
+    final passwordController = TextEditingController();
+    final confirmPasswordController = TextEditingController();
     
-    AdminRole _selectedRole = user?.role ?? AdminRole.customer;
-    bool _isEnabled = user?.isActive ?? true;
+    AdminRole selectedRole = user?.role ?? AdminRole.customer;
+    bool isEnabled = user?.isActive ?? true;
 
     await showDialog<bool>(
       context: context,
@@ -103,7 +104,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           title: Text(isEdit ? 'Edit User' : 'Add User'),
           content: SingleChildScrollView(
             child: Form(
-              key: _formKey,
+              key: formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -112,7 +113,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       Expanded(
                         flex: 5,
                         child: TextFormField(
-                          controller: _firstNameController,
+                          controller: firstNameController,
                           decoration: const InputDecoration(
                             labelText: 'First Name',
                             icon: Icon(Icons.person),
@@ -124,7 +125,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       Expanded(
                         flex: 2,
                         child: TextFormField(
-                          controller: _middleInitialController,
+                          controller: middleInitialController,
                           decoration: const InputDecoration(
                             labelText: 'M.I.',
                           ),
@@ -133,7 +134,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     ],
                   ),
                   TextFormField(
-                    controller: _surnameController,
+                    controller: surnameController,
                     decoration: const InputDecoration(
                       labelText: 'Surname',
                       icon: Icon(Icons.person_outlined),
@@ -141,7 +142,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     validator: (value) => value == null || value.isEmpty ? 'Required' : null,
                   ),
                   TextFormField(
-                    controller: _emailController,
+                    controller: emailController,
                     decoration: const InputDecoration(
                       labelText: 'Email',
                       icon: Icon(Icons.email),
@@ -153,7 +154,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     },
                   ),
                   TextFormField(
-                    controller: _phoneController,
+                    controller: phoneController,
                     decoration: const InputDecoration(
                       labelText: 'Phone Number',
                       icon: Icon(Icons.phone),
@@ -162,7 +163,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   ),
                   if (!isEdit) ...[
                     TextFormField(
-                      controller: _passwordController,
+                      controller: passwordController,
                       decoration: const InputDecoration(
                         labelText: 'Password',
                         icon: Icon(Icons.lock_outline),
@@ -171,18 +172,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       validator: (value) => !isEdit && (value == null || value.length < 6) ? 'Min 6 chars' : null,
                     ),
                     TextFormField(
-                      controller: _confirmPasswordController,
+                      controller: confirmPasswordController,
                       decoration: const InputDecoration(
                         labelText: 'Confirm Password',
                         icon: Icon(Icons.lock_reset),
                       ),
                       obscureText: true,
-                      validator: (value) => !isEdit && value != _passwordController.text ? 'Mismatch' : null,
+                      validator: (value) => !isEdit && value != passwordController.text ? 'Mismatch' : null,
                     ),
                   ],
                   const SizedBox(height: 16),
                   DropdownButtonFormField<AdminRole>(
-                    value: _selectedRole,
+                    initialValue: selectedRole,
                     decoration: const InputDecoration(
                       labelText: 'Role',
                       icon: Icon(Icons.person_search),
@@ -193,18 +194,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     )).toList(),
                     onChanged: (value) {
                       if (value != null) {
-                        setState(() => _selectedRole = value);
+                        setState(() => selectedRole = value);
                       }
                     },
                   ),
                   const SizedBox(height: 16),
                   SwitchListTile(
                     title: const Text('Account Status'),
-                    value: _isEnabled,
-                    onChanged: (value) => setState(() => _isEnabled = value),
+                    value: isEnabled,
+                    onChanged: (value) => setState(() => isEnabled = value),
                     secondary: Icon(
-                      _isEnabled ? Icons.check_circle : Icons.cancel,
-                      color: _isEnabled ? Colors.green : Colors.red,
+                      isEnabled ? Icons.check_circle : Icons.cancel,
+                      color: isEnabled ? Colors.green : Colors.red,
                     ),
                   ),
                 ],
@@ -218,26 +219,26 @@ class _AdminDashboardState extends State<AdminDashboard> {
             ),
             ElevatedButton(
               onPressed: () async {
-                if (!_formKey.currentState!.validate()) return;
+                if (!formKey.currentState!.validate()) return;
 
-                final firstName = _firstNameController.text.trim();
-                final mi = _middleInitialController.text.trim();
-                final surname = _surnameController.text.trim();
-                final email = _emailController.text.trim();
-                final phone = _phoneController.text.trim();
+                final firstName = firstNameController.text.trim();
+                final mi = middleInitialController.text.trim();
+                final surname = surnameController.text.trim();
+                final email = emailController.text.trim();
+                final phone = phoneController.text.trim();
 
                 try {
                   String? result;
                   if (isEdit) {
                     result = await _userService.updateUser(
-                      id: user!.id,
+                      id: user.id,
                       firstName: firstName,
                       middleInitial: mi,
                       surname: surname,
                       email: email,
                       phone: phone,
-                      role: _selectedRole,
-                      status: _isEnabled ? 'Enabled' : 'Disabled',
+                      role: selectedRole,
+                      status: isEnabled ? 'Enabled' : 'Disabled',
                     );
                   } else {
                     result = await _userService.createUser(
@@ -246,10 +247,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       surname: surname,
                       email: email,
                       phone: phone,
-                      role: _selectedRole,
-                      status: _isEnabled ? 'Enabled' : 'Disabled',
-                      password: _passwordController.text,
-                      confirmPassword: _confirmPasswordController.text,
+                      role: selectedRole,
+                      status: isEnabled ? 'Enabled' : 'Disabled',
+                      password: passwordController.text,
+                      confirmPassword: confirmPasswordController.text,
                     );
                   }
 
@@ -257,16 +258,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     if (result == null) {
                       Navigator.pop(context, true);
                     } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text(result), backgroundColor: Colors.red),
-                      );
+                      TopNotification.show(context, result, isError: true);
                     }
                   }
                 } catch (e) {
                   if (mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red),
-                    );
+                    TopNotification.show(context, 'Error: $e', isError: true);
                   }
                 }
               },
@@ -282,12 +279,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Future<void> _showUserDetail(BuildContext context, AdminUser user) async {
     // For now, we'll just show a simple snackbar indicating the feature needs implementation
     if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text('Viewing details for: ${user.fullName}'),
-          backgroundColor: AppColors.primaryOrange,
-        ),
-      );
+      TopNotification.show(context, 'Viewing details for: ${user.fullName}');
     }
   }
 
@@ -319,21 +311,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
       final result = await _userService.archiveUser(user.id);
       if (mounted) {
         if (result == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('User archived successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          TopNotification.show(context, 'User archived successfully');
           // Refresh the users section
           setState(() {});
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to archive user: $result'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          TopNotification.show(context, 'Failed to archive user: $result', isError: true);
         }
       }
     }
@@ -367,21 +349,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
       final result = await _userService.permanentlyDeleteUser(user.id);
       if (mounted) {
         if (result == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('User deleted successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          TopNotification.show(context, 'User deleted successfully');
           // Refresh the users section
           setState(() {});
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to delete user: $result'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          TopNotification.show(context, 'Failed to delete user: $result', isError: true);
         }
       }
     }
@@ -393,16 +365,16 @@ class _AdminDashboardState extends State<AdminDashboard> {
     if (!mounted) return;
 
     final isEdit = product != null;
-    final _formKey = GlobalKey<FormState>();
-    final _nameController = TextEditingController(text: product?.name ?? '');
-    final _barcodeController = TextEditingController(text: product?.barcode ?? '');
-    final _descriptionController = TextEditingController(text: product?.description ?? '');
-    final _priceController = TextEditingController(text: product?.price?.toString() ?? '');
-    final _costController = TextEditingController(text: product?.cost?.toString() ?? '');
-    final _quantityController = TextEditingController(text: product?.quantity?.toString() ?? '');
-    final _unitController = TextEditingController(text: product?.unit ?? 'piece');
+    final formKey = GlobalKey<FormState>();
+    final nameController0 = TextEditingController(text: product?.name ?? '');
+    final barcodeController = TextEditingController(text: product?.barcode ?? '');
+    final descriptionController = TextEditingController(text: product?.description ?? '');
+    final priceController = TextEditingController(text: product?.price.toString() ?? '');
+    final costController = TextEditingController(text: product?.cost.toString() ?? '');
+    final quantityController = TextEditingController(text: product?.quantity.toString() ?? '');
+    final unitController = TextEditingController(text: product?.unit ?? 'piece');
     
-    String _selectedCategoryId = product?.categoryId ?? '';
+    String selectedCategoryId = product?.categoryId ?? '';
 
     // Ensure categories are loaded
     if (_categories.isEmpty && !_categoriesLoading) {
@@ -416,21 +388,21 @@ class _AdminDashboardState extends State<AdminDashboard> {
           title: Text(isEdit ? 'Edit Product' : 'Add Product'),
           content: SingleChildScrollView(
             child: Form(
-              key: _formKey,
+              key: formKey,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   TextFormField(
-                    controller: _nameController,
+                    controller: nameController0,
                     decoration: const InputDecoration(labelText: 'Product Name', icon: Icon(Icons.inventory)),
                     validator: (value) => (value == null || value.isEmpty) ? 'Required' : null,
                   ),
                   TextFormField(
-                    controller: _barcodeController,
+                    controller: barcodeController,
                     decoration: const InputDecoration(labelText: 'Barcode', icon: Icon(Icons.barcode_reader)),
                   ),
                   TextFormField(
-                    controller: _descriptionController,
+                    controller: descriptionController,
                     decoration: const InputDecoration(labelText: 'Description', icon: Icon(Icons.description)),
                     maxLines: 2,
                   ),
@@ -438,7 +410,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     children: [
                       Expanded(
                         child: TextFormField(
-                          controller: _priceController,
+                          controller: priceController,
                           decoration: const InputDecoration(labelText: 'Price (₱)', icon: Icon(Icons.attach_money)),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         ),
@@ -446,7 +418,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextFormField(
-                          controller: _costController,
+                          controller: costController,
                           decoration: const InputDecoration(labelText: 'Cost (₱)'),
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         ),
@@ -457,7 +429,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     children: [
                       Expanded(
                         child: TextFormField(
-                          controller: _quantityController,
+                          controller: quantityController,
                           decoration: const InputDecoration(labelText: 'Stock', icon: Icon(Icons.numbers)),
                           keyboardType: TextInputType.number,
                         ),
@@ -465,7 +437,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                       const SizedBox(width: 12),
                       Expanded(
                         child: TextFormField(
-                          controller: _unitController,
+                          controller: unitController,
                           decoration: const InputDecoration(labelText: 'Unit'),
                         ),
                       ),
@@ -483,8 +455,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         Expanded(
                           child: DropdownButtonFormField<String>(
                             key: ValueKey('cat_${_categories.length}'),
-                            value: _selectedCategoryId.isNotEmpty && _categories.any((c) => c.id == _selectedCategoryId) 
-                                ? _selectedCategoryId 
+                            initialValue: selectedCategoryId.isNotEmpty && _categories.any((c) => c.id == selectedCategoryId) 
+                                ? selectedCategoryId 
                                 : null,
                             decoration: const InputDecoration(labelText: 'Category', icon: Icon(Icons.category)),
                             items: [
@@ -494,7 +466,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                 child: Text(c.name),
                               )),
                             ],
-                            onChanged: (val) => setDialogState(() => _selectedCategoryId = val ?? ''),
+                            onChanged: (val) => setDialogState(() => selectedCategoryId = val ?? ''),
                           ),
                         ),
                         IconButton(
@@ -517,7 +489,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                               if (err == null) {
                                 await _fetchCategories();
                                 final added = _categories.firstWhere((c) => c.name == name);
-                                setDialogState(() => _selectedCategoryId = added.id);
+                                setDialogState(() => selectedCategoryId = added.id);
                               }
                             }
                           },
@@ -532,53 +504,50 @@ class _AdminDashboardState extends State<AdminDashboard> {
             TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
             ElevatedButton(
               onPressed: () async {
-                if (!_formKey.currentState!.validate()) return;
+                if (!formKey.currentState!.validate()) return;
                 
                 try {
-                  final price = double.tryParse(_priceController.text) ?? 0.0;
-                  final cost = double.tryParse(_costController.text) ?? 0.0;
-                  final qty = double.tryParse(_quantityController.text) ?? 0.0;
+                  final price = double.tryParse(priceController.text) ?? 0.0;
+                  final cost = double.tryParse(costController.text) ?? 0.0;
+                  final qty = double.tryParse(quantityController.text) ?? 0.0;
 
                   String? error;
                   if (isEdit) {
                     error = await _productService.updateProduct(
-                      id: product!.id,
-                      name: _nameController.text.trim(),
-                      barcode: _barcodeController.text.trim(),
-                      description: _descriptionController.text.trim(),
+                      id: product.id,
+                      name: nameController0.text.trim(),
+                      barcode: barcodeController.text.trim(),
+                      description: descriptionController.text.trim(),
                       price: price,
                       cost: cost,
                       quantity: qty,
-                      unit: _unitController.text.trim(),
-                      categoryId: _selectedCategoryId,
+                      unit: unitController.text.trim(),
+                      categoryId: selectedCategoryId,
                     );
                   } else {
                     error = await _productService.createProduct(
-                      name: _nameController.text.trim(),
-                      barcode: _barcodeController.text.trim(),
-                      description: _descriptionController.text.trim(),
+                      name: nameController0.text.trim(),
+                      barcode: barcodeController.text.trim(),
+                      description: descriptionController.text.trim(),
                       price: price,
                       cost: cost,
                       quantity: qty,
-                      unit: _unitController.text.trim(),
-                      categoryId: _selectedCategoryId,
+                      unit: unitController.text.trim(),
+                      categoryId: selectedCategoryId,
                     );
                   }
 
                   if (mounted) {
                     if (error == null) {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(
-                        content: Text('Product ${isEdit ? 'updated' : 'added'} successfully'),
-                        backgroundColor: Colors.green,
-                      ));
+                      TopNotification.show(context, 'Product ${isEdit ? 'updated' : 'added'} successfully');
                       Navigator.pop(context, true);
                       setState(() {});
                     } else {
-                      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(error), backgroundColor: Colors.red));
+                      TopNotification.show(context, error, isError: true);
                     }
                   }
                 } catch (e) {
-                  if (mounted) ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e'), backgroundColor: Colors.red));
+                  if (mounted) TopNotification.show(context, 'Error: $e', isError: true);
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
@@ -593,9 +562,9 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Future<void> _adjustStock(BuildContext context, AdminProduct product) async {
     if (!mounted) return;
 
-    final _formKey = GlobalKey<FormState>();
-    final _quantityController = TextEditingController(text: product.quantity.toString());
-    final _unitController = TextEditingController(text: product.unit);
+    final formKey = GlobalKey<FormState>();
+    final quantityController = TextEditingController(text: product.quantity.toString());
+    final unitController = TextEditingController(text: product.unit);
 
     await showDialog<bool>(
       context: context,
@@ -603,12 +572,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
         title: const Text('Adjust Stock'),
         content: SingleChildScrollView(
           child: Form(
-            key: _formKey,
+            key: formKey,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
                 TextFormField(
-                  controller: _quantityController,
+                  controller: quantityController,
                   decoration: const InputDecoration(
                     labelText: 'Quantity',
                     icon: Icon(Icons.numbers),
@@ -625,7 +594,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   },
                 ),
                 TextFormField(
-                  controller: _unitController,
+                  controller: unitController,
                   decoration: const InputDecoration(
                     labelText: 'Unit',
                     icon: Icon(Icons.folder_outlined),
@@ -642,12 +611,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ),
           ElevatedButton(
             onPressed: () async {
-              if (!_formKey.currentState!.validate()) {
+              if (!formKey.currentState!.validate()) {
                 return;
               }
 
-              final quantity = int.tryParse(_quantityController.text.trim()) ?? 0;
-              final unit = _unitController.text.trim();
+              final quantity = int.tryParse(quantityController.text.trim()) ?? 0;
+              final unit = unitController.text.trim();
 
               try {
                 await _productService.adjustStock(
@@ -655,12 +624,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   quantity.toDouble(),
                 );
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Stock adjusted successfully'),
-                      backgroundColor: Colors.green,
-                    ),
-                  );
+                  TopNotification.show(context, 'Stock adjusted successfully');
                 }
                 if (mounted) {
                   Navigator.pop(context, true);
@@ -669,12 +633,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 }
               } catch (e) {
                 if (mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Failed to adjust stock: $e'),
-                      backgroundColor: Colors.red,
-                    ),
-                  );
+                  TopNotification.show(context, 'Failed to adjust stock: $e', isError: true);
                 }
               }
             },
@@ -716,21 +675,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
       final result = await _productService.archiveProduct(product.id);
       if (mounted) {
         if (result == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Product archived successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          TopNotification.show(context, 'Product archived successfully');
           // Refresh the products section
           setState(() {});
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to archive product: $result'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          TopNotification.show(context, 'Failed to archive product: $result', isError: true);
         }
       }
     }
@@ -764,21 +713,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
       final result = await _productService.permanentlyDeleteProduct(product.id);
       if (mounted) {
         if (result == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Product deleted successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          TopNotification.show(context, 'Product deleted successfully');
           // Refresh the products section
           setState(() {});
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to delete product: $result'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          TopNotification.show(context, 'Failed to delete product: $result', isError: true);
         }
       }
     }
@@ -814,21 +753,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
       final result = await _productService.restoreProduct(product.id);
       if (mounted) {
         if (result == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Product restored successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          TopNotification.show(context, 'Product restored successfully');
           // Refresh the archived section
           setState(() {});
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to restore product: $result'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          TopNotification.show(context, 'Failed to restore product: $result', isError: true);
         }
       }
     }
@@ -862,21 +791,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
       final result = await _userService.restoreUser(user.id);
       if (mounted) {
         if (result == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('User restored successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          TopNotification.show(context, 'User restored successfully');
           // Refresh the archived section
           setState(() {});
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to restore user: $result'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          TopNotification.show(context, 'Failed to restore user: $result', isError: true);
         }
       }
     }
@@ -910,21 +829,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
       final result = await _productService.restoreCategory(category.id);
       if (mounted) {
         if (result == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Category restored successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          TopNotification.show(context, 'Category restored successfully');
           // Refresh the archived section
           setState(() {});
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to restore category: $result'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          TopNotification.show(context, 'Failed to restore category: $result', isError: true);
         }
       }
     }
@@ -958,21 +867,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
       final result = await _productService.permanentlyDeleteProduct(product.id);
       if (mounted) {
         if (result == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Product deleted successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          TopNotification.show(context, 'Product deleted successfully');
           // Refresh the archived section
           setState(() {});
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to delete product: $result'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          TopNotification.show(context, 'Failed to delete product: $result', isError: true);
         }
       }
     }
@@ -1006,21 +905,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
       final result = await _userService.permanentlyDeleteUser(user.id);
       if (mounted) {
         if (result == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('User deleted successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          TopNotification.show(context, 'User deleted successfully');
           // Refresh the archived section
           setState(() {});
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to delete user: $result'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          TopNotification.show(context, 'Failed to delete user: $result', isError: true);
         }
       }
     }
@@ -1054,21 +943,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
       final result = await _productService.permanentlyDeleteCategory(category.id);
       if (mounted) {
         if (result == null) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text('Category deleted successfully'),
-              backgroundColor: Colors.green,
-            ),
-          );
+          TopNotification.show(context, 'Category deleted successfully');
           // Refresh the archived section
           setState(() {});
         } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Failed to delete category: $result'),
-              backgroundColor: Colors.red,
-            ),
-          );
+          TopNotification.show(context, 'Failed to delete category: $result', isError: true);
         }
       }
     }
@@ -1314,7 +1193,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           searchQuery: '',
           rowsPerPage: 10,
           pages: const {},
-          onPageChange: (_, __) {},
+          onPageChange: (_, _) {},
           onShowUserForm: (user) => _showUserForm(context, user),
           onShowUserDetail: (user) => _showUserDetail(context, user),
           onArchiveUser: (user) => _archiveUser(context, user),
@@ -1341,7 +1220,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           rowsPerPage: 10,
           pages: const {},
           showCostColumn: false,
-          onPageChange: (_, __) {},
+          onPageChange: (_, _) {},
           onShowProductForm: (product) => _showProductForm(context, product),
           onAdjustStock: (product) => _adjustStock(context, product),
           onArchiveProduct: (product) => _archiveProduct(context, product),
@@ -1355,7 +1234,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           searchQuery: '',
           rowsPerPage: 10,
           pages: const {},
-          onPageChange: (_, __) {},
+          onPageChange: (_, _) {},
           onShowCategoryForm: (category) => {}, // TODO: Implement category form
           onArchiveCategory: (category) => {}, // TODO: Implement archive category
           onDeleteCategory: (category) => {}, // TODO: Implement delete category
@@ -1367,10 +1246,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
           rowsPerPage: 10,
           pages: const {},
           storeName: 'Tindahan ni Eca',
-          onPageChange: (_, __) {},
+          onPageChange: (_, _) {},
           onShowReceipt: (sale) => {}, // TODO: Implement show receipt
           onVoidSale: (sale) => {}, // TODO: Implement void sale
-          onCopyText: (_, __) {}, // TODO: Implement copy text
+          onCopyText: (_, _) {}, // TODO: Implement copy text
           onClearFilters: () {}, // TODO: Implement clear filters
         );
       case AdminSection.activity:
@@ -1379,7 +1258,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           searchQuery: '',
           rowsPerPage: 10,
           pages: const {},
-          onPageChange: (_, __) {},
+          onPageChange: (_, _) {},
           onShowAuditDetail: (log) => {}, // TODO: Implement audit log detail
         );
       case AdminSection.archived:
@@ -1390,7 +1269,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           searchQuery: '',
           rowsPerPage: 10,
           pages: const {},
-          onPageChange: (_, __) {},
+          onPageChange: (_, _) {},
           onRestoreProduct: (product) => _restoreProduct(context, product),
           onDeleteProduct: (product) => _deleteProductFromArchived(context, product),
           onRestoreUser: (user) => _restoreUser(context, user),

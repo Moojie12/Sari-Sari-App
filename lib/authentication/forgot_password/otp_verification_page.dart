@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/primary_button.dart';
+import '../../shared/utils/top_notification.dart';
 import 'create_new_password_page.dart';
 
 class OtpVerificationPage extends StatefulWidget {
@@ -137,12 +138,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                   // Kuhanin ang pinasok na code
                   String otp = _controllers.map((c) => c.text).join();
                   if (otp.length < 4) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('Please enter the complete 4-digit code.'),
-                        backgroundColor: Colors.redAccent,
-                      ),
-                    );
+                    TopNotification.show(context, 'Please enter the complete 4-digit code.', isError: true);
                     return;
                   }
                   
@@ -169,12 +165,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                     ),
                     TextButton(
                       onPressed: () {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('A new OTP code has been sent!'),
-                            backgroundColor: AppColors.primaryOrange,
-                          ),
-                        );
+                        TopNotification.show(context, 'A new OTP code has been sent!');
                       },
                       style: TextButton.styleFrom(
                         padding: EdgeInsets.zero,

@@ -486,10 +486,7 @@ class AdminUserService extends ChangeNotifier {
         }
       } else {
         final email = data['email']?.toString().trim() ?? '';
-        final username = data['username']?.toString().trim() ?? '';
-        if (username.isNotEmpty) {
-          firstName = username;
-        } else if (email.contains('@')) {
+        if (email.contains('@')) {
           firstName = email.split('@').first;
         } else {
           firstName = 'User';

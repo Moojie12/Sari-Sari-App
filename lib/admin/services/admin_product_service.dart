@@ -339,8 +339,9 @@ class AdminProductService extends ChangeNotifier {
 
       // Check if category is still active
       final category = categoryById(product.categoryId);
-      if (category == null || category.isArchived)
+      if (category.isArchived) {
         return 'Its category "${product.categoryName}" is archived.';
+      }
 
       await _supabaseService.updateProduct(id, {
         'is_archived': false,
@@ -490,8 +491,9 @@ class AdminProductService extends ChangeNotifier {
       final activeProductCount = _products.where((p) =>
           !p.isArchived && p.categoryId == id).length;
 
-      if (activeProductCount > 0)
+      if (activeProductCount > 0) {
         return '$activeProductCount active products are still in "${category.name}".';
+      }
 
       // Get current user ID for archived_by field
       final currentUserId = 'current_user_id'; // TODO: Get from auth
@@ -550,14 +552,14 @@ class AdminProductService extends ChangeNotifier {
   Future<String?> permanentlyDeleteCategory(String id) async {
     try {
       final category = categoryById(id);
-      if (category == null) return 'That category no longer exists.';
 
       if (!category.isArchived) return 'Archive the category before deleting it.';
 
       // Check if any products are assigned to this category
       final productCount = _products.where((p) => p.categoryId == id).length;
-      if (productCount > 0)
+      if (productCount > 0) {
         return '$productCount products are still assigned to "${category.name}".';
+      }
 
       // TODO: Implement category deletion in SupabaseService
 // _supabaseService.deleteCategory(id);

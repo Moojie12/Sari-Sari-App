@@ -57,14 +57,7 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
 
   void _addToCart(EmployeeProduct product) {
     if (product.stockStatus == EmployeeStockStatus.outOfStock) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          const SnackBar(
-            content: Text('This product is out of stock.'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+      TopNotification.show(context, 'This product is out of stock.', isError: true);
       return;
     }
 
@@ -92,14 +85,7 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
       _addToCart(product);
     } else {
       if (!mounted) return;
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-          SnackBar(
-            content: Text('No product found for barcode "$code".'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
+      TopNotification.show(context, 'No product found for barcode "$code".', isError: true);
     }
   }
 
@@ -894,10 +880,7 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
     final total = widget.posController.totalAmount;
     final amountPaid = double.tryParse(_amountController.text) ?? total;
     if (amountPaid < total) {
-      ScaffoldMessenger.of(context)
-        ..hideCurrentSnackBar()
-        ..showSnackBar(
-            const SnackBar(content: Text('Amount received is less than the total.')));
+      TopNotification.show(context, 'Amount received is less than the total.', isError: true);
       return;
     }
 

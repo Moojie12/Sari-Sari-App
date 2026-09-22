@@ -52,10 +52,15 @@ class _CustomTextFieldState extends State<CustomTextField> {
           color: AppColors.placeholderColor,
           fontSize: 12,
         ),
+        errorStyle: const TextStyle(
+          color: Colors.redAccent,
+          fontSize: 11,
+          fontWeight: FontWeight.w500,
+        ),
         prefixIcon: Icon(
           widget.icon,
           size: 18,
-          color: AppColors.primaryOrange,
+          color: widget.errorText != null ? Colors.redAccent : AppColors.primaryOrange,
         ),
         suffixIcon: widget.isPassword
             ? IconButton(
@@ -65,7 +70,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
                 ? Icons.visibility_off_outlined
                 : Icons.visibility_outlined,
             size: 18,
-            color: AppColors.placeholderColor,
+            color: widget.errorText != null ? Colors.redAccent : AppColors.placeholderColor,
           ),
         )
             : widget.trailing,
@@ -87,6 +92,20 @@ class _CustomTextFieldState extends State<CustomTextField> {
           borderRadius: BorderRadius.circular(8),
           borderSide: const BorderSide(
             color: AppColors.primaryOrange,
+            width: 1.5,
+          ),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(
+            color: Colors.redAccent,
+            width: 1,
+          ),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: const BorderSide(
+            color: Colors.redAccent,
             width: 1.5,
           ),
         ),

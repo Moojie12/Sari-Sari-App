@@ -4,6 +4,7 @@ import '../../shared/widgets/custom_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../admin/dashboard/admin_dashboard.dart';
 import '../../core/services/auth_service.dart';
+import '../../shared/utils/top_notification.dart';
 
 class AdminLoginPage extends StatefulWidget {
   const AdminLoginPage({super.key});
@@ -62,9 +63,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     if (errorMessage != null) {
       // Show error message
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(errorMessage)),
-        );
+        TopNotification.show(context, errorMessage, isError: true);
       }
       return;
     }
@@ -73,9 +72,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     final user = AuthService().currentUser;
     if (user == null) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Authentication failed')),
-        );
+        TopNotification.show(context, 'Authentication failed', isError: true);
       }
       return;
     }
@@ -86,9 +83,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
     final hasAdminRole = await AuthService().hasRole('owner');
     if (!hasAdminRole) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Access denied. Owner role required.')),
-        );
+        TopNotification.show(context, 'Access denied. Owner role required.', isError: true);
       }
       return;
     }
