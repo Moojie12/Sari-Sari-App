@@ -1,31 +1,27 @@
 import 'package:flutter/material.dart';
-
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/custom_text_field.dart';
 import '../../../shared/widgets/editable_profile_avatar.dart';
 import '../../../shared/widgets/primary_button.dart';
-import 'employee_profile_controller.dart';
+import 'owner_profile_controller.dart';
 
-/// "Edit Profile" screen: lets the employee update their own name (with
-/// middle initial), email, and contact number. Fields here match exactly
-/// what's shown on "Profile Information" — there is no username field,
-/// since Profile Information doesn't show one either.
-class EmployeeEditProfilePage extends StatefulWidget {
-  const EmployeeEditProfilePage({super.key});
+class OwnerEditProfilePage extends StatefulWidget {
+  const OwnerEditProfilePage({super.key});
 
   @override
-  State<EmployeeEditProfilePage> createState() => _EmployeeEditProfilePageState();
+  State<OwnerEditProfilePage> createState() => _OwnerEditProfilePageState();
 }
 
-class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
-  final _controller = EmployeeProfileController();
+class _OwnerEditProfilePageState extends State<OwnerEditProfilePage> {
+  final _controller = OwnerProfileController.instance;
 
   late final TextEditingController _firstNameController;
   late final TextEditingController _middleInitialController;
   late final TextEditingController _lastNameController;
   late final TextEditingController _emailController;
   late final TextEditingController _contactController;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -64,7 +60,7 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirm Changes', style: TextStyle(fontWeight: FontWeight.bold)),
-        content: const Text('Do you want to save the changes to your profile?'),
+        content: const Text('Do you want to save the changes to your owner profile?'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -81,17 +77,26 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
     if (confirmed != true) return;
     if (!mounted) return;
 
-    await _controller.updateProfile(
-      firstName: firstName,
-      middleInitial: middleInitial,
-      lastName: lastName,
-      email: email,
-      contactNumber: contact,
-    );
+    setState(() => _isSaving = true);
+    try {
+      await _controller.updateProfile(
+        firstName: firstName,
+        middleInitial: middleInitial,
+        lastName: lastName,
+        email: email,
+        contactNumber: contact,
+      );
 
-    if (!mounted) return;
-    TopNotification.show(context, 'Profile updated successfully.');
-    Navigator.pop(context);
+      if (!mounted) return;
+      TopNotification.show(context, 'Owner profile updated successfully.');
+      Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        TopNotification.show(context, 'Failed to update profile: $e', isError: true);
+      }
+    } finally {
+      if (mounted) setState(() => _isSaving = false);
+    }
   }
 
   @override
@@ -106,7 +111,7 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
-          'Edit Profile',
+          'Edit Owner Profile',
           style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
         ),
       ),
@@ -138,7 +143,7 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
               ),
               const SizedBox(height: 24),
               const Text(
-                'Personal Information',
+                'Owner Information',
                 style: TextStyle(color: AppColors.secondaryText, fontSize: 15, fontWeight: FontWeight.w600),
               ),
               const SizedBox(height: 14),
@@ -204,7 +209,7 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
               const SizedBox(height: 6),
               CustomTextField(
                 hint: 'Last Name',
-                icon: Icons.badge_outlined,
+                icon: Icons.person_outline,
                 controller: _lastNameController,
               ),
               const SizedBox(height: 14),
@@ -218,10 +223,10 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
               ),
               const SizedBox(height: 6),
               CustomTextField(
-                hint: 'Email Address',
+                hint: 'Email',
                 icon: Icons.email_outlined,
-                controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
+                controller: _emailController,
               ),
               const SizedBox(height: 14),
               const Text(
@@ -236,13 +241,13 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
               CustomTextField(
                 hint: 'Contact Number',
                 icon: Icons.phone_outlined,
-                controller: _contactController,
                 keyboardType: TextInputType.phone,
+                controller: _contactController,
               ),
-              const SizedBox(height: 24),
+              const SizedBox(height: 28),
               PrimaryButton(
                 label: 'Save Changes',
-                height: 48,
+                isLoading: _isSaving,
                 onPressed: _saveChanges,
               ),
             ],

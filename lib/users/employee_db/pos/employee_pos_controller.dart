@@ -191,9 +191,14 @@ class EmployeePosController extends ChangeNotifier {
     final totalCapital = _cart.fold(0.0, (sum, item) => sum + item.totalCapital);
     final totalProfit = totalAmount - totalCapital;
 
+    final now = DateTime.now();
+    final datePart = '${now.year.toString().substring(2)}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+    final timePart = '${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
+    final receiptNumber = 'RC-$datePart$timePart-${_receiptCounter.toString().padLeft(3, '0')}';
+
     final receipt = EmployeeReceipt(
-      receiptNumber: 'RC-${_receiptCounter.toString().padLeft(5, '0')}',
-      dateTime: DateTime.now(),
+      receiptNumber: receiptNumber,
+      dateTime: now,
       items: List.of(_cart),
       totalAmount: totalAmount,
       amountPaid: amountPaid,

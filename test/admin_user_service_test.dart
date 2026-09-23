@@ -61,5 +61,34 @@ void main() {
       expect(activeUser.isArchived, isFalse);
       expect(archivedUser.isArchived, isTrue);
     });
+
+    test('AdminUser handles photoUrl and copyWith correctly', () {
+      const user = AdminUser(
+        id: 'u3',
+        firstName: 'Maria',
+        middleInitial: 'C',
+        surname: 'Santos',
+        email: 'maria@gmail.com',
+        phone: '09123456789',
+        role: AdminRole.customer,
+        status: 'Enabled',
+        photoUrl: 'https://example.com/avatar.jpg',
+      );
+
+      expect(user.photoUrl, 'https://example.com/avatar.jpg');
+
+      // Update name while retaining photoUrl
+      final updatedName = user.copyWith(firstName: 'Marie');
+      expect(updatedName.firstName, 'Marie');
+      expect(updatedName.photoUrl, 'https://example.com/avatar.jpg');
+
+      // Update photoUrl
+      final updatedPhoto = user.copyWith(photoUrl: 'https://example.com/new_avatar.jpg');
+      expect(updatedPhoto.photoUrl, 'https://example.com/new_avatar.jpg');
+
+      // Clear photoUrl
+      final clearedPhoto = user.copyWith(clearPhotoUrl: true);
+      expect(clearedPhoto.photoUrl, isNull);
+    });
   });
 }

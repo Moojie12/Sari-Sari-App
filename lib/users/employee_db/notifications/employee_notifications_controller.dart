@@ -1,18 +1,19 @@
 import 'package:flutter/foundation.dart';
-
+import '../../../core/services/notification_database_service.dart';
 import '../employee_inventory_controller.dart';
 import 'employee_notification_model.dart';
 
-/// Owns the employee "Notifications" list.
+/// Owns the employee and store-wide "Notifications" list.
 ///
 /// Low stock / out of stock / expiring alerts are *derived live* from
 /// [EmployeeInventoryController] — the same source of truth as the Home
 /// tab's stat cards — so a notification always matches what's actually in
-/// the inventory. "New order" and "assigned task" alerts are frontend-only
-/// mock entries, since there's no order/task backend yet.
+/// the inventory. Order and task alerts are dynamically created and persisted
+/// to the database via [NotificationDatabaseService].
 class EmployeeNotificationsController extends ChangeNotifier {
   EmployeeNotificationsController._() {
     _inventory.addListener(notifyListeners);
+    loadStoreNotifications();
   }
 
   static final EmployeeNotificationsController instance = EmployeeNotificationsController._();
@@ -20,18 +21,17 @@ class EmployeeNotificationsController extends ChangeNotifier {
   factory EmployeeNotificationsController() => instance;
 
   final EmployeeInventoryController _inventory = EmployeeInventoryController();
+  final NotificationDatabaseService _dbService = NotificationDatabaseService.instance;
 
-  /// Ids the employee has already opened/dismissed. Kept separately from
-  /// the derived list itself, since inventory-based notifications are
-  /// recomputed from live stock on every read rather than stored.
   final Set<String> _readIds = {};
-
   final List<EmployeeNotification> _dynamicNotifications = [];
-
   final List<EmployeeNotification> _mockNotifications = [];
+  bool _isLoading = false;
+
+  bool get isLoading => _isLoading;
 
   /// Full notification list, newest first: live inventory alerts plus the
-  /// mock order/task entries, each with its read state applied.
+  /// persisted order/task entries, each with its read state applied.
   List<EmployeeNotification> get notifications {
     final now = DateTime.now();
     final derived = <EmployeeNotification>[];
@@ -90,29 +90,79 @@ class EmployeeNotificationsController extends ChangeNotifier {
 
   int get unreadCount => notifications.where((n) => !n.isRead).length;
 
+  /// Load store notifications persisted in the database
+  Future<void> loadStoreNotifications() async {
+    _isLoading = true;
+    notifyListeners();
+
+    try {
+      final dbNotifs = await _dbService.loadStoreNotifications();
+      if (dbNotifs.isNotEmpty) {
+        final existingIds = _dynamicNotifications.map((n) => n.id).toSet();
+        for (final notif in dbNotifs) {
+          if (!existingIds.contains(notif.id)) {
+            _dynamicNotifications.add(notif);
+          } else {
+            final idx = _dynamicNotifications.indexWhere((n) => n.id == notif.id);
+            if (idx != -1 && notif.isRead) {
+              _readIds.add(notif.id);
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading store notifications: $e');
+    } finally {
+      _isLoading = false;
+      notifyListeners();
+    }
+  }
+
   void markAsRead(String id) {
-    if (_readIds.add(id)) notifyListeners();
+    if (_readIds.add(id)) {
+      final idx = _dynamicNotifications.indexWhere((n) => n.id == id);
+      if (idx != -1) {
+        _dynamicNotifications[idx] = _dynamicNotifications[idx].copyWith(isRead: true);
+      }
+      notifyListeners();
+      _dbService.markStoreNotificationRead(id);
+    }
   }
 
   void markAllAsRead() {
-    final ids = notifications.map((n) => n.id);
+    final ids = notifications.map((n) => n.id).toList();
     _readIds.addAll(ids);
+    for (int i = 0; i < _dynamicNotifications.length; i++) {
+      _dynamicNotifications[i] = _dynamicNotifications[i].copyWith(isRead: true);
+    }
     notifyListeners();
+    _dbService.markAllStoreNotificationsRead(ids);
   }
 
+  /// Add a store/employee notification and persist it to the database
   void addNotification({
     required EmployeeNotificationType type,
     required String title,
     required String message,
   }) {
     final newNotif = EmployeeNotification(
-      id: 'dynamic-${DateTime.now().millisecondsSinceEpoch}',
+      id: 'store_notif_${DateTime.now().millisecondsSinceEpoch}_${_dynamicNotifications.length}',
       type: type,
       title: title,
       message: message,
       timestamp: DateTime.now(),
+      isRead: false,
     );
-    _dynamicNotifications.add(newNotif);
+    _dynamicNotifications.insert(0, newNotif);
+    notifyListeners();
+
+    _dbService.saveStoreNotification(newNotif);
+  }
+
+  /// Clear in-memory notifications on logout
+  void clear() {
+    _dynamicNotifications.clear();
+    _readIds.clear();
     notifyListeners();
   }
 }

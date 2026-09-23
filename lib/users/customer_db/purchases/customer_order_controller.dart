@@ -1,4 +1,6 @@
+import 'dart:math';
 import 'package:flutter/foundation.dart';
+import '../../../core/services/auth_service.dart';
 import '../../employee_db/orders/employee_orders_controller.dart';
 import 'customer_order_model.dart';
 
@@ -17,10 +19,20 @@ class CustomerOrderController extends ChangeNotifier {
 
   bool get isLoading => _sharedController.isLoading;
 
-  List<CustomerOrder> get orders => _sharedController.orders;
+  /// Returns customer-specific orders if logged in, or all orders for guest/test mode
+  List<CustomerOrder> get orders {
+    final currentUserId = AuthService().currentUser?.uid;
+    if (currentUserId != null && currentUserId.isNotEmpty) {
+      final userOrders = _sharedController.orders.where((o) => o.userId == currentUserId).toList();
+      if (userOrders.isNotEmpty) {
+        return userOrders;
+      }
+    }
+    return _sharedController.orders;
+  }
 
   List<CustomerOrder> getOrdersByStatus(List<OrderStatus> statuses) {
-    return _sharedController.orders.where((order) => statuses.contains(order.status)).toList();
+    return orders.where((order) => statuses.contains(order.status)).toList();
   }
 
   CustomerOrder? getOrderById(String orderId) {
@@ -37,8 +49,23 @@ class CustomerOrderController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Cancel an order if it is in pending status.
+  /// Returns true if successfully cancelled, or false if the order cannot be cancelled
+  /// (e.g. status was already changed by store staff).
+  Future<bool> cancelOrder(String orderId, {String? reason}) async {
+    final result = await _sharedController.cancelOrder(orderId, reason: reason);
+    if (result) {
+      notifyListeners();
+    }
+    return result;
+  }
+
   String generateOrderNumber() {
-    return 'SS-${(orders.length + 1).toString().padLeft(4, '0')}';
+    final now = DateTime.now();
+    final datePart = '${now.year.toString().substring(2)}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
+    final timePart = '${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
+    final randomSuffix = (Random().nextInt(900) + 100).toString();
+    return 'SS-$datePart$timePart-$randomSuffix';
   }
 
   @override

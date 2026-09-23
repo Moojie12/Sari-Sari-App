@@ -1,4 +1,5 @@
 import 'package:firebase_auth/firebase_auth.dart';
+import 'package:firebase_database/firebase_database.dart';
 import 'dart:async';
 // lib/admin/services/admin_user_service.dart
 import 'package:flutter/foundation.dart';
@@ -22,6 +23,7 @@ class AdminUserService extends ChangeNotifier {
   bool _isLoading = false;
   String? _error;
   StreamSubscription<User?>? _authSubscription;
+  StreamSubscription<DatabaseEvent>? _usersSubscription;
 
   // ==================== GETTERS ====================
 
@@ -44,13 +46,18 @@ class AdminUserService extends ChangeNotifier {
     _authSubscription ??= _authService.authStateChanges.listen((User? user) {
       debugPrint('[AdminUserService] Auth state changed: user = ${user?.uid ?? 'null'} (${user?.email})');
       if (user != null) {
+        _startUsersStream();
         _loadUsers();
       } else {
+        _usersSubscription?.cancel();
+        _usersSubscription = null;
         _users = [];
         _isInitialized = true;
         notifyListeners();
       }
     });
+
+    _startUsersStream();
 
     if (_isInitialized && !_isLoading && _users.isNotEmpty) return;
 
@@ -86,6 +93,47 @@ class AdminUserService extends ChangeNotifier {
       _isInitialized = true;
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  void _startUsersStream() {
+    if (_usersSubscription != null) return;
+    try {
+      _usersSubscription = _authService.database.ref().child('users').onValue.listen(
+        (event) {
+          if (!event.snapshot.exists) {
+            _users = [];
+            _isInitialized = true;
+            _isLoading = false;
+            notifyListeners();
+            return;
+          }
+          final rawValue = event.snapshot.value;
+          if (rawValue is Map) {
+            final List<AdminUser> parsedUsers = [];
+            rawValue.forEach((key, val) {
+              final id = key.toString();
+              if (val is Map) {
+                try {
+                  parsedUsers.add(_fromFirebaseUser(id, val));
+                } catch (e) {
+                  debugPrint('  -> [Stream error parsing user $id]: $e');
+                }
+              }
+            });
+            _users = parsedUsers;
+            _isInitialized = true;
+            _isLoading = false;
+            _error = null;
+            notifyListeners();
+          }
+        },
+        onError: (e) {
+          debugPrint('[AdminUserService] Error from users onValue stream: $e');
+        },
+      );
+    } catch (e) {
+      debugPrint('[AdminUserService] Failed to start users stream: $e');
     }
   }
 
@@ -507,6 +555,11 @@ class AdminUserService extends ChangeNotifier {
     final archivedAt = _parseDateTime(data['archivedAt'] ?? data['archived_at']);
     final archivedBy = data['archivedBy']?.toString() ?? data['archived_by']?.toString();
 
+    final photoUrl = data['avatar_url']?.toString() ??
+        data['photoUrl']?.toString() ??
+        data['photo_url']?.toString() ??
+        data['photoPath']?.toString();
+
     final user = AdminUser(
       id: id,
       firstName: firstName,
@@ -522,8 +575,9 @@ class AdminUserService extends ChangeNotifier {
       isArchived: isArchived,
       archivedAt: archivedAt,
       archivedBy: archivedBy,
+      photoUrl: photoUrl,
     );
-    debugPrint('[AdminUserService._fromFirebaseUser] Successfully parsed user $id: ${user.fullName} (${user.email})');
+    debugPrint('[AdminUserService._fromFirebaseUser] Successfully parsed user $id: ${user.fullName} (${user.email}), photo: $photoUrl');
     return user;
   }
 
@@ -543,6 +597,8 @@ class AdminUserService extends ChangeNotifier {
   void dispose() {
     _authSubscription?.cancel();
     _authSubscription = null;
+    _usersSubscription?.cancel();
+    _usersSubscription = null;
     super.dispose();
   }
 }

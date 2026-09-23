@@ -81,7 +81,7 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
     if (confirmed != true) return;
     if (!mounted) return;
 
-    _controller.updateProfile(
+    await _controller.updateProfile(
       firstName: firstName,
       middleInitial: middleInitial,
       lastName: lastName,
@@ -89,6 +89,7 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
       contactNumber: contact,
     );
 
+    if (!mounted) return;
     TopNotification.show(context, 'Profile updated successfully.');
     Navigator.pop(context);
   }

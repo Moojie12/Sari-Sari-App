@@ -81,6 +81,28 @@ class CustomerOrderItem {
     );
   }
 
+  Map<String, dynamic> toMap() {
+    return {
+      'productId': productId,
+      'productName': productName,
+      'price': price,
+      'capital': capital,
+      'quantity': quantity,
+      'subtotal': subtotal,
+    };
+  }
+
+  factory CustomerOrderItem.fromMap(Map<dynamic, dynamic> map) {
+    return CustomerOrderItem(
+      productId: map['productId']?.toString() ?? map['product_id']?.toString() ?? '',
+      productName: map['productName']?.toString() ?? map['product_name']?.toString() ?? 'Product',
+      price: (map['price'] as num?)?.toDouble() ?? (map['unit_price'] as num?)?.toDouble() ?? 0.0,
+      capital: (map['capital'] as num?)?.toDouble() ?? (map['unit_cost'] as num?)?.toDouble() ?? 0.0,
+      quantity: (map['quantity'] as num?)?.toInt() ?? 1,
+      subtotal: (map['subtotal'] as num?)?.toDouble() ?? (map['total_price'] as num?)?.toDouble() ?? 0.0,
+    );
+  }
+
   Map<String, dynamic> toSupabaseMap(String dbOrderId) {
     return {
       'order_id': dbOrderId,
@@ -132,6 +154,64 @@ class CustomerOrder {
 
   double get totalCapital => items.fold(0.0, (sum, item) => sum + item.totalCapital);
   double get totalProfit => subtotal - totalCapital;
+
+  Map<String, dynamic> toMap() {
+    return {
+      'orderId': orderId,
+      'customerName': customerName,
+      'orderDate': orderDate.toIso8601String(),
+      'orderType': orderType.name,
+      'paymentMethod': paymentMethod.name,
+      'paymentStatus': paymentStatus.name,
+      'subtotal': subtotal,
+      'deliveryFee': deliveryFee,
+      'totalAmount': totalAmount,
+      'status': status.name,
+      'userId': userId,
+      'deliveryAddress': deliveryAddress,
+      'itemsCount': items.length,
+      'items': items.map((i) => i.toMap()).toList(),
+      'dbId': dbId,
+    };
+  }
+
+  factory CustomerOrder.fromMap(Map<dynamic, dynamic> map) {
+    final rawItems = map['items'];
+    final itemsList = <CustomerOrderItem>[];
+    if (rawItems is List) {
+      for (final item in rawItems) {
+        if (item is Map) {
+          itemsList.add(CustomerOrderItem.fromMap(item));
+        }
+      }
+    } else if (rawItems is Map) {
+      for (final item in rawItems.values) {
+        if (item is Map) {
+          itemsList.add(CustomerOrderItem.fromMap(item));
+        }
+      }
+    }
+
+    final dateStr = map['orderDate']?.toString() ?? map['placed_at']?.toString() ?? map['createdAt']?.toString();
+    final parsedDate = dateStr != null ? DateTime.tryParse(dateStr) ?? DateTime.now() : DateTime.now();
+
+    return CustomerOrder(
+      orderId: map['orderId']?.toString() ?? map['order_number']?.toString() ?? map['id']?.toString() ?? '',
+      customerName: map['customerName']?.toString() ?? map['customer_name']?.toString() ?? 'Customer',
+      orderDate: parsedDate,
+      items: itemsList,
+      orderType: _parseOrderType(map['orderType']?.toString() ?? map['order_type']?.toString()),
+      paymentMethod: _parsePaymentMethod(map['paymentMethod']?.toString() ?? map['payment_method']?.toString()),
+      paymentStatus: _parsePaymentStatus(map['paymentStatus']?.toString() ?? map['payment_status']?.toString()),
+      deliveryAddress: map['deliveryAddress']?.toString() ?? map['delivery_address']?.toString(),
+      subtotal: (map['subtotal'] as num?)?.toDouble() ?? (map['totalAmount'] as num?)?.toDouble() ?? 0.0,
+      deliveryFee: (map['deliveryFee'] as num?)?.toDouble() ?? (map['delivery_fee'] as num?)?.toDouble() ?? 0.0,
+      totalAmount: (map['totalAmount'] as num?)?.toDouble() ?? (map['total_amount'] as num?)?.toDouble() ?? 0.0,
+      status: _parseOrderStatus(map['status']?.toString(), map['order_notes']?.toString()),
+      userId: map['userId']?.toString() ?? map['user_id']?.toString(),
+      dbId: map['dbId']?.toString() ?? map['id']?.toString(),
+    );
+  }
 
   factory CustomerOrder.fromSupabase(Map<String, dynamic> map, [List<CustomerOrderItem>? itemsList]) {
     final items = itemsList != null ? List<CustomerOrderItem>.from(itemsList) : <CustomerOrderItem>[];

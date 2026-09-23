@@ -20,7 +20,7 @@ class _CustomerPurchasesPageState extends State<CustomerPurchasesPage> with Sing
   @override
   void initState() {
     super.initState();
-    _tabController = TabController(length: 4, vsync: this);
+    _tabController = TabController(length: 5, vsync: this);
     _simulateLoading();
   }
 
@@ -62,18 +62,20 @@ class _CustomerPurchasesPageState extends State<CustomerPurchasesPage> with Sing
               padding: const EdgeInsets.symmetric(horizontal: 16),
               child: TabBar(
                 controller: _tabController,
-                isScrollable: false,
+                isScrollable: true,
+                tabAlignment: TabAlignment.start,
                 indicatorColor: AppColors.primaryOrange,
                 labelColor: AppColors.primaryOrange,
                 unselectedLabelColor: AppColors.secondaryText,
-                labelPadding: const EdgeInsets.symmetric(horizontal: 4),
-                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12),
-                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 12),
+                labelPadding: const EdgeInsets.symmetric(horizontal: 12),
+                labelStyle: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                unselectedLabelStyle: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13),
                 tabs: const [
                   Tab(text: 'To Pay'),
                   Tab(text: 'To Ship'),
                   Tab(text: 'To Receive'),
                   Tab(text: 'Completed'),
+                  Tab(text: 'Cancelled'),
                 ],
               ),
             ),
@@ -118,6 +120,11 @@ class _CustomerPurchasesPageState extends State<CustomerPurchasesPage> with Sing
                           OrderStatus.completed,
                         ]),
                         emptyMessage: 'No completed orders yet.',
+                        onRefresh: widget.orderController.refresh,
+                      ),
+                      _OrderList(
+                        orders: widget.orderController.getOrdersByStatus([OrderStatus.cancelled]),
+                        emptyMessage: 'No cancelled orders.',
                         onRefresh: widget.orderController.refresh,
                       ),
                     ],
@@ -256,7 +263,11 @@ class _OrderCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       'Status: ${order.status.label}',
-                      style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: order.status == OrderStatus.cancelled ? Colors.red : AppColors.secondaryText,
+                        fontWeight: order.status == OrderStatus.cancelled ? FontWeight.bold : FontWeight.normal,
+                      ),
                     ),
                   ],
                 ),

@@ -5,7 +5,6 @@ import 'employee_orders_controller.dart';
 import 'employee_orders_page.dart';
 import '../messages/employee_chat_page.dart';
 import '../messages/employee_messages_controller.dart';
-import '../messages/employee_message_model.dart';
 
 class EmployeeOrderDetailsPage extends StatelessWidget {
   const EmployeeOrderDetailsPage({
@@ -228,7 +227,7 @@ class _OrderInfoSection extends StatelessWidget {
                   // so this does not depend on a ChatThread declaration here.
                   final matchingName = messagesController.threads
                       .where(
-                        (t) => t.recipient?.name == order.customerName,
+                        (t) => t.recipient.name == order.customerName,
                   )
                       .toList();
 
@@ -236,7 +235,7 @@ class _OrderInfoSection extends StatelessWidget {
                       ? matchingName.first
                       : messagesController.threads
                       .where(
-                        (t) => t.recipient?.isCustomer == true,
+                        (t) => t.recipient.isCustomer == true,
                   )
                       .firstOrNull ??
                       (messagesController.threads.isNotEmpty
@@ -244,7 +243,7 @@ class _OrderInfoSection extends StatelessWidget {
                           : null);
 
                   // A thread without a recipient cannot be opened.
-                  if (thread == null || thread.recipient == null) {
+                  if (thread == null) {
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(
                         content: Text('No chat thread available'),
@@ -257,7 +256,7 @@ class _OrderInfoSection extends StatelessWidget {
                     context,
                     MaterialPageRoute(
                       builder: (context) => EmployeeChatPage(
-                        recipientId: thread.recipient!.id,
+                        recipientId: thread.recipient.id,
                       ),
                     ),
                   );

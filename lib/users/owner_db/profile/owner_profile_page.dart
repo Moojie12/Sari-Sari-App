@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../authentication/login/login_page.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:sari_sari/shared/utils/top_notification.dart';
-import '../../employee_db/profile/employee_profile_controller.dart';
+import 'owner_profile_controller.dart';
+import 'owner_edit_profile_page.dart';
 import '../../employee_db/profile/employee_profile_model.dart';
 import '../../employee_db/profile/employee_change_password_page.dart';
-import '../../employee_db/profile/employee_edit_profile_page.dart';
 import '../../employee_db/messages/employee_messages_controller.dart';
 import '../../employee_db/messages/employee_messages_page.dart';
 import '../../employee_db/notifications/employee_notifications_controller.dart';
@@ -30,7 +31,7 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
   @override
   void initState() {
     super.initState();
-    EmployeeProfileController.instance.loadProfile();
+    OwnerProfileController.instance.loadProfile();
   }
 
   void _showLogoutConfirmation(BuildContext context) {
@@ -45,13 +46,17 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
             child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context);
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginPage()),
-                    (route) => false,
-              );
+              await AuthService().signOut();
+              OwnerProfileController.instance.clear();
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                  (route) => false,
+                );
+              }
             },
             child: const Text('Logout', style: TextStyle(color: Colors.red)),
           ),
@@ -62,7 +67,7 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
 
   @override
   Widget build(BuildContext context) {
-    final profileController = EmployeeProfileController.instance;
+    final profileController = OwnerProfileController.instance;
     final messagesController = EmployeeMessagesController.instance;
     final notificationsController = EmployeeNotificationsController.instance;
 
@@ -79,9 +84,8 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
             ListenableBuilder(
               listenable: profileController,
               builder: (context, _) {
-                final ownerProfile = profileController.profile.copyWith(role: 'Owner');
                 return _ProfileHeaderCard(
-                  profile: ownerProfile,
+                  profile: profileController.profile,
                 );
               },
             ),
@@ -106,7 +110,7 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
                 _MenuTile(
                   icon: Icons.edit_outlined,
                   label: 'Edit Profile',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeEditProfilePage())),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerEditProfilePage())),
                 ),
                 _MenuTile(
                   icon: Icons.lock_outline,

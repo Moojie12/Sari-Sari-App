@@ -10,14 +10,27 @@ class AuthService {
   static final AuthService _instance = AuthService._internal();
   factory AuthService() => _instance;
 
-  final FirebaseAuth _auth = FirebaseAuth.instance;
+  FirebaseAuth get _auth => FirebaseAuth.instance;
   late final FirebaseDatabase _database = FirebaseDatabase.instanceFor(
     app: Firebase.app(),
     databaseURL: DefaultFirebaseOptions.currentPlatform.databaseURL,
   );
 
-  User? get currentUser => _auth.currentUser;
-  Stream<User?> get authStateChanges => _auth.authStateChanges();
+  User? get currentUser {
+    try {
+      return _auth.currentUser;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Stream<User?> get authStateChanges {
+    try {
+      return _auth.authStateChanges();
+    } catch (_) {
+      return const Stream.empty();
+    }
+  }
 
   /// Getter for Firebase Database instance
   FirebaseDatabase get database => _database;

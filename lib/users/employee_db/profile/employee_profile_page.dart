@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../authentication/login/login_page.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../messages/employee_messages_controller.dart';
 import '../messages/employee_messages_page.dart';
@@ -42,13 +43,17 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
             child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
           ),
           TextButton(
-            onPressed: () {
+            onPressed: () async {
               Navigator.pop(context); // Close dialog
-              Navigator.pushAndRemoveUntil(
-                context,
-                MaterialPageRoute(builder: (context) => const LoginPage()),
-                    (route) => false,
-              );
+              await AuthService().signOut();
+              EmployeeProfileController.instance.clear();
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                  (route) => false,
+                );
+              }
             },
             child: const Text('Logout', style: TextStyle(color: Colors.red)),
           ),

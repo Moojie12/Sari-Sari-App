@@ -2,24 +2,18 @@ import 'dart:io';
 import 'package:flutter/foundation.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_sync_service.dart';
-import 'employee_profile_model.dart';
+import '../../employee_db/profile/employee_profile_model.dart';
 
-enum ChangePasswordResult {
-  success,
-  incorrectCurrentPassword,
-  newPasswordTooShort,
-  newPasswordsDoNotMatch,
-}
-
-/// Owns the signed-in employee's and owner's profile
-class EmployeeProfileController extends ChangeNotifier {
-  EmployeeProfileController._() {
+/// Controller dedicated specifically to the store Owner's profile.
+/// Uses the authenticated Owner's user ID so Owner and Employee
+/// information and avatars never mix.
+class OwnerProfileController extends ChangeNotifier {
+  OwnerProfileController._() {
     loadProfile();
   }
 
-  static final EmployeeProfileController instance = EmployeeProfileController._();
-
-  factory EmployeeProfileController() => instance;
+  static final OwnerProfileController instance = OwnerProfileController._();
+  factory OwnerProfileController() => instance;
 
   EmployeeProfile _profile = const EmployeeProfile(
     userId: '',
@@ -28,10 +22,9 @@ class EmployeeProfileController extends ChangeNotifier {
     lastName: '',
     email: '',
     contactNumber: '',
-    role: 'Employee',
+    role: 'Owner',
   );
 
-  String _password = '';
   bool _isLoading = false;
 
   bool get isLoading => _isLoading;
@@ -46,7 +39,7 @@ class EmployeeProfileController extends ChangeNotifier {
       lastName: '',
       email: '',
       contactNumber: '',
-      role: 'Employee',
+      role: 'Owner',
     );
     notifyListeners();
   }
@@ -67,7 +60,7 @@ class EmployeeProfileController extends ChangeNotifier {
         lastName: '',
         email: '',
         contactNumber: '',
-        role: 'Employee',
+        role: 'Owner',
       );
     }
 
@@ -85,21 +78,6 @@ class EmployeeProfileController extends ChangeNotifier {
       final lName = profileData['surname']?.toString() ?? profileData['lastName']?.toString() ?? '';
       final email = profileData['email']?.toString() ?? user.email ?? '';
       final phone = profileData['phone']?.toString() ?? profileData['contactNumber']?.toString() ?? '';
-      final rawRole = profileData['role']?.toString() ?? '';
-
-      String formattedRole = 'Employee';
-      final rawLower = rawRole.toLowerCase();
-      if (rawLower == 'owner') {
-        formattedRole = 'Owner';
-      } else if (rawLower == 'employee') {
-        formattedRole = 'Employee';
-      } else if (rawLower == 'admin') {
-        formattedRole = 'Admin';
-      } else if (rawLower == 'customer') {
-        formattedRole = 'Customer';
-      } else if (user.email?.toLowerCase().contains('owner') == true) {
-        formattedRole = 'Owner';
-      }
 
       if (fName.isNotEmpty || lName.isNotEmpty) {
         _profile = EmployeeProfile(
@@ -109,7 +87,7 @@ class EmployeeProfileController extends ChangeNotifier {
           lastName: lName,
           email: email,
           contactNumber: phone,
-          role: formattedRole,
+          role: 'Owner',
           photoPath: avatarUrl ?? _profile.photoPath,
         );
       } else {
@@ -117,21 +95,20 @@ class EmployeeProfileController extends ChangeNotifier {
         final parts = displayName.split(' ');
         final f = parts.isNotEmpty ? parts.first : '';
         final l = parts.length > 1 ? parts.sublist(1).join(' ') : '';
-        final isOwner = formattedRole == 'Owner';
 
         _profile = EmployeeProfile(
           userId: user.uid,
-          firstName: f.isNotEmpty ? f : (isOwner ? 'Owner' : 'Employee'),
+          firstName: f.isNotEmpty ? f : 'Owner',
           middleInitial: '',
           lastName: l,
           email: user.email ?? '',
           contactNumber: phone,
-          role: formattedRole,
+          role: 'Owner',
           photoPath: avatarUrl ?? _profile.photoPath,
         );
       }
     } catch (e) {
-      debugPrint('Error loading employee/owner profile: $e');
+      debugPrint('[OwnerProfileController] Error loading owner profile: $e');
     } finally {
       _isLoading = false;
       notifyListeners();
@@ -155,6 +132,7 @@ class EmployeeProfileController extends ChangeNotifier {
       lastName: lastName,
       email: email,
       contactNumber: contactNumber,
+      role: 'Owner',
     );
     notifyListeners();
 
@@ -209,24 +187,5 @@ class EmployeeProfileController extends ChangeNotifier {
         photoUrl: null,
       );
     }
-  }
-
-  ChangePasswordResult changePassword({
-    required String currentPassword,
-    required String newPassword,
-    required String confirmPassword,
-  }) {
-    if (_password.isNotEmpty && currentPassword != _password) {
-      return ChangePasswordResult.incorrectCurrentPassword;
-    }
-    if (newPassword.length < 6) {
-      return ChangePasswordResult.newPasswordTooShort;
-    }
-    if (newPassword != confirmPassword) {
-      return ChangePasswordResult.newPasswordsDoNotMatch;
-    }
-    _password = newPassword;
-    notifyListeners();
-    return ChangePasswordResult.success;
   }
 }

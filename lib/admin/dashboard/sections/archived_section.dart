@@ -479,17 +479,10 @@ class _ArchivedSectionState extends State<ArchivedSection> {
                 onTap: () => {}, // TODO: Implement view user detail
                 child: Row(
                   children: [
-                    CircleAvatar(
+                    AdminUserAvatar(
+                      photoUrl: user.photoUrl,
+                      initials: user.initials,
                       radius: 17,
-                      backgroundColor: AppColors.lightPeach,
-                      child: Text(
-                        user.initials,
-                        style: const TextStyle(
-                          color: AppColors.primaryOrange,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 12.5,
-                        ),
-                      ),
                     ),
                     const SizedBox(width: 12),
                     Expanded(

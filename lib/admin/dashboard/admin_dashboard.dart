@@ -12,6 +12,7 @@ import '../services/admin_audit_service.dart';
 import '../services/admin_analytics_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../shared/utils/top_notification.dart';
+import './widgets/dashboard_shared.dart';
 import './sections/overview_section.dart';
 import './sections/settings_section.dart';
 import './sections/users_section.dart';
@@ -277,10 +278,149 @@ class _AdminDashboardState extends State<AdminDashboard> {
   }
 
   Future<void> _showUserDetail(BuildContext context, AdminUser user) async {
-    // For now, we'll just show a simple snackbar indicating the feature needs implementation
-    if (mounted) {
-      TopNotification.show(context, 'Viewing details for: ${user.fullName}');
-    }
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+        contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
+        title: Row(
+          children: [
+            const Text(
+              'User Profile Details',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            const Spacer(),
+            IconButton(
+              icon: const Icon(Icons.close, size: 20),
+              onPressed: () => Navigator.pop(dialogContext),
+              splashRadius: 18,
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 420,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Center(
+                child: AdminUserAvatar(
+                  photoUrl: user.photoUrl,
+                  initials: user.initials,
+                  radius: 42,
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                user.fullName.isNotEmpty ? user.fullName : 'Unnamed User',
+                style: const TextStyle(
+                  fontWeight: FontWeight.bold,
+                  fontSize: 18,
+                  color: AppColors.darkText,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 6),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      user.role.label,
+                      style: const TextStyle(
+                        color: AppColors.primaryOrange,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: user.isActive
+                          ? Colors.green.withValues(alpha: 0.12)
+                          : Colors.red.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      user.status,
+                      style: TextStyle(
+                        color: user.isActive ? Colors.green : Colors.red,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 12,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 20),
+              const Divider(height: 1),
+              const SizedBox(height: 16),
+              _userDetailRow(Icons.email_outlined, 'Email', user.email.isNotEmpty ? user.email : '—'),
+              const SizedBox(height: 12),
+              _userDetailRow(Icons.phone_outlined, 'Phone', user.phone.isNotEmpty ? user.phone : '—'),
+              const SizedBox(height: 12),
+              _userDetailRow(Icons.calendar_today_outlined, 'Joined', formatDate(user.createdAt)),
+              if (user.updatedAt != null) ...[
+                const SizedBox(height: 12),
+                _userDetailRow(Icons.update_outlined, 'Last Updated', formatDateTime(user.updatedAt)),
+              ],
+              const SizedBox(height: 20),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(dialogContext),
+                    child: const Text('Close'),
+                  ),
+                  const SizedBox(width: 8),
+                  ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.pop(dialogContext);
+                      _showUserForm(context, user);
+                    },
+                    icon: const Icon(Icons.edit, size: 16),
+                    label: const Text('Edit User'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryOrange,
+                      foregroundColor: Colors.white,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _userDetailRow(IconData icon, String label, String value) {
+    return Row(
+      children: [
+        Icon(icon, size: 18, color: AppColors.secondaryText),
+        const SizedBox(width: 10),
+        Text(
+          '$label: ',
+          style: const TextStyle(fontWeight: FontWeight.w500, color: AppColors.secondaryText, fontSize: 13),
+        ),
+        Expanded(
+          child: Text(
+            value,
+            style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.darkText, fontSize: 13),
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+      ],
+    );
   }
 
   Future<void> _archiveUser(BuildContext context, AdminUser user) async {

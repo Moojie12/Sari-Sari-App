@@ -153,6 +153,7 @@ class AdminUser {
     this.isArchived = false,
     this.archivedAt,
     this.archivedBy,
+    this.photoUrl,
   });
 
   final String id;
@@ -169,6 +170,7 @@ class AdminUser {
   final bool isArchived;
   final DateTime? archivedAt;
   final String? archivedBy;
+  final String? photoUrl;
 
   String get fullName {
     final name = '$firstName ${middleInitial.isNotEmpty ? '$middleInitial. ' : ''}$surname'.trim();
@@ -202,7 +204,9 @@ class AdminUser {
     bool? isArchived,
     DateTime? archivedAt,
     String? archivedBy,
+    String? photoUrl,
     bool clearArchiveMeta = false,
+    bool clearPhotoUrl = false,
   }) {
     return AdminUser(
       id: id,
@@ -219,6 +223,7 @@ class AdminUser {
       isArchived: isArchived ?? this.isArchived,
       archivedAt: clearArchiveMeta ? null : (archivedAt ?? this.archivedAt),
       archivedBy: clearArchiveMeta ? null : (archivedBy ?? this.archivedBy),
+      photoUrl: clearPhotoUrl ? null : (photoUrl ?? this.photoUrl),
     );
   }
 }

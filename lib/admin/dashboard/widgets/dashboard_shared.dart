@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
@@ -718,4 +720,68 @@ Widget _pageNumber(int page, bool isActive, VoidCallback onTap) {
       ),
     ),
   );
+}
+
+class AdminUserAvatar extends StatelessWidget {
+  final String? photoUrl;
+  final String initials;
+  final double radius;
+
+  const AdminUserAvatar({
+    super.key,
+    this.photoUrl,
+    required this.initials,
+    this.radius = 17,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    ImageProvider? imageProvider;
+    final trimmedUrl = photoUrl?.trim();
+    if (trimmedUrl != null && trimmedUrl.isNotEmpty) {
+      if (trimmedUrl.startsWith('http://') || trimmedUrl.startsWith('https://')) {
+        imageProvider = NetworkImage(trimmedUrl);
+      } else if (trimmedUrl.startsWith('data:image')) {
+        final commaIdx = trimmedUrl.indexOf(',');
+        if (commaIdx != -1) {
+          try {
+            final bytes = base64Decode(trimmedUrl.substring(commaIdx + 1));
+            imageProvider = MemoryImage(bytes);
+          } catch (_) {
+            imageProvider = null;
+          }
+        }
+      } else {
+        try {
+          final file = File(trimmedUrl);
+          if (file.existsSync()) {
+            imageProvider = FileImage(file);
+          }
+        } catch (_) {
+          imageProvider = null;
+        }
+      }
+    }
+
+    return CircleAvatar(
+      radius: radius,
+      backgroundColor: AppColors.lightPeach,
+      backgroundImage: imageProvider,
+      onBackgroundImageError: imageProvider != null
+          ? (exception, stackTrace) {
+              debugPrint('Failed to load user avatar image: $exception');
+            }
+          : null,
+      child: imageProvider == null
+          ? Text(
+              initials,
+              style: TextStyle(
+                color: AppColors.primaryOrange,
+                fontWeight: FontWeight.w700,
+                fontSize: radius * 0.72,
+              ),
+            )
+          : null,
+    );
+  }
 }

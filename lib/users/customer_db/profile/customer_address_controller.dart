@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/services/auth_service.dart';
 import 'customer_address_model.dart';
 
 class CustomerAddressController extends ChangeNotifier {
@@ -33,6 +34,7 @@ class CustomerAddressController extends ChangeNotifier {
       _addresses.where((a) => a.isDefault).firstOrNull ?? _addresses.firstOrNull;
 
   Future<void> _loadAddresses() async {
+    // 1. Load local cache from SharedPreferences first for immediate display
     try {
       final prefs = await SharedPreferences.getInstance();
       final jsonStr = prefs.getString(_storageKey);
@@ -49,17 +51,77 @@ class CustomerAddressController extends ChangeNotifier {
         }
       }
     } catch (e) {
-      debugPrint('Error loading customer addresses: $e');
+      debugPrint('Error loading customer addresses from local storage: $e');
+    }
+
+    // 2. Fetch latest addresses from Firebase Realtime Database
+    await loadFromFirebase();
+  }
+
+  /// Load addresses from Firebase Realtime Database for the current authenticated user
+  Future<void> loadFromFirebase() async {
+    final user = AuthService().currentUser;
+    if (user == null) return;
+
+    try {
+      final db = AuthService().database;
+      final snapshot = await db.ref().child('users/${user.uid}/addresses').get();
+      if (snapshot.exists && snapshot.value != null) {
+        final data = snapshot.value;
+        final List<CustomerAddress> remoteList = [];
+        if (data is Map) {
+          data.forEach((key, val) {
+            if (val is Map) {
+              remoteList.add(CustomerAddress.fromJson(Map<String, dynamic>.from(val)));
+            }
+          });
+        } else if (data is List) {
+          for (final item in data) {
+            if (item is Map) {
+              remoteList.add(CustomerAddress.fromJson(Map<String, dynamic>.from(item)));
+            }
+          }
+        }
+
+        if (remoteList.isNotEmpty) {
+          _addresses.clear();
+          _addresses.addAll(remoteList);
+          notifyListeners();
+          _saveToLocalOnly();
+        }
+      }
+    } catch (e) {
+      debugPrint('Error loading addresses from Firebase RTDB: $e');
     }
   }
 
-  Future<void> _saveAddresses() async {
+  Future<void> _saveToLocalOnly() async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final jsonList = _addresses.map((a) => a.toJson()).toList();
       await prefs.setString(_storageKey, jsonEncode(jsonList));
     } catch (e) {
-      debugPrint('Error saving customer addresses: $e');
+      debugPrint('Error saving addresses locally: $e');
+    }
+  }
+
+  Future<void> _saveAddresses() async {
+    await _saveToLocalOnly();
+
+    // Persist to Firebase Realtime Database
+    final user = AuthService().currentUser;
+    if (user != null) {
+      try {
+        final db = AuthService().database;
+        final mapData = <String, dynamic>{};
+        for (final a in _addresses) {
+          mapData[a.id] = a.toJson();
+        }
+        await db.ref().child('users/${user.uid}/addresses').set(mapData);
+        debugPrint('Saved ${_addresses.length} addresses to Firebase RTDB for user ${user.uid}');
+      } catch (e) {
+        debugPrint('Error saving addresses to Firebase RTDB: $e');
+      }
     }
   }
 
@@ -105,9 +167,9 @@ class CustomerAddressController extends ChangeNotifier {
   }
 
   void setDefault(String id) {
-    _clearDefaults();
     final index = _addresses.indexWhere((a) => a.id == id);
     if (index >= 0) {
+      _clearDefaults();
       _addresses[index] = _addresses[index].copyWith(isDefault: true);
       notifyListeners();
       _saveAddresses();

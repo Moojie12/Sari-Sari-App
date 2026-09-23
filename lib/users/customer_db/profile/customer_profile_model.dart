@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 @immutable
 class CustomerProfile {
   const CustomerProfile({
+    this.userId = '',
     required this.firstName,
     this.middleInitial = '',
     required this.lastName,
@@ -16,6 +17,7 @@ class CustomerProfile {
     this.photoPath,
   });
 
+  final String userId;
   final String firstName;
 
   /// e.g. "D" — shown as its own "Middle Initial" field.
@@ -47,6 +49,7 @@ class CustomerProfile {
   }
 
   CustomerProfile copyWith({
+    String? userId,
     String? firstName,
     String? middleInitial,
     String? lastName,
@@ -56,6 +59,7 @@ class CustomerProfile {
     bool clearPhoto = false,
   }) {
     return CustomerProfile(
+      userId: userId ?? this.userId,
       firstName: firstName ?? this.firstName,
       middleInitial: middleInitial ?? this.middleInitial,
       lastName: lastName ?? this.lastName,

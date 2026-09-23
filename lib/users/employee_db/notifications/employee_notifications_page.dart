@@ -65,17 +65,24 @@ class EmployeeNotificationsPage extends StatelessWidget {
             );
           }
 
-          return ListView.separated(
-            padding: const EdgeInsets.all(16),
-            itemCount: notifications.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 12),
-            itemBuilder: (context, index) {
-              final notification = notifications[index];
-              return _NotificationTile(
-                notification: notification,
-                onTap: () => controller.markAsRead(notification.id),
-              );
+          return RefreshIndicator(
+            color: AppColors.primaryOrange,
+            onRefresh: () async {
+              await controller.loadStoreNotifications();
             },
+            child: ListView.separated(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(16),
+              itemCount: notifications.length,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) {
+                final notification = notifications[index];
+                return _NotificationTile(
+                  notification: notification,
+                  onTap: () => controller.markAsRead(notification.id),
+                );
+              },
+            ),
           );
         },
       ),
