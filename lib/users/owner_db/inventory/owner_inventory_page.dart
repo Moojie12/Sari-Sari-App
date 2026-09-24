@@ -333,7 +333,7 @@ class _InventoryItemCard extends StatelessWidget {
                       Container(width: 6, height: 6, decoration: BoxDecoration(color: _statusColor, shape: BoxShape.circle)),
                       const SizedBox(width: 4),
                       Text(
-                        '${product.stockStatus.label} · Qty: ${product.quantity}',
+                        '${product.stockStatus.label} · Qty: ${product.quantity.toInt()} ${product.unit}',
                         style: TextStyle(fontSize: 11, color: _statusColor, fontWeight: FontWeight.w600),
                       ),
                       if (product.expiryStatus != ExpiryStatus.none) ...[
@@ -402,6 +402,8 @@ class _OwnerBatchDetailSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final batches = product.batches;
+    final barcodeStr = product.barcode.trim().isEmpty ? 'No barcode' : product.barcode;
+
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
@@ -418,9 +420,22 @@ class _OwnerBatchDetailSheet extends StatelessWidget {
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText),
           ),
           const SizedBox(height: 4),
-          Text(
-            'Barcode: ${product.barcode} · Total on hand: ${product.quantity} pcs',
-            style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
+          Row(
+            children: [
+              const Text('Barcode: ', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+              Text(
+                barcodeStr,
+                style: TextStyle(
+                  color: barcodeStr == 'No barcode' ? Colors.red.shade400 : AppColors.darkText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                ' · Total on hand: ${product.quantity.toInt()} ${product.unit}',
+                style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
+              ),
+            ],
           ),
           const SizedBox(height: 16),
           const Text('All Batches',
@@ -440,7 +455,11 @@ class _OwnerBatchDetailSheet extends StatelessWidget {
                 shrinkWrap: true,
                 itemCount: batches.length,
                 separatorBuilder: (context, index) => const SizedBox(height: 8),
-                itemBuilder: (context, index) => _BatchDetailRow(batch: batches[index]),
+                itemBuilder: (context, index) => _BatchDetailRow(
+                  batch: batches[index],
+                  batchNumber: index + 1,
+                  unit: product.unit,
+                ),
               ),
             ),
           const SizedBox(height: 20),
@@ -495,8 +514,10 @@ class _OwnerBatchDetailSheet extends StatelessWidget {
 }
 
 class _BatchDetailRow extends StatelessWidget {
-  const _BatchDetailRow({required this.batch});
+  const _BatchDetailRow({required this.batch, required this.batchNumber, required this.unit});
   final ProductBatch batch;
+  final int batchNumber;
+  final String unit;
 
   @override
   Widget build(BuildContext context) {
@@ -516,11 +537,11 @@ class _BatchDetailRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Batch ${batch.id}',
+                Text('Batch $batchNumber',
                     style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText, fontSize: 13)),
                 const SizedBox(height: 2),
                 Text('Expiry: $dateLabel', style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
-                Text('${batch.quantity} pcs', style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
+                Text('${batch.quantity.toInt()} $unit', style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
               ],
             ),
           ),

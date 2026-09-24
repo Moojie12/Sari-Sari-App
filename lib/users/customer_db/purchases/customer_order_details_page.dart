@@ -74,7 +74,7 @@ class _OrderInfoSection extends StatelessWidget {
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('Order Number', style: TextStyle(color: AppColors.secondaryText)),
-              Text(order.orderId, style: const TextStyle(fontWeight: FontWeight.bold)),
+              Text(order.displayOrderId, style: const TextStyle(fontWeight: FontWeight.bold)),
             ],
           ),
           const SizedBox(height: 8),
@@ -459,7 +459,7 @@ class _CancelOrderSectionState extends State<_CancelOrderSection> {
           ],
         ),
         content: Text(
-          'Are you sure you want to cancel Order #${widget.order.orderId}? This action cannot be undone.',
+          'Are you sure you want to cancel Order #${widget.order.displayOrderId}? This action cannot be undone.',
           style: const TextStyle(color: AppColors.darkText),
         ),
         actions: [
@@ -495,7 +495,7 @@ class _CancelOrderSectionState extends State<_CancelOrderSection> {
                 if (success) {
                   ScaffoldMessenger.of(context).showSnackBar(
                     SnackBar(
-                      content: Text('Order #${widget.order.orderId} has been successfully cancelled.'),
+                      content: Text('Order #${widget.order.displayOrderId} has been successfully cancelled.'),
                       backgroundColor: Colors.green,
                     ),
                   );

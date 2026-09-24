@@ -30,6 +30,8 @@ class _EmployeeStockAdjustSheetState extends State<EmployeeStockAdjustSheet> {
 
   @override
   Widget build(BuildContext context) {
+    final barcodeStr = widget.product.barcode.trim().isEmpty ? 'No barcode' : widget.product.barcode;
+
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
@@ -48,7 +50,7 @@ class _EmployeeStockAdjustSheetState extends State<EmployeeStockAdjustSheet> {
                   fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText),
             ),
             const SizedBox(height: 4),
-            Text('Barcode: ${widget.product.barcode}',
+            Text('Barcode: $barcodeStr',
                 style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
             const SizedBox(height: 20),
             Row(
@@ -56,7 +58,7 @@ class _EmployeeStockAdjustSheetState extends State<EmployeeStockAdjustSheet> {
               children: [
                 const Text('Current Stock (all batches)', style: TextStyle(color: AppColors.secondaryText)),
                 Text(
-                  '${widget.product.quantity}',
+                  '${widget.product.quantity.toInt()}',
                   style: const TextStyle(
                       fontWeight: FontWeight.bold, color: AppColors.darkText, fontSize: 16),
                 ),
@@ -76,7 +78,10 @@ class _EmployeeStockAdjustSheetState extends State<EmployeeStockAdjustSheet> {
             Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                _StepButton(icon: Icons.remove, onPressed: () => setState(() => _delta--)),
+                _StepButton(
+                  icon: Icons.remove,
+                  onPressed: (widget.product.quantity + _delta > 0) ? () => setState(() => _delta--) : null,
+                ),
                 SizedBox(
                   width: 80,
                   child: Text(
@@ -91,7 +96,7 @@ class _EmployeeStockAdjustSheetState extends State<EmployeeStockAdjustSheet> {
             ),
             const SizedBox(height: 12),
             Center(
-              child: Text('New stock: $_resultingQuantity',
+              child: Text('New stock: ${_resultingQuantity.toInt()}',
                   style: const TextStyle(color: AppColors.secondaryText, fontSize: 13)),
             ),
             const SizedBox(height: 24),
@@ -125,10 +130,11 @@ class _EmployeeStockAdjustSheetState extends State<EmployeeStockAdjustSheet> {
 class _StepButton extends StatelessWidget {
   const _StepButton({required this.icon, required this.onPressed});
   final IconData icon;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
 
   @override
   Widget build(BuildContext context) {
+    final enabled = onPressed != null;
     return Material(
       color: Colors.white,
       shape: RoundedRectangleBorder(
@@ -141,7 +147,11 @@ class _StepButton extends StatelessWidget {
         child: SizedBox(
           width: 44,
           height: 44,
-          child: Icon(icon, size: 20, color: AppColors.primaryOrange),
+          child: Icon(
+            icon,
+            size: 20,
+            color: enabled ? AppColors.primaryOrange : AppColors.placeholderColor.withValues(alpha: 0.5),
+          ),
         ),
       ),
     );

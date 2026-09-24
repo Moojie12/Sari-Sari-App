@@ -64,7 +64,7 @@ class OwnerArchivedProductsPage extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Restore Stock'),
-        content: Text('Are you sure you want to restore ${item.quantity} pcs of "${item.productName}" (Batch ${item.batchId}) to the active inventory?'),
+        content: Text('Are you sure you want to restore ${item.quantity.toInt()} pcs of "${item.productName}" to the active inventory?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
@@ -155,7 +155,7 @@ class _ArchivedStockCard extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-                Text('Qty: ${item.quantity} · Batch: ${item.batchId}',
+                Text('Qty: ${item.quantity.toInt()} · ${item.displayBatchLabel}',
                     style: const TextStyle(color: AppColors.darkText, fontSize: 12, fontWeight: FontWeight.w600)),
                 const SizedBox(height: 4),
                 _buildMiniStat(

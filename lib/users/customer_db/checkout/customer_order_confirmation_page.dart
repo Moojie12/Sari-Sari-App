@@ -48,7 +48,7 @@ class CustomerOrderConfirmationPage extends StatelessWidget {
                   style: TextStyle(color: AppColors.secondaryText),
                 ),
                 const SizedBox(height: 40),
-                _ConfirmationDetail(label: 'Order Number', value: order.orderId),
+                _ConfirmationDetail(label: 'Order Number', value: order.displayOrderId),
                 _ConfirmationDetail(label: 'Total', value: '₱${order.totalAmount.toStringAsFixed(2)}'),
                 _ConfirmationDetail(label: 'Payment', value: order.paymentMethod == PaymentMethod.cashOnDelivery ? 'Cash on Delivery' : 'GCash'),
                 _ConfirmationDetail(label: 'Order Type', value: order.orderType == OrderType.pickup ? 'Pickup' : 'Delivery'),

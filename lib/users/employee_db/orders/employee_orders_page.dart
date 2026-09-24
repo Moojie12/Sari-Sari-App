@@ -491,7 +491,7 @@ class _OrderCard extends StatelessWidget {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Update Order Status'),
-        content: Text('Mark Order #${order.orderId} as "${nextStatus.label}"?'),
+        content: Text('Mark Order #${order.displayOrderId} as "${nextStatus.label}"?'),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
           TextButton(
@@ -548,7 +548,7 @@ class _OrderCard extends StatelessWidget {
                     _OrderTypeIcon(type: order.orderType),
                     const SizedBox(width: 8),
                     Text(
-                      '#${order.orderId}',
+                      '#${order.displayOrderId}',
                       style: const TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -712,7 +712,7 @@ class _OrderCard extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               Text(
-                'Update the progress of Order #${order.orderId}',
+                'Update the progress of Order #${order.displayOrderId}',
                 style: const TextStyle(color: AppColors.secondaryText, fontSize: 14),
               ),
               const SizedBox(height: 24),
@@ -738,7 +738,7 @@ class _OrderCard extends StatelessWidget {
                     _showConfirmationDialog(
                       context: context,
                       title: 'Cancel Order',
-                      message: 'Are you sure you want to cancel Order #${order.orderId}? This action cannot be undone.',
+                      message: 'Are you sure you want to cancel Order #${order.displayOrderId}? This action cannot be undone.',
                       confirmColor: Colors.red,
                       onConfirm: () {
                         controller.updateOrderStatus(order.orderId, OrderStatus.cancelled);

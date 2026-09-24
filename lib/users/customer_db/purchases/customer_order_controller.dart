@@ -62,10 +62,8 @@ class CustomerOrderController extends ChangeNotifier {
 
   String generateOrderNumber() {
     final now = DateTime.now();
-    final datePart = '${now.year.toString().substring(2)}${now.month.toString().padLeft(2, '0')}${now.day.toString().padLeft(2, '0')}';
-    final timePart = '${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
-    final randomSuffix = (Random().nextInt(900) + 100).toString();
-    return 'SS-$datePart$timePart-$randomSuffix';
+    final randomSuffix = (Random().nextInt(9000) + 1000).toString();
+    return 'ORD-${now.day.toString().padLeft(2, '0')}${now.hour.toString().padLeft(2, '0')}-$randomSuffix';
   }
 
   @override

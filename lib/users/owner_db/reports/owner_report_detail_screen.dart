@@ -549,7 +549,7 @@ class _TransactionCardList extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                '#${o.orderId}',
+                                '#${o.displayOrderId}',
                                 style: const TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 13,

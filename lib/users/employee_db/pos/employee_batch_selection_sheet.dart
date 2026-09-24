@@ -57,7 +57,7 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
       return;
     }
     if (qty > _selected.quantity) {
-      TopNotification.show(context, 'Only ${_selected.quantity} available in this batch.', isError: true);
+      TopNotification.show(context, 'Only ${_selected.quantity.toInt()} available in this batch.', isError: true);
       return;
     }
     if (!widget.product.isWeightBased && qty != qty.roundToDouble()) {
@@ -74,6 +74,7 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
     final hasWarning = widget.product.batches
         .any((b) => b.quantity > 0 && (b.isExpiringSoon || b.isExpired));
     final unitStr = widget.product.isWeightBased ? 'kg' : 'pcs';
+    final barcodeStr = widget.product.barcode.trim().isEmpty ? 'No barcode' : widget.product.barcode;
 
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
@@ -94,7 +95,7 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
               ),
               const SizedBox(height: 4),
               Text(
-                '₱${widget.product.price.toStringAsFixed(2)} / $unitStr · Barcode: ${widget.product.barcode}',
+                '₱${widget.product.price.toStringAsFixed(2)} / $unitStr · Barcode: $barcodeStr',
                 style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
               ),
               if (hasWarning) ...[
@@ -131,13 +132,24 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
                 const SizedBox(height: 14),
               ],
               if (_skipSelection || _mode == _BatchSelectionMode.continueFefo)
-                _BatchTile(batch: _selected, isSelected: true, unitStr: unitStr, onTap: null)
+                _BatchTile(
+                  batch: _selected,
+                  batchNumber: widget.product.batches.indexOf(_selected) >= 0
+                      ? widget.product.batches.indexOf(_selected) + 1
+                      : 1,
+                  isSelected: true,
+                  unitStr: unitStr,
+                  onTap: null,
+                )
               else
                 ..._validBatches.map(
                       (batch) => Padding(
                     padding: const EdgeInsets.only(bottom: 8),
                     child: _BatchTile(
                       batch: batch,
+                      batchNumber: widget.product.batches.indexOf(batch) >= 0
+                          ? widget.product.batches.indexOf(batch) + 1
+                          : 1,
                       isSelected: batch.id == _selected.id,
                       unitStr: unitStr,
                       onTap: () => _selectBatch(batch),
@@ -203,7 +215,7 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
               ),
               const SizedBox(height: 4),
               Text(
-                'Max ${_selected.quantity.toStringAsFixed(2)} $unitStr available in this batch',
+                'Max ${_selected.quantity.toInt()} $unitStr available in this batch',
                 style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 11),
               ),
               const SizedBox(height: 20),
@@ -296,8 +308,16 @@ class _ModeChip extends StatelessWidget {
 }
 
 class _BatchTile extends StatelessWidget {
-  const _BatchTile({required this.batch, required this.isSelected, required this.unitStr, this.onTap});
+  const _BatchTile({
+    required this.batch,
+    required this.batchNumber,
+    required this.isSelected,
+    required this.unitStr,
+    this.onTap,
+  });
+
   final ProductBatch batch;
+  final int batchNumber;
   final bool isSelected;
   final String unitStr;
   final VoidCallback? onTap;
@@ -336,10 +356,10 @@ class _BatchTile extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text('Batch ${batch.id}',
+                    Text('Batch $batchNumber',
                         style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText, fontSize: 13)),
                     const SizedBox(height: 2),
-                    Text('Expiry: $dateLabel · ${batch.quantity.toStringAsFixed(2)} $unitStr left',
+                    Text('Expiry: $dateLabel · ${batch.quantity.toInt()} $unitStr left',
                         style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
                   ],
                 ),

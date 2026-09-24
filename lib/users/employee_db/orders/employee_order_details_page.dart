@@ -22,7 +22,7 @@ class EmployeeOrderDetailsPage extends StatelessWidget {
       backgroundColor: AppColors.lightBackground,
       appBar: AppBar(
         title: Text(
-          'Order #${order.orderId}',
+          'Order #${order.displayOrderId}',
           style: const TextStyle(color: AppColors.darkText, fontSize: 18, fontWeight: FontWeight.bold),
         ),
         backgroundColor: Colors.white,

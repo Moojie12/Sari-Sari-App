@@ -345,7 +345,7 @@ class _InventoryItemCard extends StatelessWidget {
                       Container(width: 6, height: 6, decoration: BoxDecoration(color: _statusColor, shape: BoxShape.circle)),
                       const SizedBox(width: 4),
                       Text(
-                        '${product.stockStatus.label} · Qty: ${product.isWeightBased ? product.quantity.toStringAsFixed(2) : product.quantity.toStringAsFixed(0)} ${product.isWeightBased ? 'kg' : 'pcs'}',
+                        '${product.stockStatus.label} · Qty: ${product.quantity.toInt()} ${product.unit}',
                         style: TextStyle(fontSize: 11, color: _statusColor, fontWeight: FontWeight.w600),
                       ),
                       if (product.expiryStatus != ExpiryStatus.none) ...[

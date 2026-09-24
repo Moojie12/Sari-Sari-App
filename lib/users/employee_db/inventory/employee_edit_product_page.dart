@@ -451,12 +451,14 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                 ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
-                  children: widget.product.batches.map((batch) {
+                  children: widget.product.batches.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final batch = entry.value;
                     final dateLabel = batch.expiryDate == null ? 'No expiry' : _formatDate(batch.expiryDate!);
                     return Padding(
                       padding: const EdgeInsets.only(bottom: 4),
                       child: Text(
-                        'Batch ${batch.id} — $dateLabel — ${batch.quantity.toStringAsFixed(2)} ${_isWeightBased ? 'kg' : 'pcs'}',
+                        'Batch ${index + 1} — $dateLabel — ${batch.quantity.toInt()} ${_isWeightBased ? 'kg' : 'pcs'}',
                         style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
                       ),
                     );

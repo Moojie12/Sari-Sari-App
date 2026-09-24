@@ -242,4 +242,13 @@ class ArchivedStockItem {
   /// Optional free-text note on who took it, for [StockRemovalReason.consumable]
   /// records (e.g. "Owner", "Employee - Juan").
   final String? consumedBy;
+
+  String get displayBatchLabel {
+    final clean = batchId.replaceAll('#', '').trim();
+    if (clean.startsWith('Batch ')) return clean;
+    if (clean.length > 8) {
+      return 'Batch #${clean.substring(0, 6).toUpperCase()}';
+    }
+    return 'Batch $clean';
+  }
 }

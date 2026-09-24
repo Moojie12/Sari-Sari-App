@@ -54,6 +54,14 @@ class ProductBatch {
   /// visibility) but is never sellable.
   bool get isSellable => quantity > 0 && !isExpired;
 
+  String get displayBatchLabel {
+    if (id.startsWith('Batch ')) return id;
+    if (id.length > 8) {
+      return 'Batch #${id.substring(0, 6).toUpperCase()}';
+    }
+    return 'Batch $id';
+  }
+
   ProductBatch copyWith({double? quantity, String? supplier, String? notes}) {
     return ProductBatch(
       id: id,

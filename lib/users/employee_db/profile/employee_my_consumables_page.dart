@@ -129,7 +129,7 @@ class _MyConsumableCard extends StatelessWidget {
                   overflow: TextOverflow.ellipsis,
                 ),
                 const SizedBox(height: 2),
-                Text('Qty: ${item.quantity.toStringAsFixed(2)} · Batch: ${item.batchId}',
+                Text('Qty: ${item.quantity.toInt()} · ${item.displayBatchLabel}',
                     style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
                 const SizedBox(height: 2),
                 Text('Cost: ₱${item.capital.toStringAsFixed(2)}',

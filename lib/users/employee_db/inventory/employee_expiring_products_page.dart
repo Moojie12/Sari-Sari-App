@@ -227,7 +227,7 @@ class _EmployeeExpiringProductsPageState extends State<EmployeeExpiringProductsP
                                         ),
                                         const SizedBox(height: 2),
                                         Text(
-                                          '${product.isWeightBased ? product.quantity.toStringAsFixed(2) : product.quantity.round()} pcs remaining',
+                                          '${product.quantity.toInt()} pcs remaining',
                                           style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
                                         ),
                                       ],

@@ -374,20 +374,26 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              for (final result in results)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 4),
-                  child: Text(switch (result.outcome) {
-                    StockReceivingOutcome.newProduct =>
-                    'Batch ${result.batchId} started with ${result.batchQuantity.toStringAsFixed(2)} $unitStr.',
-                    StockReceivingOutcome.mergedIntoExistingBatch =>
-                    'Added to Batch ${result.batchId}, now ${result.batchQuantity.toStringAsFixed(2)} $unitStr.',
-                    StockReceivingOutcome.newBatchCreated =>
-                    'New Batch ${result.batchId} created with ${result.batchQuantity.toStringAsFixed(2)} $unitStr.',
-                  }),
+              for (int i = 0; i < results.length; i++)
+                Builder(
+                  builder: (context) {
+                    final result = results[i];
+                    final bLabel = 'Batch ${i + 1}';
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 4),
+                      child: Text(switch (result.outcome) {
+                        StockReceivingOutcome.newProduct =>
+                        '$bLabel started with ${result.batchQuantity.toInt()} $unitStr.',
+                        StockReceivingOutcome.mergedIntoExistingBatch =>
+                        'Added to $bLabel, now ${result.batchQuantity.toInt()} $unitStr.',
+                        StockReceivingOutcome.newBatchCreated =>
+                        'New $bLabel created with ${result.batchQuantity.toInt()} $unitStr.',
+                      }),
+                    );
+                  },
                 ),
               const SizedBox(height: 8),
-              Text('Added ${totalAdded.toStringAsFixed(2)} $unitStr total. $productName now has ${finalTotalStock.toStringAsFixed(2)} $unitStr in stock.'),
+              Text('Added ${totalAdded.toInt()} $unitStr total. $productName now has ${finalTotalStock.toInt()} $unitStr in stock.'),
             ],
           ),
         ),
@@ -717,7 +723,7 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
               children: [
                 const Text('Current Total Stock',
                     style: TextStyle(color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.bold)),
-                Text('${product.quantity.toStringAsFixed(2)} $unitStr',
+                Text('${product.quantity.toInt()} $unitStr',
                     style: const TextStyle(color: AppColors.primaryOrange, fontSize: 14, fontWeight: FontWeight.w900)),
               ],
             ),
@@ -727,16 +733,18 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
             const Text('Existing Batches',
                 style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
             const SizedBox(height: 8),
-            ...product.batches.take(3).map((batch) {
+            ...product.batches.take(3).toList().asMap().entries.map((entry) {
+              final bIndex = entry.key;
+              final batch = entry.value;
               final dateLabel = batch.expiryDate == null ? 'No expiry' : _formatDate(batch.expiryDate!);
               return Padding(
                 padding: const EdgeInsets.only(bottom: 6),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    Text('Batch ${batch.id} ($dateLabel)',
+                    Text('Batch ${bIndex + 1} ($dateLabel)',
                         style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-                    Text('${batch.quantity.toStringAsFixed(2)} $unitStr',
+                    Text('${batch.quantity.toInt()} $unitStr',
                         style: const TextStyle(color: AppColors.darkText, fontSize: 12, fontWeight: FontWeight.w600)),
                   ],
                 ),
@@ -855,8 +863,10 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
 
     final outcome = widget.inventory.previewOutcome(product, batch.expiryDate);
     final matching = widget.inventory.matchingBatch(product, batch.expiryDate);
+    final matchingIndex = matching != null ? product.batches.indexOf(matching) : -1;
+    final matchingNum = matchingIndex >= 0 ? matchingIndex + 1 : 1;
     final String previewMessage = switch (outcome) {
-      StockReceivingOutcome.mergedIntoExistingBatch => 'Will be added to existing Batch ${matching?.id}.',
+      StockReceivingOutcome.mergedIntoExistingBatch => 'Will be added to existing Batch $matchingNum.',
       StockReceivingOutcome.newBatchCreated => 'New batch will be created.',
       StockReceivingOutcome.newProduct || null => 'First stock for this product — a new batch will be created.',
     };

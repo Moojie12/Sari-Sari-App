@@ -163,6 +163,35 @@ class CustomerOrder {
 
   String get formattedDate => '${orderDate.day}/${orderDate.month}/${orderDate.year}';
 
+  String get displayOrderId {
+    final clean = orderId.replaceAll('#', '').trim();
+    if (clean.length > 12) {
+      if (clean.startsWith('SS-')) {
+        final parts = clean.split('-');
+        if (parts.length >= 3) {
+          return 'SS-${parts.last}';
+        }
+        return 'SS-${clean.substring(clean.length - 6)}';
+      }
+      if (clean.startsWith('RC-')) {
+        final parts = clean.split('-');
+        if (parts.length >= 3) {
+          return 'RC-${parts.last}';
+        }
+        return 'RC-${clean.substring(clean.length - 6)}';
+      }
+      if (clean.startsWith('ORD-')) {
+        final parts = clean.split('-');
+        if (parts.length >= 2) {
+          return 'ORD-${parts.last}';
+        }
+        return 'ORD-${clean.substring(clean.length - 6).toUpperCase()}';
+      }
+      return 'ORD-${clean.substring(0, 6).toUpperCase()}';
+    }
+    return clean;
+  }
+
   double get totalCapital => items.fold(0.0, (sum, item) => sum + item.totalCapital);
   double get totalProfit => subtotal - totalCapital;
 

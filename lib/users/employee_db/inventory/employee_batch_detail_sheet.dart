@@ -51,6 +51,8 @@ class _EmployeeBatchDetailSheetState extends State<EmployeeBatchDetailSheet> {
     final batches = widget.product.batches;
     //final unitStr = widget.product.isWeightBased ? 'kg' : 'pcs';
 
+    final barcodeStr = widget.product.barcode.trim().isEmpty ? 'No barcode' : widget.product.barcode;
+
     return Container(
       constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.8),
       padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
@@ -67,9 +69,22 @@ class _EmployeeBatchDetailSheetState extends State<EmployeeBatchDetailSheet> {
             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText),
           ),
           const SizedBox(height: 4),
-          Text(
-            'Barcode: ${widget.product.barcode} · Total on hand: ${widget.product.quantity.toStringAsFixed(2)} ${widget.product.unit}',
-            style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
+          Row(
+            children: [
+              const Text('Barcode: ', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+              Text(
+                barcodeStr,
+                style: TextStyle(
+                  color: barcodeStr == 'No barcode' ? Colors.red.shade400 : AppColors.darkText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              Text(
+                ' · Total on hand: ${widget.product.quantity.toInt()} ${widget.product.unit}',
+                style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
+              ),
+            ],
           ),
           const SizedBox(height: 8),
           Row(
@@ -119,7 +134,11 @@ class _EmployeeBatchDetailSheetState extends State<EmployeeBatchDetailSheet> {
                 shrinkWrap: true,
                 itemCount: batches.length,
                 separatorBuilder: (context, index) => const SizedBox(height: 8),
-                itemBuilder: (context, index) => _BatchDetailRow(batch: batches[index], unit: widget.product.unit),
+                itemBuilder: (context, index) => _BatchDetailRow(
+                  batch: batches[index],
+                  batchNumber: index + 1,
+                  unit: widget.product.unit,
+                ),
               ),
             ),
           const SizedBox(height: 20),
@@ -174,8 +193,9 @@ class _EmployeeBatchDetailSheetState extends State<EmployeeBatchDetailSheet> {
 }
 
 class _BatchDetailRow extends StatelessWidget {
-  const _BatchDetailRow({required this.batch, required this.unit});
+  const _BatchDetailRow({required this.batch, required this.batchNumber, required this.unit});
   final ProductBatch batch;
+  final int batchNumber;
   final String unit;
 
   @override
@@ -183,7 +203,6 @@ class _BatchDetailRow extends StatelessWidget {
     final dateLabel = batch.expiryDate == null
         ? 'No expiry date'
         : '${batch.expiryDate!.day}/${batch.expiryDate!.month}/${batch.expiryDate!.year}';
-    final isDecimalUnit = unit == 'kg';
 
     return Container(
       padding: const EdgeInsets.all(12),
@@ -197,10 +216,10 @@ class _BatchDetailRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Batch ${batch.id}', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText, fontSize: 13)),
+                Text('Batch $batchNumber', style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText, fontSize: 13)),
                 const SizedBox(height: 2),
                 Text('Expiry: $dateLabel', style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
-                Text('${isDecimalUnit ? batch.quantity.toStringAsFixed(2) : batch.quantity.toStringAsFixed(0)} $unit', style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
+                Text('${batch.quantity.toInt()} $unit', style: const TextStyle(color: AppColors.secondaryText, fontSize: 11)),
               ],
             ),
           ),

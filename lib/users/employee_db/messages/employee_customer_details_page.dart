@@ -246,7 +246,7 @@ class _OrderHistoryItem extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Order #${order.orderId}',
+                      'Order #${order.displayOrderId}',
                       style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
                     ),
                     Text(

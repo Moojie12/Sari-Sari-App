@@ -101,7 +101,7 @@ class _DeliveryTransactionsList extends StatelessWidget {
           itemBuilder: (context, index) {
             final order = orders[index];
             return _HistoryCard(
-              title: 'Order #${order.orderId}',
+              title: 'Order #${order.displayOrderId}',
               customerName: order.customerName,
               itemsCount: order.items.length,
               trailingText: '₱ ${order.totalAmount.toStringAsFixed(2)}',
@@ -241,7 +241,7 @@ class _PickupTransactionsList extends StatelessWidget {
           itemBuilder: (context, index) {
             final order = orders[index];
             return _HistoryCard(
-              title: 'Pickup Order #${order.orderId}',
+              title: 'Pickup Order #${order.displayOrderId}',
               customerName: order.customerName,
               itemsCount: order.items.length,
               trailingText: '₱ ${order.totalAmount.toStringAsFixed(2)}',
@@ -302,7 +302,7 @@ class _WalkInTransactionsList extends StatelessWidget {
           itemBuilder: (context, index) {
             final order = orders[index];
             return _HistoryCard(
-              title: 'Walk-in Receipt #${order.orderId}',
+              title: 'Walk-in Receipt #${order.displayOrderId}',
               customerName: order.customerName,
               itemsCount: order.items.length,
               trailingText: '₱ ${order.totalAmount.toStringAsFixed(2)}',
@@ -376,7 +376,7 @@ class CustomerOrderReceiptPage extends StatelessWidget {
                 style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold, color: AppColors.darkText),
               ),
               const SizedBox(height: 4),
-              Text('Order #${order.orderId}', style: const TextStyle(color: AppColors.secondaryText)),
+              Text('Order #${order.displayOrderId}', style: const TextStyle(color: AppColors.secondaryText)),
               const SizedBox(height: 24),
               Expanded(
                 child: Container(

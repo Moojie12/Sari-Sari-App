@@ -274,13 +274,19 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
 
   Future<void> _showSuccessDialog(String productName, StockReceivingResult result) async {
     TopNotification.show(context, 'Stock received for $productName.');
+    final batchIdx = widget.inventory.products
+        .firstWhere((p) => p.name == productName, orElse: () => EmployeeProduct(id: '', name: '', category: '', price: 0, capital: 0, barcode: '', batches: []))
+        .batches
+        .indexWhere((b) => b.id == result.batchId);
+    final batchNumStr = batchIdx >= 0 ? 'Batch ${batchIdx + 1}' : 'Batch 1';
+
     final message = switch (result.outcome) {
       StockReceivingOutcome.newProduct =>
-      'New product created. Batch ${result.batchId} started with ${result.batchQuantity} pcs.',
+      'New product created. $batchNumStr started with ${result.batchQuantity.toInt()} pcs.',
       StockReceivingOutcome.mergedIntoExistingBatch =>
-      'Existing batch found. Added to Batch ${result.batchId}, now ${result.batchQuantity} pcs.',
+      'Existing batch found. Added to $batchNumStr, now ${result.batchQuantity.toInt()} pcs.',
       StockReceivingOutcome.newBatchCreated =>
-      'Different expiration date — new Batch ${result.batchId} created with ${result.batchQuantity} pcs.',
+      'Different expiration date — new $batchNumStr created with ${result.batchQuantity.toInt()} pcs.',
     };
 
     if (!mounted) return;
@@ -288,7 +294,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Stock Received'),
-        content: Text('$message\n\nTotal stock for $productName: ${result.totalStock} pcs.'),
+        content: Text('$message\n\nTotal stock for $productName: ${result.totalStock.toInt()} pcs.'),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
@@ -543,7 +549,7 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               const Text('Current Total Stock', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-              Text('${product.quantity} pcs',
+              Text('${product.quantity.toInt()} pcs',
                   style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText)),
             ],
           ),
@@ -554,14 +560,16 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
             const Text('Existing Batches',
                 style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
             const SizedBox(height: 6),
-            ...product.batches.map((batch) {
+            ...product.batches.asMap().entries.map((entry) {
+              final index = entry.key;
+              final batch = entry.value;
               final dateLabel = batch.expiryDate == null
                   ? 'No expiry'
                   : '${batch.expiryDate!.day}/${batch.expiryDate!.month}/${batch.expiryDate!.year}';
               return Padding(
                 padding: const EdgeInsets.only(bottom: 4),
                 child: Text(
-                  'Batch ${batch.id} — $dateLabel — ${batch.quantity} pcs',
+                  'Batch ${index + 1} — $dateLabel — ${batch.quantity.toInt()} pcs',
                   style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
                 ),
               );
@@ -861,7 +869,9 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
     final String message;
     switch (outcome) {
       case StockReceivingOutcome.mergedIntoExistingBatch:
-        message = 'Existing batch found. Quantity will be added to Batch ${matching?.id}.';
+        final matchingIdx = matching != null ? product.batches.indexOf(matching) : -1;
+        final matchingNum = matchingIdx >= 0 ? matchingIdx + 1 : 1;
+        message = 'Existing batch found. Quantity will be added to Batch $matchingNum.';
         break;
       case StockReceivingOutcome.newBatchCreated:
         message = 'Different expiration date. A new batch will be created.';

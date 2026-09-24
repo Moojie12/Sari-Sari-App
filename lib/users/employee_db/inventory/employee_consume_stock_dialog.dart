@@ -43,7 +43,7 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
     _selectedBatch = null;
     _isAllSelected = true;
     _maxQuantity = widget.product.quantity;
-    _quantityController.text = _maxQuantity.toString();
+    _quantityController.text = _maxQuantity.toInt().toString();
   }
 
   @override
@@ -67,10 +67,10 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
       _errorText = null;
       if (_isAllSelected) {
         _maxQuantity = widget.product.quantity;
-        _quantityController.text = _maxQuantity.toString();
+        _quantityController.text = _maxQuantity.toInt().toString();
       } else {
         _maxQuantity = batch!.quantity;
-        _quantityController.text = _maxQuantity.toString();
+        _quantityController.text = _maxQuantity.toInt().toString();
       }
     });
   }
@@ -96,7 +96,7 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
       return;
     }
     if (_selectedBatch == null || qty > _maxQuantity) {
-      setState(() => _errorText = 'Quantity cannot exceed the selected batch.');
+      setState(() => _errorText = 'Quantity cannot exceed available stock (${_maxQuantity.toInt()}).');
       return;
     }
 
@@ -110,13 +110,14 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
     final unitStr = widget.product.isWeightBased ? 'kg' : 'pcs';
     TopNotification.show(
       context,
-      '${qty.toStringAsFixed(2)} $unitStr of ${widget.product.name} logged as Consumables.',
+      '${qty.toInt()} $unitStr of ${widget.product.name} logged as Consumables.',
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final unitStr = widget.product.isWeightBased ? 'kg' : 'pcs';
+    final barcodeStr = widget.product.barcode.trim().isEmpty ? 'No barcode' : widget.product.barcode;
 
     return AlertDialog(
       title: const Text('Consumables (Personal Use)', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -125,6 +126,11 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Text(
+              'Barcode: $barcodeStr · Total Stock: ${widget.product.quantity.toInt()} $unitStr',
+              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryOrange),
+            ),
+            const SizedBox(height: 6),
             Text(
               'For stock the owner or an employee takes for themselves to use or eat. '
                   'This removes it from stock and its cost is deducted from profit — it is not counted as a sale.',
@@ -142,13 +148,15 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
                   value: null,
                   child: Text('All Batches', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.primaryOrange)),
                 ),
-                ...widget.product.batches.map((b) {
+                ...widget.product.batches.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final b = entry.value;
                   final dateStr = b.expiryDate == null
                       ? 'No Expiry'
                       : '${b.expiryDate!.day}/${b.expiryDate!.month}/${b.expiryDate!.year}';
                   return DropdownMenuItem<ProductBatch?>(
                     value: b,
-                    child: Text('Batch ${b.id} ($dateStr) - ${b.quantity.toStringAsFixed(2)} $unitStr',
+                    child: Text('Batch ${index + 1} ($dateStr) - ${b.quantity.toInt()} $unitStr',
                         style: const TextStyle(fontSize: 14)),
                   );
                 }),
@@ -169,7 +177,7 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
               enabled: !_isAllSelected,
               onChanged: (_) => setState(() => _errorText = null),
               decoration: InputDecoration(
-                hintText: _isAllSelected ? 'All quantity will be taken' : 'Max: ${_maxQuantity.toStringAsFixed(2)}',
+                hintText: _isAllSelected ? 'All quantity will be taken' : 'Max: ${_maxQuantity.toInt()}',
                 errorText: _errorText,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),

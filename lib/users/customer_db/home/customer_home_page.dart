@@ -331,7 +331,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                'Order #${latestOrder.orderId} · ${latestOrder.formattedDate}',
+                                'Order #${latestOrder.displayOrderId} · ${latestOrder.formattedDate}',
                                 style: const TextStyle(
                                   color: AppColors.darkText,
                                   fontSize: 13,
