@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/custom_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
@@ -77,17 +78,15 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       return;
     }
 
-    // Check if user has admin/owner role using custom claims
-    // TEMPORARILY BYPASSED: Allow access to set up initial accounts
-    /*
-    final hasAdminRole = await AuthService().hasRole('owner');
-    if (!hasAdminRole) {
-      if (mounted) {
-        TopNotification.show(context, 'Access denied. Owner role required.', isError: true);
+    // Request literal phone notification permissions upon successful login
+    try {
+      final status = await Permission.notification.status;
+      if (status.isDenied || status.isPermanentlyDenied) {
+        await Permission.notification.request();
       }
-      return;
+    } catch (e) {
+      debugPrint('Error requesting notification permission: $e');
     }
-    */
 
     if (mounted) {
       Navigator.pushReplacement(

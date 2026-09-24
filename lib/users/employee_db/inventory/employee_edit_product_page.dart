@@ -6,6 +6,7 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/barcode_validator.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../../../shared/widgets/product_image.dart';
@@ -218,9 +219,11 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
       _nameError = name.isEmpty ? 'Product name is required.' : null;
       _priceError = (price == null || price < 0) ? 'Enter a valid selling price.' : null;
       _capitalError = (capital == null || capital < 0) ? 'Enter a valid capital price.' : null;
-      _barcodeError = widget.inventory.isBarcodeTaken(barcode, excludingProductId: widget.product.id)
-          ? 'This barcode is already used by another product.'
-          : null;
+      _barcodeError = BarcodeValidator.validate(
+        barcode: _barcodeController.text,
+        currentProductId: widget.product.id,
+        isBarcodeTaken: widget.inventory.isBarcodeTaken,
+      );
     });
     if (_nameError != null || _priceError != null || _capitalError != null || _barcodeError != null) return;
     if (category.isEmpty) return;

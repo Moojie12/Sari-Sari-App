@@ -1,7 +1,9 @@
 // lib/core/services/auth_service.dart
+import 'package:flutter/foundation.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
+import 'package:firebase_analytics/firebase_analytics.dart';
 import '../../firebase_options.dart';
 
 /// Authentication service using Firebase Auth with Realtime Database integration
@@ -79,6 +81,8 @@ class AuthService {
         }
       }
 
+      logAnalyticsEvent('login', {'method': 'email'});
+
       return null; // Success
     } on FirebaseAuthException catch (e) {
       return _mapAuthErrorToUserFriendlyMessage(e.code);
@@ -86,6 +90,7 @@ class AuthService {
       return 'An unexpected error occurred. Please try again.';
     }
   }
+
   /// Create account with email and password
   /// Returns null on success, or error message on failure
   Future<String?> createAccountWithEmailPassword({
@@ -118,7 +123,6 @@ class AuthService {
       }
 
       // 4. Sync to Firebase Realtime Database (Identity Bridge)
-      // We wrap this in try-catch so it doesn't block account creation if rules are tight
       try {
         await _database.ref().child('users/${firebaseUser.uid}').set({
           'uid': firebaseUser.uid,
@@ -131,6 +135,8 @@ class AuthService {
         // ignore: avoid_print
         print('Firebase DB Sync Warning (Non-fatal): $e');
       }
+
+      logAnalyticsEvent('sign_up', {'method': 'email'});
 
       return null; // Success in Firebase Auth
     } on FirebaseAuthException catch (e) {
@@ -233,5 +239,17 @@ class AuthService {
     return user.displayName?.isNotEmpty == true
         ? user.displayName!
         : user.email?.split('@').first ?? 'User';
+  }
+
+  /// Log custom event to Firebase Analytics
+  Future<void> logAnalyticsEvent(String name, [Map<String, Object>? parameters]) async {
+    try {
+      await FirebaseAnalytics.instance.logEvent(
+        name: name,
+        parameters: parameters,
+      );
+    } catch (e) {
+      debugPrint('Firebase Analytics logging note: $e');
+    }
   }
 }

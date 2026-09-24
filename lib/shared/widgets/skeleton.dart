@@ -250,36 +250,20 @@ class WeatherCardSkeleton extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
       ),
       child: const Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Skeleton(height: 46, width: 46, borderRadius: 12),
-          SizedBox(width: 14),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Skeleton(height: 18, width: 40),
-                    SizedBox(width: 6),
-                    Skeleton(height: 13, width: 60),
-                    Spacer(),
-                    Skeleton(height: 11, width: 80),
-                  ],
-                ),
-                SizedBox(height: 6),
-                Skeleton(height: 12, width: double.infinity),
-                SizedBox(height: 4),
-                Skeleton(height: 12, width: 200),
-              ],
-            ),
-          ),
+          Skeleton(height: 22, width: 22, borderRadius: 11),
+          SizedBox(width: 8),
+          Skeleton(height: 14, width: 90),
+          SizedBox(width: 6),
+          Skeleton(height: 12, width: 70),
+          Spacer(),
+          Skeleton(height: 20, width: 75, borderRadius: 20),
         ],
       ),
     );

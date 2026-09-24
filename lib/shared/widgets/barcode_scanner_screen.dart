@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../utils/camera_permission_helper.dart';
+import '../utils/per_barcode_debouncer.dart';
 
 /// What a scan is being used for. Both screens share the exact same
 /// theme/layout — only the label, icon, and frame shape change so staff
@@ -79,9 +82,22 @@ class _ScannerScreenState extends State<_ScannerScreen> {
     detectionSpeed: DetectionSpeed.noDuplicates,
   );
 
+  final PerBarcodeDebouncer _debouncer = PerBarcodeDebouncer(
+    debounceWindow: const Duration(milliseconds: 400),
+  );
   bool _handled = false;
 
   _ScanPurposeConfig get _config => _purposeConfig[widget.purpose]!;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        CameraPermissionHelper.ensureCameraPermission(context);
+      }
+    });
+  }
 
   @override
   void dispose() {
@@ -95,6 +111,11 @@ class _ScannerScreenState extends State<_ScannerScreen> {
     if (barcodes.isEmpty) return;
     final code = barcodes.first.rawValue;
     if (code == null || code.isEmpty) return;
+
+    if (_debouncer.shouldIgnore(code)) {
+      debugPrint('Ignoring duplicate scan for "$code" within 400ms per-barcode debounce window.');
+      return;
+    }
 
     _handled = true;
     Navigator.pop(context, code);
@@ -302,6 +323,19 @@ class _CameraErrorView extends StatelessWidget {
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.white, fontSize: 14),
           ),
+          if (isPermissionIssue) ...[
+            const SizedBox(height: 16),
+            ElevatedButton.icon(
+              onPressed: () => openAppSettings(),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              ),
+              icon: const Icon(Icons.settings, size: 18),
+              label: const Text('Open Settings'),
+            ),
+          ],
         ],
       ),
     );

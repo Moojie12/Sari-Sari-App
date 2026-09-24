@@ -221,7 +221,7 @@ class EmployeePosController extends ChangeNotifier {
         productName: item.product.name,
         price: item.unitPrice,
         capital: item.capitalPrice,
-        quantity: item.quantity.round(),
+        quantity: item.quantity.round() > 0 ? item.quantity.round() : 1,
         subtotal: item.subtotal,
       )).toList(),
       orderType: OrderType.pickup,

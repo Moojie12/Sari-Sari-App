@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
@@ -30,17 +31,67 @@ class _EmployeeStartShiftViewState extends State<EmployeeStartShiftView> {
     super.dispose();
   }
 
-  void _startShift() {
-    final amount = double.tryParse(_floatController.text.trim());
+  Future<void> _startShift() async {
+    final rawText = _floatController.text;
+    final trimmedText = rawText.trim();
+
+    if (trimmedText.isEmpty) {
+      setState(() => _error = 'Please enter a starting cash float.');
+      return;
+    }
+
+    if (rawText.contains(' ')) {
+      setState(() => _error = 'Spaces are not allowed.');
+      return;
+    }
+
+    if (!RegExp(r'^\d+(\.\d{1,2})?$').hasMatch(trimmedText)) {
+      setState(() => _error = 'Please enter a valid amount (e.g. 1000 or 1000.00).');
+      return;
+    }
+
+    final amount = double.tryParse(trimmedText);
     if (amount == null || amount < 0) {
       setState(() => _error = 'Enter a valid starting cash float amount.');
       return;
     }
+
+    if (amount > 10000) {
+      setState(() => _error = 'Maximum starting cash float allowed is ₱10,000.');
+      return;
+    }
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Start Shift'),
+        content: Text(
+          'Are you sure you want to start your shift with a starting cash float of ₱${amount.toStringAsFixed(2)}?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.primaryOrange),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!mounted) return;
+
     EmployeeShiftController.instance.openShift(
       startingFloat: amount,
       openedBy: _currentUserName(),
     );
-    TopNotification.show(context, 'Shift started with ₱${amount.toStringAsFixed(2)} starting float.');
+    if (context.mounted) {
+      TopNotification.show(context, 'Shift started with ₱${amount.toStringAsFixed(2)} starting float.');
+    }
   }
 
   @override
@@ -74,6 +125,13 @@ class _EmployeeStartShiftViewState extends State<EmployeeStartShiftView> {
             TextField(
               controller: _floatController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+              ],
+              onChanged: (_) {
+                if (_error != null) setState(() => _error = null);
+              },
               textAlign: TextAlign.center,
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
               decoration: InputDecoration(
@@ -141,26 +199,86 @@ class _CashAdjustmentSheetState extends State<_CashAdjustmentSheet> {
     super.dispose();
   }
 
-  void _submit() {
-    final amount = double.tryParse(_amountController.text.trim());
-    final reason = _reasonController.text.trim();
+  Future<void> _submit() async {
+    final rawAmount = _amountController.text;
+    final trimmedAmount = rawAmount.trim();
+    final rawReason = _reasonController.text;
+    final trimmedReason = rawReason.trim();
+
+    String? amountErr;
+    String? reasonErr;
+
+    // Validate Amount
+    if (trimmedAmount.isEmpty) {
+      amountErr = 'Please enter an amount.';
+    } else if (rawAmount.contains(' ')) {
+      amountErr = 'Spaces are not allowed in amount.';
+    } else if (!RegExp(r'^\d+(\.\d{1,2})?$').hasMatch(trimmedAmount)) {
+      amountErr = 'Please enter a valid amount (e.g. 500 or 500.00).';
+    } else {
+      final amountVal = double.tryParse(trimmedAmount);
+      if (amountVal == null || amountVal <= 0) {
+        amountErr = 'Amount must be greater than ₱0.00.';
+      } else if (amountVal > 10000) {
+        amountErr = 'Maximum cash adjustment amount is ₱10,000.';
+      }
+    }
+
+    // Validate Reason / Note
+    if (trimmedReason.isEmpty) {
+      reasonErr = 'A reason/note is required.';
+    } else if (rawReason.length > 100) {
+      reasonErr = 'Note must not exceed 100 characters.';
+    } else if (RegExp(r'\s{2,}').hasMatch(rawReason)) {
+      reasonErr = 'Double spaces are not allowed in the note.';
+    }
+
     setState(() {
-      _amountError = (amount == null || amount <= 0) ? 'Enter a valid amount.' : null;
-      _reasonError = reason.isEmpty ? 'A reason/note is required.' : null;
+      _amountError = amountErr;
+      _reasonError = reasonErr;
     });
+
     if (_amountError != null || _reasonError != null) return;
+
+    final amount = double.parse(trimmedAmount);
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Cash Adjustment'),
+        content: Text(
+          'Are you sure you want to record a ${_type.label} of ₱${amount.toStringAsFixed(2)}?\n\nNote: $trimmedReason',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: TextButton.styleFrom(foregroundColor: AppColors.primaryOrange),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
+    if (!mounted) return;
 
     final saved = EmployeeShiftController.instance.addCashAdjustment(
       type: _type,
-      amount: amount!,
-      reason: reason,
+      amount: amount,
+      reason: trimmedReason,
     );
     if (saved) {
       Navigator.pop(context);
-      TopNotification.show(
-        context,
-        '${_type.label} of ₱${amount.toStringAsFixed(2)} recorded.',
-      );
+      if (context.mounted) {
+        TopNotification.show(
+          context,
+          '${_type.label} of ₱${amount.toStringAsFixed(2)} recorded.',
+        );
+      }
     }
   }
 
@@ -215,6 +333,13 @@ class _CashAdjustmentSheetState extends State<_CashAdjustmentSheet> {
             TextField(
               controller: _amountController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+              ],
+              onChanged: (_) {
+                if (_amountError != null) setState(() => _amountError = null);
+              },
               decoration: _fieldDecoration('e.g. 500.00', prefixText: '₱ ', errorText: _amountError),
             ),
             const SizedBox(height: 14),
@@ -223,6 +348,10 @@ class _CashAdjustmentSheetState extends State<_CashAdjustmentSheet> {
             TextField(
               controller: _reasonController,
               maxLines: 2,
+              maxLength: 100,
+              onChanged: (_) {
+                if (_reasonError != null) setState(() => _reasonError = null);
+              },
               decoration: _fieldDecoration('e.g. Added ₱500 coins for change', errorText: _reasonError),
             ),
             const SizedBox(height: 20),
@@ -318,27 +447,58 @@ class _EndShiftSheetState extends State<_EndShiftSheet> {
   }
 
   Future<void> _confirmEndShift(Shift shift) async {
-    final actual = double.tryParse(_actualCashController.text.trim());
-    if (actual == null || actual < 0) {
-      setState(() => _error = 'Enter the actual cash counted.');
+    final rawText = _actualCashController.text;
+    final trimmedText = rawText.trim();
+
+    if (trimmedText.isEmpty) {
+      setState(() => _error = 'Please enter actual cash counted.');
       return;
     }
+
+    if (rawText.contains(' ')) {
+      setState(() => _error = 'Spaces are not allowed.');
+      return;
+    }
+
+    if (!RegExp(r'^\d+(\.\d{1,2})?$').hasMatch(trimmedText)) {
+      setState(() => _error = 'Please enter a valid amount (e.g. 5000 or 5000.00).');
+      return;
+    }
+
+    final actual = double.tryParse(trimmedText);
+    if (actual == null || actual < 0) {
+      setState(() => _error = 'Enter a valid actual cash amount.');
+      return;
+    }
+
+    final discrepancy = actual - shift.expectedCash;
+    final discrepancyText = discrepancy == 0
+        ? 'Balanced (₱0.00)'
+        : (discrepancy < 0
+            ? 'Short by ₱${(-discrepancy).toStringAsFixed(2)}'
+            : 'Over by ₱${discrepancy.toStringAsFixed(2)}');
 
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('End Shift'),
-        content: const Text('Are you sure you want to end this shift? This cannot be undone.'),
+        title: const Text('Confirm End Shift'),
+        content: Text(
+          'Are you sure you want to end this shift?\n\nActual Cash Counted: ₱${actual.toStringAsFixed(2)}\nExpected Cash: ₱${shift.expectedCash.toStringAsFixed(2)}\nDiscrepancy: $discrepancyText\n\nThis action cannot be undone.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: AppColors.primaryOrange),
-            child: const Text('End Shift'),
+            child: const Text('Confirm & End Shift'),
           ),
         ],
       ),
     );
+
     if (confirmed != true) return;
     if (!mounted) return;
 
@@ -420,7 +580,15 @@ class _EndShiftSheetState extends State<_EndShiftSheet> {
               TextField(
                 controller: _actualCashController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                onChanged: (_) => setState(() {}),
+                inputFormatters: [
+                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                ],
+                onChanged: (_) {
+                  setState(() {
+                    if (_error != null) _error = null;
+                  });
+                },
                 decoration: _fieldDecoration('e.g. 5000.00', prefixText: '₱ ', errorText: _error),
               ),
               const SizedBox(height: 16),

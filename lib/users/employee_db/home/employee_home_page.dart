@@ -1,14 +1,15 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../customer_db/purchases/customer_order_model.dart';
 import '../../owner_db/home/owner_analytics_section.dart';
 import '../../owner_db/home/owner_weather_card.dart';
 import '../employee_inventory_controller.dart';
+import '../orders/employee_orders_controller.dart';
 import '../pos/employee_pos_controller.dart';
 
-/// Employee "Home" tab: a quick dashboard overview for staff (Dashboard
-/// feature) — stock alerts at a glance, with shortcuts into the POS and
-/// Inventory tabs.
+/// Employee "Home" tab: a quick dashboard overview for staff — stock alerts at a glance,
+/// live Today's Sales, and shortcuts into POS, Inventory, and Expiring Products.
 class EmployeeHomePage extends StatelessWidget {
   const EmployeeHomePage({
     super.key,
@@ -25,16 +26,29 @@ class EmployeeHomePage extends StatelessWidget {
   final VoidCallback onOpenInventory;
   final VoidCallback onOpenExpiringProducts;
 
-
-
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.transparent,
       body: SafeArea(
         child: ListenableBuilder(
-          listenable: Listenable.merge([inventory, posController]),
+          listenable: Listenable.merge([inventory, posController, EmployeeOrderController.instance]),
           builder: (context, _) {
+            final now = DateTime.now();
+            final orders = EmployeeOrderController.instance.orders;
+            final todayOrders = orders.where((o) {
+              return o.status == OrderStatus.completed &&
+                  o.orderDate.year == now.year &&
+                  o.orderDate.month == now.month &&
+                  o.orderDate.day == now.day;
+            }).toList();
+
+            final todayRevenue = todayOrders.fold(0.0, (sum, o) => sum + o.subtotal);
+            final todayCapital = todayOrders.fold(0.0, (sum, o) => sum + o.totalCapital);
+            final todayConsumables = inventory.totalConsumablesCost;
+            final todayNetProfit = todayRevenue - todayCapital - todayConsumables;
+            final todayTransactions = todayOrders.length;
+
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
               child: Column(
@@ -112,9 +126,9 @@ class EmployeeHomePage extends StatelessWidget {
                           ],
                         ),
                         const SizedBox(height: 6),
-                        const Text(
-                          "₱ 0.00",
-                          style: TextStyle(
+                        Text(
+                          "₱ ${todayRevenue.toStringAsFixed(2)}",
+                          style: const TextStyle(
                             color: Colors.white,
                             fontSize: 34,
                             fontWeight: FontWeight.w900,
@@ -130,9 +144,9 @@ class EmployeeHomePage extends StatelessWidget {
                           child: Row(
                             mainAxisAlignment: MainAxisAlignment.spaceAround,
                             children: [
-                              _MiniStat(label: 'TRANSACTIONS', value: '0'),
+                              _MiniStat(label: 'TRANSACTIONS', value: '$todayTransactions'),
                               Container(width: 1, height: 20, color: Colors.white24),
-                              _MiniStat(label: 'NET PROFIT', value: '₱ 0'),
+                              _MiniStat(label: 'NET PROFIT', value: '₱ ${todayNetProfit.toStringAsFixed(2)}'),
                             ],
                           ),
                         ),

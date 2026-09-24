@@ -6,6 +6,8 @@ import 'package:image_picker/image_picker.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/barcode_generator.dart';
+import '../../../shared/utils/barcode_validator.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../../../shared/widgets/product_image.dart';
@@ -1257,6 +1259,28 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
     if (picked != null) setState(() => _expiryDate = picked);
   }
 
+  void _generateAutoBarcode() {
+    final generated = BarcodeGenerator.generateUniqueBarcode(inventoryController: widget.inventory);
+    setState(() {
+      _barcodeController.text = generated;
+      _barcodeError = null;
+    });
+    TopNotification.show(context, 'Auto-generated barcode: $generated');
+  }
+
+  Future<void> _scanBarcodeInSheet() async {
+    final code = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
+    );
+    if (code != null && code.isNotEmpty) {
+      setState(() {
+        _barcodeController.text = code;
+        _barcodeError = widget.inventory.isBarcodeTaken(code) ? 'This barcode is already used.' : null;
+      });
+    }
+  }
+
   Future<void> _scanExpiry() async {
     if (widget.onExpiryScan != null) {
       final date = await widget.onExpiryScan!();
@@ -1280,10 +1304,14 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
       _recalcBulk();
     }
 
+    var finalBarcode = _barcodeController.text.trim();
+    if (finalBarcode.isEmpty) {
+      finalBarcode = BarcodeGenerator.generateUniqueBarcode(inventoryController: widget.inventory);
+    }
+
     final name = _nameController.text.trim();
     final price = double.tryParse(_priceController.text.trim());
     final capital = double.tryParse(_capitalController.text.trim());
-    final barcode = _barcodeController.text.trim();
     final quantity = double.tryParse(_quantityController.text.trim());
     final category = _isAddingNewCategory ? _newCategoryController.text.trim() : _category;
 
@@ -1291,7 +1319,10 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
       _nameError = name.isEmpty ? 'Product name is required.' : null;
       _priceError = (price == null || price < 0) ? 'Enter a valid price.' : null;
       _capitalError = (capital == null || capital < 0) ? 'Enter a valid capital per pc.' : null;
-      _barcodeError = widget.inventory.isBarcodeTaken(barcode) ? 'This barcode is already used.' : null;
+      _barcodeError = BarcodeValidator.validate(
+        barcode: _barcodeController.text,
+        isBarcodeTaken: widget.inventory.isBarcodeTaken,
+      );
 
       if (quantity == null || quantity <= 0) {
         _quantityError = 'Enter a quantity greater than 0.';
@@ -1349,7 +1380,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
       price: price!,
       capital: capital!,
       unit: _isWeightBased ? 'kg' : 'pcs',
-      barcode: barcode,
+      barcode: finalBarcode,
       image: finalImageUrl,
       isWeightBased: _isWeightBased,
     );
@@ -1748,11 +1779,42 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                 ],
               ),
               const SizedBox(height: 14),
-              const Text('Barcode (optional)', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Barcode (scanned, custom, or auto)', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+                  GestureDetector(
+                    onTap: _generateAutoBarcode,
+                    child: const Row(
+                      children: [
+                        Icon(Icons.auto_awesome, size: 14, color: AppColors.primaryOrange),
+                        SizedBox(width: 4),
+                        Text('Auto Generate', style: TextStyle(fontSize: 12, color: AppColors.primaryOrange, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 8),
-              TextField(
-                controller: _barcodeController,
-                decoration: _fieldDecoration('Leave blank if none', errorText: _barcodeError),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _barcodeController,
+                      decoration: _fieldDecoration('e.g. 480001234567 or leave for auto', errorText: _barcodeError),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Material(
+                    color: AppColors.primaryOrange,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: _scanBarcodeInSheet,
+                      child: const SizedBox(width: 48, height: 48, child: Icon(Icons.qr_code_scanner, color: Colors.white)),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 14),
               const Text('Expiration Date', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),

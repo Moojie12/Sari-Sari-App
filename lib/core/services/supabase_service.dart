@@ -517,6 +517,7 @@ class SupabaseService {
               'product_id': validProdId,
               'product_name': item.productName,
               'unit_price': item.price,
+              'unit_cost': item.capital,
               'quantity': item.quantity,
               'total_price': item.subtotal,
             });
@@ -524,7 +525,17 @@ class SupabaseService {
         }
 
         if (itemsData.isNotEmpty) {
-          await _client.from('order_items').insert(itemsData);
+          try {
+            await _client.from('order_items').insert(itemsData);
+          } catch (e) {
+            debugPrint('Error inserting order_items with unit_cost, retrying without unit_cost: $e');
+            final fallbackItemsData = itemsData.map((data) {
+              final copy = Map<String, dynamic>.from(data);
+              copy.remove('unit_cost');
+              return copy;
+            }).toList();
+            await _client.from('order_items').insert(fallbackItemsData);
+          }
         }
       }
 
@@ -1409,6 +1420,114 @@ class SupabaseService {
       await _client.from('profiles').delete().eq('id', id);
     } catch (e) {
       throw Exception('Failed to delete user profile: $e');
+    }
+  }
+
+  // =============================================
+  // RATE LIMITER OPERATIONS
+  // =============================================
+
+  /// Rate Limiter: Check and record rate limit event in Supabase table
+  Future<Map<String, dynamic>?> checkRateLimitInDb({
+    required String identifier,
+    required String actionType,
+    required int maxAttempts,
+    required int windowSeconds,
+    required int lockoutSeconds,
+  }) async {
+    try {
+      final now = DateTime.now();
+      final nowIso = now.toIso8601String();
+      final windowStartIso = now.subtract(Duration(seconds: windowSeconds)).toIso8601String();
+
+      // Query recent attempts in window from rate_limit_events
+      final response = await _client
+          .from('rate_limit_events')
+          .select('id, attempt_timestamp, lockout_until')
+          .eq('identifier', identifier)
+          .eq('action_type', actionType)
+          .order('attempt_timestamp', ascending: false);
+
+      if (response != null && response is List) {
+        // Check if currently locked out
+        Map<String, dynamic>? activeLockout;
+        for (final row in response) {
+          if (row is Map) {
+            final lockoutStr = row['lockout_until']?.toString();
+            if (lockoutStr != null) {
+              final lockoutTime = DateTime.tryParse(lockoutStr);
+              if (lockoutTime != null && lockoutTime.isAfter(now)) {
+                activeLockout = Map<String, dynamic>.from(row);
+                break;
+              }
+            }
+          }
+        }
+
+        if (activeLockout != null) {
+          final lockoutUntil = DateTime.parse(activeLockout['lockout_until'].toString());
+          final diff = lockoutUntil.difference(now).inSeconds;
+          return {
+            'is_allowed': false,
+            'remaining_attempts': 0,
+            'retry_after_seconds': diff > 0 ? diff : 1,
+          };
+        }
+
+        // Count attempts in sliding window
+        final windowAttempts = response.where((row) {
+          final tsStr = row['attempt_timestamp']?.toString();
+          if (tsStr == null) return false;
+          final ts = DateTime.tryParse(tsStr);
+          return ts != null && ts.isAfter(DateTime.parse(windowStartIso));
+        }).toList();
+
+        if (windowAttempts.length >= maxAttempts) {
+          final lockoutUntil = now.add(Duration(seconds: lockoutSeconds));
+          // Record lockout event
+          await _client.from('rate_limit_events').insert({
+            'identifier': identifier,
+            'action_type': actionType,
+            'attempt_timestamp': nowIso,
+            'lockout_until': lockoutUntil.toIso8601String(),
+          });
+          return {
+            'is_allowed': false,
+            'remaining_attempts': 0,
+            'retry_after_seconds': lockoutSeconds,
+          };
+        }
+
+        // Record attempt
+        await _client.from('rate_limit_events').insert({
+          'identifier': identifier,
+          'action_type': actionType,
+          'attempt_timestamp': nowIso,
+        });
+
+        final remaining = maxAttempts - (windowAttempts.length + 1);
+        return {
+          'is_allowed': true,
+          'remaining_attempts': remaining < 0 ? 0 : remaining,
+          'retry_after_seconds': 0,
+        };
+      }
+    } catch (e) {
+      debugPrint('Supabase rate_limit_events query failed or table missing: $e');
+    }
+    return null;
+  }
+
+  /// Rate Limiter: Clear rate limit records for a given identifier & action
+  Future<void> clearRateLimitsInDb(String identifier, String actionType) async {
+    try {
+      await _client
+          .from('rate_limit_events')
+          .delete()
+          .eq('identifier', identifier)
+          .eq('action_type', actionType);
+    } catch (e) {
+      debugPrint('Error clearing rate limit in DB: $e');
     }
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/foundation.dart';
+import '../../employee_db/employee_inventory_controller.dart';
 
 enum OrderStatus {
   pending,
@@ -68,15 +69,25 @@ class CustomerOrderItem {
   factory CustomerOrderItem.fromSupabase(Map<String, dynamic> map) {
     final qty = (map['quantity'] as num?)?.toDouble() ?? 1.0;
     final unitPrice = (map['unit_price'] as num?)?.toDouble() ?? 0.0;
-    final unitCost = (map['unit_cost'] as num?)?.toDouble() ?? 0.0;
+    var unitCost = (map['unit_cost'] as num?)?.toDouble() ?? 0.0;
+    final prodId = map['product_id']?.toString() ?? '';
+
+    // Fallback: If unitCost is 0, look up product in inventory to get its capital
+    if (unitCost <= 0.0 && prodId.isNotEmpty) {
+      final invProduct = EmployeeInventoryController.instance.findById(prodId);
+      if (invProduct != null && invProduct.capital > 0) {
+        unitCost = invProduct.capital;
+      }
+    }
+
     final totalPrice = (map['total_price'] as num?)?.toDouble() ?? (qty * unitPrice);
 
     return CustomerOrderItem(
-      productId: map['product_id']?.toString() ?? '',
+      productId: prodId,
       productName: map['product_name']?.toString() ?? 'Product',
       price: unitPrice,
       capital: unitCost,
-      quantity: qty.round(),
+      quantity: qty.round() > 0 ? qty.round() : 1,
       subtotal: totalPrice,
     );
   }
@@ -226,6 +237,12 @@ class CustomerOrder {
     final placedAtStr = map['placed_at']?.toString() ?? map['created_at']?.toString();
     final parsedDate = placedAtStr != null ? DateTime.tryParse(placedAtStr) ?? DateTime.now() : DateTime.now();
 
+    final dbSubtotal = (map['subtotal'] as num?)?.toDouble() ??
+        (map['total_amount'] as num?)?.toDouble() ?? 0.0;
+    final itemsSubtotal = items.fold(0.0, (sum, item) => sum + item.subtotal);
+    final finalSubtotal = dbSubtotal > 0 ? dbSubtotal : itemsSubtotal;
+    final totalAmt = (map['total_amount'] as num?)?.toDouble() ?? finalSubtotal;
+
     return CustomerOrder(
       dbId: map['id']?.toString(),
       orderId: map['order_number']?.toString() ?? map['id']?.toString() ?? '',
@@ -236,10 +253,9 @@ class CustomerOrder {
       paymentMethod: _parsePaymentMethod(map['payment_method']?.toString()),
       paymentStatus: _parsePaymentStatus(map['payment_status']?.toString()),
       deliveryAddress: map['delivery_address']?.toString(),
-      subtotal: (map['subtotal'] as num?)?.toDouble() ??
-          (map['total_amount'] as num?)?.toDouble() ?? 0.0,
+      subtotal: finalSubtotal,
       deliveryFee: (map['delivery_fee'] as num?)?.toDouble() ?? 0.0,
-      totalAmount: (map['total_amount'] as num?)?.toDouble() ?? 0.0,
+      totalAmount: totalAmt,
       status: _parseOrderStatus(map['status']?.toString(), map['order_notes']?.toString()),
       userId: map['user_id']?.toString(),
     );

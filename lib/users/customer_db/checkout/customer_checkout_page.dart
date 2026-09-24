@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/rate_limiter_service.dart';
+import '../../../core/services/stock_reservation_service.dart';
 import '../customer_cart_controller.dart';
 import '../purchases/customer_order_controller.dart';
 import '../purchases/customer_order_model.dart';
@@ -40,9 +42,30 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
 
   double get _total => widget.cartController.totalAmount + (_orderType == OrderType.delivery ? _deliveryFee : 0);
 
-  void _handlePlaceOrder() {
+  Future<void> _handlePlaceOrder() async {
     if (_orderType == OrderType.delivery && _selectedAddress == null) {
       TopNotification.show(context, 'Please select a delivery address', isError: true);
+      return;
+    }
+
+    // Get current user ID for the order / rate limiter
+    final currentUser = AuthService().currentUser;
+    final userId = currentUser?.uid ?? 'guest';
+
+    // Rate Limit Check
+    final rateLimit = await RateLimiterService.instance.checkAndRecord(
+      RateLimitAction.checkout,
+      userId,
+    );
+
+    if (!rateLimit.isAllowed) {
+      if (mounted) {
+        TopNotification.show(
+          context,
+          rateLimit.message ?? 'Too many checkout attempts. Please wait before trying again.',
+          isError: true,
+        );
+      }
       return;
     }
 
@@ -58,9 +81,20 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       );
     }).toList();
 
-    // Get current user ID for the order
-    final currentUser = AuthService().currentUser;
-    final userId = currentUser?.uid;
+    // Reserve stock with 10-minute fallback timer
+    final reservedItems = widget.cartController.items.map((item) {
+      return ReservedItem(
+        productId: item.product.id,
+        productName: item.product.name,
+        quantity: item.quantity.toDouble(),
+      );
+    }).toList();
+
+    StockReservationService.instance.reserveStock(
+      reservationId: orderId,
+      userId: userId,
+      items: reservedItems,
+    );
 
     final order = CustomerOrder(
       customerName: CustomerProfileController.instance.profile.fullName.isEmpty ? 'Customer' : CustomerProfileController.instance.profile.fullName,
@@ -81,12 +115,14 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
     widget.orderController.placeOrder(order);
     widget.cartController.clearCart();
 
-    Navigator.pushReplacement(
-      context,
-      MaterialPageRoute(
-        builder: (context) => CustomerOrderConfirmationPage(order: order),
-      ),
-    );
+    if (mounted) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CustomerOrderConfirmationPage(order: order),
+        ),
+      );
+    }
   }
 
   void _showAddressModal() {

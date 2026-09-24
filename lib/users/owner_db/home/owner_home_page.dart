@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:sari_sari/core/theme/app_colors.dart';
+import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
+import 'package:sari_sari/users/employee_db/orders/employee_orders_controller.dart';
 import 'package:sari_sari/users/employee_db/pos/employee_pos_controller.dart';
 import 'package:sari_sari/users/owner_db/home/owner_analytics_section.dart';
 import 'package:sari_sari/users/owner_db/home/owner_weather_card.dart';
@@ -28,13 +30,28 @@ class OwnerHomePage extends StatelessWidget {
       backgroundColor: Colors.transparent,
       body: SafeArea(
         child: ListenableBuilder(
-          listenable: inventory,
+          listenable: Listenable.merge([inventory, EmployeeOrderController.instance]),
           builder: (context, _) {
             final lowStock = inventory.lowStockProducts.length;
             final outOfStock = inventory.outOfStockProducts.length;
             final expiring5DaysCount = inventory.expiringIn5DaysProducts.length;
             final expiring2WeeksCount = inventory.expiringIn2WeeksProducts.length;
             final expiredCount = inventory.expiredProducts.length;
+
+            final now = DateTime.now();
+            final orders = EmployeeOrderController.instance.orders;
+            final todayOrders = orders.where((o) {
+              return o.status == OrderStatus.completed &&
+                  o.orderDate.year == now.year &&
+                  o.orderDate.month == now.month &&
+                  o.orderDate.day == now.day;
+            }).toList();
+
+            final todayRevenue = todayOrders.fold(0.0, (sum, o) => sum + o.subtotal);
+            final todayCapital = todayOrders.fold(0.0, (sum, o) => sum + o.totalCapital);
+            final todayConsumables = inventory.totalConsumablesCost;
+            final todayNetProfit = todayRevenue - todayCapital - todayConsumables;
+            final todayTransactions = todayOrders.length;
 
             return SingleChildScrollView(
               padding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
@@ -126,9 +143,9 @@ class OwnerHomePage extends StatelessWidget {
                             ],
                           ),
                           const SizedBox(height: 6),
-                          const Text(
-                            "₱ 0.00",
-                            style: TextStyle(
+                          Text(
+                            "₱ ${todayRevenue.toStringAsFixed(2)}",
+                            style: const TextStyle(
                               color: Colors.white,
                               fontSize: 34,
                               fontWeight: FontWeight.w900,
@@ -144,9 +161,9 @@ class OwnerHomePage extends StatelessWidget {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceAround,
                               children: [
-                                _MiniStat(label: 'TRANSACTIONS', value: '0'),
+                                _MiniStat(label: 'TRANSACTIONS', value: '$todayTransactions'),
                                 Container(width: 1, height: 20, color: Colors.white24),
-                                _MiniStat(label: 'NET PROFIT', value: '₱ 0'),
+                                _MiniStat(label: 'NET PROFIT', value: '₱ ${todayNetProfit.toStringAsFixed(2)}'),
                               ],
                             ),
                           ),

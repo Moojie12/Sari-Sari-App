@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/services/stock_reservation_service.dart';
 import '../../core/services/supabase_service.dart';
 
 import '../../core/expiry/expiry_checker.dart';
@@ -49,6 +50,7 @@ class EmployeeInventoryController extends ChangeNotifier {
     _loadCategories();
     _loadProducts();
     _subscribeToRealtime();
+    StockReservationService.instance.addListener(notifyListeners);
   }
 
   static final EmployeeInventoryController instance = EmployeeInventoryController._();
@@ -66,6 +68,14 @@ class EmployeeInventoryController extends ChangeNotifier {
 
   List<EmployeeProduct> get products => List.unmodifiable(_products);
   List<ArchivedStockItem> get archivedStock => List.unmodifiable(_archivedStock);
+
+  @visibleForTesting
+  void setProductsForTesting(List<EmployeeProduct> testProducts) {
+    _products.clear();
+    _products.addAll(testProducts);
+    _productsLoading = false;
+    notifyListeners();
+  }
 
   /// Returns the list of categories. Returns empty list while loading.
   List<String> get categories => List.unmodifiable(_categories);
@@ -108,6 +118,16 @@ class EmployeeInventoryController extends ChangeNotifier {
       if (product.id == productId) return product;
     }
     return null;
+  }
+
+  /// Returns sellable stock after deducting active 10-minute web reservations.
+  double getAvailableSellableQuantity(String productId) {
+    final product = findById(productId);
+    if (product == null) return 0.0;
+    return StockReservationService.instance.getAvailableStock(
+      productId,
+      product.quantity,
+    );
   }
 
   /// Simple case/whitespace-insensitive name search — backs the Stock

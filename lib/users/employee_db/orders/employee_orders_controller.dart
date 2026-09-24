@@ -45,6 +45,12 @@ class EmployeeOrderController extends ChangeNotifier {
   bool get isLoading => _isLoading;
   List<CustomerOrder> get orders => List.unmodifiable(_orders);
 
+  @visibleForTesting
+  void clearOrdersForTesting() {
+    _orders.clear();
+    notifyListeners();
+  }
+
   List<CustomerOrder> get activeOrders => _orders
       .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled)
       .toList();

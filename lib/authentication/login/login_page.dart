@@ -1,5 +1,6 @@
 // lib/authentication/login/login_page.dart
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/custom_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
@@ -9,9 +10,9 @@ import '../../users/customer_db/customer_db.dart';
 import '../../users/employee_db/employee_db.dart';
 import '../../users/owner_db/owner_db.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/services/rate_limiter_service.dart';
 import '../../core/diagnostic/backend_diagnostic_page.dart';
 import '../../shared/utils/top_notification.dart';
-import '../admin_login/admin_login_page.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});
@@ -58,13 +59,9 @@ class _LoginPageState extends State<LoginPage> {
     const cardOverlap = 30.0;
 
     return Scaffold(
-      // Matches the card's own color, so if the card ends before the
-      // physical bottom of the screen there's no visible color seam.
       backgroundColor: AppColors.cardWhite,
       body: Stack(
         children: [
-          // Background image. Extended past headerHeight so there's no
-          // gap of plain Scaffold-white behind the card's rounded top.
           Positioned(
             top: 0,
             left: 0,
@@ -81,7 +78,6 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
 
-          // Logo + title + tagline, laid out within the header zone only.
           Positioned(
             top: topPadding,
             left: 0,
@@ -160,19 +156,11 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
 
-          // Login card — rises up to overlap the bottom of the image by
-          // `cardOverlap` px. Because the image now extends behind this
-          // overlap zone (see imageOverlap above), the rounded top corners
-          // sit over the photo instead of exposing flat Scaffold-white.
           Positioned(
             top: headerHeight - cardOverlap,
             left: 0,
             right: 0,
-            // No `bottom: 0` here on purpose — the card should size itself
-            // to its own content, not get force-stretched down to the
-            // bottom of the screen (that stretching was the cause of the
-            // big empty gap after "Your Everything Store").
-            child: SafeArea(
+            child: const SafeArea(
               top: false,
               child: _LoginCard(),
             ),
@@ -231,6 +219,24 @@ class _LoginCardState extends State<_LoginCard> {
       return;
     }
 
+    // Rate Limit Check
+    final rateLimit = await RateLimiterService.instance.checkAndRecord(
+      RateLimitAction.login,
+      email,
+    );
+
+    if (!rateLimit.isAllowed) {
+      if (mounted) {
+        setState(() => _isLoading = false);
+        TopNotification.show(
+          context,
+          rateLimit.message ?? 'Too many login attempts. Please try again later.',
+          isError: true,
+        );
+      }
+      return;
+    }
+
     // Attempt sign in with Firebase Auth
     final errorMessage = await AuthService().signInWithEmailPassword(
       email: email,
@@ -250,7 +256,9 @@ class _LoginCardState extends State<_LoginCard> {
       return;
     }
 
-    // Sign in successful - navigate based on actual role from custom claims
+    // Sign in successful - reset rate limit and navigate based on actual role
+    await RateLimiterService.instance.reset(RateLimitAction.login, email);
+
     final user = AuthService().currentUser;
     if (user == null) {
       if (mounted) {
@@ -262,6 +270,16 @@ class _LoginCardState extends State<_LoginCard> {
     // Verify user's actual role from Firebase custom claims
     final bool isOwner = await AuthService().hasRole('owner');
     final bool isEmployee = await AuthService().hasRole('employee');
+
+    // Request literal phone notification permissions upon successful login
+    try {
+      final status = await Permission.notification.status;
+      if (status.isDenied || status.isPermanentlyDenied) {
+        await Permission.notification.request();
+      }
+    } catch (e) {
+      debugPrint('Error requesting notification permission: $e');
+    }
 
     Widget destination;
     if (isOwner) {

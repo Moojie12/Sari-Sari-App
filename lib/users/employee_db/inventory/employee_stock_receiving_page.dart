@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 
 import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/barcode_generator.dart';
+import '../../../shared/utils/barcode_validator.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../../../shared/widgets/product_image.dart';
@@ -1007,18 +1009,44 @@ class _NewProductSheetState extends State<_NewProductSheet> {
     super.dispose();
   }
 
+  void _generateAutoBarcode() {
+    final generated = BarcodeGenerator.generateUniqueBarcode(inventoryController: widget.inventory);
+    setState(() {
+      _barcodeController.text = generated;
+      _barcodeError = null;
+    });
+    TopNotification.show(context, 'Auto-generated barcode: $generated');
+  }
+
+  Future<void> _scanBarcodeInSheet() async {
+    final code = await Navigator.push<String>(
+      context,
+      MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
+    );
+    if (code != null && code.isNotEmpty) {
+      setState(() {
+        _barcodeController.text = code;
+        _barcodeError = widget.inventory.isBarcodeTaken(code) ? 'This barcode is already used.' : null;
+      });
+    }
+  }
+
   void _create() {
     final name = _nameController.text.trim();
     final price = double.tryParse(_priceController.text.trim());
-    final barcode = _barcodeController.text.trim();
+    var barcode = _barcodeController.text.trim();
+    if (barcode.isEmpty) {
+      barcode = BarcodeGenerator.generateUniqueBarcode(inventoryController: widget.inventory);
+    }
     final category = _isAddingNewCategory ? _newCategoryController.text.trim() : _category;
 
     setState(() {
       _nameError = name.isEmpty ? 'Product name is required.' : null;
       _priceError = (price == null || price < 0) ? 'Enter a valid price.' : null;
-      _barcodeError = widget.inventory.isBarcodeTaken(barcode)
-          ? 'This barcode is already used by another product.'
-          : null;
+      _barcodeError = BarcodeValidator.validate(
+        barcode: _barcodeController.text,
+        isBarcodeTaken: widget.inventory.isBarcodeTaken,
+      );
     });
     if (_nameError != null || _priceError != null || _barcodeError != null) return;
     if (category.isEmpty) return;
@@ -1150,13 +1178,44 @@ class _NewProductSheetState extends State<_NewProductSheet> {
                 decoration: _fieldDecoration('e.g. 45', prefixText: '₱ ', errorText: _priceError),
               ),
               const SizedBox(height: 14),
-              const Text('Barcode (optional)',
-                  style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Barcode (scanned, custom, or auto)',
+                      style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+                  GestureDetector(
+                    onTap: _generateAutoBarcode,
+                    child: const Row(
+                      children: [
+                        Icon(Icons.auto_awesome, size: 14, color: AppColors.primaryOrange),
+                        SizedBox(width: 4),
+                        Text('Auto Generate', style: TextStyle(fontSize: 12, color: AppColors.primaryOrange, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 8),
-              TextField(
-                controller: _barcodeController,
-                decoration: _fieldDecoration('Leave blank if this product has no barcode',
-                    errorText: _barcodeError),
+              Row(
+                children: [
+                  Expanded(
+                    child: TextField(
+                      controller: _barcodeController,
+                      decoration: _fieldDecoration('e.g. 480001234567 or leave blank for auto',
+                          errorText: _barcodeError),
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Material(
+                    color: AppColors.primaryOrange,
+                    borderRadius: BorderRadius.circular(8),
+                    child: InkWell(
+                      borderRadius: BorderRadius.circular(8),
+                      onTap: _scanBarcodeInSheet,
+                      child: const SizedBox(width: 48, height: 48, child: Icon(Icons.qr_code_scanner, color: Colors.white)),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
               SizedBox(
