@@ -147,7 +147,7 @@ class _EmployeeBatchDetailSheetState extends State<EmployeeBatchDetailSheet> {
             child: ElevatedButton.icon(
               onPressed: widget.onConsumeProduct,
               icon: const Icon(Icons.set_meal_outlined, size: 18, color: Colors.white),
-              label: const Text('Consumables (Personal Use)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+              label: const Text('Consumables / Product Loss', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryOrange,
                 foregroundColor: Colors.white,

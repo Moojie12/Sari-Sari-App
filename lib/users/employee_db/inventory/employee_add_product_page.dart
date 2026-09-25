@@ -17,9 +17,16 @@ import 'employee_product_model.dart';
 
 /// Add Product screen (replaces the old "Receive Stock" screen).
 class EmployeeAddProductPage extends StatefulWidget {
-  const EmployeeAddProductPage({super.key, required this.inventory});
+  const EmployeeAddProductPage({
+    super.key,
+    required this.inventory,
+    this.initialBarcode,
+    this.autoOpenScanner = false,
+  });
 
   final EmployeeInventoryController inventory;
+  final String? initialBarcode;
+  final bool autoOpenScanner;
 
   @override
   State<EmployeeAddProductPage> createState() => _EmployeeAddProductPageState();
@@ -88,6 +95,20 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
   String? _unmatchedBarcode;
 
   @override
+  void initState() {
+    super.initState();
+    if (widget.initialBarcode != null && widget.initialBarcode!.isNotEmpty) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _handleBarcode(widget.initialBarcode!);
+      });
+    } else if (widget.autoOpenScanner) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _openBarcodeScanDialog();
+      });
+    }
+  }
+
+  @override
   void dispose() {
     _searchController.dispose();
     for (final batch in _pendingBatches) {
@@ -153,25 +174,51 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
     final product = widget.inventory.findByBarcode(barcode);
     if (product != null) {
       _selectProduct(product);
+      TopNotification.show(context, 'Found existing product "${product.name}". Loaded in restock dashboard.');
     } else {
+      final prefillNameCandidate = _searchQuery.trim();
+      final isNameTyped = prefillNameCandidate.isNotEmpty &&
+          !RegExp(r'^\d+$').hasMatch(prefillNameCandidate);
+
       setState(() {
         _unmatchedBarcode = barcode;
         _searchController.text = barcode;
         _searchQuery = barcode;
       });
+
+      TopNotification.show(
+        context,
+        'Barcode "$barcode" not found in inventory. Add details manually below.',
+      );
+
+      _openAddProductManuallySheet(
+        prefillBarcode: barcode,
+        prefillNameOverride: isNameTyped ? prefillNameCandidate : '',
+      );
     }
   }
 
-  Future<void> _openAddProductManuallySheet({String prefillBarcode = ''}) async {
+  Future<void> _openAddProductManuallySheet({
+    String prefillBarcode = '',
+    String? prefillNameOverride,
+  }) async {
+    final prefillName = prefillNameOverride ??
+        (_unmatchedBarcode == null ? _searchQuery.trim() : '');
+
     final created = await showModalBottomSheet<EmployeeProduct>(
       context: context,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) => _ManualProductInfoSheet(
         inventory: widget.inventory,
-        prefillName: _unmatchedBarcode == null ? _searchQuery.trim() : '',
+        prefillName: prefillName,
         prefillBarcode: prefillBarcode,
         onExpiryScan: _showExpiryScanAndReturnDate,
+        onSelectExistingProduct: (existingProduct) {
+          Navigator.pop(sheetContext);
+          _selectProduct(existingProduct);
+          TopNotification.show(context, 'Loaded existing product "${existingProduct.name}".');
+        },
       ),
     );
     if (created != null) {
@@ -1185,12 +1232,14 @@ class _ManualProductInfoSheet extends StatefulWidget {
     this.prefillName = '',
     this.prefillBarcode = '',
     this.onExpiryScan,
+    this.onSelectExistingProduct,
   });
 
   final EmployeeInventoryController inventory;
   final String prefillName;
   final String prefillBarcode;
   final Future<DateTime?> Function()? onExpiryScan;
+  final void Function(EmployeeProduct product)? onSelectExistingProduct;
 
   @override
   State<_ManualProductInfoSheet> createState() => _ManualProductInfoSheetState();
@@ -1331,10 +1380,21 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
       MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
     );
     if (code != null && code.isNotEmpty) {
-      setState(() {
-        _barcodeController.text = code;
-        _barcodeError = widget.inventory.isBarcodeTaken(code) ? 'This barcode is already used.' : null;
-      });
+      final existing = widget.inventory.findByBarcode(code);
+      if (existing != null) {
+        TopNotification.show(context, 'Barcode belongs to existing product "${existing.name}". Loading restock dashboard...');
+        if (widget.onSelectExistingProduct != null) {
+          widget.onSelectExistingProduct!(existing);
+        } else {
+          Navigator.pop(context);
+        }
+      } else {
+        setState(() {
+          _barcodeController.text = code;
+          _barcodeError = widget.inventory.isBarcodeTaken(code) ? 'This barcode is already used.' : null;
+        });
+        TopNotification.show(context, 'Barcode set to $code.');
+      }
     }
   }
 

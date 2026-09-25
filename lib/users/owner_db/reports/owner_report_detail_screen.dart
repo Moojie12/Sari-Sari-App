@@ -53,7 +53,7 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
       case OwnerReportType.inventoryValue: return 'Total Inventory Value';
       case OwnerReportType.restockChecklist: return 'Restock Checklist';
       case OwnerReportType.wastageLog: return 'Wastage & Expiry Log';
-      case OwnerReportType.consumablesLog: return 'Consumables (Personal Use) Log';
+      case OwnerReportType.consumablesLog: return 'Consumables / Product Loss Log';
       case OwnerReportType.bestSellers: return 'Best Selling Products';
       case OwnerReportType.slowMoving: return 'Slow-Moving Inventory';
       case OwnerReportType.categoryPerformance: return 'Category Performance';
@@ -225,7 +225,7 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
             const SizedBox(height: 12),
             _KpiRow(label: 'Total Capital', value: '₱ ${capital.toStringAsFixed(2)}', icon: Icons.shopping_bag, color: Colors.blueGrey),
             const SizedBox(height: 12),
-            _KpiRow(label: 'Consumables (Personal Use)', value: '₱ ${consumablesCost.toStringAsFixed(2)}', icon: Icons.set_meal_outlined, color: Colors.deepPurple),
+            _KpiRow(label: 'Consumables / Product Loss', value: '₱ ${consumablesCost.toStringAsFixed(2)}', icon: Icons.set_meal_outlined, color: Colors.deepPurple),
             const SizedBox(height: 12),
             _KpiRow(label: 'Net Profit', value: '₱ ${profit.toStringAsFixed(2)}', icon: Icons.trending_up, color: Colors.green),
           ],
@@ -283,7 +283,7 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
 
       case OwnerReportType.consumablesLog:
         final totalCost = inventory.totalConsumablesCost;
-        return _KpiRow(label: 'Total Consumables Cost', value: '₱ ${totalCost.toStringAsFixed(2)}', icon: Icons.set_meal_outlined, color: Colors.deepPurple);
+        return _KpiRow(label: 'Total Consumables / Loss Cost', value: '₱ ${totalCost.toStringAsFixed(2)}', icon: Icons.set_meal_outlined, color: Colors.deepPurple);
 
       case OwnerReportType.restockChecklist:
         final count = inventory.lowStockProducts.length + inventory.outOfStockProducts.length;

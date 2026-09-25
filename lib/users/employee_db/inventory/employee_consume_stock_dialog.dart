@@ -83,7 +83,7 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
       if (widget.product.quantity <= 0) return;
       widget.inventory.recordConsumableAll(widget.product.id, consumedBy: consumedBy);
       Navigator.pop(context);
-      TopNotification.show(context, 'All stock for ${widget.product.name} logged as Consumables.');
+      TopNotification.show(context, 'All stock for ${widget.product.name} logged as Consumables / Product Loss.');
       return;
     }
 
@@ -111,7 +111,7 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
     final unitStr = widget.product.isWeightBased ? 'kg' : 'pcs';
     TopNotification.show(
       context,
-      '${qty.toInt()} $unitStr of ${widget.product.name} logged as Consumables.',
+      '${qty.toInt()} $unitStr of ${widget.product.name} logged as Consumables / Product Loss.',
     );
   }
 
@@ -121,7 +121,7 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
     final barcodeStr = widget.product.barcode.trim().isEmpty ? 'No barcode' : widget.product.barcode;
 
     return AlertDialog(
-      title: const Text('Consumables (Personal Use)', style: TextStyle(fontWeight: FontWeight.bold)),
+      title: const Text('Consumables / Product Loss', style: TextStyle(fontWeight: FontWeight.bold)),
       content: SingleChildScrollView(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -133,8 +133,8 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
             ),
             const SizedBox(height: 6),
             Text(
-              'For stock the owner or an employee takes for themselves to use or eat. '
-                  'This removes it from stock and its cost is deducted from profit — it is not counted as a sale.',
+              'For stock taken for personal use by staff/owner or lost/damaged/expired product. '
+                  'This removes it from active stock and its cost is deducted from profit — it is not counted as a sale.',
               style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
             ),
             const SizedBox(height: 16),

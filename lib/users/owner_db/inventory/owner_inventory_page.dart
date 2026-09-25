@@ -9,6 +9,7 @@ import '../../employee_db/inventory/employee_edit_product_page.dart';
 import '../../employee_db/inventory/employee_add_product_page.dart';
 import '../../employee_db/inventory/employee_archive_stock_dialog.dart';
 import '../../employee_db/inventory/employee_consume_stock_dialog.dart';
+import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../../../shared/widgets/product_image.dart';
 
 class OwnerInventoryPage extends StatefulWidget {
@@ -187,6 +188,32 @@ class _OwnerInventoryPageState extends State<OwnerInventoryPage> {
           hintText: 'Search by name or barcode...',
           hintStyle: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.5), fontSize: 14),
           prefixIcon: const Icon(Icons.search, color: AppColors.secondaryText),
+          suffixIcon: IconButton(
+            icon: const Icon(Icons.qr_code_scanner, color: AppColors.primaryOrange),
+            onPressed: () async {
+              final code = await Navigator.push<String>(
+                context,
+                MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
+              );
+              if (code != null && code.isNotEmpty) {
+                if (!mounted) return;
+                final existing = widget.inventory.findByBarcode(code);
+                if (existing != null) {
+                  _openBatchDetail(existing);
+                } else {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (context) => EmployeeAddProductPage(
+                        inventory: widget.inventory,
+                        initialBarcode: code,
+                      ),
+                    ),
+                  );
+                }
+              }
+            },
+          ),
           filled: true,
           fillColor: Colors.white,
           border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
@@ -468,7 +495,7 @@ class _OwnerBatchDetailSheet extends StatelessWidget {
             child: ElevatedButton.icon(
               onPressed: onConsumeProduct,
               icon: const Icon(Icons.set_meal_outlined, size: 18, color: Colors.white),
-              label: const Text('Consumables (Personal Use)', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
+              label: const Text('Consumables / Product Loss', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.white)),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.primaryOrange,
                 foregroundColor: Colors.white,

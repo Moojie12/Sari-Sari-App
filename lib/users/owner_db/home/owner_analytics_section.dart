@@ -133,8 +133,8 @@ class _OwnerAnalyticsSectionState extends State<OwnerAnalyticsSection> {
         onTap: () => _navigateToReport(context, OwnerReportType.bestSellers),
       ),
       _AnalyticsInsight(
-        title: 'Inventory & Consumables Summary',
-        detail: '$lowStockCount items on low stock, $outOfStockCount out of stock, $expiredCount expired. Total personal use (consumables): ₱${consumablesCost.toStringAsFixed(2)}.',
+        title: 'Inventory & Consumables / Loss Summary',
+        detail: '$lowStockCount items on low stock, $outOfStockCount out of stock, $expiredCount expired. Total consumables / product loss: ₱${consumablesCost.toStringAsFixed(2)}.',
         icon: Icons.inventory_rounded,
         color: Colors.deepOrange,
         onTap: () => _navigateToReport(context, OwnerReportType.consumablesLog),

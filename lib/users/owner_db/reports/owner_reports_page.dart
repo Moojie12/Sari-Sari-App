@@ -81,8 +81,8 @@ class OwnerReportsPage extends StatelessWidget {
                     type: OwnerReportType.wastageLog,
                   ),
                   _ReportItem(
-                    title: 'Consumables (Personal Use) Log',
-                    subtitle: 'Stock taken by owner/employees, deducted from profit',
+                    title: 'Consumables / Product Loss Log',
+                    subtitle: 'Stock taken by owner/employees or lost, deducted from profit',
                     icon: Icons.set_meal_outlined,
                     color: Colors.deepPurple,
                     type: OwnerReportType.consumablesLog,

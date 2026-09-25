@@ -195,7 +195,7 @@ extension StockRemovalReasonLabel on StockRemovalReason {
       case StockRemovalReason.wastage:
         return 'Wastage / Expired';
       case StockRemovalReason.consumable:
-        return 'Consumables (Personal Use)';
+        return 'Consumables / Product Loss';
     }
   }
 }
