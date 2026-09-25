@@ -1379,6 +1379,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
       context,
       MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
     );
+    if (!mounted) return;
     if (code != null && code.isNotEmpty) {
       final existing = widget.inventory.findByBarcode(code);
       if (existing != null) {

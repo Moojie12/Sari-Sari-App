@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 
 /// The set of weather conditions the app understands, mapped to Material icons.
@@ -142,14 +143,16 @@ class WeatherSnapshot {
   double get feelsLikeCelsius => _feelsLikeCelsius ?? (temperatureCelsius + 2.0);
 
   DeliverySafetyLevel get safetyLevel {
-    if (_safetyLevel != null) return _safetyLevel!;
+    final level = _safetyLevel;
+    if (level != null) return level;
     if (condition == WeatherCondition.thunderstorm) return DeliverySafetyLevel.notRecommended;
     if (condition == WeatherCondition.rainy || condition == WeatherCondition.foggy) return DeliverySafetyLevel.caution;
     return DeliverySafetyLevel.safe;
   }
 
   int get rainChancePercent {
-    if (_rainChancePercent != null) return _rainChancePercent!;
+    final percent = _rainChancePercent;
+    if (percent != null) return percent;
     if (condition == WeatherCondition.thunderstorm) return 90;
     if (condition == WeatherCondition.rainy) return 70;
     if (condition == WeatherCondition.cloudy) return 20;
@@ -214,6 +217,41 @@ class OpenWeatherMapService implements WeatherService {
         .toList();
   }
 
+  Future<Map<String, double>?> _getDeviceCoordinates() async {
+    try {
+      final isServiceEnabled = await Geolocator.isLocationServiceEnabled();
+      if (!isServiceEnabled) {
+        debugPrint('Device location service is OFF. Defaulting to Pagsanjan.');
+        return null;
+      }
+
+      var permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+        if (permission == LocationPermission.denied) {
+          debugPrint('Location permission denied. Defaulting to Pagsanjan.');
+          return null;
+        }
+      }
+
+      if (permission == LocationPermission.deniedForever) {
+        debugPrint('Location permission permanently denied. Defaulting to Pagsanjan.');
+        return null;
+      }
+
+      final pos = await Geolocator.getCurrentPosition(
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.medium,
+          timeLimit: Duration(seconds: 4),
+        ),
+      );
+      return {'lat': pos.latitude, 'lon': pos.longitude};
+    } catch (e) {
+      debugPrint('Error obtaining device location: $e. Defaulting to Pagsanjan.');
+      return null;
+    }
+  }
+
   @override
   Future<WeatherSnapshot> current() async {
     final keysToTry = _configuredApiKeys;
@@ -222,10 +260,15 @@ class OpenWeatherMapService implements WeatherService {
       return await _MockWeatherService().current();
     }
 
+    final coords = await _getDeviceCoordinates();
+    final String queryParam = coords != null
+        ? 'lat=${coords['lat']}&lon=${coords['lon']}'
+        : 'q=${Uri.encodeComponent(city)}';
+
     for (final key in keysToTry) {
       try {
         final url = Uri.parse(
-          'https://api.openweathermap.org/data/2.5/weather?q=${Uri.encodeComponent(city)}&appid=$key&units=metric',
+          'https://api.openweathermap.org/data/2.5/weather?$queryParam&appid=$key&units=metric',
         );
 
         final response =
@@ -240,7 +283,10 @@ class OpenWeatherMapService implements WeatherService {
           final feelsLike = (main['feels_like'] as num?)?.toDouble() ?? (temp + 3.0);
           final windMps = (wind['speed'] as num?)?.toDouble() ?? 3.5;
           final windKmh = windMps * 3.6;
-          final locationName = data['name'] as String? ?? city.split(',').first;
+          final rawName = data['name'] as String?;
+          final locationName = (rawName != null && rawName.trim().isNotEmpty)
+              ? rawName
+              : city.split(',').first;
 
           final weatherList = data['weather'] as List<dynamic>?;
           final weatherObj = (weatherList != null && weatherList.isNotEmpty)

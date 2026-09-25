@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:permission_handler/permission_handler.dart';
 import '../theme/app_colors.dart';
 import '../../authentication/login/login_page.dart';
 import '../../users/owner_db/owner_db.dart';
@@ -24,6 +25,13 @@ class _SplashPageState extends State<SplashPage> {
     try {
       if (Uri.base.toString().toLowerCase().contains('admin')) {
         return;
+      }
+    } catch (_) {}
+
+    try {
+      final locStatus = await Permission.locationWhenInUse.status;
+      if (locStatus.isDenied) {
+        await Permission.locationWhenInUse.request();
       }
     } catch (_) {}
 

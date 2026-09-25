@@ -78,14 +78,18 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       return;
     }
 
-    // Request literal phone notification permissions upon successful login
+    // Request notification and location permissions upon successful login
     try {
-      final status = await Permission.notification.status;
-      if (status.isDenied || status.isPermanentlyDenied) {
+      final notifStatus = await Permission.notification.status;
+      if (notifStatus.isDenied || notifStatus.isPermanentlyDenied) {
         await Permission.notification.request();
       }
+      final locStatus = await Permission.locationWhenInUse.status;
+      if (locStatus.isDenied) {
+        await Permission.locationWhenInUse.request();
+      }
     } catch (e) {
-      debugPrint('Error requesting notification permission: $e');
+      debugPrint('Error requesting permissions: $e');
     }
 
     if (mounted) {
