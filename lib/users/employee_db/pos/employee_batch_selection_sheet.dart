@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
@@ -29,10 +30,17 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
   late final List<ProductBatch> _validBatches = widget.product.validBatches;
   _BatchSelectionMode _mode = _BatchSelectionMode.continueFefo;
   late ProductBatch _selected = _validBatches.first; // FEFO default
-  double _quantity = 1.0;
-  late final _quantityController = TextEditingController(text: '1.0');
+  late final TextEditingController _quantityController;
 
   bool get _skipSelection => _validBatches.length <= 1;
+
+  @override
+  void initState() {
+    super.initState();
+    _quantityController = TextEditingController(
+      text: widget.product.isWeightBased ? '1.0' : '1',
+    );
+  }
 
   @override
   void dispose() {
@@ -44,20 +52,24 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
     setState(() {
       _selected = batch;
       if (!widget.product.isWeightBased) {
-        _quantity = 1.0;
         _quantityController.text = '1';
       }
     });
   }
 
   void _confirm() {
-    final qty = double.tryParse(_quantityController.text.trim()) ?? _quantity;
-    if (qty <= 0) {
+    final text = _quantityController.text.trim();
+    final qty = double.tryParse(text);
+    if (text.isEmpty || qty == null || qty <= 0) {
       TopNotification.show(context, 'Please enter a valid quantity.', isError: true);
       return;
     }
     if (qty > _selected.quantity) {
-      TopNotification.show(context, 'Only ${_selected.quantity.toInt()} available in this batch.', isError: true);
+      final unitStr = widget.product.isWeightBased ? 'kg' : 'pcs';
+      final maxStr = widget.product.isWeightBased
+          ? _selected.quantity.toStringAsFixed(2)
+          : _selected.quantity.toInt().toString();
+      TopNotification.show(context, 'Only $maxStr $unitStr available in this batch.', isError: true);
       return;
     }
     if (!widget.product.isWeightBased && qty != qty.roundToDouble()) {
@@ -163,20 +175,63 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
                   const Text('Quantity',
                       style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
                   if (widget.product.isWeightBased)
-                    SizedBox(
-                      width: 120,
-                      child: TextField(
-                        controller: _quantityController,
-                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        textAlign: TextAlign.right,
-                        style: const TextStyle(fontWeight: FontWeight.bold),
-                        decoration: InputDecoration(
-                          suffixText: ' kg',
-                          isDense: true,
-                          contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                    Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Tooltip(
+                          message: 'Arduino Weighing Scale',
+                          child: InkWell(
+                            onTap: () {
+                              TopNotification.show(
+                                context,
+                                'Arduino Scale: Reading weight...',
+                              );
+                            },
+                            borderRadius: BorderRadius.circular(8),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                              decoration: BoxDecoration(
+                                color: AppColors.lightPeach,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.3)),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.scale, size: 18, color: AppColors.primaryOrange),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Scale',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.primaryOrange,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
+                        const SizedBox(width: 8),
+                        SizedBox(
+                          width: 110,
+                          child: TextField(
+                            controller: _quantityController,
+                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                            inputFormatters: [
+                              FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                            ],
+                            textAlign: TextAlign.right,
+                            style: const TextStyle(fontWeight: FontWeight.bold),
+                            decoration: InputDecoration(
+                              suffixText: ' kg',
+                              isDense: true,
+                              contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                            ),
+                          ),
+                        ),
+                      ],
                     )
                   else
                     Row(
@@ -195,6 +250,9 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
                           child: TextField(
                             controller: _quantityController,
                             keyboardType: TextInputType.number,
+                            inputFormatters: [
+                              FilteringTextInputFormatter.digitsOnly,
+                            ],
                             textAlign: TextAlign.center,
                             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                             decoration: const InputDecoration(border: InputBorder.none, isDense: true),
@@ -215,7 +273,7 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
               ),
               const SizedBox(height: 4),
               Text(
-                'Max ${_selected.quantity.toInt()} $unitStr available in this batch',
+                'Max ${widget.product.isWeightBased ? _selected.quantity.toStringAsFixed(2) : _selected.quantity.toInt()} $unitStr available in this batch',
                 style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 11),
               ),
               const SizedBox(height: 20),

@@ -111,6 +111,7 @@ class _DeliveryTransactionsList extends StatelessWidget {
               revenue: order.subtotal,
               capital: order.totalCapital,
               profit: order.totalProfit,
+              processedBy: order.processedBy,
               onTap: () {
                 Navigator.push(
                   context,
@@ -251,6 +252,7 @@ class _PickupTransactionsList extends StatelessWidget {
               revenue: order.subtotal,
               capital: order.totalCapital,
               profit: order.totalProfit,
+              processedBy: order.processedBy,
               onTap: () {
                 Navigator.push(
                   context,
@@ -312,6 +314,7 @@ class _WalkInTransactionsList extends StatelessWidget {
               revenue: order.subtotal,
               capital: order.totalCapital,
               profit: order.totalProfit,
+              processedBy: order.processedBy,
               onTap: () {
                 Navigator.push(
                   context,
@@ -428,6 +431,8 @@ class CustomerOrderReceiptPage extends StatelessWidget {
                           label: 'Payment Method',
                           value: order.paymentMethod == PaymentMethod.cashOnDelivery ? 'Cash on Delivery' : 'GCash',
                         ),
+                        if (order.processedBy != null && order.processedBy!.isNotEmpty)
+                          _ReceiptRow(label: 'Sold By', value: order.processedBy!),
                         _ReceiptRow(label: 'Date', value: order.formattedDate),
                       ],
                     ),
@@ -503,6 +508,7 @@ class _HistoryCard extends StatelessWidget {
     this.capital,
     this.revenue,
     this.profit,
+    this.processedBy,
   });
 
   final String title;
@@ -518,6 +524,7 @@ class _HistoryCard extends StatelessWidget {
   final double? capital;
   final double? revenue;
   final double? profit;
+  final String? processedBy;
 
   @override
   Widget build(BuildContext context) {
@@ -591,6 +598,15 @@ class _HistoryCard extends StatelessWidget {
                 Text(date,
                     style: TextStyle(
                         color: AppColors.secondaryText.withValues(alpha: 0.5), fontSize: 11)),
+                if (processedBy != null && processedBy!.isNotEmpty)
+                  Text(
+                    'Sold by: $processedBy',
+                    style: const TextStyle(
+                      color: AppColors.primaryOrange,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
               ],
             ),
           ],

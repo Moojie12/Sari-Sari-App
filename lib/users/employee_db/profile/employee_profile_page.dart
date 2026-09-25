@@ -12,6 +12,7 @@ import 'employee_edit_profile_page.dart';
 import 'employee_my_consumables_page.dart';
 import 'employee_profile_controller.dart';
 import 'employee_profile_model.dart';
+import '../../owner_db/history/owner_history_page.dart';
 import '../../../shared/widgets/editable_profile_avatar.dart';
 
 /// Employee "Profile" tab: a menu into every Employee Profile feature —
@@ -125,10 +126,18 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
                 _MenuTile(
                   icon: Icons.set_meal_outlined,
                   label: 'My Consumables',
-                  isLast: true,
                   onTap: () => Navigator.push(
                     context,
                     MaterialPageRoute(builder: (context) => const EmployeeMyConsumablesPage(role: 'Employee')),
+                  ),
+                ),
+                _MenuTile(
+                  icon: Icons.receipt_long_outlined,
+                  label: 'Sales & Transaction Records',
+                  isLast: true,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const OwnerTransactionHistoryPage()),
                   ),
                 ),
               ],

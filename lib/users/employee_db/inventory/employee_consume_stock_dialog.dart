@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../employee_inventory_controller.dart';
@@ -175,6 +176,13 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
               controller: _quantityController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
               enabled: !_isAllSelected,
+              inputFormatters: [
+                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                if (widget.product.isWeightBased)
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+                else
+                  FilteringTextInputFormatter.digitsOnly,
+              ],
               onChanged: (_) => setState(() => _errorText = null),
               decoration: InputDecoration(
                 hintText: _isAllSelected ? 'All quantity will be taken' : 'Max: ${_maxQuantity.toInt()}',

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
@@ -715,12 +716,16 @@ class _CartItemsList extends StatelessWidget {
       const Divider(height: 16, color: AppColors.borderColor),
       itemBuilder: (context, index) {
         final item = cart[index];
+        final maxStock = posController.getAvailableStock(item.product.id, item.batchId);
         return _CartItemTile(
           item: item,
+          maxStock: maxStock,
           onIncrement: () =>
               posController.incrementQuantity(item.product.id, item.batchId),
           onDecrement: () =>
               posController.decrementQuantity(item.product.id, item.batchId),
+          onQuantityChanged: (newQty) =>
+              posController.updateQuantity(item.product.id, item.batchId, newQty),
           onRemove: () => _confirmRemove(context, item),
         );
       },
@@ -731,14 +736,18 @@ class _CartItemsList extends StatelessWidget {
 class _CartItemTile extends StatelessWidget {
   const _CartItemTile({
     required this.item,
+    required this.maxStock,
     required this.onIncrement,
     required this.onDecrement,
+    required this.onQuantityChanged,
     required this.onRemove,
   });
 
   final EmployeePosCartItem item;
+  final double maxStock;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
+  final ValueChanged<double> onQuantityChanged;
   final VoidCallback onRemove;
 
   @override
@@ -771,8 +780,10 @@ class _CartItemTile extends StatelessWidget {
         _QuantityStepper(
           quantity: item.quantity,
           isWeightBased: item.product.isWeightBased,
+          maxQuantity: maxStock,
           onIncrement: onIncrement,
           onDecrement: onDecrement,
+          onQuantityChanged: onQuantityChanged,
         ),
         const SizedBox(width: 12),
         SizedBox(
@@ -798,37 +809,182 @@ class _CartItemTile extends StatelessWidget {
   }
 }
 
-class _QuantityStepper extends StatelessWidget {
+class _QuantityStepper extends StatefulWidget {
   const _QuantityStepper({
     required this.quantity,
     required this.isWeightBased,
+    required this.maxQuantity,
     required this.onIncrement,
     required this.onDecrement,
+    required this.onQuantityChanged,
   });
 
   final double quantity;
   final bool isWeightBased;
+  final double maxQuantity;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
+  final ValueChanged<double> onQuantityChanged;
+
+  @override
+  State<_QuantityStepper> createState() => _QuantityStepperState();
+}
+
+class _QuantityStepperState extends State<_QuantityStepper> {
+  late TextEditingController _controller;
+  final FocusNode _focusNode = FocusNode();
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: _formatQuantity(widget.quantity));
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant _QuantityStepper oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.quantity != widget.quantity && !_focusNode.hasFocus) {
+      _controller.text = _formatQuantity(widget.quantity);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  String _formatQuantity(double q) {
+    if (widget.isWeightBased) {
+      return q == q.roundToDouble() ? q.toInt().toString() : q.toStringAsFixed(2);
+    } else {
+      return q.toInt().toString();
+    }
+  }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus) {
+      _validateAndSubmit();
+    }
+  }
+
+  void _validateAndSubmit() {
+    final text = _controller.text.trim();
+    final parsed = double.tryParse(text);
+    if (parsed == null || parsed <= 0) {
+      _controller.text = _formatQuantity(widget.quantity);
+      return;
+    }
+
+    if (parsed > widget.maxQuantity) {
+      final unitStr = widget.isWeightBased ? 'kg' : 'pcs';
+      final maxStr = widget.isWeightBased
+          ? widget.maxQuantity.toStringAsFixed(2)
+          : widget.maxQuantity.toInt().toString();
+      TopNotification.show(context, 'Only $maxStr $unitStr available in stock.', isError: true);
+      _controller.text = _formatQuantity(widget.quantity);
+      return;
+    }
+
+    if (!widget.isWeightBased && parsed != parsed.roundToDouble()) {
+      TopNotification.show(context, 'Regular products must use whole numbers.', isError: true);
+      _controller.text = _formatQuantity(widget.quantity);
+      return;
+    }
+
+    widget.onQuantityChanged(parsed);
+    _controller.text = _formatQuantity(parsed);
+  }
 
   @override
   Widget build(BuildContext context) {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        _StepperButton(icon: Icons.remove, onTap: onDecrement),
+        if (widget.isWeightBased) ...[
+          Tooltip(
+            message: 'Arduino Weighing Scale',
+            child: InkWell(
+              onTap: () {
+                TopNotification.show(context, 'Arduino Scale: Reading weight...');
+              },
+              borderRadius: BorderRadius.circular(6),
+              child: Container(
+                padding: const EdgeInsets.all(6),
+                decoration: BoxDecoration(
+                  color: AppColors.lightPeach,
+                  borderRadius: BorderRadius.circular(6),
+                  border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.3)),
+                ),
+                child: const Icon(Icons.scale, size: 14, color: AppColors.primaryOrange),
+              ),
+            ),
+          ),
+          const SizedBox(width: 4),
+        ],
+        _StepperButton(icon: Icons.remove, onTap: widget.onDecrement),
+        const SizedBox(width: 4),
         SizedBox(
-          width: isWeightBased ? 48 : 24,
-          child: Text(
-            isWeightBased ? quantity.toStringAsFixed(2) : quantity.toStringAsFixed(0),
+          width: widget.isWeightBased ? 56 : 42,
+          child: TextField(
+            controller: _controller,
+            focusNode: _focusNode,
+            keyboardType: TextInputType.numberWithOptions(decimal: widget.isWeightBased),
+            inputFormatters: [
+              if (widget.isWeightBased)
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+              else
+                FilteringTextInputFormatter.digitsOnly,
+            ],
             textAlign: TextAlign.center,
             style: const TextStyle(
-                color: AppColors.darkText,
-                fontSize: 13,
-                fontWeight: FontWeight.w600),
+              color: AppColors.darkText,
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+            ),
+            decoration: InputDecoration(
+              isDense: true,
+              contentPadding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: AppColors.borderColor),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: AppColors.borderColor),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(6),
+                borderSide: const BorderSide(color: AppColors.primaryOrange),
+              ),
+            ),
+            onChanged: (val) {
+              final text = val.trim();
+              if (text.isEmpty) return;
+              final parsed = double.tryParse(text);
+              if (parsed != null && parsed > 0) {
+                if (parsed > widget.maxQuantity) {
+                  final unitStr = widget.isWeightBased ? 'kg' : 'pcs';
+                  final maxStr = widget.isWeightBased
+                      ? widget.maxQuantity.toStringAsFixed(2)
+                      : widget.maxQuantity.toInt().toString();
+                  TopNotification.show(context, 'Only $maxStr $unitStr available in stock.', isError: true);
+                  return;
+                }
+                if (!widget.isWeightBased && parsed != parsed.roundToDouble()) {
+                  return;
+                }
+                widget.onQuantityChanged(parsed);
+              }
+            },
+            onSubmitted: (_) => _validateAndSubmit(),
           ),
         ),
-        _StepperButton(icon: Icons.add, onTap: onIncrement),
+        const SizedBox(width: 4),
+        _StepperButton(icon: Icons.add, onTap: widget.onIncrement),
       ],
     );
   }
@@ -869,6 +1025,13 @@ class _CheckoutSheet extends StatefulWidget {
 class _CheckoutSheetState extends State<_CheckoutSheet> {
   EmployeePaymentMethod _method = EmployeePaymentMethod.cash;
   final _amountController = TextEditingController();
+  String? _amountErrorText;
+
+  @override
+  void initState() {
+    super.initState();
+    _amountController.text = widget.posController.totalAmount.toStringAsFixed(2);
+  }
 
   @override
   void dispose() {
@@ -876,16 +1039,144 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
     super.dispose();
   }
 
-  void _confirm() {
+  Future<void> _confirm() async {
     final total = widget.posController.totalAmount;
-    final amountPaid = double.tryParse(_amountController.text) ?? total;
+    final trimmedText = _amountController.text.trim();
+
+    if (trimmedText.isEmpty) {
+      setState(() => _amountErrorText = 'Please enter the amount received.');
+      TopNotification.show(context, 'Please enter the amount received.', isError: true);
+      return;
+    }
+
+    if (trimmedText.contains(' ')) {
+      setState(() => _amountErrorText = 'Spaces are not allowed in amount.');
+      TopNotification.show(context, 'Spaces are not allowed in amount.', isError: true);
+      return;
+    }
+
+    final amountPaid = double.tryParse(trimmedText);
+    if (amountPaid == null) {
+      setState(() => _amountErrorText = 'Please enter a valid amount.');
+      TopNotification.show(context, 'Please enter a valid amount.', isError: true);
+      return;
+    }
+
+    if (amountPaid <= 0) {
+      setState(() => _amountErrorText = 'Amount received must be greater than zero.');
+      TopNotification.show(context, 'Amount received must be greater than zero.', isError: true);
+      return;
+    }
+
     if (amountPaid < total) {
+      setState(() => _amountErrorText = 'Amount received is less than total due (₱${total.toStringAsFixed(2)}).');
       TopNotification.show(context, 'Amount received is less than the total.', isError: true);
       return;
     }
 
+    setState(() => _amountErrorText = null);
+
+    final change = amountPaid - total;
+    final methodName = _method == EmployeePaymentMethod.cash ? 'Cash' : 'GCash';
+
+    final proceed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text(
+          'Confirm Payment',
+          style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Are you sure you want to proceed with this payment?',
+              style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: AppColors.lightPeach.withValues(alpha: 0.5),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: AppColors.borderColor),
+              ),
+              child: Column(
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Total Due:', style: TextStyle(fontSize: 13, color: AppColors.secondaryText)),
+                      Text(
+                        '₱${total.toStringAsFixed(2)}',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.darkText),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Payment Method:', style: TextStyle(fontSize: 13, color: AppColors.secondaryText)),
+                      Text(
+                        methodName,
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkText),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Amount Received:', style: TextStyle(fontSize: 13, color: AppColors.secondaryText)),
+                      Text(
+                        '₱${amountPaid.toStringAsFixed(2)}',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkText),
+                      ),
+                    ],
+                  ),
+                  if (_method == EmployeePaymentMethod.cash && change > 0) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Change:', style: TextStyle(fontSize: 13, color: AppColors.secondaryText)),
+                        Text(
+                          '₱${change.toStringAsFixed(2)}',
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.primaryOrange),
+                        ),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (proceed != true) return;
+
     final receipt =
-    widget.posController.checkout(paymentMethod: _method, amountPaid: amountPaid);
+        widget.posController.checkout(paymentMethod: _method, amountPaid: amountPaid);
     if (receipt != null) {
       EmployeeShiftController.instance.recordSale(
         paymentMethod: receipt.paymentMethod,
@@ -948,7 +1239,12 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                       label: 'Cash',
                       icon: Icons.money,
                       isSelected: _method == EmployeePaymentMethod.cash,
-                      onTap: () => setState(() => _method = EmployeePaymentMethod.cash),
+                      onTap: () {
+                        setState(() {
+                          _method = EmployeePaymentMethod.cash;
+                          _amountErrorText = null;
+                        });
+                      },
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -957,7 +1253,13 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                       label: 'GCash',
                       icon: Icons.account_balance_wallet,
                       isSelected: _method == EmployeePaymentMethod.gCash,
-                      onTap: () => setState(() => _method = EmployeePaymentMethod.gCash),
+                      onTap: () {
+                        setState(() {
+                          _method = EmployeePaymentMethod.gCash;
+                          _amountErrorText = null;
+                          _amountController.text = widget.posController.totalAmount.toStringAsFixed(2);
+                        });
+                      },
                     ),
                   ),
                 ],
@@ -978,14 +1280,32 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
               TextField(
                 controller: _amountController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                onChanged: (_) {
+                  if (_amountErrorText != null) {
+                    setState(() => _amountErrorText = null);
+                  }
+                },
                 decoration: InputDecoration(
                   hintText: total.toStringAsFixed(2),
                   prefixText: '₱ ',
+                  errorText: _amountErrorText,
                   filled: true,
                   fillColor: AppColors.lightPeach,
                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                   border: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: _amountErrorText != null
+                        ? const BorderSide(color: Colors.red, width: 1)
+                        : BorderSide.none,
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                    borderSide: _amountErrorText != null
+                        ? const BorderSide(color: Colors.red, width: 1.5)
+                        : const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+                  ),
                 ),
               ),
               const SizedBox(height: 24),

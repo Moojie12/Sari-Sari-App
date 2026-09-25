@@ -144,6 +144,7 @@ class CustomerOrder {
     required this.status,
     this.userId,
     this.dbId,
+    this.processedBy,
   });
 
   final String orderId;
@@ -160,6 +161,7 @@ class CustomerOrder {
   final OrderStatus status;
   final String? userId;
   final String? dbId;
+  final String? processedBy;
 
   String get formattedDate => '${orderDate.day}/${orderDate.month}/${orderDate.year}';
 
@@ -212,6 +214,7 @@ class CustomerOrder {
       'itemsCount': items.length,
       'items': items.map((i) => i.toMap()).toList(),
       'dbId': dbId,
+      'processedBy': processedBy,
     };
   }
 
@@ -240,7 +243,10 @@ class CustomerOrder {
       customerName: map['customerName']?.toString() ?? map['customer_name']?.toString() ?? 'Customer',
       orderDate: parsedDate,
       items: itemsList,
-      orderType: _parseOrderType(map['orderType']?.toString() ?? map['order_type']?.toString()),
+      orderType: _parseOrderType(
+        map['orderType']?.toString() ?? map['order_type']?.toString(),
+        map['deliveryAddress']?.toString() ?? map['delivery_address']?.toString(),
+      ),
       paymentMethod: _parsePaymentMethod(map['paymentMethod']?.toString() ?? map['payment_method']?.toString()),
       paymentStatus: _parsePaymentStatus(map['paymentStatus']?.toString() ?? map['payment_status']?.toString()),
       deliveryAddress: map['deliveryAddress']?.toString() ?? map['delivery_address']?.toString(),
@@ -250,6 +256,7 @@ class CustomerOrder {
       status: _parseOrderStatus(map['status']?.toString(), map['order_notes']?.toString()),
       userId: map['userId']?.toString() ?? map['user_id']?.toString(),
       dbId: map['dbId']?.toString() ?? map['id']?.toString(),
+      processedBy: _parseProcessedBy(map['processedBy']?.toString(), map['order_notes']?.toString()),
     );
   }
 
@@ -278,7 +285,10 @@ class CustomerOrder {
       customerName: map['customer_name']?.toString() ?? 'Customer',
       orderDate: parsedDate,
       items: items,
-      orderType: _parseOrderType(map['order_type']?.toString()),
+      orderType: _parseOrderType(
+        map['order_type']?.toString() ?? map['orderType']?.toString(),
+        map['delivery_address']?.toString() ?? map['deliveryAddress']?.toString(),
+      ),
       paymentMethod: _parsePaymentMethod(map['payment_method']?.toString()),
       paymentStatus: _parsePaymentStatus(map['payment_status']?.toString()),
       deliveryAddress: map['delivery_address']?.toString(),
@@ -287,8 +297,22 @@ class CustomerOrder {
       totalAmount: totalAmt,
       status: _parseOrderStatus(map['status']?.toString(), map['order_notes']?.toString()),
       userId: map['user_id']?.toString(),
+      processedBy: _parseProcessedBy(map['processed_by']?.toString(), map['order_notes']?.toString()),
     );
   }
+}
+
+String? _parseProcessedBy(String? rawProcessedBy, String? orderNotes) {
+  if (rawProcessedBy != null && rawProcessedBy.trim().isNotEmpty) {
+    return rawProcessedBy.trim();
+  }
+  if (orderNotes != null && orderNotes.contains('Sold by:')) {
+    final match = RegExp(r'Sold by:\s*([^\n;]+)').firstMatch(orderNotes);
+    if (match != null && match.group(1) != null) {
+      return match.group(1)!.trim();
+    }
+  }
+  return null;
 }
 
 OrderStatus _parseOrderStatus(String? status, [String? orderNotes]) {
@@ -322,10 +346,15 @@ OrderStatus? _matchStatusString(String? status) {
   }
 }
 
-OrderType _parseOrderType(String? type) {
-  if (type == null) return OrderType.pickup;
-  final t = type.toLowerCase();
-  if (t == 'delivery') return OrderType.delivery;
+OrderType _parseOrderType(String? type, [String? deliveryAddress]) {
+  if (type != null) {
+    final t = type.toLowerCase();
+    if (t == 'delivery') return OrderType.delivery;
+    if (t == 'pickup') return OrderType.pickup;
+  }
+  if (deliveryAddress != null && deliveryAddress.trim().isNotEmpty) {
+    return OrderType.delivery;
+  }
   return OrderType.pickup;
 }
 

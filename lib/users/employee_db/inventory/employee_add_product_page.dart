@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/services/auth_service.dart';
@@ -399,16 +400,17 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Done'),
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Add Another Product', style: TextStyle(color: AppColors.secondaryText)),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
+            onPressed: () => Navigator.pop(dialogContext, false),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryOrange,
               foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('Add Another Product'),
+            child: const Text('Done', style: TextStyle(fontWeight: FontWeight.bold)),
           ),
         ],
       ),
@@ -466,14 +468,9 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Add Product',
-          style: TextStyle(color: AppColors.darkText, fontSize: 18, fontWeight: FontWeight.bold),
-        ),
-        const SizedBox(height: 4),
         Text(
           'Scan a barcode, search for an existing product to restock, or add a new one manually.',
-          style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 12),
+          style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 13),
         ),
         const SizedBox(height: 16),
         Row(
@@ -769,9 +766,7 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
         const Text('Product Details', style: TextStyle(color: AppColors.darkText, fontSize: 18, fontWeight: FontWeight.bold)),
         const SizedBox(height: 4),
         Text(
-          product.isWeightBased
-              ? 'Enter quantity in kg for de-kilo product.'
-              : 'Enter quantity in pcs for regular product.',
+          'Scan or manually enter the expiration date and stock quantity.',
           style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 12),
         ),
         const SizedBox(height: 16),
@@ -928,68 +923,105 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
           const SizedBox(height: 8),
           if (batch.isBulkMode && !product.isWeightBased) ...[
             Container(
-              margin: const EdgeInsets.only(top: 4, bottom: 8),
-              padding: const EdgeInsets.all(12),
+              margin: const EdgeInsets.only(top: 8, bottom: 12),
+              padding: const EdgeInsets.all(14),
               decoration: BoxDecoration(
                 color: AppColors.primaryOrange.withValues(alpha: 0.05),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(14),
                 border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.2)),
               ),
-              child: Row(
+              child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Expanded(
-                    child: TextField(
-                      controller: batch.bulkPriceController,
-                      keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                      onChanged: (_) => setState(() => batch.recalcBulk()),
-                      decoration: InputDecoration(
-                        labelText: 'Bulk Price',
-                        hintText: 'e.g. 720',
-                        errorText: batch.bulkPriceError,
-                        isDense: true,
-                        prefixText: '₱',
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                      ),
-                    ),
+                  const Text('Bulk Entry Calculator', style: TextStyle(color: AppColors.darkText, fontSize: 13, fontWeight: FontWeight.bold)),
+                  const SizedBox(height: 10),
+                  const Text('Bulk Price (₱) *', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: batch.bulkPriceController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                    onChanged: (_) => setState(() {
+                      batch.bulkPriceError = null;
+                      batch.recalcBulk();
+                    }),
+                    decoration: _fieldDecoration('e.g. 720', prefixText: '₱ ', errorText: batch.bulkPriceError),
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: batch.pcsPerBulkController,
-                      keyboardType: TextInputType.number,
-                      onChanged: (_) => setState(() => batch.recalcBulk()),
-                      decoration: InputDecoration(
-                        labelText: 'Pcs/Bulk',
-                        errorText: batch.pcsPerBulkError,
-                        isDense: true,
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                  const SizedBox(height: 10),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Pcs per Bulk *', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+                            const SizedBox(height: 6),
+                            TextField(
+                              controller: batch.pcsPerBulkController,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              onChanged: (_) => setState(() {
+                                batch.pcsPerBulkError = null;
+                                batch.recalcBulk();
+                              }),
+                              decoration: _fieldDecoration('e.g. 12', errorText: batch.pcsPerBulkError),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: TextField(
-                      controller: batch.numberOfBulkController,
-                      keyboardType: TextInputType.number,
-                      onChanged: (_) => setState(() => batch.recalcBulk()),
-                      decoration: InputDecoration(
-                        labelText: 'No. Bulk',
-                        errorText: batch.numberOfBulkError,
-                        isDense: true,
-                        filled: true,
-                        fillColor: Colors.white,
-                        contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text('Number of Bulk *', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+                            const SizedBox(height: 6),
+                            TextField(
+                              controller: batch.numberOfBulkController,
+                              keyboardType: TextInputType.number,
+                              inputFormatters: [
+                                FilteringTextInputFormatter.digitsOnly,
+                              ],
+                              onChanged: (_) => setState(() {
+                                batch.numberOfBulkError = null;
+                                batch.recalcBulk();
+                              }),
+                              decoration: _fieldDecoration('e.g. 5', errorText: batch.numberOfBulkError),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
+                    ],
                   ),
+                  if (batch.quantity != null && batch.quantity! > 0) ...[
+                    const SizedBox(height: 10),
+                    Builder(
+                      builder: (context) {
+                        final bulkPrice = double.tryParse(batch.bulkPriceController.text.trim()) ?? 0.0;
+                        final pcsPerBulk = int.tryParse(batch.pcsPerBulkController.text.trim()) ?? 1;
+                        final capitalPerPc = pcsPerBulk > 0 ? (bulkPrice / pcsPerBulk) : 0.0;
+                        return Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.3)),
+                          ),
+                          child: Text(
+                            'Calculated: ${batch.quantity!.toInt()} pcs total · Capital/pc: ₱${capitalPerPc.toStringAsFixed(2)}',
+                            style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryOrange),
+                          ),
+                        );
+                      },
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -999,12 +1031,12 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
             children: [
               Expanded(
                 child: Text(
-                  batch.isBulkMode ? 'Total Pcs:' : (product.isWeightBased ? 'Quantity (kg):' : 'Quantity (pcs):'),
-                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                  batch.isBulkMode ? 'Quantity (pcs):' : (product.isWeightBased ? 'Quantity (kg):' : 'Quantity (pcs):'),
+                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.labelText),
                 ),
               ),
               SizedBox(
-                width: product.isWeightBased ? 170 : 120,
+                width: product.isWeightBased ? 170 : 130,
                 child: Row(
                   children: [
                     Expanded(
@@ -1013,19 +1045,21 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
                         enabled: !batch.isBulkMode,
                         readOnly: batch.isBulkMode,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                          if (product.isWeightBased)
+                            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+                          else
+                            FilteringTextInputFormatter.digitsOnly,
+                        ],
                         textAlign: TextAlign.center,
                         onChanged: (_) {
                           if (batch.quantityError != null) setState(() => batch.quantityError = null);
                         },
-                        decoration: InputDecoration(
-                          hintText: 'e.g. 10',
+                        decoration: _fieldDecoration(
+                          'e.g. 10',
                           errorText: batch.quantityError,
-                          isDense: true,
-                          filled: true,
-                          fillColor: batch.isBulkMode ? Colors.grey.shade200 : AppColors.lightPeach,
-                          contentPadding: const EdgeInsets.symmetric(horizontal: 8, vertical: 10),
-                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
-                          suffixIcon: (!product.isWeightBased && batch.isBulkMode) ? const Icon(Icons.calculate_outlined, size: 16) : null,
+                          suffixIcon: (!product.isWeightBased && batch.isBulkMode) ? const Icon(Icons.calculate_outlined, size: 16, color: AppColors.secondaryText) : null,
                         ),
                       ),
                     ),
@@ -1065,6 +1099,19 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
           ),
         ],
       ),
+    );
+  }
+
+  InputDecoration _fieldDecoration(String? hint, {String? prefixText, String? errorText, Widget? suffixIcon}) {
+    return InputDecoration(
+      hintText: hint,
+      prefixText: prefixText,
+      errorText: errorText,
+      suffixIcon: suffixIcon,
+      filled: true,
+      fillColor: AppColors.lightPeach,
+      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
     );
   }
 }
@@ -1671,6 +1718,10 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                       TextField(
                         controller: _bulkPriceController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                          FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                        ],
                         onChanged: (_) => _recalcBulk(),
                         decoration: _fieldDecoration('e.g. 720', prefixText: '₱ ', errorText: _bulkPriceError),
                       ),
@@ -1687,6 +1738,9 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                                 TextField(
                                   controller: _pcsPerBulkController,
                                   keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                  ],
                                   onChanged: (_) => _recalcBulk(),
                                   decoration: _fieldDecoration('e.g. 12', errorText: _pcsPerBulkError),
                                 ),
@@ -1703,6 +1757,9 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                                 TextField(
                                   controller: _numberOfBulkController,
                                   keyboardType: TextInputType.number,
+                                  inputFormatters: [
+                                    FilteringTextInputFormatter.digitsOnly,
+                                  ],
                                   onChanged: (_) => _recalcBulk(),
                                   decoration: _fieldDecoration('e.g. 5', errorText: _numberOfBulkError),
                                 ),
@@ -1728,6 +1785,10 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                           enabled: !_isBulkMode,
                           readOnly: _isBulkMode,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                          ],
                           decoration: _fieldDecoration('e.g. 40', prefixText: '₱ ', errorText: _capitalError, suffixIcon: _isBulkMode ? const Icon(Icons.calculate_outlined, size: 18, color: AppColors.secondaryText) : null),
                         ),
                       ],
@@ -1743,6 +1804,10 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                         TextField(
                           controller: _priceController,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                          inputFormatters: [
+                            FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                            FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                          ],
                           decoration: _fieldDecoration('e.g. 50', prefixText: '₱ ', errorText: _priceError),
                         ),
                       ],
@@ -1761,6 +1826,13 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                       enabled: !_isBulkMode,
                       readOnly: _isBulkMode,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                      inputFormatters: [
+                        FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                        if (_isWeightBased)
+                          FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+                        else
+                          FilteringTextInputFormatter.digitsOnly,
+                      ],
                       decoration: _fieldDecoration(
                         _isWeightBased ? 'e.g. 10' : 'e.g. 100',
                         errorText: _quantityError,
@@ -1811,6 +1883,9 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                   Expanded(
                     child: TextField(
                       controller: _barcodeController,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                      ],
                       decoration: _fieldDecoration('e.g. 480001234567 or leave for auto', errorText: _barcodeError),
                     ),
                   ),

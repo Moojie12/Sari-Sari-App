@@ -5,6 +5,8 @@ import '../employee_inventory_controller.dart';
 import '../inventory/employee_batch_model.dart';
 import '../inventory/employee_product_model.dart';
 import '../orders/employee_orders_controller.dart';
+import '../profile/employee_profile_controller.dart';
+import '../../owner_db/profile/owner_profile_controller.dart';
 import '../../../core/services/auth_service.dart';
 
 enum EmployeePaymentMethod { cash, gCash }
@@ -45,6 +47,7 @@ class EmployeeReceipt {
     required this.paymentMethod,
     this.totalCapital = 0.0,
     this.totalProfit = 0.0,
+    this.processedBy,
   });
 
   final String receiptNumber;
@@ -56,6 +59,7 @@ class EmployeeReceipt {
 
   final double totalCapital;
   final double totalProfit;
+  final String? processedBy;
 
   double get change => amountPaid - totalAmount;
 }
@@ -148,6 +152,29 @@ class EmployeePosController extends ChangeNotifier {
     notifyListeners();
   }
 
+  /// Gets available stock for a product's batch.
+  double getAvailableStock(String productId, String batchId) {
+    final liveProduct = inventory.findById(productId);
+    final liveBatch = liveProduct != null ? _findBatch(liveProduct, batchId) : null;
+    return liveBatch?.quantity ?? 0.0;
+  }
+
+  /// Directly updates a cart line's quantity, capped to that batch's available stock.
+  bool updateQuantity(String productId, String batchId, double newQuantity) {
+    if (newQuantity <= 0) return false;
+
+    final index =
+        _cart.indexWhere((item) => item.product.id == productId && item.batchId == batchId);
+    if (index < 0) return false;
+
+    final cap = getAvailableStock(productId, batchId);
+    if (newQuantity > cap) return false;
+
+    _cart[index].quantity = newQuantity;
+    notifyListeners();
+    return true;
+  }
+
   void decrementQuantity(String productId, String batchId) {
     final index =
     _cart.indexWhere((item) => item.product.id == productId && item.batchId == batchId);
@@ -196,6 +223,32 @@ class EmployeePosController extends ChangeNotifier {
     final timePart = '${now.hour.toString().padLeft(2, '0')}${now.minute.toString().padLeft(2, '0')}${now.second.toString().padLeft(2, '0')}';
     final receiptNumber = 'RC-$datePart$timePart-${_receiptCounter.toString().padLeft(3, '0')}';
 
+    final currentUser = AuthService().currentUser;
+    final userId = currentUser?.uid;
+
+    String sellerLabel = '';
+    final ownerProfile = OwnerProfileController.instance.profile;
+    final empProfile = EmployeeProfileController.instance.profile;
+
+    final activeProfile = (ownerProfile.userId.isNotEmpty && ownerProfile.userId == userId && ownerProfile.firstName.isNotEmpty)
+        ? ownerProfile
+        : ((empProfile.userId.isNotEmpty && empProfile.userId == userId && empProfile.firstName.isNotEmpty) ? empProfile : null);
+
+    if (activeProfile != null) {
+      final name = '${activeProfile.firstName} ${activeProfile.lastName}'.trim();
+      final role = activeProfile.role.isNotEmpty ? activeProfile.role : 'Staff';
+      sellerLabel = name.isNotEmpty ? '$name ($role)' : role;
+    } else {
+      final email = currentUser?.email ?? '';
+      if (email.toLowerCase().contains('owner')) {
+        sellerLabel = 'Store Owner (Owner)';
+      } else if (email.toLowerCase().contains('employee')) {
+        sellerLabel = 'Store Cashier (Employee)';
+      } else {
+        sellerLabel = 'Store Staff';
+      }
+    }
+
     final receipt = EmployeeReceipt(
       receiptNumber: receiptNumber,
       dateTime: now,
@@ -205,12 +258,8 @@ class EmployeePosController extends ChangeNotifier {
       paymentMethod: paymentMethod,
       totalCapital: totalCapital,
       totalProfit: totalProfit,
+      processedBy: sellerLabel,
     );
-
-    // Save walk-in POS sale to orders database via EmployeeOrderController
-    // Get current user ID for the order (if available)
-    final currentUser = AuthService().currentUser;
-    final userId = currentUser?.uid;
 
     final posOrder = CustomerOrder(
       orderId: receipt.receiptNumber,
@@ -231,7 +280,8 @@ class EmployeePosController extends ChangeNotifier {
       deliveryFee: 0,
       totalAmount: totalAmount,
       status: OrderStatus.completed,
-      userId: userId, // Set the user ID
+      userId: userId,
+      processedBy: sellerLabel,
     );
     EmployeeOrderController.instance.placeOrder(posOrder);
 

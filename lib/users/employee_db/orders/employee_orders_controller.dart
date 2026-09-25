@@ -256,6 +256,7 @@ class EmployeeOrderController extends ChangeNotifier {
         totalAmount: order.totalAmount,
         status: order.status,
         userId: order.userId,
+        processedBy: order.processedBy,
       );
     }
 

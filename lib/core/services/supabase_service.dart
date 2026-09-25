@@ -476,14 +476,19 @@ class SupabaseService {
         throw Exception('Failed to resolve or create profile ID for user.');
       }
 
+      final sellerNote = order.processedBy != null && order.processedBy!.isNotEmpty
+          ? 'Sold by: ${order.processedBy}'
+          : '';
+
       final orderData = <String, dynamic>{
         'user_id': profileId,
         'order_number': order.orderId,
         'status': order.status.name,
+        'order_type': order.orderType.name,
         'customer_name': order.customerName,
         'customer_contact': '', // Using empty string as we don't have phone/email in order model
         'delivery_address': order.deliveryAddress ?? '',
-        'order_notes': '', // Using empty string as we don't have notes in order model
+        'order_notes': sellerNote,
         'total_amount': order.totalAmount,
         'total_items': order.items.fold<int>(0, (sum, i) => sum + i.quantity),
         'placed_at': order.orderDate.toIso8601String(),

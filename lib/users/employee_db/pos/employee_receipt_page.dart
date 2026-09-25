@@ -102,6 +102,11 @@ class EmployeeReceiptPage extends StatelessWidget {
                             value: '₱${receipt.amountPaid.toStringAsFixed(2)}'),
                         _ReceiptRow(
                             label: 'Change', value: '₱${receipt.change.toStringAsFixed(2)}'),
+                        if (receipt.processedBy != null && receipt.processedBy!.isNotEmpty)
+                          _ReceiptRow(
+                            label: 'Sold By',
+                            value: receipt.processedBy!,
+                          ),
                         _ReceiptRow(
                           label: 'Date',
                           value:

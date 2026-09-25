@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/services/auth_service.dart';
@@ -204,7 +205,8 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
   void _save() async {
     final name = _nameController.text.trim();
     final barcode = _barcodeController.text.trim();
-    final threshold = double.tryParse(_thresholdController.text.trim()) ?? 10.0;
+    final thresholdText = _thresholdController.text.trim();
+    final threshold = double.tryParse(thresholdText) ?? 10.0;
     final category = _isAddingNewCategory ? _newCategoryController.text.trim() : _category;
 
     if (!_isWeightBased && widget.product.quantity != widget.product.quantity.roundToDouble()) {
@@ -212,13 +214,35 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
       return;
     }
 
-    final price = double.tryParse(_sellingPriceController.text.trim());
-    final capital = double.tryParse(_capitalController.text.trim());
+    final priceText = _sellingPriceController.text.trim();
+    final capitalText = _capitalController.text.trim();
+
+    final price = double.tryParse(priceText);
+    final capital = double.tryParse(capitalText);
 
     setState(() {
       _nameError = name.isEmpty ? 'Product name is required.' : null;
-      _priceError = (price == null || price < 0) ? 'Enter a valid selling price.' : null;
-      _capitalError = (capital == null || capital < 0) ? 'Enter a valid capital price.' : null;
+
+      if (priceText.isEmpty) {
+        _priceError = 'Price is required.';
+      } else if (priceText.contains(' ')) {
+        _priceError = 'Spaces are not allowed in price.';
+      } else if (price == null || price < 0) {
+        _priceError = 'Enter a valid price.';
+      } else {
+        _priceError = null;
+      }
+
+      if (capitalText.isEmpty) {
+        _capitalError = 'Capital is required.';
+      } else if (capitalText.contains(' ')) {
+        _capitalError = 'Spaces are not allowed in capital.';
+      } else if (capital == null || capital < 0) {
+        _capitalError = 'Enter a valid capital.';
+      } else {
+        _capitalError = null;
+      }
+
       _barcodeError = BarcodeValidator.validate(
         barcode: _barcodeController.text,
         currentProductId: widget.product.id,
@@ -397,6 +421,10 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                         controller: _capitalController,
                         enabled: false,
                         readOnly: true,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                          FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                        ],
                         decoration: _fieldDecoration(
                           'e.g. 40',
                           prefixText: '₱ ',
@@ -417,6 +445,10 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                       TextField(
                         controller: _sellingPriceController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        inputFormatters: [
+                          FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                          FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                        ],
                         onChanged: (_) => setState(() {}),
                         decoration: _fieldDecoration(
                           'e.g. 50',
@@ -435,6 +467,9 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
             TextField(
               controller: _thresholdController,
               keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [
+                FilteringTextInputFormatter.digitsOnly,
+              ],
               decoration: _fieldDecoration('e.g. 10'),
             ),
             const SizedBox(height: 16),
