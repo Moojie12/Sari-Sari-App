@@ -1,4 +1,4 @@
--- SARISARI HUB - SUPABASE DATABASE SCHEMA
+-- SARISARI HUB - SUPABASE DATABASE SCHEMA (NORMALIZED 1NF - 5NF)
 -- This file contains the complete layout for tables, constraints, security policies, and RPCs.
 
 -- 1. EXTENSIONS
@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS public.profiles (
   first_name text NOT NULL,
   middle_initial text DEFAULT ''::text,
   surname text NOT NULL,
+  username text UNIQUE,
   email text NOT NULL UNIQUE,
   phone text,
   role text NOT NULL CHECK (role = ANY (ARRAY['admin'::text, 'owner'::text, 'employee'::text, 'customer'::text])),
@@ -36,18 +37,47 @@ CREATE TABLE IF NOT EXISTS public.categories (
   archived_by uuid REFERENCES public.profiles(id),
   created_at timestamp with time zone DEFAULT now(),
   updated_at timestamp with time zone DEFAULT now(),
+  created_by text,
+  updated_by text,
   CONSTRAINT categories_pkey PRIMARY KEY (id)
+);
+
+-- Suppliers Table (3NF Normalization - Standalone Vendor Record)
+CREATE TABLE IF NOT EXISTS public.suppliers (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  name text NOT NULL UNIQUE,
+  contact_number text,
+  email text,
+  address text,
+  notes text,
+  is_archived boolean DEFAULT false,
+  archived_at timestamp with time zone,
+  archived_by uuid REFERENCES public.profiles(id),
+  created_at timestamp with time zone DEFAULT now(),
+  updated_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT suppliers_pkey PRIMARY KEY (id)
+);
+
+-- Units Table (Domain Normalization - Units of Measure)
+CREATE TABLE IF NOT EXISTS public.units (
+  id uuid NOT NULL DEFAULT uuid_generate_v4(),
+  code text NOT NULL UNIQUE,
+  name text NOT NULL,
+  is_decimal boolean DEFAULT false,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT units_pkey PRIMARY KEY (id)
 );
 
 -- Products Table
 CREATE TABLE IF NOT EXISTS public.products (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   name text NOT NULL,
-  category text NOT NULL, -- Links to categories.name
+  category_id uuid REFERENCES public.categories(id) ON DELETE RESTRICT,
+  category text NOT NULL, -- Synchronized name for query compatibility
   price numeric NOT NULL CHECK (price >= 0::numeric),
   capital numeric NOT NULL CHECK (capital >= 0::numeric),
   barcode text UNIQUE,
-  unit text DEFAULT 'pcs'::text CHECK (unit = ANY (ARRAY['pcs'::text, 'piece'::text, 'pack'::text, 'bottle'::text, 'can'::text, 'box'::text, 'sachet'::text, 'kg'::text, 'gram'::text, 'liter'::text])),
+  unit text DEFAULT 'pcs'::text,
   image text,
   description TEXT,
   low_stock_threshold numeric DEFAULT 5.0 CHECK (low_stock_threshold >= 0::numeric),
@@ -65,10 +95,11 @@ CREATE TABLE IF NOT EXISTS public.products (
 CREATE TABLE IF NOT EXISTS public.product_batches (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   product_id uuid NOT NULL REFERENCES public.products(id) ON DELETE CASCADE,
+  supplier_id uuid REFERENCES public.suppliers(id) ON DELETE SET NULL,
   batch_number text,
   quantity numeric NOT NULL CHECK (quantity >= 0::numeric),
   expiry_date timestamp with time zone,
-  supplier text,
+  supplier text, -- Synchronized string for backwards compatibility
   notes text,
   received_date timestamp with time zone DEFAULT now(),
   created_at timestamp with time zone DEFAULT now(),
@@ -98,7 +129,7 @@ CREATE TABLE IF NOT EXISTS public.inventory_transactions (
 -- Orders Table (POS Sales & Online Orders)
 CREATE TABLE IF NOT EXISTS public.orders (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
-  user_id uuid NOT NULL REFERENCES public.profiles(id), -- This stores the cashier/user UID
+  user_id uuid NOT NULL REFERENCES public.profiles(id), -- Cashier or customer profile ID
   order_number text NOT NULL UNIQUE,
   status text NOT NULL DEFAULT 'completed'::text CHECK (status = ANY (ARRAY['pending'::text, 'confirmed'::text, 'preparing'::text, 'readyForShipment'::text, 'readyForPickup'::text, 'outForDelivery'::text, 'delivered'::text, 'completed'::text, 'cancelled'::text, 'refunded'::text, 'processing'::text, 'voided'::text])),
   total_amount numeric NOT NULL CHECK (total_amount >= 0::numeric),
@@ -123,7 +154,7 @@ CREATE TABLE IF NOT EXISTS public.orders (
   CONSTRAINT orders_pkey PRIMARY KEY (id)
 );
 
--- Order Items
+-- Order Items (Point-in-time Snapshot Pattern for Sales Auditability)
 CREATE TABLE IF NOT EXISTS public.order_items (
   id uuid NOT NULL DEFAULT uuid_generate_v4(),
   order_id uuid NOT NULL REFERENCES public.orders(id) ON DELETE CASCADE,
@@ -218,8 +249,6 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
 -- 3. FUNCTIONS & RPCS
 
 -- Atomic Sale Transaction Function
--- This function handles creating an order, its items, reducing inventory using FEFO,
--- and recording inventory transactions all in one atomic operation.
 CREATE OR REPLACE FUNCTION public.create_sale_transaction(
   p_firebase_uid text,
   p_order_number text,
@@ -319,8 +348,7 @@ BEGIN
         END IF;
       END LOOP;
 
-      -- If we still have quantity to reduce but no more batches, we've oversold or stock is negative
-      -- For this system, we allow negative stock but log it as an adjustment or a batch-less transaction
+      -- If we still have quantity to reduce but no more batches, log as adjustment / no batch
       IF v_qty_to_reduce > 0 THEN
          INSERT INTO public.inventory_transactions (
             product_id, transaction_type, quantity, unit_price, total_amount,
@@ -344,7 +372,7 @@ CREATE OR REPLACE FUNCTION public.create_preorder_transaction(
   p_total_amount numeric,
   p_total_items integer,
   p_expected_date timestamp with time zone,
-  p_items jsonb, -- Array of {product_id, quantity, unit_price}
+  p_items jsonb,
   p_customer_name text DEFAULT NULL,
   p_customer_contact text DEFAULT NULL,
   p_delivery_address text DEFAULT NULL,
@@ -394,9 +422,7 @@ CREATE OR REPLACE FUNCTION public.convert_preorder_to_order(
 DECLARE
   v_preorder record;
   v_items jsonb;
-  v_firebase_uid text;
 BEGIN
-  -- Get preorder data
   SELECT po.*, p.firebase_uid
   INTO v_preorder
   FROM public.pre_orders po
@@ -407,17 +433,15 @@ BEGIN
     RAISE EXCEPTION 'Pre-order not found';
   END IF;
 
-  -- Get preorder items and format for create_sale_transaction
   SELECT jsonb_agg(jsonb_build_object(
     'product_id', product_id,
     'quantity', quantity,
     'unit_price', unit_price,
-    'unit_cost', 0 -- Assuming cost is not tracked in pre-orders yet
+    'unit_cost', 0
   )) INTO v_items
   FROM public.pre_order_items
   WHERE pre_order_id = p_preorder_id;
 
-  -- Create the real order
   PERFORM public.create_sale_transaction(
     v_preorder.firebase_uid,
     p_order_number,
@@ -430,7 +454,6 @@ BEGIN
     v_preorder.order_notes
   );
 
-  -- Update preorder status
   UPDATE public.pre_orders SET status = 'completed', updated_at = now() WHERE id = p_preorder_id;
 
   RETURN p_preorder_id;
@@ -438,11 +461,10 @@ END;
 $$ LANGUAGE plpgsql;
 
 -- 4. SECURITY (RLS - Row Level Security)
--- Note: Disabling RLS temporarily for development as per initial setup.
--- In production, you should ENABLE RLS and use proper policies.
-
 ALTER TABLE public.profiles DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.categories DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.suppliers DISABLE ROW LEVEL SECURITY;
+ALTER TABLE public.units DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.products DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.product_batches DISABLE ROW LEVEL SECURITY;
 ALTER TABLE public.inventory_transactions DISABLE ROW LEVEL SECURITY;
