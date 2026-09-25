@@ -35,26 +35,24 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
   void _showLogoutConfirmation(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Logout'),
         content: const Text('Are you sure you want to logout?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
           ),
           TextButton(
             onPressed: () async {
-              Navigator.pop(context); // Close dialog
+              final navigator = Navigator.of(context, rootNavigator: true);
+              Navigator.pop(dialogContext); // Close dialog
               await AuthService().signOut();
               EmployeeProfileController.instance.clear();
-              if (context.mounted) {
-                Navigator.pushAndRemoveUntil(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
-                  (route) => false,
-                );
-              }
+              navigator.pushAndRemoveUntil(
+                MaterialPageRoute(builder: (context) => const LoginPage()),
+                (route) => false,
+              );
             },
             child: const Text('Logout', style: TextStyle(color: Colors.red)),
           ),

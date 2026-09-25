@@ -1266,8 +1266,11 @@ class SupabaseService {
       if (updates.containsKey('firstName')) mappedUpdates['first_name'] = updates['firstName'];
       if (updates.containsKey('middleInitial')) mappedUpdates['middle_initial'] = updates['middleInitial'];
       if (updates.containsKey('surname')) mappedUpdates['surname'] = updates['surname'];
+      if (updates.containsKey('lastName')) mappedUpdates['surname'] = updates['lastName'];
       if (updates.containsKey('email')) mappedUpdates['email'] = updates['email'];
       if (updates.containsKey('phone')) mappedUpdates['phone'] = updates['phone'];
+      if (updates.containsKey('contactNumber')) mappedUpdates['phone'] = updates['contactNumber'];
+      if (updates.containsKey('contact_number')) mappedUpdates['phone'] = updates['contact_number'];
       if (updates.containsKey('role')) mappedUpdates['role'] = updates['role'];
       if (updates.containsKey('status')) mappedUpdates['status'] = updates['status'];
       if (updates.containsKey('avatarUrl')) mappedUpdates['avatar_url'] = updates['avatarUrl'];

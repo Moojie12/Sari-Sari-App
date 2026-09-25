@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/custom_text_field.dart';
 import '../../../shared/widgets/primary_button.dart';
@@ -124,6 +125,11 @@ class _OwnerCreateEmployeePageState extends State<OwnerCreateEmployeePage> {
                       hint: 'First Name',
                       icon: Icons.person_outline,
                       controller: _firstNameController,
+                      maxLength: 50,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]')),
+                        LengthLimitingTextInputFormatter(50),
+                      ],
                     ),
                   ),
                   const SizedBox(width: 8),
@@ -133,6 +139,15 @@ class _OwnerCreateEmployeePageState extends State<OwnerCreateEmployeePage> {
                       hint: 'M.I.',
                       icon: Icons.short_text,
                       controller: _miController,
+                      maxLength: 1,
+                      textCapitalization: TextCapitalization.characters,
+                      inputFormatters: [
+                        FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]')),
+                        LengthLimitingTextInputFormatter(1),
+                        TextInputFormatter.withFunction(
+                          (oldValue, newValue) => newValue.copyWith(text: newValue.text.toUpperCase()),
+                        ),
+                      ],
                     ),
                   ),
                 ],
@@ -140,9 +155,14 @@ class _OwnerCreateEmployeePageState extends State<OwnerCreateEmployeePage> {
               const SizedBox(height: 14),
 
               CustomTextField(
-                hint: 'Surname',
+                hint: 'Lastname',
                 icon: Icons.person_outline,
                 controller: _surnameController,
+                maxLength: 50,
+                inputFormatters: [
+                  FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]')),
+                  LengthLimitingTextInputFormatter(50),
+                ],
               ),
               const SizedBox(height: 14),
 

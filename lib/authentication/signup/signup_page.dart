@@ -1,14 +1,12 @@
 // lib/authentication/signup/signup_page.dart
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/custom_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
-import '../../users/customer_db/customer_db.dart';
-import '../../users/employee_db/employee_db.dart';
-import '../../users/owner_db/owner_db.dart';
-import '../../core/services/auth_service.dart';
-import '../../core/services/supabase_service.dart';
 import '../../shared/utils/top_notification.dart';
+import '../../core/services/auth_service.dart';
+import '../forgot_password/otp_verification_page.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({super.key});
@@ -37,11 +35,6 @@ class _SignUpPageState extends State<SignUpPage> {
   bool _isLoading = false;
 
   @override
-  void initState() {
-    super.initState();
-  }
-
-  @override
   void dispose() {
     _firstNameController.dispose();
     _middleInitialController.dispose();
@@ -53,145 +46,177 @@ class _SignUpPageState extends State<SignUpPage> {
     super.dispose();
   }
 
-  Future<void> _handleSignUp() async {
-    // Reset errors
-    setState(() {
-      _firstNameError = null;
-      _surnameError = null;
-      _emailError = null;
-      _phoneError = null;
-      _passwordError = null;
-      _confirmPasswordError = null;
-      _isLoading = true;
-    });
+  // --- Real-time Validation Helper Methods ---
 
-    // Get form values
-    final firstName = _firstNameController.text.trim();
-    final middleInitial = _middleInitialController.text.trim();
-    final surname = _surnameController.text.trim();
-    final email = _emailController.text.trim();
-    final phone = _phoneController.text.trim();
+  String? _validateFirstName(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return 'Please enter your first name';
+    }
+    if (value.length > 50) {
+      return 'First name cannot exceed 50 characters';
+    }
+    if (value.contains('  ')) {
+      return 'Only single space allowed between words';
+    }
+    if (!RegExp(r'^[a-zA-Z]+( [a-zA-Z]+)*$').hasMatch(value)) {
+      return 'Must contain letters with single space between words';
+    }
+    return null;
+  }
+
+  String? _validateLastName(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return 'Please enter your lastname';
+    }
+    if (value.length > 50) {
+      return 'Lastname cannot exceed 50 characters';
+    }
+    if (value.contains('  ')) {
+      return 'Only single space allowed between words';
+    }
+    if (!RegExp(r'^[a-zA-Z]+( [a-zA-Z]+)*$').hasMatch(value)) {
+      return 'Must contain letters with single space between words';
+    }
+    return null;
+  }
+
+  String? _validateEmail(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return 'Please enter your email address';
+    }
+    if (!RegExp(r'^[a-zA-Z0-9._%+-]+@gmail\.com$').hasMatch(trimmed)) {
+      return 'Email must be a valid @gmail.com address';
+    }
+    return null;
+  }
+
+  String? _validatePhone(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return 'Please enter your phone number';
+    }
+    if (!trimmed.startsWith('09') && !trimmed.startsWith('+639')) {
+      return 'Phone number must start with 09 or +639';
+    }
+    if (trimmed.startsWith('09') && trimmed.length != 11) {
+      return 'Phone starting with 09 must be exactly 11 digits';
+    }
+    if (trimmed.startsWith('+639') && trimmed.length != 13) {
+      return 'Phone starting with +639 must be exactly 13 characters';
+    }
+    if (RegExp(r'(\d)\1{3}').hasMatch(trimmed)) {
+      return 'Phone cannot contain 4 consecutive same digits';
+    }
+    return null;
+  }
+
+  String? _validatePassword(String value) {
+    if (value.isEmpty) {
+      return 'Please enter your password';
+    }
+    if (value.length < 8) {
+      return 'Password must be at least 8 characters long';
+    }
+    if (!RegExp(r'[A-Z]').hasMatch(value)) {
+      return 'Password must contain at least 1 uppercase letter';
+    }
+    if (!RegExp(r'[a-z]').hasMatch(value)) {
+      return 'Password must contain at least 1 lowercase letter';
+    }
+    if (!RegExp(r'[0-9]').hasMatch(value)) {
+      return 'Password must contain at least 1 number';
+    }
+    if (!RegExp(r'[!@#$%^&*(),.?":{}|<>_\-+=/\\]').hasMatch(value)) {
+      return 'Password must contain at least 1 special character';
+    }
+    return null;
+  }
+
+  String? _validateConfirmPassword(String value) {
+    if (value.isEmpty) {
+      return 'Please confirm your password';
+    }
+    if (value != _passwordController.text) {
+      return 'Passwords do not match';
+    }
+    return null;
+  }
+
+  Future<void> _handleSignUp() async {
+    final firstName = _firstNameController.text;
+    final middleInitial = _middleInitialController.text.trim().toUpperCase();
+    final surname = _surnameController.text;
+    final email = _emailController.text;
+    final phone = _phoneController.text;
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
-    // Validate form
-    bool isValid = true;
+    // Validate all fields on submit
+    setState(() {
+      _firstNameError = _validateFirstName(firstName);
+      _surnameError = _validateLastName(surname);
+      _emailError = _validateEmail(email);
+      _phoneError = _validatePhone(phone);
+      _passwordError = _validatePassword(password);
+      _confirmPasswordError = _validateConfirmPassword(confirmPassword);
+    });
 
-    if (firstName.isEmpty) {
-      setState(() => _firstNameError = 'Please enter your first name');
-      isValid = false;
-    }
-
-    if (surname.isEmpty) {
-      setState(() => _surnameError = 'Please enter your surname');
-      isValid = false;
-    }
-
-    if (email.isEmpty) {
-      setState(() => _emailError = 'Please enter your email');
-      isValid = false;
-    } else if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
-      setState(() => _emailError = 'Please enter a valid email address');
-      isValid = false;
-    }
-
-    if (phone.isEmpty) {
-      setState(() => _phoneError = 'Please enter your phone number');
-      isValid = false;
-    } else if (!RegExp(r'^[\+]?[(]?[0-9]{3}[)]?[-\s\.]?[0-9]{3}[-\s\.]?[0-9]{4,6}$').hasMatch(phone)) {
-      setState(() => _phoneError = 'Please enter a valid phone number');
-      isValid = false;
-    }
-
-    if (password.isEmpty) {
-      setState(() => _passwordError = 'Please enter your password');
-      isValid = false;
-    } else if (password.length < 6) {
-      setState(() => _passwordError = 'Password must be at least 6 characters');
-      isValid = false;
-    }
-
-    if (confirmPassword.isEmpty) {
-      setState(() => _confirmPasswordError = 'Please confirm your password');
-      isValid = false;
-    } else if (password != confirmPassword) {
-      setState(() => _confirmPasswordError = 'Passwords do not match');
-      isValid = false;
-    }
-
-    if (!isValid) {
-      setState(() => _isLoading = false);
+    if (_firstNameError != null ||
+        _surnameError != null ||
+        _emailError != null ||
+        _phoneError != null ||
+        _passwordError != null ||
+        _confirmPasswordError != null) {
       return;
     }
 
-    // Attempt to create account with Firebase Auth
-    final displayName = '$firstName $middleInitial. $surname'.trim();
-    final errorMessage = await AuthService().createAccountWithEmailPassword(
-      email: email,
-      password: password,
-      displayName: displayName,
-    );
+    setState(() => _isLoading = true);
 
-    // Hide loading indicator
-    setState(() => _isLoading = false);
+    bool isEmailTaken = false;
+    try {
+      isEmailTaken = await AuthService().isEmailInUse(email.trim());
+    } catch (e) {
+      debugPrint('Error checking email availability: $e');
+      isEmailTaken = false;
+    }
 
-    if (errorMessage != null) {
-      // Show error message
+    if (isEmailTaken) {
       if (mounted) {
-        TopNotification.show(context, errorMessage, isError: true);
+        setState(() {
+          _isLoading = false;
+          _emailError = 'Email address is already in use';
+        });
+        TopNotification.show(
+          context,
+          'This email is already registered. Please sign in or use another email.',
+          isError: true,
+        );
       }
       return;
-    }
-
-    // Save profile information to Supabase
-    final currentUser = AuthService().currentUser;
-    if (currentUser != null) {
-      String inferredRole = 'customer';
-      final emailLower = email.toLowerCase();
-      if (emailLower.contains('admin')) {
-        inferredRole = 'admin';
-      } else if (emailLower.contains('owner')) {
-        inferredRole = 'owner';
-      } else if (emailLower.contains('employee')) {
-        inferredRole = 'employee';
-      }
-
-      try {
-        await SupabaseService().updateUserProfile(currentUser.uid, {
-          'firstName': firstName,
-          'middleInitial': middleInitial,
-          'surname': surname,
-          'email': email,
-          'phone': phone,
-          'role': inferredRole,
-        });
-      } catch (e) {
-        debugPrint('Error syncing profile to Supabase on signup: $e');
-      }
-    }
-
-    // Account created successfully - navigate based on actual role
-    final bool isOwner = await AuthService().hasRole('owner');
-    final bool isEmployee = await AuthService().hasRole('employee');
-
-    Widget destination;
-    if (isOwner) {
-      destination = const OwnerDb();
-    } else if (isEmployee) {
-      destination = const EmployeeDb();
-    } else {
-      destination = const CustomerDb();
     }
 
     if (mounted) {
-      Navigator.pushReplacement(
+      setState(() => _isLoading = false);
+      Navigator.push(
         context,
-        MaterialPageRoute(builder: (context) => destination),
+        MaterialPageRoute(
+          builder: (context) => OtpVerificationPage(
+            email: email.trim(),
+            firstName: firstName.trim(),
+            middleInitial: middleInitial,
+            surname: surname.trim(),
+            phone: phone.trim(),
+            password: password,
+            isSignUpFlow: true,
+          ),
+        ),
       );
     }
   }
 
-  
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -224,6 +249,39 @@ class _SignUpPageState extends State<SignUpPage> {
                     confirmPasswordError: _confirmPasswordError,
                     isLoading: _isLoading,
                     handleSignUp: _handleSignUp,
+                    onFirstNameChanged: (val) {
+                      setState(() {
+                        _firstNameError = _validateFirstName(val);
+                      });
+                    },
+                    onSurnameChanged: (val) {
+                      setState(() {
+                        _surnameError = _validateLastName(val);
+                      });
+                    },
+                    onEmailChanged: (val) {
+                      setState(() {
+                        _emailError = _validateEmail(val);
+                      });
+                    },
+                    onPhoneChanged: (val) {
+                      setState(() {
+                        _phoneError = _validatePhone(val);
+                      });
+                    },
+                    onPasswordChanged: (val) {
+                      setState(() {
+                        _passwordError = _validatePassword(val);
+                        if (_confirmPasswordController.text.isNotEmpty) {
+                          _confirmPasswordError = _validateConfirmPassword(_confirmPasswordController.text);
+                        }
+                      });
+                    },
+                    onConfirmPasswordChanged: (val) {
+                      setState(() {
+                        _confirmPasswordError = _validateConfirmPassword(val);
+                      });
+                    },
                   ),
                 ),
               ),
@@ -347,6 +405,12 @@ class _SignUpCard extends StatelessWidget {
     required this.confirmPasswordError,
     required this.isLoading,
     required this.handleSignUp,
+    this.onFirstNameChanged,
+    this.onSurnameChanged,
+    this.onEmailChanged,
+    this.onPhoneChanged,
+    this.onPasswordChanged,
+    this.onConfirmPasswordChanged,
   });
 
   final TextEditingController firstNameController;
@@ -364,6 +428,12 @@ class _SignUpCard extends StatelessWidget {
   final String? confirmPasswordError;
   final bool isLoading;
   final Future<void> Function() handleSignUp;
+  final ValueChanged<String>? onFirstNameChanged;
+  final ValueChanged<String>? onSurnameChanged;
+  final ValueChanged<String>? onEmailChanged;
+  final ValueChanged<String>? onPhoneChanged;
+  final ValueChanged<String>? onPasswordChanged;
+  final ValueChanged<String>? onConfirmPasswordChanged;
 
   VoidCallback get _signUpCardOnPressed => () { handleSignUp(); return; };
 
@@ -423,6 +493,13 @@ class _SignUpCard extends StatelessWidget {
                         hint: 'First name',
                         icon: Icons.person_outline,
                         errorText: firstNameError,
+                        maxLength: 50,
+                        textCapitalization: TextCapitalization.words,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]')),
+                          LengthLimitingTextInputFormatter(50),
+                        ],
+                        onChanged: onFirstNameChanged,
                       ),
                     ],
                   ),
@@ -443,10 +520,19 @@ class _SignUpCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 7),
                       CustomTextField(
-                      controller: middleInitialController,
-                      hint: 'M.I.',
-                      icon: Icons.short_text,
-                    ),
+                        controller: middleInitialController,
+                        hint: 'M.I.',
+                        icon: Icons.short_text,
+                        maxLength: 1,
+                        textCapitalization: TextCapitalization.characters,
+                        inputFormatters: [
+                          FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]')),
+                          LengthLimitingTextInputFormatter(1),
+                          TextInputFormatter.withFunction(
+                            (oldValue, newValue) => newValue.copyWith(text: newValue.text.toUpperCase()),
+                          ),
+                        ],
+                      ),
                     ],
                   ),
                 ),
@@ -455,7 +541,7 @@ class _SignUpCard extends StatelessWidget {
             const SizedBox(height: 18),
 
             const Text(
-              'Surname',
+              'Lastname',
               style: TextStyle(
                 color: AppColors.labelText,
                 fontSize: 12,
@@ -465,9 +551,16 @@ class _SignUpCard extends StatelessWidget {
             const SizedBox(height: 7),
             CustomTextField(
               controller: surnameController,
-              hint: 'Enter your surname',
+              hint: 'Enter your lastname',
               icon: Icons.person_outline,
               errorText: surnameError,
+              maxLength: 50,
+              textCapitalization: TextCapitalization.words,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]')),
+                LengthLimitingTextInputFormatter(50),
+              ],
+              onChanged: onSurnameChanged,
             ),
             const SizedBox(height: 18),
 
@@ -486,6 +579,7 @@ class _SignUpCard extends StatelessWidget {
               icon: Icons.email_outlined,
               keyboardType: TextInputType.emailAddress,
               errorText: emailError,
+              onChanged: onEmailChanged,
             ),
             const SizedBox(height: 18),
 
@@ -504,6 +598,12 @@ class _SignUpCard extends StatelessWidget {
               icon: Icons.phone_outlined,
               keyboardType: TextInputType.phone,
               errorText: phoneError,
+              maxLength: 13,
+              inputFormatters: [
+                FilteringTextInputFormatter.allow(RegExp(r'[0-9+]')),
+                LengthLimitingTextInputFormatter(13),
+              ],
+              onChanged: onPhoneChanged,
             ),
             const SizedBox(height: 18),
 
@@ -522,6 +622,7 @@ class _SignUpCard extends StatelessWidget {
               icon: Icons.lock_outline,
               isPassword: true,
               errorText: passwordError,
+              onChanged: onPasswordChanged,
             ),
             const SizedBox(height: 18),
 
@@ -540,6 +641,7 @@ class _SignUpCard extends StatelessWidget {
               icon: Icons.lock_outline,
               isPassword: true,
               errorText: confirmPasswordError,
+              onChanged: onConfirmPasswordChanged,
             ),
             const SizedBox(height: 24),
 

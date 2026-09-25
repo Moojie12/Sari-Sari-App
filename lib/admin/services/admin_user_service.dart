@@ -261,6 +261,10 @@ class AdminUserService extends ChangeNotifier {
         email: email.trim(),
         password: password,
         displayName: '$firstName ${middleInitial.isNotEmpty ? '$middleInitial. ' : ''}$surname'.trim(),
+        firstName: firstName.trim(),
+        middleInitial: middleInitial.trim(),
+        surname: surname.trim(),
+        phone: phone.trim(),
       );
 
       if (authResult != null) {
@@ -476,12 +480,12 @@ class AdminUserService extends ChangeNotifier {
   // ==================== HELPER METHODS ====================
 
   bool _isValidEmail(String email) {
-    final emailRegExp = RegExp(r'^[\\w.+-]+@[\\w-]+(\\.[\\w-]+)+$');
+    final emailRegExp = RegExp(r'^[\w.+-]+@[\w-]+(\.[\w-]+)+$');
     return emailRegExp.hasMatch(email);
   }
 
   bool _isValidPhone(String phone) {
-    final phoneRegExp = RegExp(r'^[0-9+\\-\\s()]{7,15}$');
+    final phoneRegExp = RegExp(r'^[0-9+\-\s()]{7,15}$');
     return phoneRegExp.hasMatch(phone);
   }
 

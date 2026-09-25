@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
 
 /// A styled text field used across the app's forms.
@@ -19,6 +20,10 @@ class CustomTextField extends StatefulWidget {
     this.textAlign = TextAlign.start,
     this.trailing,
     this.errorText,
+    this.inputFormatters,
+    this.maxLength,
+    this.onChanged,
+    this.textCapitalization = TextCapitalization.none,
   });
 
   final String hint;
@@ -33,6 +38,10 @@ class CustomTextField extends StatefulWidget {
   /// Ignored when [isPassword] is true, since that slot is used for the
   /// visibility toggle instead.
   final Widget? trailing;
+  final List<TextInputFormatter>? inputFormatters;
+  final int? maxLength;
+  final ValueChanged<String>? onChanged;
+  final TextCapitalization textCapitalization;
 
   @override
   State<CustomTextField> createState() => _CustomTextFieldState();
@@ -48,7 +57,12 @@ class _CustomTextFieldState extends State<CustomTextField> {
       obscureText: widget.isPassword ? _obscureText : false,
       keyboardType: widget.keyboardType,
       textAlign: widget.textAlign,
+      textCapitalization: widget.textCapitalization,
+      inputFormatters: widget.inputFormatters,
+      maxLength: widget.maxLength,
+      onChanged: widget.onChanged,
       decoration: InputDecoration(
+        counterText: widget.maxLength != null ? '' : null,
         hintText: widget.hint,
         errorText: widget.errorText,
         hintStyle: const TextStyle(

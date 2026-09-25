@@ -1288,21 +1288,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
             label: 'Logout',
             isSelected: false,
             onTap: () async {
+              final navigator = Navigator.of(context, rootNavigator: true);
               await AuthService().signOut();
-              if (!mounted) return;
 
               // Navigate to appropriate login page based on platform
               if (kIsWeb) {
-                Navigator.pushAndRemoveUntil(
-                  context,
+                navigator.pushAndRemoveUntil(
                   MaterialPageRoute(builder: (context) => const AdminLoginPage()),
-                      (route) => false,
+                  (route) => false,
                 );
               } else {
-                Navigator.pushAndRemoveUntil(
-                  context,
+                navigator.pushAndRemoveUntil(
                   MaterialPageRoute(builder: (context) => const LoginPage()),
-                      (route) => false,
+                  (route) => false,
                 );
               }
             },

@@ -30,16 +30,39 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
   @override
   void initState() {
     super.initState();
+    _controller.addListener(_onProfileChanged);
     final profile = _controller.profile;
     _firstNameController = TextEditingController(text: profile.firstName);
     _middleInitialController = TextEditingController(text: profile.middleInitial);
     _lastNameController = TextEditingController(text: profile.lastName);
     _emailController = TextEditingController(text: profile.email);
     _contactController = TextEditingController(text: profile.contactNumber);
+    _controller.loadProfile();
+  }
+
+  void _onProfileChanged() {
+    if (!mounted) return;
+    final profile = _controller.profile;
+    if (_firstNameController.text.trim().isEmpty && profile.firstName.isNotEmpty) {
+      _firstNameController.text = profile.firstName;
+    }
+    if (_middleInitialController.text.trim().isEmpty && profile.middleInitial.isNotEmpty) {
+      _middleInitialController.text = profile.middleInitial;
+    }
+    if (_lastNameController.text.trim().isEmpty && profile.lastName.isNotEmpty) {
+      _lastNameController.text = profile.lastName;
+    }
+    if (_emailController.text.trim().isEmpty && profile.email.isNotEmpty) {
+      _emailController.text = profile.email;
+    }
+    if (_contactController.text.trim().isEmpty && profile.contactNumber.isNotEmpty) {
+      _contactController.text = profile.contactNumber;
+    }
   }
 
   @override
   void dispose() {
+    _controller.removeListener(_onProfileChanged);
     _firstNameController.dispose();
     _middleInitialController.dispose();
     _lastNameController.dispose();

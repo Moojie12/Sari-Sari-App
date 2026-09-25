@@ -75,34 +75,36 @@ class OwnerProfileController extends ChangeNotifier {
 
       final fName = profileData['firstName']?.toString() ?? profileData['first_name']?.toString() ?? '';
       final mInit = profileData['middleInitial']?.toString() ?? profileData['middle_initial']?.toString() ?? '';
-      final lName = profileData['surname']?.toString() ?? profileData['lastName']?.toString() ?? '';
+      final lName = profileData['surname']?.toString() ?? profileData['lastName']?.toString() ?? profileData['last_name']?.toString() ?? '';
       final email = profileData['email']?.toString() ?? user.email ?? '';
-      final phone = profileData['phone']?.toString() ?? profileData['contactNumber']?.toString() ?? '';
+      final phone = profileData['phone']?.toString() ??
+          profileData['contactNumber']?.toString() ??
+          profileData['contact_number']?.toString() ??
+          profileData['phoneNumber']?.toString() ??
+          (user.phoneNumber ?? '');
 
-      if (fName.isNotEmpty || lName.isNotEmpty) {
+      if (fName.trim().isNotEmpty || lName.trim().isNotEmpty) {
         _profile = EmployeeProfile(
           userId: user.uid,
-          firstName: fName,
-          middleInitial: mInit,
-          lastName: lName,
-          email: email,
-          contactNumber: phone,
+          firstName: fName.trim(),
+          middleInitial: mInit.trim(),
+          lastName: lName.trim(),
+          email: email.trim(),
+          contactNumber: phone.trim(),
           role: 'Owner',
           photoPath: avatarUrl ?? _profile.photoPath,
         );
       } else {
-        final displayName = user.displayName ?? '';
-        final parts = displayName.split(' ');
-        final f = parts.isNotEmpty ? parts.first : '';
-        final l = parts.length > 1 ? parts.sublist(1).join(' ') : '';
+        final displayName = (profileData['displayName']?.toString() ?? user.displayName ?? '').trim();
+        final parsed = _parseDisplayName(displayName);
 
         _profile = EmployeeProfile(
           userId: user.uid,
-          firstName: f.isNotEmpty ? f : 'Owner',
-          middleInitial: '',
-          lastName: l,
-          email: user.email ?? '',
-          contactNumber: phone,
+          firstName: parsed['firstName']!.isNotEmpty ? parsed['firstName']! : 'Owner',
+          middleInitial: parsed['middleInitial']!,
+          lastName: parsed['lastName']!,
+          email: email.trim(),
+          contactNumber: phone.trim(),
           role: 'Owner',
           photoPath: avatarUrl ?? _profile.photoPath,
         );
@@ -112,6 +114,38 @@ class OwnerProfileController extends ChangeNotifier {
     } finally {
       _isLoading = false;
       notifyListeners();
+    }
+  }
+
+  Map<String, String> _parseDisplayName(String displayName) {
+    final clean = displayName.replaceAll('  ', ' ').trim();
+    if (clean.isEmpty) {
+      return {'firstName': '', 'middleInitial': '', 'lastName': ''};
+    }
+
+    final parts = clean.split(' ');
+    if (parts.length == 1) {
+      return {'firstName': parts.first, 'middleInitial': '', 'lastName': ''};
+    }
+
+    int miIndex = -1;
+    for (int i = 1; i < parts.length - 1; i++) {
+      final token = parts[i].replaceAll('.', '');
+      if (token.length == 1 && RegExp(r'^[a-zA-Z]$').hasMatch(token)) {
+        miIndex = i;
+        break;
+      }
+    }
+
+    if (miIndex != -1) {
+      final fName = parts.sublist(0, miIndex).join(' ');
+      final mInit = parts[miIndex].replaceAll('.', '').toUpperCase();
+      final lName = parts.sublist(miIndex + 1).join(' ');
+      return {'firstName': fName, 'middleInitial': mInit, 'lastName': lName};
+    } else {
+      final fName = parts.sublist(0, parts.length - 1).join(' ');
+      final lName = parts.last;
+      return {'firstName': fName, 'middleInitial': '', 'lastName': lName};
     }
   }
 

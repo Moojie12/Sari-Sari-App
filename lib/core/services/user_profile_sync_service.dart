@@ -29,28 +29,67 @@ class UserProfileSyncService {
       debugPrint('[UserProfileSyncService] Error fetching from Firebase RTDB: $e');
     }
 
+    String phoneInResult = result['phone']?.toString() ??
+        result['contactNumber']?.toString() ??
+        result['contact_number']?.toString() ??
+        result['phoneNumber']?.toString() ??
+        result['phone_number']?.toString() ??
+        result['contact']?.toString() ??
+        result['mobile']?.toString() ??
+        result['contactNo']?.toString() ??
+        result['contact_no']?.toString() ??
+        '';
+
     // 2. Fetch from Supabase to fill in any missing fields
     try {
       final sbData = await SupabaseService().getOrCreateUserProfile(uid);
       if (sbData.isNotEmpty) {
-        if (!result.containsKey('firstName') && sbData['first_name'] != null) {
+        final fName = result['firstName']?.toString() ?? result['first_name']?.toString() ?? '';
+        if (fName.trim().isEmpty && sbData['first_name'] != null) {
           result['firstName'] = sbData['first_name'];
         }
-        if (!result.containsKey('middleInitial') && sbData['middle_initial'] != null) {
+        final mInit = result['middleInitial']?.toString() ?? result['middle_initial']?.toString() ?? '';
+        if (mInit.trim().isEmpty && sbData['middle_initial'] != null) {
           result['middleInitial'] = sbData['middle_initial'];
         }
-        if (!result.containsKey('surname') && sbData['surname'] != null) {
+        final sName = result['surname']?.toString() ?? result['lastName']?.toString() ?? result['last_name']?.toString() ?? '';
+        if (sName.trim().isEmpty && sbData['surname'] != null) {
           result['surname'] = sbData['surname'];
         }
-        if (!result.containsKey('phone') && sbData['phone'] != null) {
-          result['phone'] = sbData['phone'];
+
+        if (phoneInResult.trim().isEmpty) {
+          final sbPhone = sbData['phone']?.toString() ??
+              sbData['contact_number']?.toString() ??
+              sbData['contactNumber']?.toString() ??
+              sbData['phone_number']?.toString() ??
+              sbData['mobile']?.toString() ??
+              '';
+          if (sbPhone.trim().isNotEmpty) {
+            phoneInResult = sbPhone.trim();
+          }
         }
-        if (!result.containsKey('avatar_url') && (sbData['avatar_url'] != null || sbData['photo_url'] != null)) {
+
+        final avatar = result['avatar_url']?.toString() ?? result['photoUrl']?.toString() ?? result['photo_url']?.toString() ?? '';
+        if (avatar.trim().isEmpty && (sbData['avatar_url'] != null || sbData['photo_url'] != null)) {
           result['avatar_url'] = sbData['avatar_url'] ?? sbData['photo_url'];
         }
       }
     } catch (e) {
       debugPrint('[UserProfileSyncService] Error fetching from Supabase: $e');
+    }
+
+    // 3. Fallback to Firebase Auth user phoneNumber
+    if (phoneInResult.trim().isEmpty) {
+      final currentUser = _authService.currentUser;
+      if (currentUser != null && (currentUser.phoneNumber?.trim().isNotEmpty ?? false)) {
+        phoneInResult = currentUser.phoneNumber!.trim();
+      }
+    }
+
+    if (phoneInResult.trim().isNotEmpty) {
+      result['phone'] = phoneInResult.trim();
+      result['contactNumber'] = phoneInResult.trim();
+      result['contact_number'] = phoneInResult.trim();
     }
 
     return result;
@@ -135,6 +174,8 @@ class UserProfileSyncService {
         'lastName': surname.trim(),
         'email': email.trim(),
         'phone': phone.trim(),
+        'contactNumber': phone.trim(),
+        'contact_number': phone.trim(),
         'displayName': displayName.isNotEmpty ? displayName : email.trim(),
         'updatedAt': now,
       };

@@ -1,10 +1,12 @@
-// lib/core/services/auth_service.dart
+import 'dart:convert';
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import '../../firebase_options.dart';
+import 'supabase_service.dart';
 
 /// Authentication service using Firebase Auth with Realtime Database integration
 class AuthService {
@@ -97,6 +99,10 @@ class AuthService {
     required String email,
     required String password,
     required String displayName,
+    String? firstName,
+    String? middleInitial,
+    String? surname,
+    String? phone,
   }) async {
     try {
       // 1. Create the user in Firebase Auth
@@ -124,13 +130,26 @@ class AuthService {
 
       // 4. Sync to Firebase Realtime Database (Identity Bridge)
       try {
-        await _database.ref().child('users/${firebaseUser.uid}').set({
+        final Map<String, dynamic> userData = {
           'uid': firebaseUser.uid,
           'email': email.trim(),
           'displayName': displayName,
           'role': inferredRole,
           'createdAt': ServerValue.timestamp,
-        });
+        };
+        if (firstName != null && firstName.isNotEmpty) userData['firstName'] = firstName.trim();
+        if (middleInitial != null && middleInitial.isNotEmpty) userData['middleInitial'] = middleInitial.trim();
+        if (surname != null && surname.isNotEmpty) {
+          userData['surname'] = surname.trim();
+          userData['lastName'] = surname.trim();
+        }
+        if (phone != null && phone.isNotEmpty) {
+          userData['phone'] = phone.trim();
+          userData['contactNumber'] = phone.trim();
+          userData['contact_number'] = phone.trim();
+        }
+
+        await _database.ref().child('users/${firebaseUser.uid}').set(userData);
       } catch (e) {
         // ignore: avoid_print
         print('Firebase DB Sync Warning (Non-fatal): $e');
@@ -153,6 +172,71 @@ class AuthService {
   /// Sign out the current user
   Future<void> signOut() async {
     await _auth.signOut();
+  }
+
+  /// Checks if an email is already registered in Firebase Auth, Supabase, or RTDB
+  Future<bool> isEmailInUse(String email) async {
+    final cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail.isEmpty) return false;
+
+    // 1. Check Firebase Auth via REST API (createAuthUri)
+    try {
+      final apiKey = DefaultFirebaseOptions.currentPlatform.apiKey;
+      final url = Uri.parse(
+        'https://identitytoolkit.googleapis.com/v1/accounts:createAuthUri?key=$apiKey',
+      );
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'identifier': cleanEmail,
+          'continueUri': 'http://localhost',
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['registered'] == true) {
+          debugPrint('Firebase Auth REST API: $cleanEmail is ALREADY registered');
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('Firebase Auth REST check note: $e');
+    }
+
+    // 2. Check Supabase profiles table
+    try {
+      final response = await SupabaseService().client
+          .from('profiles')
+          .select('id')
+          .ilike('email', cleanEmail)
+          .maybeSingle();
+      if (response != null && response.isNotEmpty) {
+        debugPrint('Supabase: $cleanEmail is ALREADY registered in profiles');
+        return true;
+      }
+    } catch (e) {
+      debugPrint('Supabase profile email check note: $e');
+    }
+
+    // 3. Check Firebase Realtime Database users node
+    try {
+      final snapshot = await _database
+          .ref()
+          .child('users')
+          .orderByChild('email')
+          .equalTo(cleanEmail)
+          .get();
+      if (snapshot.exists && snapshot.value != null) {
+        debugPrint('Firebase RTDB: $cleanEmail is ALREADY registered in users node');
+        return true;
+      }
+    } catch (e) {
+      debugPrint('Firebase DB email check note: $e');
+    }
+
+    return false;
   }
 
   /// Send password reset email
