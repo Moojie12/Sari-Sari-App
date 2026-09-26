@@ -9,6 +9,7 @@ enum ChangePasswordResult {
   incorrectCurrentPassword,
   newPasswordTooShort,
   newPasswordsDoNotMatch,
+  failed,
 }
 
 /// Owns the signed-in employee's and owner's profile
@@ -245,20 +246,29 @@ class EmployeeProfileController extends ChangeNotifier {
     }
   }
 
-  ChangePasswordResult changePassword({
+  Future<ChangePasswordResult> changePassword({
     required String currentPassword,
     required String newPassword,
     required String confirmPassword,
-  }) {
-    if (_password.isNotEmpty && currentPassword != _password) {
-      return ChangePasswordResult.incorrectCurrentPassword;
-    }
+  }) async {
     if (newPassword.length < 6) {
       return ChangePasswordResult.newPasswordTooShort;
     }
     if (newPassword != confirmPassword) {
       return ChangePasswordResult.newPasswordsDoNotMatch;
     }
+
+    final error = await AuthService().changePassword(
+      currentPassword: currentPassword,
+      newPassword: newPassword,
+    );
+
+    if (error == 'Current password is incorrect.') {
+      return ChangePasswordResult.incorrectCurrentPassword;
+    } else if (error != null) {
+      return ChangePasswordResult.failed;
+    }
+
     _password = newPassword;
     notifyListeners();
     return ChangePasswordResult.success;

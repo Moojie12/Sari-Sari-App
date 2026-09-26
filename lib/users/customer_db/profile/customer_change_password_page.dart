@@ -5,6 +5,8 @@ import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/custom_text_field.dart';
 import '../../../shared/widgets/primary_button.dart';
 
+import '../../../core/services/auth_service.dart';
+
 class CustomerChangePasswordPage extends StatefulWidget {
   const CustomerChangePasswordPage({super.key});
 
@@ -16,6 +18,7 @@ class _CustomerChangePasswordPageState extends State<CustomerChangePasswordPage>
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -32,6 +35,16 @@ class _CustomerChangePasswordPageState extends State<CustomerChangePasswordPage>
 
     if (current.isEmpty || newPassword.isEmpty || confirm.isEmpty) {
       TopNotification.show(context, 'Please fill in all fields.', isError: true);
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      TopNotification.show(context, 'New password must be at least 6 characters long.', isError: true);
+      return;
+    }
+
+    if (newPassword != confirm) {
+      TopNotification.show(context, 'Passwords do not match.', isError: true);
       return;
     }
 
@@ -54,6 +67,25 @@ class _CustomerChangePasswordPageState extends State<CustomerChangePasswordPage>
     );
 
     if (confirmed != true) return;
+    if (!mounted) return;
+
+    setState(() => _isLoading = true);
+
+    final error = await AuthService().changePassword(
+      currentPassword: current,
+      newPassword: newPassword,
+    );
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
+
+    if (error != null) {
+      if (mounted) {
+        TopNotification.show(context, error, isError: true);
+      }
+      return;
+    }
 
     if (!mounted) return;
     TopNotification.show(context, 'Password changed successfully.');
@@ -109,12 +141,13 @@ class _CustomerChangePasswordPageState extends State<CustomerChangePasswordPage>
               ),
               const SizedBox(height: 6),
               const Text(
-                'Must be at least 8 characters.',
+                'Must be at least 6 characters.',
                 style: TextStyle(color: AppColors.placeholderColor, fontSize: 11),
               ),
               const SizedBox(height: 24),
               PrimaryButton(
-                label: 'Update Password',
+                label: _isLoading ? 'Updating...' : 'Update Password',
+                isLoading: _isLoading,
                 height: 48,
                 onPressed: _submit,
               ),

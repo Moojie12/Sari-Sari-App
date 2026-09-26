@@ -21,6 +21,7 @@ class _EmployeeChangePasswordPageState extends State<EmployeeChangePasswordPage>
   final _currentPasswordController = TextEditingController();
   final _newPasswordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
+  bool _isLoading = false;
 
   @override
   void dispose() {
@@ -61,11 +62,17 @@ class _EmployeeChangePasswordPageState extends State<EmployeeChangePasswordPage>
     if (confirmed != true) return;
     if (!mounted) return;
 
-    final result = _controller.changePassword(
+    setState(() => _isLoading = true);
+
+    final result = await _controller.changePassword(
       currentPassword: current,
       newPassword: newPassword,
       confirmPassword: confirm,
     );
+
+    if (mounted) {
+      setState(() => _isLoading = false);
+    }
 
     switch (result) {
       case ChangePasswordResult.success:
@@ -79,11 +86,15 @@ class _EmployeeChangePasswordPageState extends State<EmployeeChangePasswordPage>
         break;
       case ChangePasswordResult.newPasswordTooShort:
         if (!mounted) return;
-        TopNotification.show(context, 'New password must be at least 8 characters.', isError: true);
+        TopNotification.show(context, 'New password must be at least 6 characters.', isError: true);
         break;
       case ChangePasswordResult.newPasswordsDoNotMatch:
         if (!mounted) return;
         TopNotification.show(context, 'New password and confirmation do not match.', isError: true);
+        break;
+      case ChangePasswordResult.failed:
+        if (!mounted) return;
+        TopNotification.show(context, 'Failed to update password. Please try again.', isError: true);
         break;
     }
   }
@@ -137,12 +148,13 @@ class _EmployeeChangePasswordPageState extends State<EmployeeChangePasswordPage>
               ),
               const SizedBox(height: 6),
               Text(
-                'Must be at least 8 characters.',
+                'Must be at least 6 characters.',
                 style: TextStyle(color: AppColors.placeholderColor, fontSize: 11),
               ),
               const SizedBox(height: 24),
               PrimaryButton(
-                label: 'Update Password',
+                label: _isLoading ? 'Updating...' : 'Update Password',
+                isLoading: _isLoading,
                 height: 48,
                 onPressed: _submit,
               ),

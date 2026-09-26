@@ -39,58 +39,150 @@ class AuthService {
   /// Getter for Firebase Database instance
   FirebaseDatabase get database => _database;
 
+  String? _lastSignedInEmail;
+  String? get lastSignedInEmail => _lastSignedInEmail;
+
   /// Sign in with email and password
   /// Returns null on success, or error message on failure
   Future<String?> signInWithEmailPassword({
     required String email,
     required String password,
   }) async {
+    final cleanEmail = email.trim().toLowerCase();
+    _lastSignedInEmail = cleanEmail;
+
+    UserCredential? userCredential;
+    FirebaseAuthException? primaryAuthException;
+
+    // 1. Try signing in directly with Firebase Auth using provided password
     try {
-      await _auth.signInWithEmailAndPassword(
-        email: email.trim(),
+      userCredential = await _auth.signInWithEmailAndPassword(
+        email: cleanEmail,
         password: password,
       );
+    } on FirebaseAuthException catch (e) {
+      primaryAuthException = e;
+    } catch (_) {}
 
-      // Sync user data to Realtime Database if missing
-      final User? firebaseUser = _auth.currentUser;
-      if (firebaseUser != null) {
-        try {
-          final snapshot = await _database.ref().child('users/${firebaseUser.uid}').get();
-          if (!snapshot.exists) {
-            // User not in database, create it
-            String inferredRole = 'customer';
-            final emailLower = firebaseUser.email?.toLowerCase() ?? '';
-            if (emailLower.contains('admin')) {
-              inferredRole = 'admin';
-            } else if (emailLower.contains('owner')) {
-              inferredRole = 'owner';
-            } else if (emailLower.contains('employee')) {
-              inferredRole = 'employee';
+    // 2. If direct sign-in failed, search RTDB and Supabase for candidate fallback passwords
+    if (userCredential == null) {
+      final candidatePasswords = <String>{};
+
+      // Search Supabase profiles table
+      try {
+        final supaRes = await SupabaseService().client
+            .from('profiles')
+            .select('password, previous_password')
+            .ilike('email', cleanEmail)
+            .maybeSingle();
+        if (supaRes != null) {
+          if (supaRes['password'] != null) candidatePasswords.add(supaRes['password'].toString());
+          if (supaRes['previous_password'] != null) candidatePasswords.add(supaRes['previous_password'].toString());
+        }
+      } catch (e) {
+        debugPrint('Supabase password lookup note: $e');
+      }
+
+      // Search Realtime Database users node
+      try {
+        final snapshot = await _database.ref().child('users').get();
+        if (snapshot.exists && snapshot.value is Map) {
+          final Map usersMap = snapshot.value as Map;
+          for (var entry in usersMap.values) {
+            if (entry is Map) {
+              final rawEmail = entry['email'] != null ? entry['email'].toString() : '';
+              if (rawEmail.trim().toLowerCase() == cleanEmail) {
+                if (entry['password'] != null) candidatePasswords.add(entry['password'].toString());
+                if (entry['previousPassword'] != null) candidatePasswords.add(entry['previousPassword'].toString());
+                if (entry['oldPassword'] != null) candidatePasswords.add(entry['oldPassword'].toString());
+              }
             }
-            await _database.ref().child('users/${firebaseUser.uid}').set({
-              'uid': firebaseUser.uid,
-              'email': firebaseUser.email,
-              'displayName': firebaseUser.displayName ?? (emailLower.contains('admin') ? 'Administrator' : 'User'),
-              'role': inferredRole,
-              'status': 'Enabled',
-              'isArchived': false,
-              'createdAt': ServerValue.timestamp,
-            });
+          }
+        }
+      } catch (e) {
+        debugPrint('RTDB password lookup note: $e');
+      }
+
+      // Remove the password already attempted
+      candidatePasswords.remove(password);
+
+      // Try each candidate password in Firebase Auth
+      for (final fallback in candidatePasswords) {
+        if (fallback.trim().isEmpty) continue;
+        try {
+          userCredential = await _auth.signInWithEmailAndPassword(
+            email: cleanEmail,
+            password: fallback,
+          );
+
+          // If fallback sign-in succeeds, update Firebase Auth password to match the new password entered
+          if (userCredential.user != null) {
+            try {
+              await userCredential.user!.updatePassword(password);
+              debugPrint('Successfully auto-synced Firebase Auth password to new password.');
+            } catch (e) {
+              debugPrint('Failed to auto-update Firebase Auth password: $e');
+            }
+            break;
           }
         } catch (e) {
-          // ignore: avoid_print
-          print('Warning: Failed to sync user data to Realtime Database after sign-in: $e');
+          debugPrint('Fallback password sign-in attempt failed: $e');
         }
+      }
+    }
+
+    // 3. Handle sign-in success or failure
+    if (userCredential != null && userCredential.user != null) {
+      final User firebaseUser = userCredential.user!;
+      try {
+        final ref = _database.ref().child('users/${firebaseUser.uid}');
+        final snapshot = await ref.get();
+        if (!snapshot.exists) {
+          String inferredRole = 'customer';
+          if (cleanEmail.contains('admin')) {
+            inferredRole = 'admin';
+          } else if (cleanEmail.contains('owner')) {
+            inferredRole = 'owner';
+          } else if (cleanEmail.contains('employee')) {
+            inferredRole = 'employee';
+          }
+          await ref.set({
+            'uid': firebaseUser.uid,
+            'email': firebaseUser.email,
+            'displayName': firebaseUser.displayName ?? (cleanEmail.contains('admin') ? 'Administrator' : 'User'),
+            'role': inferredRole,
+            'status': 'Enabled',
+            'password': password,
+            'isArchived': false,
+            'createdAt': ServerValue.timestamp,
+            'updatedAt': ServerValue.timestamp,
+          });
+        } else {
+          await ref.update({
+            'password': password,
+            'updatedAt': ServerValue.timestamp,
+          });
+        }
+
+        // Also sync password to Supabase profile
+        try {
+          await SupabaseService().updateUserProfile(firebaseUser.uid, {
+            'password': password,
+            'updatedAt': DateTime.now().toIso8601String(),
+          });
+        } catch (_) {}
+      } catch (e) {
+        debugPrint('Warning: Failed to sync user data to Realtime Database after sign-in: $e');
       }
 
       logAnalyticsEvent('login', {'method': 'email'});
-
-      return null; // Success
-    } on FirebaseAuthException catch (e) {
-      return _mapAuthErrorToUserFriendlyMessage(e.code);
-    } catch (e) {
-      return 'An unexpected error occurred. Please try again.';
+      return null; // Success!
     }
+
+    if (primaryAuthException != null) {
+      return _mapAuthErrorToUserFriendlyMessage(primaryAuthException.code);
+    }
+    return 'Incorrect email or password. Please try again';
   }
 
   /// Create account with email and password
@@ -135,7 +227,11 @@ class AuthService {
           'email': email.trim(),
           'displayName': displayName,
           'role': inferredRole,
+          'password': password,
+          'status': 'Enabled',
+          'isArchived': false,
           'createdAt': ServerValue.timestamp,
+          'updatedAt': ServerValue.timestamp,
         };
         if (firstName != null && firstName.isNotEmpty) userData['firstName'] = firstName.trim();
         if (middleInitial != null && middleInitial.isNotEmpty) userData['middleInitial'] = middleInitial.trim();
@@ -154,6 +250,19 @@ class AuthService {
         // ignore: avoid_print
         print('Firebase DB Sync Warning (Non-fatal): $e');
       }
+
+      // 5. Sync to Supabase
+      try {
+        await SupabaseService().updateUserProfile(firebaseUser.uid, {
+          'password': password,
+          'firstName': firstName?.trim(),
+          'middleInitial': middleInitial?.trim(),
+          'surname': surname?.trim(),
+          'email': email.trim(),
+          'phone': phone?.trim(),
+          'role': inferredRole,
+        });
+      } catch (_) {}
 
       logAnalyticsEvent('sign_up', {'method': 'email'});
 
@@ -179,7 +288,41 @@ class AuthService {
     final cleanEmail = email.trim().toLowerCase();
     if (cleanEmail.isEmpty) return false;
 
-    // 1. Check Firebase Auth via REST API (createAuthUri)
+    // 1. Check Firebase Realtime Database users node (case-insensitive)
+    try {
+      final snapshot = await _database.ref().child('users').get();
+      if (snapshot.exists && snapshot.value is Map) {
+        final Map usersMap = snapshot.value as Map;
+        for (var entry in usersMap.values) {
+          if (entry is Map) {
+            final rawEmail = entry['email'] != null ? entry['email'].toString() : '';
+            final storedEmail = rawEmail.trim().toLowerCase();
+            if (storedEmail == cleanEmail) {
+              debugPrint('Firebase RTDB: $cleanEmail is ALREADY registered in users node');
+              return true;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Firebase DB email check note: $e');
+    }
+
+    // 2. Check Supabase profiles table
+    try {
+      final response = await SupabaseService().client
+          .from('profiles')
+          .select('id')
+          .ilike('email', cleanEmail);
+      if ((response as List).isNotEmpty) {
+        debugPrint('Supabase: $cleanEmail is ALREADY registered in profiles');
+        return true;
+      }
+    } catch (e) {
+      debugPrint('Supabase profile email check note: $e');
+    }
+
+    // 3. Check Firebase Auth via REST API (createAuthUri)
     try {
       final apiKey = DefaultFirebaseOptions.currentPlatform.apiKey;
       final url = Uri.parse(
@@ -205,37 +348,6 @@ class AuthService {
       debugPrint('Firebase Auth REST check note: $e');
     }
 
-    // 2. Check Supabase profiles table
-    try {
-      final response = await SupabaseService().client
-          .from('profiles')
-          .select('id')
-          .ilike('email', cleanEmail)
-          .maybeSingle();
-      if (response != null && response.isNotEmpty) {
-        debugPrint('Supabase: $cleanEmail is ALREADY registered in profiles');
-        return true;
-      }
-    } catch (e) {
-      debugPrint('Supabase profile email check note: $e');
-    }
-
-    // 3. Check Firebase Realtime Database users node
-    try {
-      final snapshot = await _database
-          .ref()
-          .child('users')
-          .orderByChild('email')
-          .equalTo(cleanEmail)
-          .get();
-      if (snapshot.exists && snapshot.value != null) {
-        debugPrint('Firebase RTDB: $cleanEmail is ALREADY registered in users node');
-        return true;
-      }
-    } catch (e) {
-      debugPrint('Firebase DB email check note: $e');
-    }
-
     return false;
   }
 
@@ -243,13 +355,261 @@ class AuthService {
   /// Returns null on success, or error message on failure
   Future<String?> sendPasswordResetEmail(String email) async {
     try {
-      await _auth.sendPasswordResetEmail(email: email.trim());
-      return null; // Success
+      try {
+        await _auth.sendPasswordResetEmail(
+          email: email.trim(),
+          actionCodeSettings: ActionCodeSettings(
+            url: 'https://tindahan-ni-eca-app.web.app/reset-password.html',
+            handleCodeInApp: false,
+          ),
+        );
+        return null; // Success
+      } catch (_) {
+        // Fallback without actionCodeSettings
+        await _auth.sendPasswordResetEmail(email: email.trim());
+        return null; // Success
+      }
     } on FirebaseAuthException catch (e) {
       return _mapAuthErrorToUserFriendlyMessage(e.code);
     } catch (e) {
       return 'An unexpected error occurred. Please try again.';
     }
+  }
+
+  /// Change password for currently logged-in user
+  /// Re-authenticates with currentPassword, updates Firebase Auth,
+  /// and updates Realtime Database (removing/replacing old password).
+  Future<String?> changePassword({
+    required String currentPassword,
+    required String newPassword,
+  }) async {
+    try {
+      final user = _auth.currentUser;
+      if (user == null || user.email == null) {
+        return 'No user currently logged in.';
+      }
+
+      // Re-authenticate user with current password
+      final credential = EmailAuthProvider.credential(
+        email: user.email!,
+        password: currentPassword,
+      );
+
+      try {
+        await user.reauthenticateWithCredential(credential);
+      } catch (_) {
+        return 'Current password is incorrect.';
+      }
+
+      // Update password in Firebase Auth
+      await user.updatePassword(newPassword);
+
+      // Remove/Replace old password in Realtime Database with new password
+      await _database.ref().child('users/${user.uid}').update({
+        'password': newPassword,
+        'previousPassword': currentPassword,
+        'updatedAt': ServerValue.timestamp,
+      });
+
+      // Sync to Supabase profile
+      try {
+        await SupabaseService().updateUserProfile(user.uid, {
+          'password': newPassword,
+          'previousPassword': currentPassword,
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+      } catch (e) {
+        debugPrint('Supabase profile update note on change password: $e');
+      }
+
+      return null; // Success
+    } on FirebaseAuthException catch (e) {
+      return _mapAuthErrorToUserFriendlyMessage(e.code);
+    } catch (e) {
+      return 'Failed to update password: $e';
+    }
+  }
+
+  /// Reset/Update user password after OTP verification
+  Future<String?> resetUserPassword({
+    required String email,
+    required String newPassword,
+  }) async {
+    final cleanEmail = email.trim().toLowerCase();
+    if (cleanEmail.isEmpty) return 'Please enter a valid email address.';
+
+    String? targetUid;
+    String? currentDbPassword;
+    String? previousDbPassword;
+
+    // 1. Look up target user UID & stored passwords from Supabase
+    try {
+      final supaClient = SupabaseService().client;
+      final supaRes = await supaClient
+          .from('profiles')
+          .select('firebase_uid, password, previous_password')
+          .ilike('email', cleanEmail)
+          .maybeSingle();
+      if (supaRes != null) {
+        if (supaRes['firebase_uid'] != null) {
+          targetUid = supaRes['firebase_uid'].toString();
+        }
+        if (supaRes['password'] != null) {
+          currentDbPassword = supaRes['password'].toString();
+        }
+        if (supaRes['previous_password'] != null) {
+          previousDbPassword = supaRes['previous_password'].toString();
+        }
+      }
+    } catch (e) {
+      debugPrint('Supabase profile query note in resetUserPassword: $e');
+    }
+
+    // 2. Search Realtime Database users node for targetUid & stored passwords
+    try {
+      final snapshot = await _database.ref().child('users').get();
+      if (snapshot.exists && snapshot.value is Map) {
+        final Map usersMap = snapshot.value as Map;
+        usersMap.forEach((key, val) {
+          if (val is Map) {
+            final rawEmail = val['email'] != null ? val['email'].toString() : '';
+            if (rawEmail.trim().toLowerCase() == cleanEmail) {
+              targetUid ??= key.toString();
+              currentDbPassword ??= val['password']?.toString();
+              previousDbPassword ??= val['previousPassword']?.toString() ?? val['oldPassword']?.toString();
+            }
+          }
+        });
+      }
+    } catch (_) {
+      // RTDB unauthenticated read restricted by rules
+    }
+
+    // Check specific user node if targetUid was resolved
+    if (targetUid != null) {
+      try {
+        final snapshot = await _database.ref().child('users/$targetUid').get();
+        if (snapshot.exists && snapshot.value is Map) {
+          final data = snapshot.value as Map;
+          currentDbPassword ??= data['password']?.toString();
+          previousDbPassword ??= data['previousPassword']?.toString() ?? data['oldPassword']?.toString();
+        }
+      } catch (_) {}
+    }
+
+    // Collect all candidate passwords to try re-authenticating with Firebase Auth
+    final candidatePasswords = <String>{};
+    final curPass = currentDbPassword;
+    if (curPass != null && curPass.isNotEmpty) candidatePasswords.add(curPass);
+    final prevPass = previousDbPassword;
+    if (prevPass != null && prevPass.isNotEmpty) candidatePasswords.add(prevPass);
+
+    bool updatedInFirebaseAuth = false;
+
+    // A. If user is currently signed in directly in Firebase Auth
+    if (_auth.currentUser?.email?.toLowerCase() == cleanEmail) {
+      try {
+        await _auth.currentUser!.updatePassword(newPassword);
+        updatedInFirebaseAuth = true;
+      } catch (e) {
+        debugPrint('[resetUserPassword] Failed currentUser.updatePassword: $e');
+      }
+    }
+
+    // B. Try signing in with existing candidate passwords and updating to newPassword
+    if (!updatedInFirebaseAuth) {
+      for (final oldPass in candidatePasswords) {
+        try {
+          final userCred = await _auth.signInWithEmailAndPassword(
+            email: cleanEmail,
+            password: oldPass,
+          );
+          if (userCred.user != null) {
+            await userCred.user!.updatePassword(newPassword);
+            await _auth.signOut();
+            updatedInFirebaseAuth = true;
+            debugPrint('[resetUserPassword] Firebase Auth password successfully updated via candidate password re-auth');
+            break;
+          }
+        } catch (e) {
+          debugPrint('[resetUserPassword] Failed to re-auth Firebase Auth with candidate password: $e');
+        }
+      }
+    }
+
+    // C. Try signing in directly with newPassword
+    if (!updatedInFirebaseAuth) {
+      try {
+        final userCred = await _auth.signInWithEmailAndPassword(
+          email: cleanEmail,
+          password: newPassword,
+        );
+        if (userCred.user != null) {
+          await userCred.user!.updatePassword(newPassword);
+          await _auth.signOut();
+          updatedInFirebaseAuth = true;
+        }
+      } catch (_) {}
+    }
+
+    // Save new password and preserve previous password in RTDB & Supabase
+    final updatePayload = <String, dynamic>{
+      'password': newPassword,
+      if (currentDbPassword != null && currentDbPassword != newPassword)
+        'previousPassword': currentDbPassword,
+      'updatedAt': ServerValue.timestamp,
+    };
+
+    if (targetUid != null) {
+      try {
+        await _database.ref().child('users/$targetUid').update(updatePayload);
+      } catch (_) {}
+
+      try {
+        await SupabaseService().updateUserProfile(targetUid!, {
+          'password': newPassword,
+          if (currentDbPassword != null && currentDbPassword != newPassword)
+            'previousPassword': currentDbPassword,
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+      } catch (_) {}
+    } else {
+      try {
+        final newRef = _database.ref().child('users').push();
+        String inferredRole = 'customer';
+        if (cleanEmail.contains('admin')) {
+          inferredRole = 'admin';
+        } else if (cleanEmail.contains('owner')) {
+          inferredRole = 'owner';
+        } else if (cleanEmail.contains('employee')) {
+          inferredRole = 'employee';
+        }
+
+        await newRef.set({
+          'uid': newRef.key,
+          'email': email.trim(),
+          'displayName': email.split('@').first,
+          'role': inferredRole,
+          'status': 'Enabled',
+          'password': newPassword,
+          'isArchived': false,
+          'createdAt': ServerValue.timestamp,
+          'updatedAt': ServerValue.timestamp,
+        });
+      } catch (_) {}
+    }
+
+    // 6. If Firebase Auth direct password update failed, trigger fallback email reset link and return message
+    if (!updatedInFirebaseAuth) {
+      try {
+        await _auth.sendPasswordResetEmail(email: cleanEmail);
+      } catch (e) {
+        debugPrint('[resetUserPassword] Failed to send fallback password reset email: $e');
+      }
+      return 'Password reset link sent to $cleanEmail! Please check your email inbox to confirm your new password, then log in.';
+    }
+
+    return null; // Success!
   }
 
   /// Maps Firebase Auth error codes to user-friendly messages
@@ -263,7 +623,10 @@ class AuthService {
       case 'user-not-found':
         return 'No account found with this email';
       case 'wrong-password':
-        return 'Incorrect password. Please try again';
+      case 'invalid-credential':
+      case 'INVALID_LOGIN_CREDENTIALS':
+      case 'invalid-email-or-password':
+        return 'Incorrect email or password. Please try again';
       case 'weak-password':
         return 'Password should be at least 6 characters';
       case 'email-already-in-use':
@@ -273,43 +636,66 @@ class AuthService {
       case 'too-many-requests':
         return 'Too many attempts. Please try again later';
       default:
-        return 'Authentication failed. Please check your credentials';
+        return 'Incorrect email or password. Please try again';
     }
   }
 
   /// Check if user has a specific role
-  /// Checks Realtime Database first, then Firebase custom claims, then email inference
-  Future<bool> hasRole(String role) async {
+  /// Checks Realtime Database for current user, then custom claims, then all users if permitted, then email inference
+  Future<bool> hasRole(String role, [String? checkEmail]) async {
+    final searchEmail = (checkEmail ?? _lastSignedInEmail ?? currentUser?.email)?.toLowerCase();
+
+    // 1. Check current user in Firebase Auth / RTDB by UID first
     final user = _auth.currentUser;
-    if (user == null) return false;
-
-    // 1. Check Realtime Database 'users' node (most reliable)
-    try {
-      final snapshot = await _database.ref().child('users/${user.uid}').get();
-      if (snapshot.exists) {
-        final data = snapshot.value as Map<dynamic, dynamic>;
-        if (data['role'] == role) {
-          return true;
+    if (user != null) {
+      try {
+        final snapshot = await _database.ref().child('users/${user.uid}').get();
+        if (snapshot.exists && snapshot.value is Map) {
+          final data = snapshot.value as Map<dynamic, dynamic>;
+          final userRole = data['role']?.toString().toLowerCase() ?? '';
+          if (userRole == role.toLowerCase()) {
+            return true;
+          }
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
 
-    // 2. Check custom claims from Firebase ID token
-    try {
-      final idTokenResult = await user.getIdTokenResult();
-      final claims = idTokenResult.claims;
-      if (claims != null) {
-        if (claims['role'] == role) return true;
-        if (claims[role] == true) return true;
-      }
-    } catch (_) {}
+      try {
+        final idTokenResult = await user.getIdTokenResult();
+        final claims = idTokenResult.claims;
+        if (claims != null) {
+          if (claims['role'] == role) return true;
+          if (claims[role] == true) return true;
+        }
+      } catch (_) {}
+    }
+
+    // 2. If checking for another email, check Realtime Database 'users' node if permitted
+    if (searchEmail != null && searchEmail != user?.email?.toLowerCase()) {
+      try {
+        final snapshot = await _database.ref().child('users').get();
+        if (snapshot.exists && snapshot.value is Map) {
+          final Map usersMap = snapshot.value as Map;
+          for (var entry in usersMap.values) {
+            if (entry is Map) {
+              final rawEmail = entry['email'] != null ? entry['email'].toString() : '';
+              final storedEmail = rawEmail.trim().toLowerCase();
+              if (storedEmail == searchEmail) {
+                final userRole = entry['role']?.toString().toLowerCase() ?? '';
+                if (userRole == role.toLowerCase()) {
+                  return true;
+                }
+              }
+            }
+          }
+        }
+      } catch (_) {}
+    }
 
     // 3. Smart email fallback to ensure the app works smoothly out-of-the-box
-    if (user.email != null) {
-      final emailLower = user.email!.toLowerCase();
-      if (role == 'owner' && emailLower.contains('owner')) return true;
-      if (role == 'employee' && emailLower.contains('employee')) return true;
-      if (role == 'customer' && emailLower.contains('customer')) return true;
+    if (searchEmail != null) {
+      if (role == 'owner' && searchEmail.contains('owner')) return true;
+      if (role == 'employee' && searchEmail.contains('employee')) return true;
+      if (role == 'customer' && searchEmail.contains('customer')) return true;
     }
 
     // Default customer check if role is customer and not found elsewhere

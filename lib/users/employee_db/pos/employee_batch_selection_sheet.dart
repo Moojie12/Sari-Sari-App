@@ -144,29 +144,33 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
                 const SizedBox(height: 14),
               ],
               if (_skipSelection || _mode == _BatchSelectionMode.continueFefo)
-                _BatchTile(
-                  batch: _selected,
-                  batchNumber: widget.product.batches.indexOf(_selected) >= 0
-                      ? widget.product.batches.indexOf(_selected) + 1
-                      : 1,
-                  isSelected: true,
-                  unitStr: unitStr,
-                  onTap: null,
+                Builder(
+                  builder: (context) {
+                    final idx = widget.product.batches.indexWhere((b) => b.id == _selected.id);
+                    return _BatchTile(
+                      batch: _selected,
+                      batchNumber: idx != -1 ? idx + 1 : 1,
+                      isSelected: true,
+                      unitStr: unitStr,
+                      onTap: null,
+                    );
+                  },
                 )
               else
                 ..._validBatches.map(
-                      (batch) => Padding(
-                    padding: const EdgeInsets.only(bottom: 8),
-                    child: _BatchTile(
-                      batch: batch,
-                      batchNumber: widget.product.batches.indexOf(batch) >= 0
-                          ? widget.product.batches.indexOf(batch) + 1
-                          : 1,
-                      isSelected: batch.id == _selected.id,
-                      unitStr: unitStr,
-                      onTap: () => _selectBatch(batch),
-                    ),
-                  ),
+                  (batch) {
+                    final idx = widget.product.batches.indexWhere((b) => b.id == batch.id);
+                    return Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: _BatchTile(
+                        batch: batch,
+                        batchNumber: idx != -1 ? idx + 1 : 1,
+                        isSelected: batch.id == _selected.id,
+                        unitStr: unitStr,
+                        onTap: () => _selectBatch(batch),
+                      ),
+                    );
+                  },
                 ),
               const SizedBox(height: 20),
               Row(

@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reset Password - Tindahan ni Eca</title>
+  <style>
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    body {
+      background-color: #F8F9FA;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      padding: 20px;
+    }
+    .card {
+      background: #FFFFFF;
+      border-radius: 16px;
+      box-shadow: 0 10px 30px rgba(0,0,0,0.08);
+      width: 100%;
+      max-width: 420px;
+      padding: 32px 28px;
+    }
+    .header {
+      text-align: center;
+      margin-bottom: 24px;
+    }
+    .logo {
+      width: 70px;
+      height: 70px;
+      border-radius: 50%;
+      margin-bottom: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+      object-fit: cover;
+    }
+    .title {
+      font-size: 22px;
+      font-weight: 800;
+      color: #1A1A1A;
+      margin-bottom: 6px;
+    }
+    .subtitle {
+      font-size: 13px;
+      color: #6C757D;
+      line-height: 1.4;
+    }
+    .form-group {
+      margin-bottom: 18px;
+    }
+    label {
+      display: block;
+      font-size: 12px;
+      font-weight: 600;
+      color: #4A5568;
+      margin-bottom: 6px;
+    }
+    .input-container {
+      position: relative;
+    }
+    input {
+      width: 100%;
+      padding: 12px 42px 12px 14px;
+      border: 1.5px solid #E2E8F0;
+      border-radius: 10px;
+      font-size: 14px;
+      outline: none;
+      transition: border-color 0.2s;
+      background: #FFF5F0;
+    }
+    input:focus {
+      border-color: #FF6B00;
+      background: #FFFFFF;
+    }
+    .toggle-btn {
+      position: absolute;
+      right: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      color: #718096;
+    }
+    .btn {
+      width: 100%;
+      background: #FF6B00;
+      color: white;
+      border: none;
+      border-radius: 10px;
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 10px;
+      transition: background 0.2s;
+    }
+    .btn:hover {
+      background: #E05D00;
+    }
+    .btn:disabled {
+      background: #CBD5E0;
+      cursor: not-allowed;
+    }
+    .alert {
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 13px;
+      margin-bottom: 18px;
+      display: none;
+    }
+    .alert-error {
+      background: #FFF5F5;
+      color: #C53030;
+      border: 1px solid #FEB2B2;
+    }
+    .alert-success {
+      background: #F0FFF4;
+      color: #276749;
+      border: 1px solid #9AE6B4;
+    }
+    .instructions {
+      font-size: 11px;
+      color: #718096;
+      margin-top: 4px;
+      line-height: 1.3;
+    }
+  </style>
+  <!-- Firebase JS SDK compat -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+</head>
+<body>
+
+  <div class="card">
+    <div class="header">
+      <img src="/favicon.png" alt="Logo" id="app-logo" class="logo">
+      <h2 class="title">Create New Password</h2>
+      <p class="subtitle">Set and confirm your new password for Tindahan ni Eca</p>
+    </div>
+
+    <div id="alert" class="alert"></div>
+
+    <form id="reset-form" onsubmit="handleResetPassword(event)">
+      <div class="form-group">
+        <label for="new-password">New Password</label>
+        <div class="input-container">
+          <input type="password" id="new-password" placeholder="Enter new password" required oninput="validateForm()">
+          <button type="button" class="toggle-btn" onclick="toggleVisibility('new-password', this)">👁️</button>
+        </div>
+        <p class="instructions">Must be at least 8 chars, with uppercase, lowercase, number & special char.</p>
+      </div>
+
+      <div class="form-group">
+        <label for="confirm-password">Confirm New Password</label>
+        <div class="input-container">
+          <input type="password" id="confirm-password" placeholder="Confirm new password" required oninput="validateForm()">
+          <button type="button" class="toggle-btn" onclick="toggleVisibility('confirm-password', this)">👁️</button>
+        </div>
+      </div>
+
+      <button type="submit" id="submit-btn" class="btn">Save New Password</button>
+    </form>
+  </div>
+
+  <script>
+    // Extract parameters from URL
+    const urlParams = new URLSearchParams(window.location.search);
+    const mode = urlParams.get('mode');
+    const oobCode = urlParams.get('oobCode');
+    const apiKey = urlParams.get('apiKey');
+
+    const alertEl = document.getElementById('alert');
+    const formEl = document.getElementById('reset-form');
+    const submitBtn = document.getElementById('submit-btn');
+
+    function showAlert(message, isError = true) {
+      alertEl.textContent = message;
+      alertEl.className = 'alert ' + (isError ? 'alert-error' : 'alert-success');
+      alertEl.style.display = 'block';
+    }
+
+    function hideAlert() {
+      alertEl.style.display = 'none';
+    }
+
+    function toggleVisibility(inputId, btn) {
+      const input = document.getElementById(inputId);
+      if (input.type === 'password') {
+        input.type = 'text';
+        btn.textContent = '🙈';
+      } else {
+        input.type = 'password';
+        btn.textContent = '👁️';
+      }
+    }
+
+    // Initialize Firebase Auth
+    if (apiKey) {
+      firebase.initializeApp({ apiKey: apiKey });
+    } else {
+      firebase.initializeApp({
+        apiKey: 'AIzaSyD-xEjxWySz4ZV4Natb_8fjHSm8l3Sh5_w',
+        authDomain: 'tindahan-ni-eca-app.firebaseapp.com',
+        projectId: 'tindahan-ni-eca-app'
+      });
+    }
+
+    // Check if code is present
+    if (!oobCode || mode !== 'resetPassword') {
+      showAlert('Invalid or expired password reset link. Please request a new link from the app.', true);
+      submitBtn.disabled = true;
+    }
+
+    function validatePassword(pass) {
+      if (pass.length < 8) return 'Password must be at least 8 characters long.';
+      if (!/[A-Z]/.test(pass)) return 'Password must contain at least 1 uppercase letter.';
+      if (!/[a-z]/.test(pass)) return 'Password must contain at least 1 lowercase letter.';
+      if (!/[0-9]/.test(pass)) return 'Password must contain at least 1 number.';
+      if (!/[!@#$%^&*(),.?":{}|<>_\-+=/\\]/.test(pass)) return 'Password must contain at least 1 special character.';
+      return null;
+    }
+
+    function validateForm() {
+      hideAlert();
+    }
+
+    async function handleResetPassword(e) {
+      e.preventDefault();
+      hideAlert();
+
+      const newPassword = document.getElementById('new-password').value;
+      const confirmPassword = document.getElementById('confirm-password').value;
+
+      if (newPassword !== confirmPassword) {
+        showAlert('Passwords do not match! Please check and try again.', true);
+        return;
+      }
+
+      const passError = validatePassword(newPassword);
+      if (passError) {
+        showAlert(passError, true);
+        return;
+      }
+
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving...';
+
+      try {
+        await firebase.auth().confirmPasswordReset(oobCode, newPassword);
+        showAlert('Password updated successfully! You can now open the Tindahan ni Eca app and log in with your new password.', false);
+        formEl.style.display = 'none';
+      } catch (error) {
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Save New Password';
+        let errMsg = error.message || 'Failed to reset password.';
+        if (error.code === 'auth/invalid-action-code') {
+          errMsg = 'This password reset link has expired or has already been used. Please request a new link.';
+        }
+        showAlert(errMsg, true);
+      }
+    }
+  </script>
+</body>
+</html>

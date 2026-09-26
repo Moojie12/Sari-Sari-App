@@ -3,8 +3,7 @@ import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/custom_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
-import '../../core/services/auth_service.dart';
-import '../../shared/utils/top_notification.dart';
+import 'otp_verification_page.dart';
 
 class ForgotPasswordPage extends StatefulWidget {
   const ForgotPasswordPage({super.key});
@@ -15,6 +14,7 @@ class ForgotPasswordPage extends StatefulWidget {
 
 class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   final TextEditingController _emailController = TextEditingController();
+  String? _emailError;
   bool _isLoading = false;
 
   @override
@@ -23,38 +23,55 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
     super.dispose();
   }
 
-  Future<void> _sendPasswordReset() async {
+  String? _validateEmail(String value) {
+    final trimmed = value.trim();
+    if (trimmed.isEmpty) {
+      return 'Please enter your email address';
+    }
+    if (!trimmed.toLowerCase().endsWith('@gmail.com')) {
+      return 'Email must be a valid @gmail.com address';
+    }
+    final prefix = trimmed.substring(0, trimmed.length - 10);
+    if (prefix.length <= 3) {
+      return 'Email name must be more than 3 characters before @gmail.com';
+    }
+    if (!RegExp(r'^[a-zA-Z0-9._%+-]+$').hasMatch(prefix)) {
+      return 'Email contains invalid characters';
+    }
+    return null;
+  }
+
+  Future<void> _sendOtp() async {
     final email = _emailController.text.trim();
+    final validationError = _validateEmail(email);
 
-    if (email.isEmpty) {
-      setState(() {});
+    if (validationError != null) {
+      setState(() {
+        _emailError = validationError;
+      });
       return;
     }
 
-    if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
-      setState(() {});
-      return;
-    }
-
-    setState(() => _isLoading = true);
-
-    final errorMessage = await AuthService().sendPasswordResetEmail(email);
-
-    setState(() => _isLoading = false);
-
-    if (errorMessage != null) {
-      if (mounted) {
-        TopNotification.show(context, errorMessage, isError: true);
-      }
-      return;
-    }
+    setState(() {
+      _emailError = null;
+      _isLoading = true;
+    });
 
     if (mounted) {
-      TopNotification.show(context, 'Password reset link sent! Please check your email.');
+      setState(() => _isLoading = false);
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => OtpVerificationPage(
+            email: email,
+            isSignUpFlow: false,
+          ),
+        ),
+      );
     }
   }
 
-  VoidCallback get _sendPressed => () { _sendPasswordReset(); };
+  VoidCallback get _sendPressed => () { _sendOtp(); };
 
   @override
   Widget build(BuildContext context) {
@@ -85,7 +102,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Enter your email address below and we will send you a password reset link.',
+                'Enter your email address below to receive an OTP verification code.',
                 style: TextStyle(
                   color: AppColors.secondaryText,
                   fontSize: 14,
@@ -107,10 +124,18 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
                 icon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
                 controller: _emailController,
+                errorText: _emailError,
+                onChanged: (value) {
+                  if (_emailError != null) {
+                    setState(() {
+                      _emailError = _validateEmail(value);
+                    });
+                  }
+                },
               ),
               const SizedBox(height: 32),
               PrimaryButton(
-                label: _isLoading ? 'Sending...' : 'Send Reset Link',
+                label: _isLoading ? 'Sending OTP...' : 'Send OTP',
                 onPressed: _sendPressed,
                 isLoading: _isLoading,
               ),

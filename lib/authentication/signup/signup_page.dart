@@ -87,8 +87,15 @@ class _SignUpPageState extends State<SignUpPage> {
     if (trimmed.isEmpty) {
       return 'Please enter your email address';
     }
-    if (!RegExp(r'^[a-zA-Z0-9._%+-]+@gmail\.com$').hasMatch(trimmed)) {
+    if (!trimmed.toLowerCase().endsWith('@gmail.com')) {
       return 'Email must be a valid @gmail.com address';
+    }
+    final prefix = trimmed.substring(0, trimmed.length - 10);
+    if (prefix.length <= 3) {
+      return 'Email name must be more than 3 characters before @gmail.com';
+    }
+    if (!RegExp(r'^[a-zA-Z0-9._%+-]+$').hasMatch(prefix)) {
+      return 'Email contains invalid characters';
     }
     return null;
   }

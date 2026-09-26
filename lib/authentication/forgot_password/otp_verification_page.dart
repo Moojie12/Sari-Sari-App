@@ -13,7 +13,6 @@ import '../../core/services/emailjs_service.dart';
 import '../../users/customer_db/customer_db.dart';
 import '../../users/employee_db/employee_db.dart';
 import '../../users/owner_db/owner_db.dart';
-import 'create_new_password_page.dart';
 
 class OtpVerificationPage extends StatefulWidget {
   const OtpVerificationPage({
@@ -66,19 +65,29 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       recipientName: widget.firstName,
     );
 
-    if (mounted) {
-      if (success) {
-        TopNotification.show(
-          context,
-          'Verification code sent to ${widget.email}. Please check your email inbox.',
-        );
-      } else {
-        TopNotification.show(
-          context,
-          'Failed to send verification email. Please check your internet connection or email address.',
-          isError: true,
-        );
+    if (!mounted) return;
+
+    if (success) {
+      TopNotification.show(
+        context,
+        'Verification code sent to ${widget.email}. Please check your email inbox.',
+      );
+    } else {
+      if (!widget.isSignUpFlow) {
+        // Fallback for Forgot Password: Send official Firebase Auth password reset email directly
+        final resetError = await AuthService().sendPasswordResetEmail(widget.email);
+        if (!mounted) return;
+        if (resetError == null) {
+          _showResetLinkSuccessDialog(context, widget.email);
+          return;
+        }
       }
+
+      TopNotification.show(
+        context,
+        'Failed to send verification email. Please check your internet connection or email address.',
+        isError: true,
+      );
     }
   }
 
@@ -266,17 +275,72 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         );
       }
     } else {
-      // Forgot Password flow
+      // Forgot Password flow: Send official Firebase Auth password reset email
+      final resetError = await AuthService().sendPasswordResetEmail(widget.email);
+
       if (mounted) {
         setState(() => _isVerifying = false);
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(
-            builder: (context) => const CreateNewPasswordPage(),
-          ),
-        );
+        if (resetError != null) {
+          TopNotification.show(context, resetError, isError: true);
+        } else {
+          _showResetLinkSuccessDialog(context, widget.email);
+        }
       }
     }
+  }
+
+  void _showResetLinkSuccessDialog(BuildContext context, String email) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green, size: 28),
+            SizedBox(width: 10),
+            Text('Identity Verified!', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'A password reset link has been sent to:',
+              style: TextStyle(fontSize: 14, color: AppColors.secondaryText),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              email,
+              style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.darkText),
+            ),
+            const SizedBox(height: 14),
+            const Text(
+              'Please check your email, click the link to set and confirm your new password, then log in to your account.',
+              style: TextStyle(fontSize: 13, height: 1.4, color: AppColors.darkText),
+            ),
+          ],
+        ),
+        actions: [
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              onPressed: () {
+                Navigator.pop(ctx); // Close dialog
+                Navigator.popUntil(context, (route) => route.isFirst); // Return to Login
+              },
+              child: const Text('Go to Login', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _handleResendCode() async {
@@ -440,7 +504,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
               ),
               const SizedBox(height: 24),
 
-              // Resend code section (bawal mag resend hanggat di pa natatapos ung 3mins)
+              // Resend code section
               Center(
                 child: Column(
                   children: [

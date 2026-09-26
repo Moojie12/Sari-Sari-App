@@ -207,8 +207,19 @@ class _LoginCardState extends State<_LoginCard> {
       _isLoading = false;
       return;
     }
-    if (!RegExp(r'^[\w-.]+@([\w-]+\.)+[\w-]{2,4}$').hasMatch(email)) {
-      setState(() => _emailError = 'Please enter a valid email address');
+    if (!email.toLowerCase().endsWith('@gmail.com')) {
+      setState(() => _emailError = 'Email must be a valid @gmail.com address');
+      _isLoading = false;
+      return;
+    }
+    final emailPrefix = email.substring(0, email.length - 10);
+    if (emailPrefix.length <= 3) {
+      setState(() => _emailError = 'Email name must be more than 3 characters before @gmail.com');
+      _isLoading = false;
+      return;
+    }
+    if (!RegExp(r'^[a-zA-Z0-9._%+-]+$').hasMatch(emailPrefix)) {
+      setState(() => _emailError = 'Email contains invalid characters');
       _isLoading = false;
       return;
     }

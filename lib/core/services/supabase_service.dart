@@ -1273,6 +1273,8 @@ class SupabaseService {
       if (updates.containsKey('contact_number')) mappedUpdates['phone'] = updates['contact_number'];
       if (updates.containsKey('role')) mappedUpdates['role'] = updates['role'];
       if (updates.containsKey('status')) mappedUpdates['status'] = updates['status'];
+      if (updates.containsKey('password')) mappedUpdates['password'] = updates['password'];
+      if (updates.containsKey('previousPassword')) mappedUpdates['previous_password'] = updates['previousPassword'];
       if (updates.containsKey('avatarUrl')) mappedUpdates['avatar_url'] = updates['avatarUrl'];
       if (updates.containsKey('avatar_url')) mappedUpdates['avatar_url'] = updates['avatar_url'];
       if (updates.containsKey('photoPath')) mappedUpdates['avatar_url'] = updates['photoPath'];
@@ -1290,11 +1292,24 @@ class SupabaseService {
       mappedUpdates.remove('id');
 
       // Upsert: Try to update based on firebase_uid, insert if not exists
-      final response = await _client
-          .from('profiles')
-          .upsert(mappedUpdates, onConflict: 'firebase_uid')
-          .select()
-          .single();
+      Map<String, dynamic> response;
+      try {
+        response = await _client
+            .from('profiles')
+            .upsert(mappedUpdates, onConflict: 'firebase_uid')
+            .select()
+            .single();
+      } catch (e) {
+        // Fallback if password or previous_password column does not exist in Supabase schema cache
+        final fallback = Map<String, dynamic>.from(mappedUpdates);
+        fallback.remove('password');
+        fallback.remove('previous_password');
+        response = await _client
+            .from('profiles')
+            .upsert(fallback, onConflict: 'firebase_uid')
+            .select()
+            .single();
+      }
 
       // Also update Firebase Realtime Database users node for Firebase-Supabase identity bridge
       try {
@@ -1456,18 +1471,16 @@ class SupabaseService {
           .eq('action_type', actionType)
           .order('attempt_timestamp', ascending: false);
 
-      if (response != null && response is List) {
+      if (response.isNotEmpty) {
         // Check if currently locked out
         Map<String, dynamic>? activeLockout;
         for (final row in response) {
-          if (row is Map) {
-            final lockoutStr = row['lockout_until']?.toString();
-            if (lockoutStr != null) {
-              final lockoutTime = DateTime.tryParse(lockoutStr);
-              if (lockoutTime != null && lockoutTime.isAfter(now)) {
-                activeLockout = Map<String, dynamic>.from(row);
-                break;
-              }
+          final lockoutStr = row['lockout_until']?.toString();
+          if (lockoutStr != null) {
+            final lockoutTime = DateTime.tryParse(lockoutStr);
+            if (lockoutTime != null && lockoutTime.isAfter(now)) {
+              activeLockout = Map<String, dynamic>.from(row);
+              break;
             }
           }
         }
@@ -1520,8 +1533,8 @@ class SupabaseService {
           'retry_after_seconds': 0,
         };
       }
-    } catch (e) {
-      debugPrint('Supabase rate_limit_events query failed or table missing: $e');
+    } catch (_) {
+      // Table rate_limit_events may not exist in Supabase schema cache; local in-memory rate limiter handles fallback
     }
     return null;
   }

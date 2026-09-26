@@ -255,7 +255,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     );
                   }
 
-                  if (mounted) {
+                  if (mounted && context.mounted) {
                     if (result == null) {
                       Navigator.pop(context, true);
                     } else {
@@ -263,7 +263,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     }
                   }
                 } catch (e) {
-                  if (mounted) {
+                  if (mounted && context.mounted) {
                     TopNotification.show(context, 'Error: $e', isError: true);
                   }
                 }
@@ -449,7 +449,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     if (confirm == true && mounted) {
       final result = await _userService.archiveUser(user.id);
-      if (mounted) {
+      if (mounted && context.mounted) {
         if (result == null) {
           TopNotification.show(context, 'User archived successfully');
           // Refresh the users section
@@ -487,7 +487,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     if (confirm == true && mounted) {
       final result = await _userService.permanentlyDeleteUser(user.id);
-      if (mounted) {
+      if (mounted && context.mounted) {
         if (result == null) {
           TopNotification.show(context, 'User deleted successfully');
           // Refresh the users section
@@ -677,7 +677,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     );
                   }
 
-                  if (mounted) {
+                  if (mounted && context.mounted) {
                     if (error == null) {
                       TopNotification.show(context, 'Product ${isEdit ? 'updated' : 'added'} successfully');
                       Navigator.pop(context, true);
@@ -687,7 +687,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                     }
                   }
                 } catch (e) {
-                  if (mounted) TopNotification.show(context, 'Error: $e', isError: true);
+                  if (mounted && context.mounted) TopNotification.show(context, 'Error: $e', isError: true);
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
@@ -762,16 +762,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
                   product.id,
                   quantity.toDouble(),
                 );
-                if (mounted) {
+                if (mounted && context.mounted) {
                   TopNotification.show(context, 'Stock adjusted successfully');
-                }
-                if (mounted) {
                   Navigator.pop(context, true);
                   // Refresh the products section
                   setState(() {});
                 }
               } catch (e) {
-                if (mounted) {
+                if (mounted && context.mounted) {
                   TopNotification.show(context, 'Failed to adjust stock: $e', isError: true);
                 }
               }
