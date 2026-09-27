@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import 'employee_notification_details_page.dart';
 import 'employee_notification_model.dart';
 import 'employee_notifications_controller.dart';
 
@@ -79,7 +80,17 @@ class EmployeeNotificationsPage extends StatelessWidget {
                 final notification = notifications[index];
                 return _NotificationTile(
                   notification: notification,
-                  onTap: () => controller.markAsRead(notification.id),
+                  onTap: () {
+                    controller.markAsRead(notification.id);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => EmployeeNotificationDetailsPage(
+                          notification: notification.copyWith(isRead: true),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),

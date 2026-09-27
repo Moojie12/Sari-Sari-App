@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/notification_database_service.dart';
@@ -18,6 +19,8 @@ class CustomerNotificationsController extends ChangeNotifier {
   bool _isLoading = false;
 
   bool get isLoading => _isLoading;
+
+  StreamSubscription<List<CustomerNotification>>? _subscription;
 
   List<CustomerNotification> get notifications {
     return _notifications
@@ -53,6 +56,24 @@ class CustomerNotificationsController extends ChangeNotifier {
           }
         }
       }
+
+      // Start realtime subscription
+      _subscription?.cancel();
+      _subscription = _dbService.subscribeCustomerNotifications(effectiveUserId).listen((realtimeNotifs) {
+        if (realtimeNotifs.isNotEmpty) {
+          final existingIds = _notifications.map((n) => n.id).toSet();
+          bool changed = false;
+          for (final notif in realtimeNotifs) {
+            if (!existingIds.contains(notif.id)) {
+              _notifications.add(notif);
+              changed = true;
+            } else if (notif.isRead && _readIds.add(notif.id)) {
+              changed = true;
+            }
+          }
+          if (changed) notifyListeners();
+        }
+      });
     } catch (e) {
       debugPrint('Error loading customer notifications: $e');
     } finally {

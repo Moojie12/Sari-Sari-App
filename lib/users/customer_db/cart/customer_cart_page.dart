@@ -33,6 +33,49 @@ class CustomerCartPage extends StatelessWidget {
         elevation: 0,
         iconTheme: const IconThemeData(color: AppColors.darkText),
         centerTitle: true,
+        actions: [
+          ListenableBuilder(
+            listenable: cartController,
+            builder: (context, _) {
+              if (cartController.items.isEmpty) return const SizedBox.shrink();
+              return TextButton(
+                onPressed: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Clear Cart', style: TextStyle(fontWeight: FontWeight.bold)),
+                      content: const Text('Are you sure you want to clear all items from your cart?'),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Clear All', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
+                    ),
+                  );
+
+                  if (confirmed == true) {
+                    cartController.clearCart();
+                    if (context.mounted) {
+                      TopNotification.show(context, 'Cart cleared');
+                    }
+                  }
+                },
+                child: const Text(
+                  'Clear All',
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: ListenableBuilder(
         listenable: cartController,
@@ -99,16 +142,38 @@ class CustomerCartPage extends StatelessWidget {
               _CartSummary(
                 itemCount: cartController.itemCount,
                 totalAmount: cartController.totalAmount,
-                onCheckout: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => CustomerCheckoutPage(
-                        cartController: cartController,
-                        orderController: orderController,
+                onCheckout: () async {
+                  final confirmed = await showDialog<bool>(
+                    context: context,
+                    builder: (context) => AlertDialog(
+                      title: const Text('Proceed to Checkout', style: TextStyle(fontWeight: FontWeight.bold)),
+                      content: Text(
+                        'Are you sure you want to proceed to checkout with ${cartController.itemCount} item${cartController.itemCount > 1 ? 's' : ''} for ₱${cartController.totalAmount.toStringAsFixed(2)}?',
                       ),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, false),
+                          child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+                        ),
+                        TextButton(
+                          onPressed: () => Navigator.pop(context, true),
+                          child: const Text('Proceed', style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold)),
+                        ),
+                      ],
                     ),
                   );
+
+                  if (confirmed == true && context.mounted) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CustomerCheckoutPage(
+                          cartController: cartController,
+                          orderController: orderController,
+                        ),
+                      ),
+                    );
+                  }
                 },
               ),
             ],

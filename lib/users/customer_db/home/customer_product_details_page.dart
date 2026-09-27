@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
@@ -28,6 +29,33 @@ class CustomerProductDetailsPage extends StatefulWidget {
 class _CustomerProductDetailsPageState
     extends State<CustomerProductDetailsPage> {
   int _quantity = 1;
+  late final TextEditingController _quantityController;
+  late final FocusNode _quantityFocusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _quantityController = TextEditingController(text: '$_quantity');
+    _quantityFocusNode = FocusNode();
+    _quantityFocusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void dispose() {
+    _quantityFocusNode.removeListener(_onFocusChange);
+    _quantityFocusNode.dispose();
+    _quantityController.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChange() {
+    if (!_quantityFocusNode.hasFocus) {
+      if (_quantityController.text.isEmpty ||
+          int.tryParse(_quantityController.text) == null) {
+        _quantityController.text = '$_quantity';
+      }
+    }
+  }
 
   bool get _isOutOfStock => widget.product.isOutOfStock;
 
@@ -37,13 +65,46 @@ class _CustomerProductDetailsPageState
   double get _subtotal => widget.product.price * _quantity;
 
   void _incrementQuantity() {
-    if (_quantity >= widget.product.sellableQuantity.toInt()) return;
-    setState(() => _quantity++);
+    final maxStock = widget.product.sellableQuantity.toInt();
+    if (_quantity >= maxStock) return;
+    setState(() {
+      _quantity++;
+      _quantityController.text = '$_quantity';
+    });
   }
 
   void _decrementQuantity() {
     if (_quantity <= 1) return;
-    setState(() => _quantity--);
+    setState(() {
+      _quantity--;
+      _quantityController.text = '$_quantity';
+    });
+  }
+
+  void _onQuantityChanged(String value) {
+    if (value.isEmpty) {
+      setState(() {
+        _quantity = 1;
+      });
+      return;
+    }
+    final parsed = int.tryParse(value);
+    if (parsed != null) {
+      final maxStock = widget.product.sellableQuantity.toInt();
+      int clamped = parsed;
+      if (clamped < 1) clamped = 1;
+      if (clamped > maxStock && maxStock > 0) clamped = maxStock;
+
+      if (clamped != parsed) {
+        _quantityController.value = TextEditingValue(
+          text: '$clamped',
+          selection: TextSelection.collapsed(offset: '$clamped'.length),
+        );
+      }
+      setState(() {
+        _quantity = clamped;
+      });
+    }
   }
 
   void _handleAddToCart() {
@@ -200,6 +261,9 @@ class _CustomerProductDetailsPageState
                 subtotal: _subtotal,
                 onDecrement: _decrementQuantity,
                 onIncrement: _incrementQuantity,
+                controller: _quantityController,
+                focusNode: _quantityFocusNode,
+                onChanged: _onQuantityChanged,
               ),
             ],
           ),
@@ -321,7 +385,7 @@ class _Badge extends StatelessWidget {
   }
 }
 
-/// Centered quantity stepper card with a live subtotal.
+/// Centered quantity stepper card with a live subtotal and direct input.
 class _QuantityCard extends StatelessWidget {
   const _QuantityCard({
     required this.quantity,
@@ -330,6 +394,9 @@ class _QuantityCard extends StatelessWidget {
     required this.subtotal,
     required this.onDecrement,
     required this.onIncrement,
+    required this.controller,
+    required this.focusNode,
+    required this.onChanged,
   });
 
   final int quantity;
@@ -338,6 +405,9 @@ class _QuantityCard extends StatelessWidget {
   final double subtotal;
   final VoidCallback onDecrement;
   final VoidCallback onIncrement;
+  final TextEditingController controller;
+  final FocusNode focusNode;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -376,15 +446,31 @@ class _QuantityCard extends StatelessWidget {
                   onPressed: enabled && quantity > 1 ? onDecrement : null,
                 ),
                 SizedBox(
-                  width: 56,
-                  child: Text(
-                    '$quantity',
+                  width: 64,
+                  child: TextField(
+                    controller: controller,
+                    focusNode: focusNode,
+                    enabled: enabled,
+                    keyboardType: TextInputType.number,
                     textAlign: TextAlign.center,
+                    inputFormatters: [
+                      FilteringTextInputFormatter.digitsOnly,
+                    ],
                     style: const TextStyle(
                       color: AppColors.darkText,
-                      fontSize: 22,
+                      fontSize: 20,
                       fontWeight: FontWeight.bold,
                     ),
+                    decoration: const InputDecoration(
+                      isDense: true,
+                      contentPadding:
+                          EdgeInsets.symmetric(vertical: 8, horizontal: 4),
+                      border: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      disabledBorder: InputBorder.none,
+                    ),
+                    onChanged: onChanged,
                   ),
                 ),
                 _QuantityButton(

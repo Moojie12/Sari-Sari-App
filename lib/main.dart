@@ -9,6 +9,7 @@ import 'authentication/admin_login/admin_login_page.dart';
 import 'admin/dashboard/admin_dashboard.dart';
 import 'authentication/login/login_page.dart';
 import 'core/services/auth_service.dart';
+import 'core/services/firebase_notification_service.dart';
 
 const String supabaseAnonKey =
     'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qcXFmaWp4a2x4dGRxbGp6cXJ4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODk3MDE5NDQsImV4cCI6MjEwNTI3Nzk0NH0.Tr6Azj3_ZK9UD_4fpOg3ecDEf17ZNHsgRSHFISBnE7E';
@@ -21,6 +22,9 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
   }
+  
+  // Initialize Firebase Cloud Messaging & Notifications
+  await FirebaseNotificationService.instance.initialize();
   
   await Supabase.initialize(
     url: 'https://njqqfijxklxtdqljzqrx.supabase.co',
@@ -62,6 +66,7 @@ class SariSariApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: FirebaseNotificationService.navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Tindahan ni Eca',
       theme: ThemeData(

@@ -237,14 +237,46 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     );
   }
 
+  int _getOrderStatusPriority(OrderStatus status) {
+    switch (status) {
+      case OrderStatus.outForDelivery:
+      case OrderStatus.readyForPickup:
+        return 1;
+      case OrderStatus.readyForShipment:
+        return 2;
+      case OrderStatus.preparing:
+        return 3;
+      case OrderStatus.confirmed:
+        return 4;
+      case OrderStatus.pending:
+        return 5;
+      case OrderStatus.delivered:
+      case OrderStatus.completed:
+      case OrderStatus.cancelled:
+        return 99;
+    }
+  }
+
   Widget _buildActiveOrder(BuildContext context) {
     return ListenableBuilder(
       listenable: widget.orderController,
       builder: (context, _) {
         final activeOrders = widget.orderController.orders
-            .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.delivered)
+            .where((o) =>
+                o.status != OrderStatus.completed &&
+                o.status != OrderStatus.cancelled &&
+                o.status != OrderStatus.delivered)
             .toList();
         if (activeOrders.isEmpty) return const SizedBox.shrink();
+
+        activeOrders.sort((a, b) {
+          final priorityA = _getOrderStatusPriority(a.status);
+          final priorityB = _getOrderStatusPriority(b.status);
+          if (priorityA != priorityB) {
+            return priorityA.compareTo(priorityB);
+          }
+          return b.orderDate.compareTo(a.orderDate);
+        });
 
         final latestOrder = activeOrders.first;
 

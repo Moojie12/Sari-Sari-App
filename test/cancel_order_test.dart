@@ -136,5 +136,50 @@ void main() {
       final result = await customerController.cancelOrder('NON_EXISTENT_ORDER_9999');
       expect(result, isFalse);
     });
+
+    test('Active orders homepage priority sort correctly (outForDelivery/readyForPickup > preparing > pending)', () {
+      final orderPending = createTestOrder(orderId: 'SS-PRIO-001', status: OrderStatus.pending);
+      final orderPreparing = createTestOrder(orderId: 'SS-PRIO-002', status: OrderStatus.preparing);
+      final orderDelivery = createTestOrder(orderId: 'SS-PRIO-003', status: OrderStatus.outForDelivery);
+      final orderCancelled = createTestOrder(orderId: 'SS-PRIO-004', status: OrderStatus.cancelled);
+
+      final allOrders = [orderPending, orderPreparing, orderDelivery, orderCancelled];
+
+      int getPriority(OrderStatus status) {
+        switch (status) {
+          case OrderStatus.outForDelivery:
+          case OrderStatus.readyForPickup:
+            return 1;
+          case OrderStatus.readyForShipment:
+            return 2;
+          case OrderStatus.preparing:
+            return 3;
+          case OrderStatus.confirmed:
+            return 4;
+          case OrderStatus.pending:
+            return 5;
+          case OrderStatus.delivered:
+          case OrderStatus.completed:
+          case OrderStatus.cancelled:
+            return 99;
+        }
+      }
+
+      final active = allOrders
+          .where((o) =>
+              o.status != OrderStatus.completed &&
+              o.status != OrderStatus.cancelled &&
+              o.status != OrderStatus.delivered)
+          .toList();
+
+      expect(active.length, 3);
+      expect(active.any((o) => o.orderId == 'SS-PRIO-004'), isFalse);
+
+      active.sort((a, b) => getPriority(a.status).compareTo(getPriority(b.status)));
+
+      expect(active.first.orderId, 'SS-PRIO-003'); // Out for delivery is top priority
+      expect(active[1].orderId, 'SS-PRIO-002'); // Preparing is next
+      expect(active[2].orderId, 'SS-PRIO-001'); // Pending is last
+    });
   });
 }

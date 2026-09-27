@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:sari_sari/core/theme/app_colors.dart';
+import 'customer_notification_details_page.dart';
 import 'customer_notification_model.dart';
 import 'customer_notifications_controller.dart';
 import 'package:sari_sari/shared/widgets/skeleton.dart';
@@ -106,7 +107,17 @@ class _CustomerNotificationsPageState extends State<CustomerNotificationsPage> {
                 final notification = notifications[index];
                 return _NotificationTile(
                   notification: notification,
-                  onTap: () => controller.markAsRead(notification.id),
+                  onTap: () {
+                    controller.markAsRead(notification.id);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CustomerNotificationDetailsPage(
+                          notification: notification.copyWith(isRead: true),
+                        ),
+                      ),
+                    );
+                  },
                 );
               },
             ),

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../../core/services/notification_database_service.dart';
 import '../employee_inventory_controller.dart';
@@ -90,6 +91,8 @@ class EmployeeNotificationsController extends ChangeNotifier {
 
   int get unreadCount => notifications.where((n) => !n.isRead).length;
 
+  StreamSubscription<List<EmployeeNotification>>? _subscription;
+
   /// Load store notifications persisted in the database
   Future<void> loadStoreNotifications() async {
     _isLoading = true;
@@ -110,6 +113,23 @@ class EmployeeNotificationsController extends ChangeNotifier {
           }
         }
       }
+
+      _subscription?.cancel();
+      _subscription = _dbService.subscribeStoreNotifications().listen((realtimeNotifs) {
+        if (realtimeNotifs.isNotEmpty) {
+          final existingIds = _dynamicNotifications.map((n) => n.id).toSet();
+          bool changed = false;
+          for (final notif in realtimeNotifs) {
+            if (!existingIds.contains(notif.id)) {
+              _dynamicNotifications.add(notif);
+              changed = true;
+            } else if (notif.isRead && _readIds.add(notif.id)) {
+              changed = true;
+            }
+          }
+          if (changed) notifyListeners();
+        }
+      });
     } catch (e) {
       debugPrint('Error loading store notifications: $e');
     } finally {

@@ -96,6 +96,32 @@ class NotificationDatabaseService {
     }
   }
 
+  /// Stream real-time customer notification changes from Firebase Realtime Database
+  Stream<List<CustomerNotification>> subscribeCustomerNotifications(String userId) {
+    if (userId.isEmpty) return const Stream.empty();
+    try {
+      final db = _authService.database;
+      return db.ref().child('notifications/customers/$userId').onValue.map((event) {
+        if (!event.snapshot.exists || event.snapshot.value == null) return <CustomerNotification>[];
+        final data = event.snapshot.value;
+        final list = <CustomerNotification>[];
+        if (data is Map) {
+          data.forEach((key, val) {
+            if (val is Map) {
+              final parsed = _parseCustomerNotification(Map<String, dynamic>.from(val));
+              if (parsed != null) list.add(parsed);
+            }
+          });
+        }
+        list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        return list;
+      });
+    } catch (e) {
+      debugPrint('Failed to subscribe customer notifications: $e');
+      return const Stream.empty();
+    }
+  }
+
   // =========================================================================
   // STORE / EMPLOYEE NOTIFICATIONS
   // =========================================================================
@@ -171,6 +197,31 @@ class NotificationDatabaseService {
     } catch (e) {
       debugPrint('Failed to load store notifications: $e');
       return [];
+    }
+  }
+
+  /// Stream real-time store notifications from Firebase Realtime Database
+  Stream<List<EmployeeNotification>> subscribeStoreNotifications() {
+    try {
+      final db = _authService.database;
+      return db.ref().child('notifications/store').onValue.map((event) {
+        if (!event.snapshot.exists || event.snapshot.value == null) return <EmployeeNotification>[];
+        final data = event.snapshot.value;
+        final list = <EmployeeNotification>[];
+        if (data is Map) {
+          data.forEach((key, val) {
+            if (val is Map) {
+              final parsed = _parseEmployeeNotification(Map<String, dynamic>.from(val));
+              if (parsed != null) list.add(parsed);
+            }
+          });
+        }
+        list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+        return list;
+      });
+    } catch (e) {
+      debugPrint('Failed to subscribe store notifications: $e');
+      return const Stream.empty();
     }
   }
 
