@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/barcode_generator.dart';
 import '../../../shared/utils/barcode_validator.dart';
+import '../../../shared/utils/product_ocr_helper.dart';
 import '../../../shared/utils/text_formatters.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
@@ -1057,16 +1059,59 @@ class _NewProductSheetState extends State<_NewProductSheet> {
     TopNotification.show(context, 'Auto-generated barcode: $generated');
   }
 
+  Future<void> _scanNameWithOcrInSheet() async {
+    final name = await scanProductNameWithOcr(context);
+    if (!mounted) return;
+    if (name != null && name.isNotEmpty) {
+      setState(() {
+        _nameController.text = name;
+        if (_nameError != null) _nameError = null;
+      });
+      TopNotification.show(context, 'Product name set from OCR: $name');
+    }
+  }
+
   Future<void> _scanBarcodeInSheet() async {
     final code = await Navigator.push<String>(
       context,
       MaterialPageRoute(builder: (context) => const BarcodeScannerScreen()),
     );
+    if (!mounted) return;
     if (code != null && code.isNotEmpty) {
       setState(() {
         _barcodeController.text = code;
         _barcodeError = widget.inventory.isBarcodeTaken(code) ? 'This barcode is already used.' : null;
       });
+      TopNotification.show(context, 'Barcode set to $code.');
+
+      if (_nameController.text.trim().isEmpty && mounted) {
+        final scanOcrNow = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Text('Scan Product Name?'),
+            content: const Text('Barcode recorded! Would you like to scan the product packaging text to auto-fill the product name?'),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(ctx, false),
+                child: const Text('Skip / Type Manually'),
+              ),
+              ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryOrange,
+                  foregroundColor: Colors.white,
+                ),
+                onPressed: () => Navigator.pop(ctx, true),
+                icon: const Icon(Icons.center_focus_strong, size: 16),
+                label: const Text('Scan Packaging (OCR)'),
+              ),
+            ],
+          ),
+        );
+        if (scanOcrNow == true && mounted) {
+          await _scanNameWithOcrInSheet();
+        }
+      }
     }
   }
 
@@ -1191,8 +1236,23 @@ class _NewProductSheetState extends State<_NewProductSheet> {
                 ),
               ),
               const SizedBox(height: 16),
-              const Text('Product Name *',
-                  style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Product Name *',
+                      style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+                  GestureDetector(
+                    onTap: _scanNameWithOcrInSheet,
+                    child: const Row(
+                      children: [
+                        Icon(Icons.center_focus_strong, size: 14, color: AppColors.primaryOrange),
+                        SizedBox(width: 4),
+                        Text('Scan Packaging (OCR)', style: TextStyle(color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
               const SizedBox(height: 8),
               TextField(
                 controller: _nameController,

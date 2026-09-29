@@ -7,7 +7,6 @@ import '../../users/customer_db/notifications/customer_notifications_controller.
 import '../../users/employee_db/notifications/employee_notification_details_page.dart';
 import '../../users/employee_db/notifications/employee_notification_model.dart';
 import '../../users/employee_db/notifications/employee_notifications_controller.dart';
-import 'auth_service.dart';
 
 /// Top-level background message handler required by Firebase Messaging
 @pragma('vm:entry-point')

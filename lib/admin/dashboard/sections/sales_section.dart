@@ -36,14 +36,12 @@ class SalesSection extends StatefulWidget {
 
 class _SalesSectionState extends State<SalesSection> {
   late TextEditingController _searchController;
-  late int _rowsPerPage;
   String _saleStatusFilter = 'All';
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController(text: widget.searchQuery);
-    _rowsPerPage = widget.rowsPerPage;
   }
 
   @override
@@ -52,9 +50,6 @@ class _SalesSectionState extends State<SalesSection> {
     if (widget.searchQuery != oldWidget.searchQuery &&
         widget.searchQuery != _searchController.text) {
       _searchController.text = widget.searchQuery;
-    }
-    if (widget.rowsPerPage != oldWidget.rowsPerPage) {
-      _rowsPerPage = widget.rowsPerPage;
     }
   }
 

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../employee_inventory_controller.dart';
@@ -31,7 +32,9 @@ class _EmployeeArchiveStockDialogState extends State<EmployeeArchiveStockDialog>
     _selectedBatch = null;
     _isAllSelected = true;
     _maxQuantity = widget.product.quantity;
-    _quantityController.text = _maxQuantity.toInt().toString();
+    _quantityController.text = widget.product.isWeightBased
+        ? _maxQuantity.toString()
+        : _maxQuantity.toInt().toString();
   }
 
   @override
@@ -46,18 +49,93 @@ class _EmployeeArchiveStockDialogState extends State<EmployeeArchiveStockDialog>
       _isAllSelected = batch == null;
       if (_isAllSelected) {
         _maxQuantity = widget.product.quantity;
-        _quantityController.text = _maxQuantity.toInt().toString();
       } else {
         _maxQuantity = batch!.quantity;
-        _quantityController.text = _maxQuantity.toInt().toString();
       }
+      _quantityController.text = widget.product.isWeightBased
+          ? _maxQuantity.toString()
+          : _maxQuantity.toInt().toString();
     });
+  }
+
+  void _onArchivePressed() {
+    final unitStr = widget.product.isWeightBased ? 'kg' : 'pcs';
+
+    if (_isAllSelected) {
+      _showConfirmationDialog(_maxQuantity, unitStr);
+      return;
+    }
+
+    final qtyText = _quantityController.text.trim();
+    final qty = double.tryParse(qtyText) ?? 0.0;
+
+    if (qty <= 0 || _selectedBatch == null) {
+      TopNotification.show(context, 'Please enter a valid quantity to archive.', isError: true);
+      return;
+    }
+    if (qty > _maxQuantity) {
+      final maxDisplay = widget.product.isWeightBased ? _maxQuantity : _maxQuantity.toInt();
+      TopNotification.show(context, 'Quantity cannot exceed available stock ($maxDisplay $unitStr).', isError: true);
+      return;
+    }
+    if (!widget.product.isWeightBased && qty != qty.roundToDouble()) {
+      TopNotification.show(context, 'Regular products must use whole numbers.', isError: true);
+      return;
+    }
+
+    _showConfirmationDialog(qty, unitStr);
+  }
+
+  void _showConfirmationDialog(double qty, String unitStr) {
+    final displayQty = widget.product.isWeightBased ? qty : qty.toInt();
+    final message = _isAllSelected
+        ? 'Are you sure you want to archive all stock for "${widget.product.name}"?'
+        : 'Are you sure you want to archive $displayQty $unitStr of "${widget.product.name}"?';
+
+    showDialog(
+      context: context,
+      builder: (confirmContext) => AlertDialog(
+        title: const Text('Confirm Archive', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(confirmContext),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(confirmContext);
+              _performArchive(qty, unitStr);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _performArchive(double qty, String unitStr) {
+    if (_isAllSelected) {
+      widget.inventory.archiveAllStock(widget.product.id);
+      TopNotification.show(context, 'All stock archived for ${widget.product.name}');
+    } else {
+      widget.inventory.archiveStock(widget.product.id, _selectedBatch!.id, qty);
+      final displayQty = widget.product.isWeightBased ? qty : qty.toInt();
+      TopNotification.show(context, '$displayQty $unitStr archived for ${widget.product.name}');
+    }
+    Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     final unitStr = widget.product.isWeightBased ? 'kg' : 'pcs';
     final barcodeStr = widget.product.barcode.trim().isEmpty ? 'No barcode' : widget.product.barcode;
+    final maxDisplay = widget.product.isWeightBased ? _maxQuantity : _maxQuantity.toInt();
 
     return AlertDialog(
       title: const Text('Archive Stock', style: TextStyle(fontWeight: FontWeight.bold)),
@@ -85,9 +163,10 @@ class _EmployeeArchiveStockDialogState extends State<EmployeeArchiveStockDialog>
                 final dateStr = b.expiryDate == null
                     ? 'No Expiry'
                     : '${b.expiryDate!.day}/${b.expiryDate!.month}/${b.expiryDate!.year}';
+                final batchQtyDisplay = widget.product.isWeightBased ? b.quantity : b.quantity.toInt();
                 return DropdownMenuItem<ProductBatch?>(
                   value: b,
-                  child: Text('Batch ${index + 1} ($dateStr) - ${b.quantity.toInt()} $unitStr',
+                  child: Text('Batch ${index + 1} ($dateStr) - $batchQtyDisplay $unitStr',
                       style: const TextStyle(fontSize: 14)),
                 );
               }),
@@ -104,10 +183,18 @@ class _EmployeeArchiveStockDialogState extends State<EmployeeArchiveStockDialog>
           const SizedBox(height: 8),
           TextField(
             controller: _quantityController,
-            keyboardType: const TextInputType.numberWithOptions(decimal: true),
+            keyboardType: widget.product.isWeightBased
+                ? const TextInputType.numberWithOptions(decimal: true)
+                : TextInputType.number,
+            inputFormatters: [
+              if (widget.product.isWeightBased)
+                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*'))
+              else
+                FilteringTextInputFormatter.digitsOnly,
+            ],
             enabled: !_isAllSelected,
             decoration: InputDecoration(
-              hintText: _isAllSelected ? 'All quantity will be archived' : 'Max: ${_maxQuantity.toInt()}',
+              hintText: _isAllSelected ? 'All quantity will be archived' : 'Max: $maxDisplay',
               contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
               filled: _isAllSelected,
@@ -122,26 +209,7 @@ class _EmployeeArchiveStockDialogState extends State<EmployeeArchiveStockDialog>
           child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
         ),
         ElevatedButton(
-          onPressed: () {
-            if (_isAllSelected) {
-              widget.inventory.archiveAllStock(widget.product.id);
-              TopNotification.show(context, 'All stock archived for ${widget.product.name}');
-            } else {
-              final qty = double.tryParse(_quantityController.text) ?? 0.0;
-              if (qty <= 0 || _selectedBatch == null) return;
-              if (qty > _maxQuantity) {
-                TopNotification.show(context, 'Quantity cannot exceed available stock (${_maxQuantity.toInt()}).', isError: true);
-                return;
-              }
-              if (!widget.product.isWeightBased && qty != qty.roundToDouble()) {
-                TopNotification.show(context, 'Regular products must use whole numbers.', isError: true);
-                return;
-              }
-              widget.inventory.archiveStock(widget.product.id, _selectedBatch!.id, qty);
-              TopNotification.show(context, '${qty.toInt()} $unitStr archived for ${widget.product.name}');
-            }
-            Navigator.pop(context);
-          },
+          onPressed: _onArchivePressed,
           style: ElevatedButton.styleFrom(
             backgroundColor: Colors.red,
             foregroundColor: Colors.white,

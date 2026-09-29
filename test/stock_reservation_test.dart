@@ -1,7 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sari_sari/core/services/payment_webhook_stub.dart';
 import 'package:sari_sari/core/services/stock_reservation_service.dart';
-import 'package:sari_sari/models/payment_status.dart';
 
 void main() {
   group('StockReservationService Tests', () {
@@ -70,6 +69,7 @@ void main() {
       );
 
       expect(reservationService.getReservedQuantity(productId), 4.0);
+      expect(reservationService.getAvailableStock(productId, totalActiveStock), 4.0);
 
       final confirmed = await PaymentWebhookStub.instance.handlePaymentSuccess(
         orderId: 'order_103',

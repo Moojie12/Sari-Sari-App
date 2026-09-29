@@ -32,7 +32,6 @@ class EmployeeProfileController extends ChangeNotifier {
     role: 'Employee',
   );
 
-  String _password = '';
   bool _isLoading = false;
 
   bool get isLoading => _isLoading;
@@ -269,7 +268,6 @@ class EmployeeProfileController extends ChangeNotifier {
       return ChangePasswordResult.failed;
     }
 
-    _password = newPassword;
     notifyListeners();
     return ChangePasswordResult.success;
   }

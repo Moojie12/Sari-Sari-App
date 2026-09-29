@@ -345,6 +345,7 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
         return _ReportTable(
           title: 'Items Requiring Attention',
           columns: const ['Product', 'Stock', 'Threshold'],
+          flexes: const [2, 1, 1],
           rows: items.map((p) => [
             p.name,
             '${p.quantity} pcs',
@@ -356,6 +357,7 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
         return _ReportTable(
           title: 'Value Breakdown by Product',
           columns: const ['Product', 'Capital', 'Revenue', 'Profit'],
+          flexes: const [2, 1, 1, 1],
           rows: inventory.products.map((p) => [
             p.name,
             '₱${p.totalCapital.toStringAsFixed(2)}',
@@ -370,6 +372,7 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
         return _ReportTable(
           title: 'Archive & Loss History',
           columns: const ['Item', 'Qty', 'Loss (Cap)'],
+          flexes: const [2, 1, 1],
           rows: archived.map((a) => [
             a.productName,
             '${a.quantity} pcs',
@@ -384,6 +387,7 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
         return _ReportTable(
           title: 'Consumables History',
           columns: const ['Item', 'Qty', 'Taken By', 'Cost'],
+          flexes: const [2, 1, 2, 1],
           rows: consumed.map((a) => [
             a.productName,
             '${a.quantity} pcs',
@@ -405,6 +409,7 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
         return _ReportTable(
           title: 'Best Selling Products',
           columns: const ['Product', 'Units Sold', 'Total Revenue'],
+          flexes: const [2, 1, 1],
           rows: sorted.map((e) => [
             e.key,
             '${e.value} pcs',
@@ -421,6 +426,7 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
         return _ReportTable(
           title: 'Slow-Moving / Unsold Items',
           columns: const ['Product', 'Stock', 'Price'],
+          flexes: const [2, 1, 1],
           rows: slow.map((p) => [
             p.name,
             '${p.quantity} pcs',
@@ -441,22 +447,11 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
         return _ReportTable(
           title: 'Sales by Category',
           columns: const ['Category', 'Total Revenue'],
+          flexes: const [2, 1],
           rows: sorted.map((e) => [
             e.key,
             '₱${e.value.toStringAsFixed(2)}',
           ]).toList(),
-        );
-
-      default:
-        return Center(
-          child: Column(
-            children: [
-              const Icon(Icons.bar_chart, size: 64, color: AppColors.borderColor),
-              const SizedBox(height: 16),
-              Text('Detailed data for "$_title"', style: const TextStyle(color: AppColors.secondaryText)),
-              const Text('will be populated as sales occur.', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-            ],
-          ),
         );
     }
   }

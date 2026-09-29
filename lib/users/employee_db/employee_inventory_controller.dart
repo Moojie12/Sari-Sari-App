@@ -451,7 +451,19 @@ class EmployeeInventoryController extends ChangeNotifier {
       updatedBatches[batchIndex] = batch.copyWith(quantity: newBatchQty);
     }
 
-    _products[productIndex] = product.copyWith(batches: updatedBatches);
+    if (updatedBatches.isEmpty) {
+      _products.removeAt(productIndex);
+      _supabaseService.updateProduct(productId, {
+        'is_archived': true,
+        'archived_at': DateTime.now().toIso8601String(),
+        'updated_at': DateTime.now().toIso8601String(),
+      }).catchError((e) {
+        debugPrint('Error archiving product in Supabase: $e');
+        return <String, dynamic>{};
+      });
+    } else {
+      _products[productIndex] = product.copyWith(batches: updatedBatches);
+    }
 
     // Consumables (personal use by owner/employee) were never sold, so
     // there's no revenue — the store simply eats the capital cost, which
@@ -503,7 +515,6 @@ class EmployeeInventoryController extends ChangeNotifier {
     final productIndex = _products.indexWhere((p) => p.id == productId);
     if (productIndex < 0) return;
     final product = _products[productIndex];
-    if (product.batches.isEmpty) return;
 
     final batches = List<ProductBatch>.from(product.batches);
     for (final batch in batches) {
@@ -511,6 +522,18 @@ class EmployeeInventoryController extends ChangeNotifier {
         archiveStock(productId, batch.id, batch.quantity, reason: reason, consumedBy: consumedBy);
       }
     }
+
+    _products.removeWhere((p) => p.id == productId);
+    notifyListeners();
+
+    _supabaseService.updateProduct(productId, {
+      'is_archived': true,
+      'archived_at': DateTime.now().toIso8601String(),
+      'updated_at': DateTime.now().toIso8601String(),
+    }).catchError((e) {
+      debugPrint('Error archiving product in Supabase: $e');
+      return <String, dynamic>{};
+    });
   }
 
   /// Records stock the owner or an employee took for their own use
@@ -559,6 +582,15 @@ class EmployeeInventoryController extends ChangeNotifier {
 
     _archivedStock.removeAt(arcIndex);
     notifyListeners();
+
+    _supabaseService.updateProduct(item.productId, {
+      'is_archived': false,
+      'archived_at': null,
+      'updated_at': DateTime.now().toIso8601String(),
+    }).catchError((e) {
+      debugPrint('Error restoring product in Supabase: $e');
+      return <String, dynamic>{};
+    });
   }
 
   void deleteArchivedStock(String archivedId) {
