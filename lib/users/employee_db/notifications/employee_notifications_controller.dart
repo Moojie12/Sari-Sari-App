@@ -115,21 +115,26 @@ class EmployeeNotificationsController extends ChangeNotifier {
       }
 
       _subscription?.cancel();
-      _subscription = _dbService.subscribeStoreNotifications().listen((realtimeNotifs) {
-        if (realtimeNotifs.isNotEmpty) {
-          final existingIds = _dynamicNotifications.map((n) => n.id).toSet();
-          bool changed = false;
-          for (final notif in realtimeNotifs) {
-            if (!existingIds.contains(notif.id)) {
-              _dynamicNotifications.add(notif);
-              changed = true;
-            } else if (notif.isRead && _readIds.add(notif.id)) {
-              changed = true;
+      _subscription = _dbService.subscribeStoreNotifications().listen(
+        (realtimeNotifs) {
+          if (realtimeNotifs.isNotEmpty) {
+            final existingIds = _dynamicNotifications.map((n) => n.id).toSet();
+            bool changed = false;
+            for (final notif in realtimeNotifs) {
+              if (!existingIds.contains(notif.id)) {
+                _dynamicNotifications.add(notif);
+                changed = true;
+              } else if (notif.isRead && _readIds.add(notif.id)) {
+                changed = true;
+              }
             }
+            if (changed) notifyListeners();
           }
-          if (changed) notifyListeners();
-        }
-      });
+        },
+        onError: (error) {
+          debugPrint('Store notifications subscription error: $error');
+        },
+      );
     } catch (e) {
       debugPrint('Error loading store notifications: $e');
     } finally {
@@ -145,7 +150,9 @@ class EmployeeNotificationsController extends ChangeNotifier {
         _dynamicNotifications[idx] = _dynamicNotifications[idx].copyWith(isRead: true);
       }
       notifyListeners();
-      _dbService.markStoreNotificationRead(id);
+      _dbService.markStoreNotificationRead(id).catchError((e) {
+        debugPrint('Failed to mark store notification read: $e');
+      });
     }
   }
 
@@ -156,7 +163,9 @@ class EmployeeNotificationsController extends ChangeNotifier {
       _dynamicNotifications[i] = _dynamicNotifications[i].copyWith(isRead: true);
     }
     notifyListeners();
-    _dbService.markAllStoreNotificationsRead(ids);
+    _dbService.markAllStoreNotificationsRead(ids).catchError((e) {
+      debugPrint('Failed to mark all store notifications read: $e');
+    });
   }
 
   /// Add a store/employee notification and persist it to the database
@@ -176,7 +185,9 @@ class EmployeeNotificationsController extends ChangeNotifier {
     _dynamicNotifications.insert(0, newNotif);
     notifyListeners();
 
-    _dbService.saveStoreNotification(newNotif);
+    _dbService.saveStoreNotification(newNotif).catchError((e) {
+      debugPrint('Failed to save store notification: $e');
+    });
   }
 
   /// Clear in-memory notifications on logout

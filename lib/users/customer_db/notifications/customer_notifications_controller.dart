@@ -59,21 +59,26 @@ class CustomerNotificationsController extends ChangeNotifier {
 
       // Start realtime subscription
       _subscription?.cancel();
-      _subscription = _dbService.subscribeCustomerNotifications(effectiveUserId).listen((realtimeNotifs) {
-        if (realtimeNotifs.isNotEmpty) {
-          final existingIds = _notifications.map((n) => n.id).toSet();
-          bool changed = false;
-          for (final notif in realtimeNotifs) {
-            if (!existingIds.contains(notif.id)) {
-              _notifications.add(notif);
-              changed = true;
-            } else if (notif.isRead && _readIds.add(notif.id)) {
-              changed = true;
+      _subscription = _dbService.subscribeCustomerNotifications(effectiveUserId).listen(
+        (realtimeNotifs) {
+          if (realtimeNotifs.isNotEmpty) {
+            final existingIds = _notifications.map((n) => n.id).toSet();
+            bool changed = false;
+            for (final notif in realtimeNotifs) {
+              if (!existingIds.contains(notif.id)) {
+                _notifications.add(notif);
+                changed = true;
+              } else if (notif.isRead && _readIds.add(notif.id)) {
+                changed = true;
+              }
             }
+            if (changed) notifyListeners();
           }
-          if (changed) notifyListeners();
-        }
-      });
+        },
+        onError: (error) {
+          debugPrint('Customer notifications subscription error: $error');
+        },
+      );
     } catch (e) {
       debugPrint('Error loading customer notifications: $e');
     } finally {
@@ -92,7 +97,9 @@ class CustomerNotificationsController extends ChangeNotifier {
 
       final userId = AuthService().currentUser?.uid;
       if (userId != null && userId.isNotEmpty) {
-        _dbService.markCustomerNotificationRead(userId, id);
+        _dbService.markCustomerNotificationRead(userId, id).catchError((e) {
+          debugPrint('Failed to mark customer notification read: $e');
+        });
       }
     }
   }
@@ -107,7 +114,9 @@ class CustomerNotificationsController extends ChangeNotifier {
 
     final userId = AuthService().currentUser?.uid;
     if (userId != null && userId.isNotEmpty) {
-      _dbService.markAllCustomerNotificationsRead(userId, ids);
+      _dbService.markAllCustomerNotificationsRead(userId, ids).catchError((e) {
+        debugPrint('Failed to mark all customer notifications read: $e');
+      });
     }
   }
 
@@ -132,7 +141,9 @@ class CustomerNotificationsController extends ChangeNotifier {
 
     final targetUserId = userId ?? AuthService().currentUser?.uid;
     if (targetUserId != null && targetUserId.isNotEmpty) {
-      _dbService.saveCustomerNotification(targetUserId, notification);
+      _dbService.saveCustomerNotification(targetUserId, notification).catchError((e) {
+        debugPrint('Failed to save customer notification: $e');
+      });
     }
   }
 

@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 
@@ -69,8 +70,8 @@ class ProductImage extends StatelessWidget {
       }
     }
 
-    // 2. Network URL (Supabase, Firebase, or other CDN)
-    if (img.startsWith('http://') || img.startsWith('https://')) {
+    // 2. Network / Web Blob URL (Supabase, Firebase, CDN, or Web Blob)
+    if (img.startsWith('http://') || img.startsWith('https://') || img.startsWith('blob:')) {
       return Image.network(
         img,
         width: width,
@@ -93,7 +94,18 @@ class ProductImage extends StatelessWidget {
       );
     }
 
-    // 3. Asset Image
+    // 3. Web Platform Fallback for local web paths
+    if (kIsWeb) {
+      return Image.network(
+        img,
+        width: width,
+        height: height,
+        fit: fit,
+        errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+      );
+    }
+
+    // 4. Asset Image
     if (img.startsWith('assets/')) {
       return Image.asset(
         img,
@@ -104,7 +116,7 @@ class ProductImage extends StatelessWidget {
       );
     }
 
-    // 4. Local File Path
+    // 5. Local File Path (Mobile / Desktop)
     try {
       final file = File(img);
       if (file.existsSync()) {

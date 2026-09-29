@@ -13,6 +13,22 @@
         }
       }
     },
+    "notifications": {
+      "customers": {
+        "$uid": {
+          ".read": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'owner' || root.child('users').child(auth.uid).child('role').val() == 'employee')",
+          ".write": "auth != null"
+        }
+      },
+      "store": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "orders": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
     ".read": false,
     ".write": false
   }

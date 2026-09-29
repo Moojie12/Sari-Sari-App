@@ -1380,36 +1380,63 @@ class SupabaseService {
     }
   }
 
-  /// Uploads a product image with 5MB maximum file size validation.
-  /// 1. Attempts Supabase Storage 'products' bucket.
+  /// Uploads a product image from path or bytes with 5MB maximum file size validation.
+  /// 1. Uploads to Supabase Storage 'products' bucket.
   /// 2. Falls back to Firebase Storage 'products/' path.
   /// 3. Falls back to Base64 Data URI stored directly in database.
-  Future<String?> uploadProductImage(String productId, File file) async {
+  Future<String?> uploadProductImageFromPathOrBytes({
+    required String productId,
+    String? filePath,
+    Uint8List? bytes,
+  }) async {
     try {
-      final fileSize = await file.length();
+      Uint8List imageBytes;
+      String validExt = 'jpg';
+
+      if (bytes != null && bytes.isNotEmpty) {
+        imageBytes = bytes;
+      } else if (filePath != null && filePath.isNotEmpty) {
+        if (!kIsWeb) {
+          final file = File(filePath);
+          if (!await file.exists()) {
+            debugPrint('Product image file does not exist at $filePath');
+            return null;
+          }
+          imageBytes = await file.readAsBytes();
+        } else {
+          // On Web, data URIs or network URLs are handled directly
+          if (filePath.startsWith('http') || filePath.startsWith('data:image')) {
+            return filePath;
+          }
+          return filePath;
+        }
+        final ext = filePath.split('.').last.toLowerCase();
+        if (ext == 'png' || ext == 'webp') validExt = ext;
+      } else {
+        return null;
+      }
+
       const maxBytes = 5 * 1024 * 1024; // 5MB limit
-      if (fileSize > maxBytes) {
+      if (imageBytes.length > maxBytes) {
         throw Exception('Image size exceeds 5MB limit.');
       }
 
-      final ext = file.path.split('.').last.toLowerCase();
-      final validExt = (ext == 'png' || ext == 'webp') ? ext : 'jpg';
       final safeId = productId.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
       final fileName = '${safeId}_${DateTime.now().millisecondsSinceEpoch}.$validExt';
       final storagePath = 'items/$fileName';
-      final bytes = await file.readAsBytes();
 
       // 1. Try Supabase Storage 'products' bucket
       try {
         await _client.storage.from('products').uploadBinary(
           storagePath,
-          bytes,
+          imageBytes,
           fileOptions: FileOptions(
             contentType: 'image/$validExt',
             upsert: true,
           ),
         );
         final publicUrl = _client.storage.from('products').getPublicUrl(storagePath);
+        debugPrint('Successfully uploaded product image to Supabase storage: $publicUrl');
         return publicUrl;
       } catch (storageError) {
         debugPrint('Supabase storage product upload error: $storageError');
@@ -1419,22 +1446,31 @@ class SupabaseService {
       try {
         final ref = FirebaseStorage.instance.ref().child('products/$storagePath');
         await ref.putData(
-          bytes,
+          imageBytes,
           SettableMetadata(contentType: 'image/$validExt'),
         );
         final downloadUrl = await ref.getDownloadURL();
+        debugPrint('Successfully uploaded product image to Firebase storage: $downloadUrl');
         return downloadUrl;
       } catch (fbError) {
         debugPrint('Firebase storage product upload error: $fbError');
       }
 
       // 3. Fallback to Base64 data URI
-      final base64String = base64Encode(bytes);
+      final base64String = base64Encode(imageBytes);
       return 'data:image/$validExt;base64,$base64String';
     } catch (e) {
       debugPrint('Failed to upload product image: $e');
       return null;
     }
+  }
+
+  /// Legacy wrapper for file uploads
+  Future<String?> uploadProductImage(String productId, File file) async {
+    return uploadProductImageFromPathOrBytes(
+      productId: productId,
+      filePath: file.path,
+    );
   }
 
   /// Delete user profile

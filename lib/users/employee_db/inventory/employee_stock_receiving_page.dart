@@ -4,6 +4,7 @@ import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/barcode_generator.dart';
 import '../../../shared/utils/barcode_validator.dart';
+import '../../../shared/utils/text_formatters.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../../../shared/widgets/product_image.dart';
@@ -1009,6 +1010,7 @@ class _NewProductSheetState extends State<_NewProductSheet> {
   String? _nameError;
   String? _priceError;
   String? _barcodeError;
+  String? _categoryError;
 
   @override
   void dispose() {
@@ -1051,14 +1053,38 @@ class _NewProductSheetState extends State<_NewProductSheet> {
     final category = _isAddingNewCategory ? _newCategoryController.text.trim() : _category;
 
     setState(() {
-      _nameError = name.isEmpty ? 'Product name is required.' : null;
+      if (name.isEmpty) {
+        _nameError = 'Product name is required.';
+      } else if (name.length > 20) {
+        _nameError = 'Max 20 characters allowed.';
+      } else if (name.contains('  ')) {
+        _nameError = 'Double spaces are not allowed.';
+      } else {
+        _nameError = null;
+      }
+
+      if (_isAddingNewCategory) {
+        final newCat = _newCategoryController.text.trim();
+        if (newCat.isEmpty) {
+          _categoryError = 'Category name is required.';
+        } else if (newCat.length > 20) {
+          _categoryError = 'Max 20 characters allowed.';
+        } else if (newCat.contains('  ')) {
+          _categoryError = 'Double spaces are not allowed.';
+        } else {
+          _categoryError = null;
+        }
+      } else {
+        _categoryError = null;
+      }
+
       _priceError = (price == null || price < 0) ? 'Enter a valid price.' : null;
       _barcodeError = BarcodeValidator.validate(
         barcode: _barcodeController.text,
         isBarcodeTaken: widget.inventory.isBarcodeTaken,
       );
     });
-    if (_nameError != null || _priceError != null || _barcodeError != null) return;
+    if (_nameError != null || _categoryError != null || _priceError != null || _barcodeError != null) return;
     if (category.isEmpty) return;
 
     if (_isAddingNewCategory) {
@@ -1143,6 +1169,13 @@ class _NewProductSheetState extends State<_NewProductSheet> {
               const SizedBox(height: 8),
               TextField(
                 controller: _nameController,
+                maxLength: 20,
+                inputFormatters: [
+                  NoDoubleSpaceAndMax20Formatter(maxLength: 20),
+                ],
+                onChanged: (_) {
+                  if (_nameError != null) setState(() => _nameError = null);
+                },
                 decoration: _fieldDecoration('e.g. Bear Brand Milk 300ml', errorText: _nameError),
               ),
               const SizedBox(height: 14),
@@ -1165,7 +1198,14 @@ class _NewProductSheetState extends State<_NewProductSheet> {
               if (_isAddingNewCategory)
                 TextField(
                   controller: _newCategoryController,
-                  decoration: _fieldDecoration('Enter new category name'),
+                  maxLength: 20,
+                  inputFormatters: [
+                    NoDoubleSpaceAndMax20Formatter(maxLength: 20),
+                  ],
+                  onChanged: (_) {
+                    if (_categoryError != null) setState(() => _categoryError = null);
+                  },
+                  decoration: _fieldDecoration('Enter new category name', errorText: _categoryError),
                 )
               else
                 DropdownButtonFormField<String>(
@@ -1248,11 +1288,13 @@ class _NewProductSheetState extends State<_NewProductSheet> {
     );
   }
 
-  InputDecoration _fieldDecoration(String? hint, {String? prefixText, String? errorText}) {
+  InputDecoration _fieldDecoration(String? hint, {String? prefixText, String? errorText, String? counterText}) {
     return InputDecoration(
       hintText: hint,
       prefixText: prefixText,
       errorText: errorText,
+      counterText: counterText,
+      counterStyle: const TextStyle(fontSize: 11, color: AppColors.secondaryText, fontWeight: FontWeight.w500),
       filled: true,
       fillColor: AppColors.lightPeach,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),

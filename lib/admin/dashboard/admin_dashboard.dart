@@ -11,6 +11,7 @@ import '../services/admin_sale_service.dart';
 import '../services/admin_audit_service.dart';
 import '../services/admin_analytics_service.dart';
 import '../../core/services/auth_service.dart';
+import '../../shared/utils/text_formatters.dart';
 import '../../shared/utils/top_notification.dart';
 import './widgets/dashboard_shared.dart';
 import './sections/overview_section.dart';
@@ -617,7 +618,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
                               context: context,
                               builder: (context) => AlertDialog(
                                 title: const Text('New Category'),
-                                content: TextField(controller: nameController, autofocus: true),
+                                content: TextField(
+                                  controller: nameController,
+                                  autofocus: true,
+                                  maxLength: 20,
+                                  inputFormatters: [
+                                    NoDoubleSpaceAndMax20Formatter(maxLength: 20),
+                                  ],
+                                  decoration: const InputDecoration(
+                                    hintText: 'Enter category name',
+                                    counterText: '',
+                                  ),
+                                ),
                                 actions: [
                                   TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
                                   TextButton(onPressed: () => Navigator.pop(context, nameController.text.trim()), child: const Text('Add')),

@@ -9,9 +9,11 @@ import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/barcode_generator.dart';
 import '../../../shared/utils/barcode_validator.dart';
+import '../../../shared/utils/text_formatters.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../../../shared/widgets/product_image.dart';
+import '../../../shared/widgets/product_image_crop_dialog.dart';
 import '../employee_inventory_controller.dart';
 import 'employee_product_model.dart';
 
@@ -943,27 +945,27 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
           ],
           if (!product.isWeightBased) ...[
             const SizedBox(height: 8),
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.lightBackground,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: SwitchListTile(
-                title: const Text('Received as Bulk?', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                subtitle: const Text(
-                  'Turn on to compute Capital per Pc and Total Pcs from a bulk purchase.',
-                  style: TextStyle(fontSize: 11),
+            Material(
+              color: AppColors.lightBackground,
+              borderRadius: BorderRadius.circular(10),
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                child: SwitchListTile(
+                  title: const Text('Received as Bulk?', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                  subtitle: const Text(
+                    'Turn on to compute Capital per Pc and Total Pcs from a bulk purchase.',
+                    style: TextStyle(fontSize: 11),
+                  ),
+                  value: batch.isBulkMode,
+                  onChanged: (val) {
+                    setState(() {
+                      batch.isBulkMode = val;
+                      if (val) batch.recalcBulk();
+                    });
+                  },
+                  activeThumbColor: AppColors.primaryOrange,
+                  contentPadding: EdgeInsets.zero,
                 ),
-                value: batch.isBulkMode,
-                onChanged: (val) {
-                  setState(() {
-                    batch.isBulkMode = val;
-                    if (val) batch.recalcBulk();
-                  });
-                },
-                activeThumbColor: AppColors.primaryOrange,
-                contentPadding: EdgeInsets.zero,
               ),
             ),
           ],
@@ -1277,6 +1279,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
   String? _capitalError;
   String? _barcodeError;
   String? _quantityError;
+  String? _categoryError;
 
   @override
   void dispose() {
@@ -1434,7 +1437,31 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
     final category = _isAddingNewCategory ? _newCategoryController.text.trim() : _category;
 
     setState(() {
-      _nameError = name.isEmpty ? 'Product name is required.' : null;
+      if (name.isEmpty) {
+        _nameError = 'Product name is required.';
+      } else if (name.length > 20) {
+        _nameError = 'Max 20 characters allowed.';
+      } else if (name.contains('  ')) {
+        _nameError = 'Double spaces are not allowed.';
+      } else {
+        _nameError = null;
+      }
+
+      if (_isAddingNewCategory) {
+        final newCat = _newCategoryController.text.trim();
+        if (newCat.isEmpty) {
+          _categoryError = 'Category name is required.';
+        } else if (newCat.length > 20) {
+          _categoryError = 'Max 20 characters allowed.';
+        } else if (newCat.contains('  ')) {
+          _categoryError = 'Double spaces are not allowed.';
+        } else {
+          _categoryError = null;
+        }
+      } else {
+        _categoryError = null;
+      }
+
       _priceError = (price == null || price < 0) ? 'Enter a valid price.' : null;
       _capitalError = (capital == null || capital < 0) ? 'Enter a valid capital per pc.' : null;
       _barcodeError = BarcodeValidator.validate(
@@ -1450,7 +1477,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
         _quantityError = null;
       }
     });
-    if (_nameError != null || _priceError != null || _capitalError != null || _barcodeError != null || _quantityError != null) return;
+    if (_nameError != null || _categoryError != null || _priceError != null || _capitalError != null || _barcodeError != null || _quantityError != null) return;
     if (category.isEmpty) return;
 
     final confirmed = await showDialog<bool>(
@@ -1472,18 +1499,16 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
     String? finalImageUrl = _imagePath;
     if (_imagePath != null && !_imagePath!.startsWith('http') && !_imagePath!.startsWith('data:image')) {
       try {
-        final file = File(_imagePath!);
-        if (file.existsSync()) {
-          final uploadedUrl = await SupabaseService().uploadProductImage(
-            name.isNotEmpty ? name : 'prod',
-            file,
-          );
-          if (uploadedUrl != null) {
-            finalImageUrl = uploadedUrl;
-          }
+        final uploadedUrl = await SupabaseService().uploadProductImageFromPathOrBytes(
+          productId: name.isNotEmpty ? name : 'prod',
+          filePath: _imagePath,
+        );
+        if (uploadedUrl != null) {
+          finalImageUrl = uploadedUrl;
+          debugPrint('Product photo uploaded to Supabase: $finalImageUrl');
         }
       } catch (e) {
-        debugPrint('Error uploading product photo: $e');
+        debugPrint('Error uploading product photo to Supabase: $e');
       }
     }
 
@@ -1602,28 +1627,27 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
     try {
       final picked = await _picker.pickImage(
         source: source,
-        maxWidth: 1024,
+        maxWidth: 1200,
         imageQuality: 85,
       );
       if (picked != null) {
-        final file = File(picked.path);
-        final fileSize = await file.length();
-        const maxBytes = 5 * 1024 * 1024; // 5 MB maximum validation
-        if (fileSize > maxBytes) {
+        if (!mounted) return;
+        final confirmedPath = await showProductImageCropDialog(
+          context: context,
+          xfile: picked,
+        );
+
+        if (confirmedPath != null) {
+          setState(() {
+            _imagePath = confirmedPath;
+          });
           if (mounted) {
-            final mb = (fileSize / (1024 * 1024)).toStringAsFixed(1);
             TopNotification.show(
               context,
-              'Image exceeds 5MB limit ($mb MB). Please choose a smaller image.',
-              isError: true,
+              'Photo saved',
             );
           }
-          return;
         }
-
-        setState(() {
-          _imagePath = picked.path;
-        });
       }
     } catch (_) {
       if (mounted) {
@@ -1707,22 +1731,22 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
               _buildUnitTypeSelector(),
               const SizedBox(height: 12),
               if (!_isWeightBased) ...[
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                  decoration: BoxDecoration(
-                    color: AppColors.lightBackground,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: SwitchListTile(
-                    title: const Text('Received as Bulk?', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                    subtitle: const Text(
-                      'Turn on to compute Capital per Pc and Total Pcs from a bulk purchase.',
-                      style: TextStyle(fontSize: 11),
+                Material(
+                  color: AppColors.lightBackground,
+                  borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                    child: SwitchListTile(
+                      title: const Text('Received as Bulk?', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                      subtitle: const Text(
+                        'Turn on to compute Capital per Pc and Total Pcs from a bulk purchase.',
+                        style: TextStyle(fontSize: 11),
+                      ),
+                      value: _isBulkMode,
+                      onChanged: (val) => _toggleBulkMode(val),
+                      activeThumbColor: AppColors.primaryOrange,
+                      contentPadding: EdgeInsets.zero,
                     ),
-                    value: _isBulkMode,
-                    onChanged: (val) => _toggleBulkMode(val),
-                    activeThumbColor: AppColors.primaryOrange,
-                    contentPadding: EdgeInsets.zero,
                   ),
                 ),
                 const SizedBox(height: 12),
@@ -1731,6 +1755,13 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
               const SizedBox(height: 8),
               TextField(
                 controller: _nameController,
+                maxLength: 20,
+                inputFormatters: [
+                  NoDoubleSpaceAndMax20Formatter(maxLength: 20),
+                ],
+                onChanged: (_) {
+                  if (_nameError != null) setState(() => _nameError = null);
+                },
                 decoration: _fieldDecoration('e.g. Jasmine Rice', errorText: _nameError),
               ),
               const SizedBox(height: 14),
@@ -1748,7 +1779,14 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
               if (_isAddingNewCategory)
                 TextField(
                   controller: _newCategoryController,
-                  decoration: _fieldDecoration('Enter new category name'),
+                  maxLength: 20,
+                  inputFormatters: [
+                    NoDoubleSpaceAndMax20Formatter(maxLength: 20),
+                  ],
+                  onChanged: (_) {
+                    if (_categoryError != null) setState(() => _categoryError = null);
+                  },
+                  decoration: _fieldDecoration('Enter new category name', errorText: _categoryError),
                 )
               else
                 DropdownButtonFormField<String>(
@@ -2019,12 +2057,14 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
     );
   }
 
-  InputDecoration _fieldDecoration(String? hint, {String? prefixText, String? errorText, Widget? suffixIcon}) {
+  InputDecoration _fieldDecoration(String? hint, {String? prefixText, String? errorText, Widget? suffixIcon, String? counterText}) {
     return InputDecoration(
       hintText: hint,
       prefixText: prefixText,
       errorText: errorText,
       suffixIcon: suffixIcon,
+      counterText: counterText,
+      counterStyle: const TextStyle(fontSize: 11, color: AppColors.secondaryText, fontWeight: FontWeight.w500),
       filled: true,
       fillColor: AppColors.lightPeach,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),

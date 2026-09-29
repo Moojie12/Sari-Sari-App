@@ -115,6 +115,9 @@ class NotificationDatabaseService {
         }
         list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
         return list;
+      }).handleError((error) {
+        debugPrint('Failed to subscribe customer notifications: $error');
+        return <CustomerNotification>[];
       });
     } catch (e) {
       debugPrint('Failed to subscribe customer notifications: $e');
@@ -218,6 +221,9 @@ class NotificationDatabaseService {
         }
         list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
         return list;
+      }).handleError((error) {
+        debugPrint('Failed to subscribe store notifications: $error');
+        return <EmployeeNotification>[];
       });
     } catch (e) {
       debugPrint('Failed to subscribe store notifications: $e');

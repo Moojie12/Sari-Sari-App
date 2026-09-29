@@ -8,9 +8,11 @@ import '../../../core/services/auth_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/barcode_validator.dart';
+import '../../../shared/utils/text_formatters.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../../../shared/widgets/product_image.dart';
+import '../../../shared/widgets/product_image_crop_dialog.dart';
 import '../employee_inventory_controller.dart';
 import 'employee_product_model.dart';
 
@@ -47,6 +49,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
   String? _priceError;
   String? _capitalError;
   String? _barcodeError;
+  String? _categoryError;
   bool _isBarcodeEditingEnabled = false;
 
   final ImagePicker _picker = ImagePicker();
@@ -140,28 +143,27 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
     try {
       final picked = await _picker.pickImage(
         source: source,
-        maxWidth: 1024,
+        maxWidth: 1200,
         imageQuality: 85,
       );
       if (picked != null) {
-        final file = File(picked.path);
-        final fileSize = await file.length();
-        const maxBytes = 5 * 1024 * 1024; // 5 MB maximum validation
-        if (fileSize > maxBytes) {
+        if (!mounted) return;
+        final confirmedPath = await showProductImageCropDialog(
+          context: context,
+          xfile: picked,
+        );
+
+        if (confirmedPath != null) {
+          setState(() {
+            _imagePath = confirmedPath;
+          });
           if (mounted) {
-            final mb = (fileSize / (1024 * 1024)).toStringAsFixed(1);
             TopNotification.show(
               context,
-              'Image exceeds 5MB limit ($mb MB). Please choose a smaller image.',
-              isError: true,
+              'Photo saved',
             );
           }
-          return;
         }
-
-        setState(() {
-          _imagePath = picked.path;
-        });
       }
     } catch (_) {
       if (mounted) {
@@ -221,7 +223,30 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
     final capital = double.tryParse(capitalText);
 
     setState(() {
-      _nameError = name.isEmpty ? 'Product name is required.' : null;
+      if (name.isEmpty) {
+        _nameError = 'Product name is required.';
+      } else if (name.length > 20) {
+        _nameError = 'Max 20 characters allowed.';
+      } else if (name.contains('  ')) {
+        _nameError = 'Double spaces are not allowed.';
+      } else {
+        _nameError = null;
+      }
+
+      if (_isAddingNewCategory) {
+        final newCat = _newCategoryController.text.trim();
+        if (newCat.isEmpty) {
+          _categoryError = 'Category name is required.';
+        } else if (newCat.length > 20) {
+          _categoryError = 'Max 20 characters allowed.';
+        } else if (newCat.contains('  ')) {
+          _categoryError = 'Double spaces are not allowed.';
+        } else {
+          _categoryError = null;
+        }
+      } else {
+        _categoryError = null;
+      }
 
       if (priceText.isEmpty) {
         _priceError = 'Price is required.';
@@ -249,7 +274,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
         isBarcodeTaken: widget.inventory.isBarcodeTaken,
       );
     });
-    if (_nameError != null || _priceError != null || _capitalError != null || _barcodeError != null) return;
+    if (_nameError != null || _categoryError != null || _priceError != null || _capitalError != null || _barcodeError != null) return;
     if (category.isEmpty) return;
 
     final confirmed = await showDialog<bool>(
@@ -271,18 +296,16 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
     String? finalImageUrl = _imagePath;
     if (_imagePath != null && _imagePath != widget.product.image && !_imagePath!.startsWith('http') && !_imagePath!.startsWith('data:image')) {
       try {
-        final file = File(_imagePath!);
-        if (file.existsSync()) {
-          final uploadedUrl = await SupabaseService().uploadProductImage(
-            widget.product.id,
-            file,
-          );
-          if (uploadedUrl != null) {
-            finalImageUrl = uploadedUrl;
-          }
+        final uploadedUrl = await SupabaseService().uploadProductImageFromPathOrBytes(
+          productId: widget.product.id,
+          filePath: _imagePath,
+        );
+        if (uploadedUrl != null) {
+          finalImageUrl = uploadedUrl;
+          debugPrint('Edited product photo uploaded to Supabase: $finalImageUrl');
         }
       } catch (e) {
-        debugPrint('Error uploading edited product photo: $e');
+        debugPrint('Error uploading edited product photo to Supabase: $e');
       }
     }
 
@@ -380,6 +403,13 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
             const SizedBox(height: 8),
             TextField(
               controller: _nameController,
+              maxLength: 20,
+              inputFormatters: [
+                NoDoubleSpaceAndMax20Formatter(maxLength: 20),
+              ],
+              onChanged: (_) {
+                if (_nameError != null) setState(() => _nameError = null);
+              },
               decoration: _fieldDecoration('e.g. Bear Brand Milk 300ml', errorText: _nameError),
             ),
             const SizedBox(height: 16),
@@ -397,7 +427,14 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
             if (_isAddingNewCategory)
               TextField(
                 controller: _newCategoryController,
-                decoration: _fieldDecoration('Enter new category name'),
+                maxLength: 20,
+                inputFormatters: [
+                  NoDoubleSpaceAndMax20Formatter(maxLength: 20),
+                ],
+                onChanged: (_) {
+                  if (_categoryError != null) setState(() => _categoryError = null);
+                },
+                decoration: _fieldDecoration('Enter new category name', errorText: _categoryError),
               )
             else
               DropdownButtonFormField<String>(
@@ -574,12 +611,14 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
     );
   }
 
-  InputDecoration _fieldDecoration(String? hint, {String? prefixText, String? errorText, Widget? suffixIcon}) {
+  InputDecoration _fieldDecoration(String? hint, {String? prefixText, String? errorText, Widget? suffixIcon, String? counterText}) {
     return InputDecoration(
       hintText: hint,
       prefixText: prefixText,
       errorText: errorText,
       suffixIcon: suffixIcon,
+      counterText: counterText,
+      counterStyle: const TextStyle(fontSize: 11, color: AppColors.secondaryText, fontWeight: FontWeight.w500),
       filled: true,
       fillColor: Colors.white,
       contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),

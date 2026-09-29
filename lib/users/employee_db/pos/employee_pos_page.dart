@@ -1280,6 +1280,10 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
               TextField(
                 controller: _amountController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                ],
                 onChanged: (_) {
                   if (_amountErrorText != null) {
                     setState(() => _amountErrorText = null);

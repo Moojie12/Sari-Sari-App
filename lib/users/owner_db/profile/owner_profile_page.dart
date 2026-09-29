@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../authentication/login/login_page.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_colors.dart';
@@ -311,6 +312,9 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
               TextField(
                 controller: textController,
                 keyboardType: TextInputType.number,
+                inputFormatters: [
+                  FilteringTextInputFormatter.digitsOnly,
+                ],
                 onChanged: (_) {
                   if (errorText != null) setState(() => errorText = null);
                 },
@@ -384,6 +388,10 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
               TextField(
                 controller: textController,
                 keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                ],
                 onChanged: (_) {
                   if (errorText != null) setState(() => errorText = null);
                 },
