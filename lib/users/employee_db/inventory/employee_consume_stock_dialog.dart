@@ -44,7 +44,9 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
     _selectedBatch = null;
     _isAllSelected = true;
     _maxQuantity = widget.product.quantity;
-    _quantityController.text = _maxQuantity.toInt().toString();
+    _quantityController.text = widget.product.isWeightBased
+        ? _maxQuantity.toStringAsFixed(2)
+        : _maxQuantity.toInt().toString();
   }
 
   @override
@@ -61,6 +63,14 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
     return '${name.isEmpty ? profile.role : name} (${widget.role})';
   }
 
+  String _formatQty(double qty) {
+    if (widget.product.isWeightBased) {
+      return '${qty.toStringAsFixed(2)} kg';
+    } else {
+      return '${qty.toInt()} pcs';
+    }
+  }
+
   void _onBatchChanged(ProductBatch? batch) {
     setState(() {
       _selectedBatch = batch;
@@ -68,26 +78,57 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
       _errorText = null;
       if (_isAllSelected) {
         _maxQuantity = widget.product.quantity;
-        _quantityController.text = _maxQuantity.toInt().toString();
       } else {
         _maxQuantity = batch!.quantity;
-        _quantityController.text = _maxQuantity.toInt().toString();
       }
+      _quantityController.text = widget.product.isWeightBased
+          ? _maxQuantity.toStringAsFixed(2)
+          : _maxQuantity.toInt().toString();
     });
   }
 
-  void _submit() {
+  void _submit() async {
     final consumedBy = _currentUserLabel();
 
     if (_isAllSelected) {
       if (widget.product.quantity <= 0) return;
+
+      final totalQtyStr = _formatQty(widget.product.quantity);
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Confirm Consumables / Loss', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: Text(
+            'Are you sure you want to log all $totalQtyStr of "${widget.product.name}" as Consumables / Product Loss?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+              ),
+              onPressed: () => Navigator.pop(ctx, true),
+              child: const Text('Confirm'),
+            ),
+          ],
+        ),
+      );
+
+      if (confirmed != true) return;
+
       widget.inventory.recordConsumableAll(widget.product.id, consumedBy: consumedBy);
+      if (!mounted) return;
       Navigator.pop(context);
-      TopNotification.show(context, 'All stock for ${widget.product.name} logged as Consumables / Product Loss.');
+      TopNotification.show(context, 'All stock ($totalQtyStr) for ${widget.product.name} logged as Consumables / Product Loss.');
       return;
     }
 
-    final qty = double.tryParse(_quantityController.text);
+    final qty = double.tryParse(_quantityController.text.trim());
     if (qty == null || qty <= 0) {
       setState(() => _errorText = 'Enter a valid quantity greater than 0.');
       return;
@@ -96,10 +137,40 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
       setState(() => _errorText = 'Regular products must use whole numbers.');
       return;
     }
+
+    final maxFormatted = _formatQty(_maxQuantity);
     if (_selectedBatch == null || qty > _maxQuantity) {
-      setState(() => _errorText = 'Quantity cannot exceed available stock (${_maxQuantity.toInt()}).');
+      setState(() => _errorText = 'Quantity cannot exceed available stock ($maxFormatted).');
       return;
     }
+
+    final qtyStr = _formatQty(qty);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm Consumables / Loss', style: TextStyle(fontWeight: FontWeight.bold)),
+        content: Text(
+          'Are you sure you want to deduct $qtyStr of "${widget.product.name}" as Consumables / Product Loss?',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Confirm'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true) return;
 
     widget.inventory.recordConsumable(
       widget.product.id,
@@ -107,17 +178,19 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
       qty,
       consumedBy: consumedBy,
     );
+
+    if (!mounted) return;
     Navigator.pop(context);
-    final unitStr = widget.product.isWeightBased ? 'kg' : 'pcs';
     TopNotification.show(
       context,
-      '${qty.toInt()} $unitStr of ${widget.product.name} logged as Consumables / Product Loss.',
+      '$qtyStr of ${widget.product.name} logged as Consumables / Product Loss.',
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    final unitStr = widget.product.isWeightBased ? 'kg' : 'pcs';
+    final totalStockFormatted = _formatQty(widget.product.quantity);
+    final maxQtyFormatted = _formatQty(_maxQuantity);
     final barcodeStr = widget.product.barcode.trim().isEmpty ? 'No barcode' : widget.product.barcode;
 
     return AlertDialog(
@@ -128,7 +201,7 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              'Barcode: $barcodeStr · Total Stock: ${widget.product.quantity.toInt()} $unitStr',
+              'Barcode: $barcodeStr · Total Stock: $totalStockFormatted',
               style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryOrange),
             ),
             const SizedBox(height: 6),
@@ -157,7 +230,7 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
                       : '${b.expiryDate!.day}/${b.expiryDate!.month}/${b.expiryDate!.year}';
                   return DropdownMenuItem<ProductBatch?>(
                     value: b,
-                    child: Text('Batch ${index + 1} ($dateStr) - ${b.quantity.toInt()} $unitStr',
+                    child: Text('Batch ${index + 1} ($dateStr) - ${_formatQty(b.quantity)}',
                         style: const TextStyle(fontSize: 14)),
                   );
                 }),
@@ -185,7 +258,7 @@ class _EmployeeConsumeStockDialogState extends State<EmployeeConsumeStockDialog>
               ],
               onChanged: (_) => setState(() => _errorText = null),
               decoration: InputDecoration(
-                hintText: _isAllSelected ? 'All quantity will be taken' : 'Max: ${_maxQuantity.toInt()}',
+                hintText: _isAllSelected ? 'All quantity will be taken' : 'Max: $maxQtyFormatted',
                 errorText: _errorText,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),

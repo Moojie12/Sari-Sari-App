@@ -90,22 +90,26 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
   /// writes the total straight into `_quantityController` (the same field
   /// `_submit` reads). Guards against divide-by-zero / invalid input by
   /// leaving the computed values blank until the inputs check out.
-  void _recalcBulk() {
+  void _recalcBulk({bool isWeightBased = false}) {
     final bulkPrice = double.tryParse(_bulkPriceController.text.trim());
-    final pcsPerBulk = int.tryParse(_pcsPerBulkController.text.trim());
-    final numberOfBulk = int.tryParse(_numberOfBulkController.text.trim());
+    final sizeVal = double.tryParse(_pcsPerBulkController.text.trim());
+    final countVal = double.tryParse(_numberOfBulkController.text.trim());
 
     setState(() {
-      if (bulkPrice != null && bulkPrice >= 0 && pcsPerBulk != null && pcsPerBulk > 0) {
-        _bulkCapitalPerPc = bulkPrice / pcsPerBulk;
+      if (bulkPrice != null && bulkPrice >= 0 && sizeVal != null && sizeVal > 0) {
+        _bulkCapitalPerPc = bulkPrice / sizeVal;
       } else {
         _bulkCapitalPerPc = null;
       }
 
-      if (pcsPerBulk != null && pcsPerBulk > 0 && numberOfBulk != null && numberOfBulk >= 0) {
-        final totalQuantity = pcsPerBulk * numberOfBulk;
-        _bulkTotalQuantity = totalQuantity.toDouble();
-        _quantityController.text = totalQuantity.toString();
+      if (sizeVal != null && sizeVal > 0 && countVal != null && countVal >= 0) {
+        final totalQuantity = sizeVal * countVal;
+        _bulkTotalQuantity = totalQuantity;
+        if (isWeightBased) {
+          _quantityController.text = totalQuantity.toStringAsFixed(2);
+        } else {
+          _quantityController.text = totalQuantity.round().toString();
+        }
       } else {
         _bulkTotalQuantity = null;
         _quantityController.text = '';
@@ -194,10 +198,12 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
 
   Future<void> _pickExpiryDate() async {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final initialDate = (_expiryDate != null && !_expiryDate!.isBefore(today)) ? _expiryDate! : today;
     final picked = await showDatePicker(
       context: context,
-      initialDate: _expiryDate ?? now,
-      firstDate: DateTime(now.year - 1),
+      initialDate: initialDate,
+      firstDate: today,
       lastDate: DateTime(now.year + 15),
     );
     if (picked != null) {
@@ -209,30 +215,39 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
     }
   }
 
-  bool _validateBulkCalculator() {
+  bool _validateBulkCalculator({bool isWeightBased = false}) {
     if (!_showBulkCalculator) return true;
 
     final bulkPrice = double.tryParse(_bulkPriceController.text.trim());
-    final pcsPerBulk = int.tryParse(_pcsPerBulkController.text.trim());
-    final numberOfBulk = int.tryParse(_numberOfBulkController.text.trim());
+    final sizeVal = double.tryParse(_pcsPerBulkController.text.trim());
+    final countVal = double.tryParse(_numberOfBulkController.text.trim());
 
     setState(() {
       _bulkPriceError = (bulkPrice == null || bulkPrice <= 0) ? 'Bulk Price must be greater than 0.' : null;
-      _pcsPerBulkError = (pcsPerBulk == null || pcsPerBulk <= 0) ? 'Must be a positive whole number.' : null;
-      _numberOfBulkError = (numberOfBulk == null || numberOfBulk <= 0) ? 'Must be a positive whole number.' : null;
+      if (isWeightBased) {
+        _pcsPerBulkError = (sizeVal == null || sizeVal <= 0) ? 'Enter kg per sack.' : null;
+        _numberOfBulkError = (countVal == null || countVal <= 0) ? 'Enter number of sacks.' : null;
+      } else {
+        _pcsPerBulkError = (sizeVal == null || sizeVal <= 0) ? 'Must be a positive number.' : null;
+        _numberOfBulkError = (countVal == null || countVal <= 0) ? 'Must be a positive number.' : null;
+      }
     });
 
     if (_bulkPriceError != null || _pcsPerBulkError != null || _numberOfBulkError != null) return false;
 
-    // Make sure Quantity Received / the computed cost reflect the latest inputs.
-    _recalcBulk();
+    _recalcBulk(isWeightBased: isWeightBased);
     return true;
   }
 
-  bool _validate() {
-    final quantity = int.tryParse(_quantityController.text.trim());
-    final quantityError =
-    (quantity == null || quantity <= 0) ? 'Enter a quantity greater than 0.' : null;
+  bool _validate(EmployeeProduct product) {
+    final quantity = double.tryParse(_quantityController.text.trim());
+    String? quantityError;
+    if (quantity == null || quantity <= 0) {
+      quantityError = 'Enter a quantity greater than 0.';
+    } else if (!product.isWeightBased && quantity != quantity.roundToDouble()) {
+      quantityError = 'Regular products must use whole-number quantities.';
+    }
+
     final expiryError = (!_noExpiry && _expiryDate == null)
         ? 'Pick an expiration date, or mark this item as not tracked.'
         : null;
@@ -245,17 +260,17 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
   }
 
   void _submit(EmployeeProduct product) {
-    if (!_validateBulkCalculator()) return;
-    if (!_validate()) return;
+    if (!_validateBulkCalculator(isWeightBased: product.isWeightBased)) return;
+    if (!_validate(product)) return;
 
     final quantity = double.parse(_quantityController.text.trim());
 
-    // When the Bulk calculator was used, keep the computed per-piece
-    // cost on record with this batch (the data model doesn't carry a
-    // dedicated cost field, so it's captured in the batch notes).
     final bulkNotes = (_showBulkCalculator && _bulkCapitalPerPc != null)
-        ? 'Bulk entry: ₱${_bulkPriceController.text.trim()} ÷ ${_pcsPerBulkController.text.trim()} pcs/bulk × '
-        '${_numberOfBulkController.text.trim()} bulk(s) → Capital/pc ₱${_bulkCapitalPerPc!.toStringAsFixed(2)}'
+        ? (product.isWeightBased
+            ? 'Bulk entry (De-Kilo): ₱${_bulkPriceController.text.trim()} ÷ ${_pcsPerBulkController.text.trim()} kg/sack × '
+              '${_numberOfBulkController.text.trim()} sack(s) → Capital/kg ₱${_bulkCapitalPerPc!.toStringAsFixed(2)}'
+            : 'Bulk entry: ₱${_bulkPriceController.text.trim()} ÷ ${_pcsPerBulkController.text.trim()} pcs/bulk × '
+              '${_numberOfBulkController.text.trim()} bulk(s) → Capital/pc ₱${_bulkCapitalPerPc!.toStringAsFixed(2)}')
         : null;
 
     final result = widget.inventory.receiveStock(
@@ -582,10 +597,8 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
   }
 
   Widget _buildStockForm(EmployeeProduct product) {
-    // The Bulk/Set calculator converts a bulk/set purchase into pieces —
-    // it only makes sense for Retail (Pcs) products, not De-Kilo (Kg) ones.
-    final bulkCalculatorAvailable = !product.isWeightBased;
-    final bulkModeActive = bulkCalculatorAvailable && _showBulkCalculator;
+    const bulkCalculatorAvailable = true;
+    final bulkModeActive = _showBulkCalculator;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -623,7 +636,9 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Enter the bulk purchase details below — Capital per Pc and Total Pcs will be calculated.',
+                    product.isWeightBased
+                        ? 'Enter the bulk purchase details below — Capital per Kg and Total Weight (kg) will be calculated.'
+                        : 'Enter the bulk purchase details below — Capital per Pc and Total Pcs will be calculated.',
                     style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.9), fontSize: 11),
                   ),
                   const SizedBox(height: 12),
@@ -632,9 +647,13 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
                   TextField(
                     controller: _bulkPriceController,
                     keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    onChanged: (_) => _recalcBulk(),
+                    inputFormatters: [
+                      FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                      FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                    ],
+                    onChanged: (_) => _recalcBulk(isWeightBased: product.isWeightBased),
                     decoration: InputDecoration(
-                      hintText: 'e.g. 720',
+                      hintText: product.isWeightBased ? 'e.g. 1250' : 'e.g. 720',
                       prefixText: '₱ ',
                       errorText: _bulkPriceError,
                       filled: true,
@@ -651,14 +670,18 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildLabel('Pcs per Bulk *'),
+                            _buildLabel(product.isWeightBased ? 'Kg per Sack / Size (kg) *' : 'Pcs per Bulk *'),
                             const SizedBox(height: 8),
                             TextField(
                               controller: _pcsPerBulkController,
-                              keyboardType: TextInputType.number,
-                              onChanged: (_) => _recalcBulk(),
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                              ],
+                              onChanged: (_) => _recalcBulk(isWeightBased: product.isWeightBased),
                               decoration: InputDecoration(
-                                hintText: 'e.g. 12',
+                                hintText: product.isWeightBased ? 'e.g. 25' : 'e.g. 12',
                                 errorText: _pcsPerBulkError,
                                 filled: true,
                                 fillColor: Colors.white,
@@ -674,14 +697,18 @@ class _EmployeeStockReceivingPageState extends State<EmployeeStockReceivingPage>
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            _buildLabel('Number of Bulk *'),
+                            _buildLabel(product.isWeightBased ? 'Number of Sacks *' : 'Number of Bulk *'),
                             const SizedBox(height: 8),
                             TextField(
                               controller: _numberOfBulkController,
-                              keyboardType: TextInputType.number,
-                              onChanged: (_) => _recalcBulk(),
+                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                              inputFormatters: [
+                                FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
+                              ],
+                              onChanged: (_) => _recalcBulk(isWeightBased: product.isWeightBased),
                               decoration: InputDecoration(
-                                hintText: 'e.g. 5',
+                                hintText: product.isWeightBased ? 'e.g. 1' : 'e.g. 5',
                                 errorText: _numberOfBulkError,
                                 filled: true,
                                 fillColor: Colors.white,

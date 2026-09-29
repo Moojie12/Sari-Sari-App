@@ -65,15 +65,24 @@ class _PendingBatch {
     numberOfBulkController.dispose();
   }
 
-  void recalcBulk() {
-    final pcsPerBulk = int.tryParse(pcsPerBulkController.text.trim());
-    final numberOfBulk = int.tryParse(numberOfBulkController.text.trim());
+  void recalcBulk({bool isWeightBased = false}) {
+    final sizeVal = double.tryParse(pcsPerBulkController.text.trim());
+    final countVal = double.tryParse(numberOfBulkController.text.trim());
 
-    if (pcsPerBulk != null && pcsPerBulk > 0 && numberOfBulk != null && numberOfBulk >= 0) {
-      final totalQuantity = (pcsPerBulk * numberOfBulk).toDouble();
-      quantityController.text = totalQuantity.toString();
+    if (isWeightBased) {
+      if (sizeVal != null && sizeVal > 0 && countVal != null && countVal >= 0) {
+        final totalKg = sizeVal * countVal;
+        quantityController.text = totalKg.toStringAsFixed(2);
+      } else {
+        quantityController.text = '';
+      }
     } else {
-      quantityController.text = '';
+      if (sizeVal != null && sizeVal > 0 && countVal != null && countVal >= 0) {
+        final totalPcs = sizeVal * countVal;
+        quantityController.text = totalPcs.round().toString();
+      } else {
+        quantityController.text = '';
+      }
     }
   }
 }
@@ -281,10 +290,11 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
 
   Future<void> _pickExpiryManually() async {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
     final picked = await showDatePicker(
       context: context,
-      initialDate: now,
-      firstDate: DateTime(now.year - 1),
+      initialDate: today,
+      firstDate: today,
       lastDate: DateTime(now.year + 15),
     );
     if (picked != null) _addOrBumpBatch(picked);
@@ -1310,23 +1320,42 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
 
   void _recalcBulk() {
     final bulkPrice = double.tryParse(_bulkPriceController.text.trim());
-    final pcsPerBulk = int.tryParse(_pcsPerBulkController.text.trim());
-    final numberOfBulk = int.tryParse(_numberOfBulkController.text.trim());
+    final sizeVal = double.tryParse(_pcsPerBulkController.text.trim());
+    final countVal = double.tryParse(_numberOfBulkController.text.trim());
 
     setState(() {
-      if (bulkPrice != null && bulkPrice >= 0 && pcsPerBulk != null && pcsPerBulk > 0) {
-        final capitalPerPc = bulkPrice / pcsPerBulk;
-        _capitalController.text = capitalPerPc.toStringAsFixed(2);
-      } else {
-        _capitalController.text = '';
-      }
+      if (_isWeightBased) {
+        if (bulkPrice != null && bulkPrice >= 0 && sizeVal != null && sizeVal > 0) {
+          final capitalPerKg = bulkPrice / sizeVal;
+          _capitalController.text = capitalPerKg.toStringAsFixed(2);
+        } else {
+          _capitalController.text = '';
+        }
 
-      if (pcsPerBulk != null && pcsPerBulk > 0 && numberOfBulk != null && numberOfBulk >= 0) {
-        final totalQuantity = (pcsPerBulk * numberOfBulk).toDouble();
-        _quantityController.text = totalQuantity.toString();
+        if (sizeVal != null && sizeVal > 0 && countVal != null && countVal >= 0) {
+          final totalKg = sizeVal * countVal;
+          _quantityController.text = totalKg.toStringAsFixed(2);
+        } else {
+          _quantityController.text = '';
+        }
       } else {
-        _quantityController.text = '';
+        if (bulkPrice != null && bulkPrice >= 0 && sizeVal != null && sizeVal > 0) {
+          final capitalPerPc = bulkPrice / sizeVal;
+          _capitalController.text = capitalPerPc.toStringAsFixed(2);
+        } else {
+          _capitalController.text = '';
+        }
+
+        if (sizeVal != null && sizeVal > 0 && countVal != null && countVal >= 0) {
+          final totalQuantity = sizeVal * countVal;
+          _quantityController.text = totalQuantity.round().toString();
+        } else {
+          _quantityController.text = '';
+        }
       }
+      _bulkPriceError = null;
+      _pcsPerBulkError = null;
+      _numberOfBulkError = null;
       _capitalError = null;
       _quantityError = null;
     });
@@ -1359,10 +1388,12 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
 
   Future<void> _pickExpiryManually() async {
     final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final initialDate = (_expiryDate != null && !_expiryDate!.isBefore(today)) ? _expiryDate! : today;
     final picked = await showDatePicker(
       context: context,
-      initialDate: _expiryDate ?? now,
-      firstDate: DateTime(now.year - 1),
+      initialDate: initialDate,
+      firstDate: today,
       lastDate: DateTime(now.year + 15),
     );
     if (picked != null) setState(() => _expiryDate = picked);
@@ -1410,15 +1441,20 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
   }
 
   Future<void> _continue() async {
-    if (_isBulkMode && !_isWeightBased) {
+    if (_isBulkMode) {
       final bulkPrice = double.tryParse(_bulkPriceController.text.trim());
-      final pcsPerBulk = int.tryParse(_pcsPerBulkController.text.trim());
-      final numberOfBulk = int.tryParse(_numberOfBulkController.text.trim());
+      final sizeVal = double.tryParse(_pcsPerBulkController.text.trim());
+      final countVal = double.tryParse(_numberOfBulkController.text.trim());
 
       setState(() {
         _bulkPriceError = (bulkPrice == null || bulkPrice <= 0) ? 'Bulk Price must be greater than 0.' : null;
-        _pcsPerBulkError = (pcsPerBulk == null || pcsPerBulk <= 0) ? 'Must be a positive whole number.' : null;
-        _numberOfBulkError = (numberOfBulk == null || numberOfBulk <= 0) ? 'Must be a positive whole number.' : null;
+        if (_isWeightBased) {
+          _pcsPerBulkError = (sizeVal == null || sizeVal <= 0) ? 'Enter kg per sack.' : null;
+          _numberOfBulkError = (countVal == null || countVal <= 0) ? 'Enter number of sacks.' : null;
+        } else {
+          _pcsPerBulkError = (sizeVal == null || sizeVal <= 0) ? 'Must be a positive number.' : null;
+          _numberOfBulkError = (countVal == null || countVal <= 0) ? 'Must be a positive number.' : null;
+        }
       });
 
       if (_bulkPriceError != null || _pcsPerBulkError != null || _numberOfBulkError != null) return;
@@ -1730,27 +1766,27 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
               const SizedBox(height: 8),
               _buildUnitTypeSelector(),
               const SizedBox(height: 12),
-              if (!_isWeightBased) ...[
-                Material(
-                  color: AppColors.lightBackground,
-                  borderRadius: BorderRadius.circular(10),
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    child: SwitchListTile(
-                      title: const Text('Received as Bulk?', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
-                      subtitle: const Text(
-                        'Turn on to compute Capital per Pc and Total Pcs from a bulk purchase.',
-                        style: TextStyle(fontSize: 11),
-                      ),
-                      value: _isBulkMode,
-                      onChanged: (val) => _toggleBulkMode(val),
-                      activeThumbColor: AppColors.primaryOrange,
-                      contentPadding: EdgeInsets.zero,
+              Material(
+                color: AppColors.lightBackground,
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                  child: SwitchListTile(
+                    title: const Text('Received as Bulk?', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
+                    subtitle: Text(
+                      _isWeightBased
+                          ? 'Turn on to compute Capital per Kg and Total Weight (kg) from a bulk purchase.'
+                          : 'Turn on to compute Capital per Pc and Total Pcs from a bulk purchase.',
+                      style: const TextStyle(fontSize: 11),
                     ),
+                    value: _isBulkMode,
+                    onChanged: (val) => _toggleBulkMode(val),
+                    activeThumbColor: AppColors.primaryOrange,
+                    contentPadding: EdgeInsets.zero,
                   ),
                 ),
-                const SizedBox(height: 12),
-              ],
+              ),
+              const SizedBox(height: 12),
               const Text('Product Name *', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
               const SizedBox(height: 8),
               TextField(
@@ -1822,7 +1858,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                           FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
                         ],
                         onChanged: (_) => _recalcBulk(),
-                        decoration: _fieldDecoration('e.g. 720', prefixText: '₱ ', errorText: _bulkPriceError),
+                        decoration: _fieldDecoration('e.g. 1250', prefixText: '₱ ', errorText: _bulkPriceError),
                       ),
                       const SizedBox(height: 12),
                       Row(
@@ -1832,16 +1868,20 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('Pcs per Bulk *', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+                                Text(
+                                  _isWeightBased ? 'Kg per Sack / Size (kg) *' : 'Pcs per Bulk *',
+                                  style: const TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500),
+                                ),
                                 const SizedBox(height: 8),
                                 TextField(
                                   controller: _pcsPerBulkController,
-                                  keyboardType: TextInputType.number,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                   inputFormatters: [
-                                    FilteringTextInputFormatter.digitsOnly,
+                                    FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
                                   ],
                                   onChanged: (_) => _recalcBulk(),
-                                  decoration: _fieldDecoration('e.g. 12', errorText: _pcsPerBulkError),
+                                  decoration: _fieldDecoration(_isWeightBased ? 'e.g. 25' : 'e.g. 12', errorText: _pcsPerBulkError),
                                 ),
                               ],
                             ),
@@ -1851,16 +1891,20 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                const Text('Number of Bulk *', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+                                Text(
+                                  _isWeightBased ? 'Number of Sacks *' : 'Number of Bulk *',
+                                  style: const TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500),
+                                ),
                                 const SizedBox(height: 8),
                                 TextField(
                                   controller: _numberOfBulkController,
-                                  keyboardType: TextInputType.number,
+                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                   inputFormatters: [
-                                    FilteringTextInputFormatter.digitsOnly,
+                                    FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                                    FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d*')),
                                   ],
                                   onChanged: (_) => _recalcBulk(),
-                                  decoration: _fieldDecoration('e.g. 5', errorText: _numberOfBulkError),
+                                  decoration: _fieldDecoration(_isWeightBased ? 'e.g. 1' : 'e.g. 5', errorText: _numberOfBulkError),
                                 ),
                               ],
                             ),

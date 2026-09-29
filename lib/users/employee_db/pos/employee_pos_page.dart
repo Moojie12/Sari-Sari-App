@@ -34,13 +34,34 @@ class EmployeePosPage extends StatefulWidget {
   State<EmployeePosPage> createState() => _EmployeePosPageState();
 }
 
-class _EmployeePosPageState extends State<EmployeePosPage> {
+class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderStateMixin {
   final _searchController = TextEditingController();
   String _searchQuery = '';
   String _selectedCategory = 'All';
 
+  final GlobalKey _cartBadgeKey = GlobalKey();
+  late AnimationController _cartPulseController;
+  late Animation<double> _cartScaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _cartPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 250),
+    );
+    _cartScaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.25), weight: 50),
+      TweenSequenceItem(tween: Tween<double>(begin: 1.25, end: 1.0), weight: 50),
+    ]).animate(CurvedAnimation(
+      parent: _cartPulseController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
   @override
   void dispose() {
+    _cartPulseController.dispose();
     _searchController.dispose();
     super.dispose();
   }
@@ -57,11 +78,115 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
     }).toList();
   }
 
-  void _addToCart(EmployeeProduct product) {
+  void _runFlyToCartAnimation({
+    required Offset startOffset,
+    String? productImage,
+  }) {
+    final RenderBox? cartBox = _cartBadgeKey.currentContext?.findRenderObject() as RenderBox?;
+    if (cartBox == null) return;
+
+    final Offset endOffset = cartBox.localToGlobal(cartBox.size.center(Offset.zero));
+    final OverlayState? overlayState = Overlay.of(context);
+    if (overlayState == null) return;
+
+    late OverlayEntry overlayEntry;
+    final AnimationController flyController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 550),
+    );
+
+    final Animation<double> progress = CurvedAnimation(
+      parent: flyController,
+      curve: Curves.easeInOutCubic,
+    );
+
+    overlayEntry = OverlayEntry(
+      builder: (context) {
+        return AnimatedBuilder(
+          animation: progress,
+          builder: (context, child) {
+            final t = progress.value;
+
+            // Curved arc upwards
+            final controlPoint = Offset(
+              (startOffset.dx + endOffset.dx) / 2,
+              startOffset.dy - 120,
+            );
+
+            final currentX = (1 - t) * (1 - t) * startOffset.dx +
+                2 * (1 - t) * t * controlPoint.dx +
+                t * t * endOffset.dx;
+            final currentY = (1 - t) * (1 - t) * startOffset.dy +
+                2 * (1 - t) * t * controlPoint.dy +
+                t * t * endOffset.dy;
+
+            final scale = (1.0 - (t * 0.4));
+            final opacity = (t > 0.85) ? (1.0 - (t - 0.85) / 0.15) : 1.0;
+
+            return Positioned(
+              left: currentX - 22,
+              top: currentY - 22,
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: opacity.clamp(0.0, 1.0),
+                  child: Transform.scale(
+                    scale: scale,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryOrange,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryOrange.withValues(alpha: 0.4),
+                            blurRadius: 10,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: productImage != null && productImage.isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(22),
+                                child: ProductImage(
+                                  image: productImage,
+                                  width: 40,
+                                  height: 40,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.shopping_bag_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    overlayState.insert(overlayEntry);
+
+    flyController.forward().then((_) {
+      overlayEntry.remove();
+      flyController.dispose();
+      _cartPulseController.forward(from: 0.0);
+    });
+  }
+
+  void _addToCart(EmployeeProduct product, [Offset? startPosition]) {
     if (product.stockStatus == EmployeeStockStatus.outOfStock) {
       TopNotification.show(context, 'This product is out of stock.', isError: true);
       return;
     }
+
+    final pos = startPosition ?? const Offset(200, 400);
 
     showModalBottomSheet(
       context: context,
@@ -71,6 +196,10 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
         product: product,
         onConfirm: (batch, quantity) {
           widget.posController.addBatchToCart(product, batch, quantity: quantity);
+          _runFlyToCartAnimation(
+            startOffset: pos,
+            productImage: product.image,
+          );
         },
       ),
     );
@@ -166,7 +295,7 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
                       final product = products[index];
                       return _PosProductCard(
                         product: product,
-                        onTap: () => _addToCart(product),
+                        onTapWithPosition: (pos) => _addToCart(product, pos),
                       );
                     },
                   ),
@@ -197,8 +326,7 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              if (widget.posController.cart.isNotEmpty)
-                _buildCartSummary(),
+              _buildCartSummary(),
             ],
           ),
           if (shift != null) ...[
@@ -273,35 +401,39 @@ class _EmployeePosPageState extends State<EmployeePosPage> {
     final itemCount = widget.posController.itemCount;
     final totalAmount = widget.posController.totalAmount;
 
-    return Material(
-      color: AppColors.primaryOrange,
-      borderRadius: BorderRadius.circular(12),
-      child: InkWell(
-        onTap: _showCartDetails,
+    return ScaleTransition(
+      scale: _cartScaleAnimation,
+      child: Material(
+        key: _cartBadgeKey,
+        color: itemCount > 0 ? AppColors.primaryOrange : AppColors.primaryOrange.withValues(alpha: 0.15),
         borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                '$itemCount item(s)',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
+        child: InkWell(
+          onTap: _showCartDetails,
+          borderRadius: BorderRadius.circular(12),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(
+                  '$itemCount item(s)',
+                  style: TextStyle(
+                    color: itemCount > 0 ? Colors.white : AppColors.darkText,
+                    fontSize: 10,
+                    fontWeight: FontWeight.w500,
+                  ),
                 ),
-              ),
-              Text(
-                '₱${totalAmount.toStringAsFixed(2)}',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.bold,
+                Text(
+                  '₱${totalAmount.toStringAsFixed(2)}',
+                  style: TextStyle(
+                    color: itemCount > 0 ? Colors.white : AppColors.primaryOrange,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -427,13 +559,25 @@ class _HeaderIconButton extends StatelessWidget {
   }
 }
 
-class _PosProductCard extends StatelessWidget {
-  const _PosProductCard({required this.product, required this.onTap});
+class _PosProductCard extends StatefulWidget {
+  const _PosProductCard({
+    required this.product,
+    required this.onTapWithPosition,
+  });
+
   final EmployeeProduct product;
-  final VoidCallback onTap;
+  final Function(Offset position) onTapWithPosition;
+
+  @override
+  State<_PosProductCard> createState() => _PosProductCardState();
+}
+
+class _PosProductCardState extends State<_PosProductCard> {
+  Offset? _tapPosition;
 
   @override
   Widget build(BuildContext context) {
+    final product = widget.product;
     final isOut = product.stockStatus == EmployeeStockStatus.outOfStock;
     final originalPrice = product.price;
     final currentPrice = product.currentPrice;
@@ -446,105 +590,118 @@ class _PosProductCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         side: BorderSide(color: AppColors.borderColor.withValues(alpha: 0.5)),
       ),
-      child: InkWell(
-        onTap: isOut ? null : onTap,
-        child: Stack(
-          children: [
-            Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    child: Container(
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: AppColors.primaryOrange.withValues(alpha: 0.05),
-                        borderRadius: BorderRadius.circular(10),
-                      ),
-                      alignment: Alignment.center,
-                      child: Opacity(
-                        opacity: isOut ? 0.4 : 1,
-                        child: ProductImage(
-                          image: product.image,
-                          width: double.infinity,
-                          height: double.infinity,
-                          borderRadius: 10,
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTapDown: (details) {
+          _tapPosition = details.globalPosition;
+        },
+        child: InkWell(
+          onTap: isOut
+              ? null
+              : () {
+                  final pos = _tapPosition ?? const Offset(200, 400);
+                  widget.onTapWithPosition(pos);
+                },
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryOrange.withValues(alpha: 0.05),
+                          borderRadius: BorderRadius.circular(10),
                         ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    product.name,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(
-                      color: AppColors.darkText,
-                      fontSize: 13,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                  const SizedBox(height: 2),
-                  Row(
-                    children: [
-                      Text(
-                        '₱${currentPrice.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          color: AppColors.primaryOrange,
-                          fontSize: 13,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      if (isOnSale) ...[
-                        const SizedBox(width: 4),
-                        Text(
-                          '₱${originalPrice.toStringAsFixed(2)}',
-                          style: TextStyle(
-                            color: AppColors.secondaryText.withValues(alpha: 0.5),
-                            fontSize: 10,
-                            decoration: TextDecoration.lineThrough,
+                        alignment: Alignment.center,
+                        child: Opacity(
+                          opacity: isOut ? 0.4 : 1,
+                          child: ProductImage(
+                            image: product.image,
+                            width: double.infinity,
+                            height: double.infinity,
+                            borderRadius: 10,
                           ),
                         ),
-                      ],
-                    ],
-                  ),
-                  const SizedBox(height: 2),
-                  Text(
-                    isOut ? 'Out of stock' : '${product.isWeightBased ? product.quantity.toStringAsFixed(2) : product.quantity.toStringAsFixed(0)} ${product.isWeightBased ? 'kg' : 'pcs'} in stock',
-                    style: TextStyle(
-                      fontSize: 11,
-                      color: isOut
-                          ? Colors.red
-                          : (product.stockStatus == EmployeeStockStatus.lowStock
-                          ? Colors.orange
-                          : AppColors.secondaryText),
+                      ),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 8),
+                    Text(
+                      product.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.darkText,
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Row(
+                      children: [
+                        Text(
+                          '₱${currentPrice.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: AppColors.primaryOrange,
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        if (isOnSale) ...[
+                          const SizedBox(width: 4),
+                          Text(
+                            '₱${originalPrice.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color: AppColors.secondaryText.withValues(alpha: 0.5),
+                              fontSize: 10,
+                              decoration: TextDecoration.lineThrough,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      isOut
+                          ? 'Out of stock'
+                          : '${product.isWeightBased ? product.quantity.toStringAsFixed(2) : product.quantity.toStringAsFixed(0)} ${product.isWeightBased ? 'kg' : 'pcs'} in stock',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: isOut
+                            ? Colors.red
+                            : (product.stockStatus == EmployeeStockStatus.lowStock
+                                ? Colors.orange
+                                : AppColors.secondaryText),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
-            if (isOnSale && !isOut)
-              Positioned(
-                top: 8,
-                right: 8,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.red,
-                    borderRadius: BorderRadius.circular(4),
-                  ),
-                  child: const Text(
-                    'SALE',
-                    style: TextStyle(
-                      color: Colors.white,
-                      fontSize: 8,
-                      fontWeight: FontWeight.bold,
+              if (isOnSale && !isOut)
+                Positioned(
+                  top: 8,
+                  right: 8,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                    decoration: BoxDecoration(
+                      color: Colors.red,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: const Text(
+                      'SALE',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 8,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
                 ),
-              ),
-          ],
+            ],
+          ),
         ),
       ),
     );
