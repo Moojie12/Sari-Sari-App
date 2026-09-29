@@ -23,6 +23,8 @@ import './sections/categories_section.dart';
 import './sections/sales_section.dart';
 import './sections/activity_section.dart';
 import './sections/archived_section.dart';
+import '../../users/employee_db/employee_inventory_controller.dart';
+import '../../users/employee_db/inventory/employee_archive_stock_dialog.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -1312,18 +1314,42 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Future<void> _archiveProduct(BuildContext context, AdminProduct product) async {
     if (!mounted) return;
 
+    var empProduct = EmployeeInventoryController.instance.findById(product.id);
+    if (empProduct == null) {
+      await EmployeeInventoryController.instance.reloadProducts();
+      if (!mounted) return;
+      empProduct = EmployeeInventoryController.instance.findById(product.id);
+    }
+
+    if (empProduct != null && empProduct.batches.isNotEmpty) {
+      if (!context.mounted) return;
+      await showDialog(
+        context: context,
+        builder: (dialogContext) => EmployeeArchiveStockDialog(
+          product: empProduct!,
+          inventory: EmployeeInventoryController.instance,
+        ),
+      );
+      if (mounted) {
+        await _productService.refresh();
+        if (mounted) setState(() {});
+      }
+      return;
+    }
+
+    if (!context.mounted) return;
     final confirm = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Archive Product'),
         content: Text('Are you sure you want to archive "${product.name}"?'),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context, false),
+            onPressed: () => Navigator.pop(dialogContext, false),
             child: const Text('Cancel'),
           ),
           ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
+            onPressed: () => Navigator.pop(dialogContext, true),
             style: ElevatedButton.styleFrom(
               backgroundColor: AppColors.primaryOrange,
             ),
@@ -1335,11 +1361,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     if (confirm == true && mounted) {
       final result = await _productService.archiveProduct(product.id);
-      if (mounted) {
+      if (mounted && context.mounted) {
         if (result == null) {
           TopNotification.show(context, 'Product archived successfully');
-          // Refresh the products section
-          setState(() {});
+          await _productService.refresh();
+          if (mounted) setState(() {});
         } else {
           TopNotification.show(context, 'Failed to archive product: $result', isError: true);
         }
