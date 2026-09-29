@@ -35,10 +35,37 @@ class UsersSection extends StatefulWidget {
 }
 
 class _UsersSectionState extends State<UsersSection> {
+  late TextEditingController _searchController;
+  late int _rowsPerPage;
   String _userRoleFilter = 'All roles';
   String _userStatusFilter = 'All';
   String _userSort = 'name';
   bool _userAsc = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController(text: widget.searchQuery);
+    _rowsPerPage = widget.rowsPerPage;
+  }
+
+  @override
+  void didUpdateWidget(covariant UsersSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.searchQuery != oldWidget.searchQuery &&
+        widget.searchQuery != _searchController.text) {
+      _searchController.text = widget.searchQuery;
+    }
+    if (widget.rowsPerPage != oldWidget.rowsPerPage) {
+      _rowsPerPage = widget.rowsPerPage;
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   List<AdminUser> _filteredUsers() {
     // Wait for service to initialize
@@ -46,7 +73,7 @@ class _UsersSectionState extends State<UsersSection> {
       return [];
     }
 
-    final query = widget.searchQuery.toLowerCase().trim();
+    final query = (_searchController.text.isNotEmpty ? _searchController.text : widget.searchQuery).toLowerCase().trim();
     final list = widget.userService.allUsers.where((u) {
       final matchesQuery = query.isEmpty ||
           u.fullName.toLowerCase().contains(query) ||
@@ -97,9 +124,10 @@ class _UsersSectionState extends State<UsersSection> {
   }
 
   bool get _hasFilters =>
+      _searchController.text.isNotEmpty ||
       widget.searchQuery.isNotEmpty ||
-          _userRoleFilter != 'All roles' ||
-          _userStatusFilter != 'All';
+      _userRoleFilter != 'All roles' ||
+      _userStatusFilter != 'All';
 
   @override
   Widget build(BuildContext context) {
@@ -157,6 +185,16 @@ class _UsersSectionState extends State<UsersSection> {
           children: [
             toolbar(
               filters: [
+                searchFilter(
+                  controller: _searchController,
+                  hintText: 'Search name, email, phone...',
+                  onChanged: (value) => setState(() {
+                    widget.onPageChange('users', 1);
+                  }),
+                  onClear: () => setState(() {
+                    widget.onPageChange('users', 1);
+                  }),
+                ),
                 dropdownFilter(
                   label: 'Role',
                   value: _userRoleFilter,
@@ -198,10 +236,11 @@ class _UsersSectionState extends State<UsersSection> {
                 message: _hasFilters
                     ? 'Try a different role, status or search term.'
                     : 'No user accounts found under /users in Firebase Realtime Database.',
-                actionLabel: _hasFilters ? 'Clear filters' : 'Add user',
+                actionLabel: _hasFilters ? 'Reset Filters' : 'Add user',
                 onAction: _hasFilters
                     ? () {
                       setState(() {
+                        _searchController.clear();
                         _userRoleFilter = 'All roles';
                         _userStatusFilter = 'All';
                       });
@@ -218,7 +257,7 @@ class _UsersSectionState extends State<UsersSection> {
   }
 
   Widget _buildTable(List<AdminUser> users) {
-    final paged = paginate(users, 'users', widget.rowsPerPage, widget.pages);
+    final paged = paginate(users, 'users', _rowsPerPage, widget.pages);
 
     return tableShell(
       minWidth: 900,
@@ -324,7 +363,20 @@ class _UsersSectionState extends State<UsersSection> {
             ),
           ],
       ],
-      footer: paginationBar(paged, 'users', 'users', widget.pages, widget.onPageChange),
+      footer: paginationBar(
+        paged,
+        'users',
+        'users',
+        widget.pages,
+        widget.onPageChange,
+        currentRowsPerPage: _rowsPerPage,
+        onRowsPerPageChange: (newRows) {
+          setState(() {
+            _rowsPerPage = newRows;
+          });
+          widget.onPageChange('users', 1);
+        },
+      ),
     );
   }
 

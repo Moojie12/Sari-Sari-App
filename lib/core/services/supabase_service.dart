@@ -125,9 +125,30 @@ class SupabaseService {
     }
   }
 
-  /// Delete a product (will cascade to batches due to foreign key)
+  /// Delete a product and its related records (transactions, batches, order items)
   Future<void> deleteProduct(String productId) async {
     try {
+      // 1. Delete inventory transactions referencing this product
+      try {
+        await _client.from('inventory_transactions').delete().eq('product_id', productId);
+      } catch (_) {}
+
+      // 2. Delete product batches referencing this product
+      try {
+        await _client.from('product_batches').delete().eq('product_id', productId);
+      } catch (_) {}
+
+      // 3. Delete order items referencing this product
+      try {
+        await _client.from('order_items').delete().eq('product_id', productId);
+      } catch (_) {}
+
+      // 4. Delete pre-order items referencing this product
+      try {
+        await _client.from('pre_order_items').delete().eq('product_id', productId);
+      } catch (_) {}
+
+      // 5. Delete product row
       await _client.from('products').delete().eq('id', productId);
     } catch (e) {
       throw Exception('Failed to delete product: $e');
@@ -1711,9 +1732,48 @@ class SupabaseService {
     }
   }
 
+  /// Reassigns products from a deleted category to a default category (e.g., 'General').
+  Future<void> reassignProductsCategory({
+    required String categoryId,
+    required String categoryName,
+    String targetCategoryName = 'General',
+  }) async {
+    try {
+      await ensureCategoryExists(targetCategoryName);
+
+      final targetCat = await _client
+          .from('categories')
+          .select('id')
+          .ilike('name', targetCategoryName)
+          .maybeSingle();
+
+      final targetCatId = targetCat?['id'] as String?;
+
+      final updateData = <String, dynamic>{
+        'category': targetCategoryName,
+      };
+      if (targetCatId != null) {
+        updateData['category_id'] = targetCatId;
+      }
+
+      if (categoryId.isNotEmpty) {
+        await _client
+            .from('products')
+            .update(updateData)
+            .eq('category_id', categoryId);
+      }
+      if (categoryName.trim().isNotEmpty) {
+        await _client
+            .from('products')
+            .update(updateData)
+            .eq('category', categoryName.trim());
+      }
+    } catch (e) {
+      debugPrint('Error reassigning products for category $categoryId: $e');
+    }
+  }
+
   /// Deletes a category permanently.
-  ///
-  /// Note: This should only be called on archived categories that are not associated with any products.
   Future<void> deleteCategory({
     required String id,
   }) async {

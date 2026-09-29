@@ -17,6 +17,7 @@ class ProductsSection extends StatefulWidget {
   final void Function(AdminProduct) onAdjustStock;
   final void Function(AdminProduct) onArchiveProduct;
   final void Function(AdminProduct) onDeleteProduct;
+  final void Function(AdminCategory)? onDeleteCategory;
   final void Function() onClearFilters;
 
   const ProductsSection({
@@ -32,6 +33,7 @@ class ProductsSection extends StatefulWidget {
     required this.onAdjustStock,
     required this.onArchiveProduct,
     required this.onDeleteProduct,
+    this.onDeleteCategory,
     required this.onClearFilters,
   });
 
@@ -40,11 +42,38 @@ class ProductsSection extends StatefulWidget {
 }
 
 class _ProductsSectionState extends State<ProductsSection> {
+  late TextEditingController _searchController;
+  late int _rowsPerPage;
   String _productCategoryFilter = 'All categories';
   String _productUnitFilter = 'All units';
   String _productStockFilter = 'All stock';
   String _productSort = 'name';
   bool _productAsc = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController(text: widget.searchQuery);
+    _rowsPerPage = widget.rowsPerPage;
+  }
+
+  @override
+  void didUpdateWidget(covariant ProductsSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.searchQuery != oldWidget.searchQuery &&
+        widget.searchQuery != _searchController.text) {
+      _searchController.text = widget.searchQuery;
+    }
+    if (widget.rowsPerPage != oldWidget.rowsPerPage) {
+      _rowsPerPage = widget.rowsPerPage;
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   List<AdminProduct> _filteredProducts() {
     // Wait for services to initialize
@@ -53,16 +82,56 @@ class _ProductsSectionState extends State<ProductsSection> {
       return [];
     }
 
-    final query = widget.searchQuery.toLowerCase().trim();
+    final query = (_searchController.text.isNotEmpty ? _searchController.text : widget.searchQuery).toLowerCase().trim();
+    final filterLower = _productCategoryFilter.trim().toLowerCase();
+    
+    // Find matching category object from both categoryService and productService to compare IDs as well
+    AdminCategory? catObj;
+    if (_productCategoryFilter != 'All categories') {
+      catObj = widget.categoryService.activeCategories
+          .where((c) => c.name.trim().toLowerCase() == filterLower || c.id.trim().toLowerCase() == filterLower)
+          .firstOrNull;
+      catObj ??= widget.productService.allCategories
+          .where((c) => c.name.trim().toLowerCase() == filterLower || c.id.trim().toLowerCase() == filterLower)
+          .firstOrNull;
+    }
+    final targetId = catObj?.id.trim().toLowerCase() ?? filterLower;
+    final targetName = catObj?.name.trim().toLowerCase() ?? filterLower;
+
     final list = widget.productService.activeProducts.where((p) {
       final matchesQuery = query.isEmpty ||
           p.name.toLowerCase().contains(query) ||
-          p.barcode.contains(query) ||
+          p.barcode.toLowerCase().contains(query) ||
           p.description.toLowerCase().contains(query);
-      final matchesCategory = _productCategoryFilter == 'All categories' ||
-          p.categoryName == _productCategoryFilter;
-      final matchesUnit =
-          _productUnitFilter == 'All units' || p.unit == _productUnitFilter;
+
+      bool matchesCategory;
+      if (_productCategoryFilter == 'All categories') {
+        matchesCategory = true;
+      } else {
+        final pCatNameLower = p.categoryName.trim().toLowerCase();
+        final pCatIdLower = p.categoryId.trim().toLowerCase();
+
+        final matchesId = targetId.isNotEmpty && (pCatIdLower == targetId || pCatNameLower == targetId);
+        final matchesName = targetName.isNotEmpty && (pCatIdLower == targetName || pCatNameLower == targetName);
+
+        matchesCategory = matchesId ||
+            matchesName ||
+            pCatNameLower == filterLower ||
+            pCatIdLower == filterLower;
+      }
+
+      bool matchesUnit;
+      if (_productUnitFilter == 'All units') {
+        matchesUnit = true;
+      } else if (_productUnitFilter == 'de kilo') {
+        final u = p.unit.toLowerCase();
+        matchesUnit = u == 'de kilo' || u == 'kg' || u == 'kilo';
+      } else if (_productUnitFilter == 'pcs') {
+        final u = p.unit.toLowerCase();
+        matchesUnit = u == 'pcs' || u == 'piece' || u == 'pc';
+      } else {
+        matchesUnit = p.unit == _productUnitFilter;
+      }
 
       bool matchesStock;
       switch (_productStockFilter) {
@@ -123,10 +192,11 @@ class _ProductsSectionState extends State<ProductsSection> {
   }
 
   bool get _hasFilters =>
+      _searchController.text.isNotEmpty ||
       widget.searchQuery.isNotEmpty ||
-          _productCategoryFilter != 'All categories' ||
-          _productUnitFilter != 'All units' ||
-          _productStockFilter != 'All stock';
+      _productCategoryFilter != 'All categories' ||
+      _productUnitFilter != 'All units' ||
+      _productStockFilter != 'All stock';
 
   @override
   Widget build(BuildContext context) {
@@ -149,15 +219,60 @@ class _ProductsSectionState extends State<ProductsSection> {
           'All categories',
           ...widget.categoryService.activeCategories.map((c) => c.name),
         ];
-        final categoryValue = categoryOptions.contains(_productCategoryFilter)
-            ? _productCategoryFilter
-            : 'All categories';
+
+        final filterLower = _productCategoryFilter.trim().toLowerCase();
+        final matchedOption = categoryOptions.where(
+          (opt) => opt.trim().toLowerCase() == filterLower,
+        ).firstOrNull;
+
+        if (matchedOption != null) {
+          _productCategoryFilter = matchedOption;
+        } else {
+          _productCategoryFilter = 'All categories';
+        }
+        final categoryValue = _productCategoryFilter;
+
+        AdminCategory? selectedCategory;
+        if (_productCategoryFilter != 'All categories') {
+          final matches = widget.categoryService.activeCategories
+              .where((c) => c.name.trim().toLowerCase() == filterLower || c.id.trim().toLowerCase() == filterLower);
+          if (matches.isNotEmpty) {
+            selectedCategory = matches.first;
+          } else {
+            final fallback = widget.productService.allCategories
+                .where((c) => c.name.trim().toLowerCase() == filterLower || c.id.trim().toLowerCase() == filterLower);
+            if (fallback.isNotEmpty) {
+              selectedCategory = fallback.first;
+            }
+          }
+        }
+
+        final bool isCategoryFiltered = _productCategoryFilter != 'All categories';
+
+        int archivedCatProducts = 0;
+        if (selectedCategory != null) {
+          final totalCount = widget.productService.getProductCountForCategory(selectedCategory.id);
+          final activeCount = widget.productService.getActiveProductCountForCategory(selectedCategory.id);
+          archivedCatProducts = totalCount - activeCount;
+        }
 
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             toolbar(
               filters: [
+                searchFilter(
+                  controller: _searchController,
+                  hintText: 'Search product or barcode...',
+                  onChanged: (value) => setState(() {
+                    widget.onPageChange('products', 1);
+                  }),
+                  onClear: () => setState(() {
+                    widget.onPageChange('products', 1);
+                  }),
+                ),
                 dropdownFilter(
                   label: 'Category',
                   value: categoryValue,
@@ -201,23 +316,48 @@ class _ProductsSectionState extends State<ProductsSection> {
             if (products.isEmpty)
               emptyState(
                 icon: Icons.inventory_2_outlined,
-                title: _hasFilters
-                    ? 'No products match those filters'
-                    : 'No products yet',
-                message: _hasFilters
-                    ? 'Try clearing the category, unit or stock filter.'
-                    : 'Add what you sell so it shows up at the till.',
-                actionLabel: _hasFilters ? 'Clear filters' : 'Add product',
-                onAction: _hasFilters
+                title: isCategoryFiltered
+                    ? 'No products in "$_productCategoryFilter"'
+                    : (_hasFilters
+                        ? 'No products match those filters'
+                        : 'No products yet'),
+                message: isCategoryFiltered
+                    ? (archivedCatProducts > 0
+                        ? 'This category has $archivedCatProducts archived product(s) in the Archived tab.'
+                        : 'There are no products in the "$_productCategoryFilter" category.')
+                    : (_hasFilters
+                        ? 'Try resetting the category, unit or stock filter.'
+                        : 'Add what you sell so it shows up at the till.'),
+                actionLabel: isCategoryFiltered
+                    ? 'Delete $_productCategoryFilter Category'
+                    : (_hasFilters
+                        ? 'Reset Filters'
+                        : 'Add product'),
+                onAction: isCategoryFiltered
                     ? () {
-                      setState(() {
-                        _productCategoryFilter = 'All categories';
-                        _productUnitFilter = 'All units';
-                        _productStockFilter = 'All stock';
-                      });
-                      widget.onClearFilters();
-                    }
-                    : () => widget.onShowProductForm(null),
+                        if (selectedCategory != null && widget.onDeleteCategory != null) {
+                          widget.onDeleteCategory!(selectedCategory);
+                        } else {
+                          setState(() {
+                            _searchController.clear();
+                            _productCategoryFilter = 'All categories';
+                            _productUnitFilter = 'All units';
+                            _productStockFilter = 'All stock';
+                          });
+                          widget.onClearFilters();
+                        }
+                      }
+                    : (_hasFilters
+                        ? () {
+                            setState(() {
+                              _searchController.clear();
+                              _productCategoryFilter = 'All categories';
+                              _productUnitFilter = 'All units';
+                              _productStockFilter = 'All stock';
+                            });
+                            widget.onClearFilters();
+                          }
+                        : () => widget.onShowProductForm(null)),
               )
             else
               _buildTable(products),
@@ -228,7 +368,7 @@ class _ProductsSectionState extends State<ProductsSection> {
   }
 
   Widget _buildTable(List<AdminProduct> products) {
-    final paged = paginate(products, 'products', widget.rowsPerPage, widget.pages);
+    final paged = paginate(products, 'products', _rowsPerPage, widget.pages);
 
     return tableShell(
       minWidth: widget.showCostColumn ? 1020 : 880,
@@ -238,7 +378,7 @@ class _ProductsSectionState extends State<ProductsSection> {
         2: const FlexColumnWidth(1.2),
         if (widget.showCostColumn) 3: const FlexColumnWidth(1.5),
         (widget.showCostColumn ? 4 : 3): const FlexColumnWidth(1.6),
-        (widget.showCostColumn ? 5 : 4): const FixedColumnWidth(150),
+        (widget.showCostColumn ? 5 : 4): const FixedColumnWidth(110),
       },
       header: [
         sortableHeader('Product', 'name', _productSort, _productAsc, _onSort),
@@ -341,23 +481,33 @@ class _ProductsSectionState extends State<ProductsSection> {
             )),
             cell(
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  iconAction(Icons.tune, 'Adjust stock', AppColors.primaryOrange,
-                          () => widget.onAdjustStock(product)),
                   iconAction(Icons.edit_outlined, 'Edit', Colors.blue,
                           () => widget.onShowProductForm(product)),
+                  const SizedBox(width: 8),
                   iconAction(Icons.archive_outlined, 'Archive', Colors.orange,
                           () => widget.onArchiveProduct(product)),
-                  iconAction(Icons.delete_outline_rounded, 'Delete', Colors.red,
-                          () => widget.onDeleteProduct(product)),
                 ],
               ),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             ),
           ],
       ],
-      footer: paginationBar(paged, 'products', 'products', widget.pages, widget.onPageChange),
+      footer: paginationBar(
+        paged,
+        'products',
+        'products',
+        widget.pages,
+        widget.onPageChange,
+        currentRowsPerPage: _rowsPerPage,
+        onRowsPerPageChange: (newRows) {
+          setState(() {
+            _rowsPerPage = newRows;
+          });
+          widget.onPageChange('products', 1);
+        },
+      ),
     );
   }
 }

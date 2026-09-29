@@ -110,8 +110,19 @@ class AdminCategoryService extends ChangeNotifier {
 
   // ==================== CATEGORY OPERATIONS ====================
 
-  AdminCategory categoryById(String id) =>
-    _categories.firstWhere((c) => c.id == id, orElse: () => throw StateError('Category with id $id not found'));
+  AdminCategory? maybeCategoryById(String id) {
+    if (id.trim().isEmpty) return null;
+    final lower = id.trim().toLowerCase();
+    for (final c in _categories) {
+      if (c.id.trim().toLowerCase() == lower ||
+          c.name.trim().toLowerCase() == lower) {
+        return c;
+      }
+    }
+    return null;
+  }
+
+  AdminCategory? categoryById(String id) => maybeCategoryById(id);
 
   Future<String?> createCategory({
     required String name,
@@ -258,13 +269,17 @@ class AdminCategoryService extends ChangeNotifier {
   Future<String?> permanentlyDeleteCategory(String id) async {
     try {
       final category = categoryById(id);
+      if (category == null) {
+        return null;
+      }
 
-      if (!category.isArchived) return 'Archive the category before deleting it.';
+      // Reassign any associated products to 'General' before deleting category
+      await _supabaseService.reassignProductsCategory(
+        categoryId: category.id,
+        categoryName: category.name,
+      );
 
-      // Check if any products are assigned to this category
-      // This would require getting product count from a product service
-      // For now, we'll skip this check and let the UI handle it
-      await _supabaseService.deleteCategory(id: id); // Assuming this method exists
+      await _supabaseService.deleteCategory(id: id);
 
       _categories.removeWhere((c) => c.id == id);
       notifyListeners();

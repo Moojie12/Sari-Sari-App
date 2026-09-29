@@ -21,18 +21,10 @@ enum AdminSection {
 
 const List<String> kProductUnits = [
   'pcs',
-  'piece',
-  'pack',
-  'bottle',
-  'can',
-  'box',
-  'sachet',
-  'kg',
-  'gram',
-  'liter',
+  'de kilo',
 ];
 
-const List<String> kDecimalUnits = ['kg', 'gram', 'liter'];
+const List<String> kDecimalUnits = ['de kilo', 'kg', 'gram', 'liter'];
 
 const double kDefaultLowStockThreshold = 5;
 

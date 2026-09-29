@@ -338,9 +338,10 @@ class AdminProductService extends ChangeNotifier {
       if (!product.isArchived) return 'That product is already active.';
 
       // Check if category is still active
-      final category = categoryById(product.categoryId);
-      if (category.isArchived) {
-        return 'Its category "${product.categoryName}" is archived.';
+      final category = maybeCategoryById(product.categoryId) ??
+          maybeCategoryById(product.categoryName);
+      if (category != null && category.isArchived) {
+        return 'Its category "${category.name}" is archived. Please restore the category first.';
       }
 
       await _supabaseService.updateProduct(id, {
@@ -386,15 +387,18 @@ class AdminProductService extends ChangeNotifier {
   // ==================== CATEGORY OPERATIONS ====================
 
   AdminCategory? maybeCategoryById(String id) {
-    try {
-      return _categories.firstWhere((c) => c.id == id);
-    } catch (_) {
-      return null;
+    if (id.trim().isEmpty) return null;
+    final lower = id.trim().toLowerCase();
+    for (final c in _categories) {
+      if (c.id.trim().toLowerCase() == lower ||
+          c.name.trim().toLowerCase() == lower) {
+        return c;
+      }
     }
+    return null;
   }
 
-  AdminCategory categoryById(String id) =>
-    _categories.firstWhere((c) => c.id == id, orElse: () => throw StateError('Category with id $id not found'));
+  AdminCategory? categoryById(String id) => maybeCategoryById(id);
 
   Future<String?> createCategory({
     required String name,
@@ -488,17 +492,16 @@ class AdminProductService extends ChangeNotifier {
       if (category.isArchived) return 'That category is already archived.';
 
       // Check if any active products are in this category
-      final activeProductCount = _products.where((p) =>
-          !p.isArchived && p.categoryId == id).length;
+      final activeProductCount = getActiveProductCountForCategory(id);
 
       if (activeProductCount > 0) {
-        return '$activeProductCount active products are still in "${category.name}".';
+        return 'Cannot archive "${category.name}" because $activeProductCount active product(s) are still assigned to it.';
       }
 
       // Get current user ID for archived_by field
       final currentUserId = 'current_user_id'; // TODO: Get from auth
 
-      _supabaseService.archiveCategory(
+      await _supabaseService.archiveCategory(
         id: id,
         archivedByProfileId: currentUserId,
       );
@@ -529,7 +532,7 @@ class AdminProductService extends ChangeNotifier {
       // Get current user ID for restored_by field
       final currentUserId = 'current_user_id'; // TODO: Get from auth
 
-      _supabaseService.restoreCategory(
+      await _supabaseService.restoreCategory(
         id: id,
         restoredByProfileId: currentUserId,
       );
@@ -552,22 +555,27 @@ class AdminProductService extends ChangeNotifier {
   Future<String?> permanentlyDeleteCategory(String id) async {
     try {
       final category = categoryById(id);
-
-      if (!category.isArchived) return 'Archive the category before deleting it.';
-
-      // Check if any products are assigned to this category
-      final productCount = _products.where((p) => p.categoryId == id).length;
-      if (productCount > 0) {
-        return '$productCount products are still assigned to "${category.name}".';
+      if (category == null) {
+        return null;
       }
 
-      // TODO: Implement category deletion in SupabaseService
-// _supabaseService.deleteCategory(id);
+      final totalCount = getProductCountForCategory(id);
+      if (totalCount > 0) {
+        final activeCount = getActiveProductCountForCategory(id);
+        final archivedCount = totalCount - activeCount;
+        if (activeCount > 0 && archivedCount > 0) {
+          return 'Cannot delete "${category.name}" because $activeCount active product(s) and $archivedCount archived product(s) are still tied to it.';
+        } else if (archivedCount > 0) {
+          return 'Cannot delete "${category.name}" because $archivedCount archived product(s) in the Archived tab are still tied to it.';
+        } else {
+          return 'Cannot delete "${category.name}" because $activeCount active product(s) are still tied to it.';
+        }
+      }
+
+      await _supabaseService.deleteCategory(id: id);
 
       _categories.removeWhere((c) => c.id == id);
 
-      // Update categoryId in products that belonged to this category
-      // In a real app, we might want to set them to a default category or null
       notifyListeners();
 
       return null;
@@ -576,11 +584,44 @@ class AdminProductService extends ChangeNotifier {
     }
   }
 
-  int getActiveProductCountForCategory(String categoryId) =>
-      _products.where((p) => !p.isArchived && p.categoryId == categoryId).length;
+  int getActiveProductCountForCategory(String categoryId) {
+    final category = _categories.firstWhere(
+      (c) => c.id == categoryId,
+      orElse: () => AdminCategory(id: categoryId, name: categoryId, description: ''),
+    );
+    final targetId = category.id.trim().toLowerCase();
+    final targetName = category.name.trim().toLowerCase();
 
-  int getProductCountForCategory(String categoryId) =>
-      _products.where((p) => p.categoryId == categoryId).length;
+    return _products.where((p) {
+      if (p.isArchived) return false;
+      final pCatId = p.categoryId.trim().toLowerCase();
+      final pCatName = p.categoryName.trim().toLowerCase();
+
+      final matchesId = targetId.isNotEmpty && (pCatId == targetId || pCatName == targetId);
+      final matchesName = targetName.isNotEmpty && (pCatId == targetName || pCatName == targetName);
+
+      return matchesId || matchesName;
+    }).length;
+  }
+
+  int getProductCountForCategory(String categoryId) {
+    final category = _categories.firstWhere(
+      (c) => c.id == categoryId,
+      orElse: () => AdminCategory(id: categoryId, name: categoryId, description: ''),
+    );
+    final targetId = category.id.trim().toLowerCase();
+    final targetName = category.name.trim().toLowerCase();
+
+    return _products.where((p) {
+      final pCatId = p.categoryId.trim().toLowerCase();
+      final pCatName = p.categoryName.trim().toLowerCase();
+
+      final matchesId = targetId.isNotEmpty && (pCatId == targetId || pCatName == targetId);
+      final matchesName = targetName.isNotEmpty && (pCatId == targetName || pCatName == targetName);
+
+      return matchesId || matchesName;
+    }).length;
+  }
 
   // ==================== DATA TRANSFORMATION ====================
 

@@ -608,24 +608,27 @@ class EmployeeInventoryController extends ChangeNotifier {
     }
   }
 
-  /// Removes (archives) a category via Supabase
+  /// Removes (deletes) a category via Supabase
   Future<void> removeCategory(String category, String archivedByProfileId) async {
-    if (category == 'All') return; // Don't allow archiving the 'All' filter
+    if (category == 'All') return; // Don't allow removing the 'All' filter
 
     try {
       // Find the category ID by name
       final categories = await _supabaseService.getAllCategories();
       final categoryItem = categories.firstWhere(
-        (cat) => cat['name'] == category && cat['is_archived'] == false,
+        (cat) => cat['name'] == category,
         orElse: () => {}, // Returns empty map if not found
       );
 
       if (categoryItem.isNotEmpty) {
-        // Archive the category in Supabase
-        await _supabaseService.archiveCategory(
-          id: categoryItem['id'],
-          archivedByProfileId: archivedByProfileId,
+        final catId = categoryItem['id'].toString();
+        // Reassign products to General before deleting category
+        await _supabaseService.reassignProductsCategory(
+          categoryId: catId,
+          categoryName: category,
         );
+        // Delete the category in Supabase
+        await _supabaseService.deleteCategory(id: catId);
 
         // Reload categories to get the updated list
         await _loadCategories();

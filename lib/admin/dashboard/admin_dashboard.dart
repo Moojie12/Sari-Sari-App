@@ -1,3 +1,4 @@
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import '../../core/theme/app_colors.dart';
@@ -45,6 +46,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   List<AdminCategory> _categories = [];
   bool _categoriesLoading = false;
+
+  final Map<String, int> _pages = {};
+  String _searchQuery = '';
+
+  void _onPageChange(String key, int page) {
+    setState(() {
+      _pages[key] = page;
+    });
+  }
 
   @override
   void initState() {
@@ -507,14 +517,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     final isEdit = product != null;
     final formKey = GlobalKey<FormState>();
-    final nameController0 = TextEditingController(text: product?.name ?? '');
+    final nameController = TextEditingController(text: product?.name ?? '');
     final barcodeController = TextEditingController(text: product?.barcode ?? '');
     final descriptionController = TextEditingController(text: product?.description ?? '');
-    final priceController = TextEditingController(text: product?.price.toString() ?? '');
-    final costController = TextEditingController(text: product?.cost.toString() ?? '');
-    final quantityController = TextEditingController(text: product?.quantity.toString() ?? '');
-    final unitController = TextEditingController(text: product?.unit ?? 'piece');
-    
+    final priceController = TextEditingController(text: product?.price != null ? product!.price.toString() : '');
+    final costController = TextEditingController(text: product?.cost != null ? product!.cost.toString() : '');
+    final quantityController = TextEditingController(text: product?.quantity != null ? product!.quantity.toString() : '1');
+    final thresholdController = TextEditingController(text: product?.lowStockThreshold != null ? product!.lowStockThreshold.toString() : '5');
+
+    // Bulk Purchase Entry Calculator
+    bool isBulkMode = false;
+    final bulkPriceController = TextEditingController();
+    final pcsPerBulkController = TextEditingController();
+    final numberOfBulkController = TextEditingController();
+
+    bool isWeightBased = product != null
+        ? (product.unit.toLowerCase() == 'kg' || product.unit.toLowerCase() == 'de kilo')
+        : false;
+
+    DateTime? expiryDate = product?.expirationDate;
     String selectedCategoryId = product?.categoryId ?? '';
 
     // Ensure categories are loaded
@@ -522,191 +543,683 @@ class _AdminDashboardState extends State<AdminDashboard> {
       _fetchCategories();
     }
 
+    void recalcBulk(StateSetter setDialogState) {
+      final bulkPrice = double.tryParse(bulkPriceController.text.trim());
+      final pcsPerBulk = int.tryParse(pcsPerBulkController.text.trim());
+      final numberOfBulk = int.tryParse(numberOfBulkController.text.trim());
+
+      setDialogState(() {
+        if (bulkPrice != null && bulkPrice >= 0 && pcsPerBulk != null && pcsPerBulk > 0) {
+          final capitalPerPc = bulkPrice / pcsPerBulk;
+          costController.text = capitalPerPc.toStringAsFixed(2);
+        }
+        if (pcsPerBulk != null && pcsPerBulk > 0 && numberOfBulk != null && numberOfBulk >= 0) {
+          final totalQty = (pcsPerBulk * numberOfBulk).toDouble();
+          quantityController.text = isWeightBased ? totalQty.toStringAsFixed(2) : totalQty.toInt().toString();
+        }
+      });
+    }
+
     await showDialog<bool>(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          title: Text(isEdit ? 'Edit Product' : 'Add Product'),
-          content: SingleChildScrollView(
-            child: Form(
-              key: formKey,
+      builder: (dialogContext) => StatefulBuilder(
+        builder: (dialogContext, setDialogState) {
+          final selectedUnit = isWeightBased ? 'de kilo' : 'pcs';
+
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            clipBehavior: Clip.antiAlias,
+            child: Container(
+              width: dialogWidth(context, 720),
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.90,
+              ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  TextFormField(
-                    controller: nameController0,
-                    decoration: const InputDecoration(labelText: 'Product Name', icon: Icon(Icons.inventory), hintText: 'e.g. Jasmine Rice'),
-                    validator: (value) => (value == null || value.isEmpty) ? 'Required' : null,
-                  ),
-                  TextFormField(
-                    controller: barcodeController,
-                    decoration: const InputDecoration(labelText: 'Barcode', icon: Icon(Icons.barcode_reader), hintText: 'Leave blank if none'),
-                  ),
-                  TextFormField(
-                    controller: descriptionController,
-                    decoration: const InputDecoration(labelText: 'Description', icon: Icon(Icons.description)),
-                    maxLines: 2,
-                  ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: priceController,
-                          decoration: const InputDecoration(labelText: 'Price (₱)', icon: Icon(Icons.attach_money), hintText: 'e.g. 50'),
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextFormField(
-                          controller: costController,
-                          decoration: const InputDecoration(labelText: 'Cost (₱)', hintText: 'e.g. 40'),
-                          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: quantityController,
-                          decoration: const InputDecoration(labelText: 'Stock', icon: Icon(Icons.numbers), hintText: 'e.g. 100'),
-                          keyboardType: TextInputType.number,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: TextFormField(
-                          controller: unitController,
-                          decoration: const InputDecoration(labelText: 'Unit', hintText: 'e.g. piece'),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  if (_categoriesLoading)
-                    const Padding(
-                      padding: EdgeInsets.symmetric(vertical: 12),
-                      child: Text('Loading...', style: TextStyle(fontStyle: FontStyle.italic)),
-                    )
-                  else
-                    Row(
+                  // Dialog Header
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 18),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryOrange.withValues(alpha: 0.06),
+                      border: const Border(bottom: BorderSide(color: AppColors.borderColor)),
+                    ),
+                    child: Row(
                       children: [
-                        Expanded(
-                          child: DropdownButtonFormField<String>(
-                            key: ValueKey('cat_${_categories.length}'),
-                            initialValue: selectedCategoryId.isNotEmpty && _categories.any((c) => c.id == selectedCategoryId) 
-                                ? selectedCategoryId 
-                                : null,
-                            decoration: const InputDecoration(labelText: 'Category', icon: Icon(Icons.category)),
-                            items: [
-                              const DropdownMenuItem<String>(value: '', child: Text('Select category')),
-                              ..._categories.map((c) => DropdownMenuItem<String>(
-                                value: c.id,
-                                child: Text(c.name),
-                              )),
-                            ],
-                            onChanged: (val) => setDialogState(() => selectedCategoryId = val ?? ''),
+                        Container(
+                          padding: const EdgeInsets.all(10),
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryOrange,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Icon(
+                            isEdit ? Icons.edit_note : Icons.add_box_outlined,
+                            color: Colors.white,
+                            size: 22,
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.add, color: AppColors.primaryOrange),
-                          onPressed: () async {
-                            final nameController = TextEditingController();
-                            final name = await showDialog<String>(
-                              context: context,
-                              builder: (context) => AlertDialog(
-                                title: const Text('New Category'),
-                                content: TextField(
-                                  controller: nameController,
-                                  autofocus: true,
-                                  maxLength: 20,
-                                  inputFormatters: [
-                                    NoDoubleSpaceAndMax20Formatter(maxLength: 20),
-                                  ],
-                                  decoration: const InputDecoration(
-                                    hintText: 'Enter category name',
-                                    counterText: '',
-                                  ),
-                                ),
-                                actions: [
-                                  TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-                                  TextButton(onPressed: () => Navigator.pop(context, nameController.text.trim()), child: const Text('Add')),
-                                ],
+                        const SizedBox(width: 14),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              isEdit ? 'Edit Product' : 'Add Product',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.darkText,
                               ),
-                            );
-                            if (name != null && name.isNotEmpty) {
-                              final err = await _categoryService.createCategory(name: name, description: '');
-                              if (err == null) {
-                                await _fetchCategories();
-                                final added = _categories.firstWhere((c) => c.name == name);
-                                setDialogState(() => selectedCategoryId = added.id);
-                              }
-                            }
-                          },
+                            ),
+                            Text(
+                              isEdit
+                                  ? 'Modify details and stock settings'
+                                  : 'Fill in product details and initial inventory',
+                              style: const TextStyle(
+                                fontSize: 12,
+                                color: AppColors.secondaryText,
+                              ),
+                            ),
+                          ],
+                        ),
+                        const Spacer(),
+                        IconButton(
+                          icon: const Icon(Icons.close, size: 20),
+                          onPressed: () => Navigator.pop(dialogContext, false),
+                          splashRadius: 20,
                         ),
                       ],
                     ),
+                  ),
+
+                  // Dialog Body Content
+                  Flexible(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(24),
+                      child: Form(
+                        key: formKey,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // Product Type Selector (Retail Pcs vs De-Kilo Kg)
+                            const Text(
+                              'PRODUCT TYPE',
+                              style: TextStyle(
+                                fontSize: 11.5,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.labelText,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () {
+                                      setDialogState(() => isWeightBased = false);
+                                    },
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                      decoration: BoxDecoration(
+                                        color: !isWeightBased
+                                            ? AppColors.primaryOrange.withValues(alpha: 0.12)
+                                            : AppColors.lightBackground,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: !isWeightBased
+                                              ? AppColors.primaryOrange
+                                              : AppColors.borderColor,
+                                          width: !isWeightBased ? 1.5 : 1.0,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.inventory_2_outlined,
+                                            size: 18,
+                                            color: !isWeightBased ? AppColors.primaryOrange : AppColors.secondaryText,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'Retail (Pcs)',
+                                            style: TextStyle(
+                                              fontSize: 13.5,
+                                              fontWeight: !isWeightBased ? FontWeight.bold : FontWeight.w500,
+                                              color: !isWeightBased ? AppColors.primaryOrange : AppColors.darkText,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: InkWell(
+                                    onTap: () {
+                                      setDialogState(() => isWeightBased = true);
+                                    },
+                                    borderRadius: BorderRadius.circular(12),
+                                    child: AnimatedContainer(
+                                      duration: const Duration(milliseconds: 200),
+                                      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+                                      decoration: BoxDecoration(
+                                        color: isWeightBased
+                                            ? AppColors.primaryOrange.withValues(alpha: 0.12)
+                                            : AppColors.lightBackground,
+                                        borderRadius: BorderRadius.circular(12),
+                                        border: Border.all(
+                                          color: isWeightBased
+                                              ? AppColors.primaryOrange
+                                              : AppColors.borderColor,
+                                          width: isWeightBased ? 1.5 : 1.0,
+                                        ),
+                                      ),
+                                      child: Row(
+                                        mainAxisAlignment: MainAxisAlignment.center,
+                                        children: [
+                                          Icon(
+                                            Icons.scale_outlined,
+                                            size: 18,
+                                            color: isWeightBased ? AppColors.primaryOrange : AppColors.secondaryText,
+                                          ),
+                                          const SizedBox(width: 8),
+                                          Text(
+                                            'De-Kilo (Kg)',
+                                            style: TextStyle(
+                                              fontSize: 13.5,
+                                              fontWeight: isWeightBased ? FontWeight.bold : FontWeight.w500,
+                                              color: isWeightBased ? AppColors.primaryOrange : AppColors.darkText,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 20),
+
+                            // Basic Information Section
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                // Left Column
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      TextFormField(
+                                        controller: nameController,
+                                        maxLength: 20,
+                                        inputFormatters: [
+                                          NoDoubleSpaceAndMax20Formatter(maxLength: 20),
+                                        ],
+                                        decoration: const InputDecoration(
+                                          labelText: 'Product Name',
+                                          hintText: 'e.g. Jasmine Rice',
+                                          prefixIcon: Icon(Icons.inventory_2_outlined, size: 20),
+                                          counterText: '',
+                                        ),
+                                        validator: (value) {
+                                          if (value == null || value.trim().isEmpty) return 'Product name is required';
+                                          if (value.length > 20) return 'Max 20 characters allowed';
+                                          if (value.contains('  ')) return 'Double spaces not allowed';
+                                          return null;
+                                        },
+                                      ),
+                                      const SizedBox(height: 16),
+
+                                      // Category Selection
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: DropdownButtonFormField<String>(
+                                              key: ValueKey('cat_${_categories.length}'),
+                                              initialValue: selectedCategoryId.isNotEmpty &&
+                                                      _categories.any((c) => c.id == selectedCategoryId)
+                                                  ? selectedCategoryId
+                                                  : null,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Category',
+                                                prefixIcon: Icon(Icons.category_outlined, size: 20),
+                                              ),
+                                              items: [
+                                                const DropdownMenuItem<String>(value: '', child: Text('Select Category')),
+                                                ..._categories.map((c) => DropdownMenuItem<String>(
+                                                      value: c.id,
+                                                      child: Text(c.name),
+                                                    )),
+                                              ],
+                                              validator: (value) => (value == null || value.isEmpty) ? 'Please select a category' : null,
+                                              onChanged: (val) => setDialogState(() => selectedCategoryId = val ?? ''),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 6),
+                                          IconButton(
+                                            tooltip: 'Add new category',
+                                            icon: const Icon(Icons.add_circle_outline, color: AppColors.primaryOrange),
+                                            onPressed: () async {
+                                              final catNameController = TextEditingController();
+                                              final name = await showDialog<String>(
+                                                context: dialogContext,
+                                                builder: (ctx) => AlertDialog(
+                                                  title: const Text('New Category'),
+                                                  content: TextField(
+                                                    controller: catNameController,
+                                                    autofocus: true,
+                                                    maxLength: 20,
+                                                    inputFormatters: [
+                                                      NoDoubleSpaceAndMax20Formatter(maxLength: 20),
+                                                    ],
+                                                    decoration: const InputDecoration(
+                                                      hintText: 'Category name',
+                                                      counterText: '',
+                                                    ),
+                                                  ),
+                                                  actions: [
+                                                    TextButton(
+                                                      onPressed: () => Navigator.pop(ctx),
+                                                      child: const Text('Cancel'),
+                                                    ),
+                                                    ElevatedButton(
+                                                      onPressed: () => Navigator.pop(ctx, catNameController.text.trim()),
+                                                      style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
+                                                      child: const Text('Add'),
+                                                    ),
+                                                  ],
+                                                ),
+                                              );
+                                              if (name != null && name.isNotEmpty) {
+                                                final err = await _categoryService.createCategory(name: name, description: '');
+                                                if (err == null) {
+                                                  await _fetchCategories();
+                                                  final added = _categories.firstWhere((c) => c.name == name);
+                                                  setDialogState(() => selectedCategoryId = added.id);
+                                                }
+                                              }
+                                            },
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 16),
+
+                                      // Barcode Field with Auto-Generate
+                                      Row(
+                                        crossAxisAlignment: CrossAxisAlignment.center,
+                                        children: [
+                                          Expanded(
+                                            child: TextFormField(
+                                              controller: barcodeController,
+                                              decoration: const InputDecoration(
+                                                labelText: 'Barcode',
+                                                hintText: 'Scan or type barcode',
+                                                prefixIcon: Icon(Icons.qr_code_outlined, size: 20),
+                                              ),
+                                            ),
+                                          ),
+                                          const SizedBox(width: 8),
+                                          OutlinedButton.icon(
+                                            onPressed: () {
+                                              final random = Random();
+                                              final timestamp = DateTime.now().millisecondsSinceEpoch.toString();
+                                              final timePart = timestamp.length >= 6 ? timestamp.substring(timestamp.length - 6) : timestamp;
+                                              final randPart = (random.nextInt(900) + 100).toString();
+                                              final autoBarcode = 'SS-$timePart$randPart';
+                                              setDialogState(() {
+                                                barcodeController.text = autoBarcode;
+                                              });
+                                            },
+                                            icon: const Icon(Icons.auto_awesome, size: 16),
+                                            label: const Text('Auto', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                            style: OutlinedButton.styleFrom(
+                                              foregroundColor: AppColors.primaryOrange,
+                                              side: const BorderSide(color: AppColors.primaryOrange),
+                                              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+                                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 16),
+
+                                      // Expiration Date Picker
+                                      InkWell(
+                                        onTap: () async {
+                                          final now = DateTime.now();
+                                          final picked = await showDatePicker(
+                                            context: dialogContext,
+                                            initialDate: expiryDate ?? now,
+                                            firstDate: DateTime(now.year - 1),
+                                            lastDate: DateTime(now.year + 15),
+                                          );
+                                          if (picked != null) {
+                                            setDialogState(() => expiryDate = picked);
+                                          }
+                                        },
+                                        borderRadius: BorderRadius.circular(10),
+                                        child: InputDecorator(
+                                          decoration: InputDecoration(
+                                            labelText: 'Expiration Date (Optional)',
+                                            prefixIcon: const Icon(Icons.calendar_today_outlined, size: 20),
+                                            suffixIcon: expiryDate != null
+                                                ? IconButton(
+                                                    icon: const Icon(Icons.clear, size: 18),
+                                                    onPressed: () => setDialogState(() => expiryDate = null),
+                                                  )
+                                                : null,
+                                          ),
+                                          child: Text(
+                                            expiryDate == null
+                                                ? 'No expiration set'
+                                                : '${expiryDate!.day}/${expiryDate!.month}/${expiryDate!.year}',
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: expiryDate == null ? AppColors.placeholderColor : AppColors.darkText,
+                                            ),
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                const SizedBox(width: 20),
+
+                                // Right Column
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      // Selling Price and Cost
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TextFormField(
+                                              controller: priceController,
+                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                              decoration: const InputDecoration(
+                                                labelText: 'Selling Price (₱)',
+                                                hintText: '0.00',
+                                                prefixIcon: Icon(Icons.attach_money, size: 20),
+                                              ),
+                                              validator: (value) {
+                                                final v = double.tryParse(value ?? '');
+                                                if (v == null || v < 0) return 'Invalid price';
+                                                return null;
+                                              },
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: TextFormField(
+                                              controller: costController,
+                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                              decoration: const InputDecoration(
+                                                labelText: 'Capital / Cost (₱)',
+                                                hintText: '0.00',
+                                              ),
+                                              validator: (value) {
+                                                final v = double.tryParse(value ?? '');
+                                                if (v == null || v < 0) return 'Invalid cost';
+                                                return null;
+                                              },
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 16),
+
+                                      // Stock Quantity & Low Stock Threshold
+                                      Row(
+                                        children: [
+                                          Expanded(
+                                            child: TextFormField(
+                                              controller: quantityController,
+                                              keyboardType: TextInputType.numberWithOptions(decimal: isWeightBased),
+                                              decoration: InputDecoration(
+                                                labelText: isEdit ? 'Current Stock' : 'Initial Stock',
+                                                hintText: isWeightBased ? 'e.g. 2.5' : 'e.g. 50',
+                                                suffixText: selectedUnit,
+                                                prefixIcon: const Icon(Icons.numbers_outlined, size: 20),
+                                              ),
+                                              validator: (value) {
+                                                final qty = double.tryParse(value ?? '');
+                                                if (qty == null || qty < 0) return 'Invalid stock';
+                                                if (!isWeightBased && qty != qty.roundToDouble()) {
+                                                  return 'Must be whole #';
+                                                }
+                                                return null;
+                                              },
+                                            ),
+                                          ),
+                                          const SizedBox(width: 12),
+                                          Expanded(
+                                            child: TextFormField(
+                                              controller: thresholdController,
+                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                              decoration: const InputDecoration(
+                                                labelText: 'Low Stock Limit',
+                                                hintText: '5',
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 16),
+
+                                      // Bulk Purchase Calculator Toggle
+                                      if (!isWeightBased) ...[
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                                          decoration: BoxDecoration(
+                                            color: AppColors.lightBackground,
+                                            borderRadius: BorderRadius.circular(12),
+                                            border: Border.all(color: AppColors.borderColor),
+                                          ),
+                                          child: Row(
+                                            children: [
+                                              const Icon(Icons.calculate_outlined, size: 20, color: AppColors.primaryOrange),
+                                              const SizedBox(width: 10),
+                                              const Expanded(
+                                                child: Text(
+                                                  'Bulk Purchase Entry',
+                                                  style: TextStyle(
+                                                    fontSize: 13,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: AppColors.darkText,
+                                                  ),
+                                                ),
+                                              ),
+                                              Switch(
+                                                value: isBulkMode,
+                                                activeTrackColor: AppColors.primaryOrange,
+                                                onChanged: (val) {
+                                                  setDialogState(() {
+                                                    isBulkMode = val;
+                                                    if (isBulkMode) recalcBulk(setDialogState);
+                                                  });
+                                                },
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                        if (isBulkMode) ...[
+                                          const SizedBox(height: 12),
+                                          Container(
+                                            padding: const EdgeInsets.all(14),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.primaryOrange.withValues(alpha: 0.05),
+                                              borderRadius: BorderRadius.circular(12),
+                                              border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.3)),
+                                            ),
+                                            child: Column(
+                                              children: [
+                                                TextFormField(
+                                                  controller: bulkPriceController,
+                                                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                                  decoration: const InputDecoration(
+                                                    labelText: 'Bulk Price (₱)',
+                                                    hintText: 'e.g. 500 (total case price)',
+                                                    isDense: true,
+                                                  ),
+                                                  onChanged: (_) => recalcBulk(setDialogState),
+                                                ),
+                                                const SizedBox(height: 10),
+                                                Row(
+                                                  children: [
+                                                    Expanded(
+                                                      child: TextFormField(
+                                                        controller: pcsPerBulkController,
+                                                        keyboardType: TextInputType.number,
+                                                        decoration: const InputDecoration(
+                                                          labelText: 'Pcs / Bulk',
+                                                          hintText: 'e.g. 24',
+                                                          isDense: true,
+                                                        ),
+                                                        onChanged: (_) => recalcBulk(setDialogState),
+                                                      ),
+                                                    ),
+                                                    const SizedBox(width: 10),
+                                                    Expanded(
+                                                      child: TextFormField(
+                                                        controller: numberOfBulkController,
+                                                        keyboardType: TextInputType.number,
+                                                        decoration: const InputDecoration(
+                                                          labelText: '# of Bulks',
+                                                          hintText: 'e.g. 2',
+                                                          isDense: true,
+                                                        ),
+                                                        onChanged: (_) => recalcBulk(setDialogState),
+                                                      ),
+                                                    ),
+                                                  ],
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        ],
+                                        const SizedBox(height: 16),
+                                      ],
+
+                                      // Description Field
+                                      TextFormField(
+                                        controller: descriptionController,
+                                        maxLines: 2,
+                                        decoration: const InputDecoration(
+                                          labelText: 'Description (Optional)',
+                                          hintText: 'Product notes, brand, size, etc.',
+                                          alignLabelWithHint: true,
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ),
+
+                  // Footer Actions
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                    decoration: const BoxDecoration(
+                      color: AppColors.lightBackground,
+                      border: Border(top: BorderSide(color: AppColors.borderColor)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        TextButton(
+                          onPressed: () => Navigator.pop(dialogContext, false),
+                          child: const Text('Cancel'),
+                        ),
+                        const SizedBox(width: 12),
+                        ElevatedButton.icon(
+                          onPressed: () async {
+                            if (!formKey.currentState!.validate()) return;
+
+                            final price = double.tryParse(priceController.text.trim()) ?? 0.0;
+                            final cost = double.tryParse(costController.text.trim()) ?? 0.0;
+                            final qty = double.tryParse(quantityController.text.trim()) ?? 0.0;
+                            final threshold = double.tryParse(thresholdController.text.trim()) ?? 5.0;
+
+                            try {
+                              String? error;
+                              if (isEdit) {
+                                error = await _productService.updateProduct(
+                                  id: product.id,
+                                  name: nameController.text.trim(),
+                                  barcode: barcodeController.text.trim(),
+                                  description: descriptionController.text.trim(),
+                                  price: price,
+                                  cost: cost,
+                                  quantity: qty,
+                                  unit: selectedUnit,
+                                  categoryId: selectedCategoryId,
+                                  expirationDate: expiryDate,
+                                  lowStockThreshold: threshold,
+                                );
+                              } else {
+                                error = await _productService.createProduct(
+                                  name: nameController.text.trim(),
+                                  barcode: barcodeController.text.trim(),
+                                  description: descriptionController.text.trim(),
+                                  price: price,
+                                  cost: cost,
+                                  quantity: qty,
+                                  unit: selectedUnit,
+                                  categoryId: selectedCategoryId,
+                                  expirationDate: expiryDate,
+                                  lowStockThreshold: threshold,
+                                );
+                              }
+
+                              if (mounted && dialogContext.mounted) {
+                                if (error == null) {
+                                  TopNotification.show(
+                                    context,
+                                    'Product ${isEdit ? 'updated' : 'added'} successfully',
+                                  );
+                                  Navigator.pop(dialogContext, true);
+                                  setState(() {});
+                                } else {
+                                  TopNotification.show(context, error, isError: true);
+                                }
+                              }
+                            } catch (e) {
+                              if (mounted && dialogContext.mounted) {
+                                TopNotification.show(context, 'Error: $e', isError: true);
+                              }
+                            }
+                          },
+                          icon: Icon(isEdit ? Icons.save_outlined : Icons.add, color: Colors.white, size: 18),
+                          label: Text(
+                            isEdit ? 'Update Product' : 'Add Product',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryOrange,
+                            elevation: 0,
+                            padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 16),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
             ),
-          ),
-          actions: [
-            TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Cancel')),
-            ElevatedButton(
-              onPressed: () async {
-                if (!formKey.currentState!.validate()) return;
-                
-                try {
-                  final price = double.tryParse(priceController.text) ?? 0.0;
-                  final cost = double.tryParse(costController.text) ?? 0.0;
-                  final qty = double.tryParse(quantityController.text) ?? 0.0;
-
-                  String? error;
-                  if (isEdit) {
-                    error = await _productService.updateProduct(
-                      id: product.id,
-                      name: nameController0.text.trim(),
-                      barcode: barcodeController.text.trim(),
-                      description: descriptionController.text.trim(),
-                      price: price,
-                      cost: cost,
-                      quantity: qty,
-                      unit: unitController.text.trim(),
-                      categoryId: selectedCategoryId,
-                    );
-                  } else {
-                    error = await _productService.createProduct(
-                      name: nameController0.text.trim(),
-                      barcode: barcodeController.text.trim(),
-                      description: descriptionController.text.trim(),
-                      price: price,
-                      cost: cost,
-                      quantity: qty,
-                      unit: unitController.text.trim(),
-                      categoryId: selectedCategoryId,
-                    );
-                  }
-
-                  if (mounted && context.mounted) {
-                    if (error == null) {
-                      TopNotification.show(context, 'Product ${isEdit ? 'updated' : 'added'} successfully');
-                      Navigator.pop(context, true);
-                      setState(() {});
-                    } else {
-                      TopNotification.show(context, error, isError: true);
-                    }
-                  }
-                } catch (e) {
-                  if (mounted && context.mounted) TopNotification.show(context, 'Error: $e', isError: true);
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
-              child: Text(isEdit ? 'Update' : 'Add'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -872,6 +1385,186 @@ class _AdminDashboardState extends State<AdminDashboard> {
     }
   }
 
+  // ==================== CATEGORY METHODS ====================
+
+  Future<void> _showCategoryForm(BuildContext context, [AdminCategory? category]) async {
+    if (!mounted) return;
+
+    final isEdit = category != null;
+    final formKey = GlobalKey<FormState>();
+    final nameController = TextEditingController(text: category?.name ?? '');
+    final descriptionController = TextEditingController(text: category?.description ?? '');
+
+    await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(isEdit ? 'Edit Category' : 'Add Category'),
+        content: SingleChildScrollView(
+          child: Form(
+            key: formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                TextFormField(
+                  controller: nameController,
+                  decoration: const InputDecoration(
+                    labelText: 'Category Name',
+                    icon: Icon(Icons.category_outlined),
+                  ),
+                  maxLength: 20,
+                  inputFormatters: [
+                    NoDoubleSpaceAndMax20Formatter(maxLength: 20),
+                  ],
+                  validator: (value) {
+                    if (value == null || value.trim().isEmpty) {
+                      return 'Please enter category name';
+                    }
+                    if (value.trim().length < 2) {
+                      return 'Category name must be at least 2 characters';
+                    }
+                    return null;
+                  },
+                ),
+                TextFormField(
+                  controller: descriptionController,
+                  decoration: const InputDecoration(
+                    labelText: 'Description (Optional)',
+                    icon: Icon(Icons.description_outlined),
+                  ),
+                  maxLines: 2,
+                ),
+              ],
+            ),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+
+              final name = nameController.text.trim();
+              final description = descriptionController.text.trim();
+
+              String? result;
+              if (isEdit) {
+                result = await _categoryService.updateCategory(
+                  id: category.id,
+                  name: name,
+                  description: description,
+                );
+                await _productService.updateCategory(
+                  id: category.id,
+                  name: name,
+                  description: description,
+                );
+              } else {
+                result = await _categoryService.createCategory(
+                  name: name,
+                  description: description,
+                );
+                await _productService.createCategory(
+                  name: name,
+                  description: description,
+                );
+              }
+
+              if (mounted && context.mounted) {
+                if (result == null) {
+                  TopNotification.show(
+                    context,
+                    isEdit ? 'Category updated successfully' : 'Category created successfully',
+                  );
+                  Navigator.pop(context, true);
+                  setState(() {});
+                } else {
+                  TopNotification.show(context, result, isError: true);
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+            ),
+            child: Text(isEdit ? 'Save' : 'Add'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _deleteCategory(BuildContext context, AdminCategory category) async {
+    if (!mounted) return;
+
+    final totalProductCount = _productService.getProductCountForCategory(category.id);
+    final activeCount = _productService.getActiveProductCountForCategory(category.id);
+    final archivedCount = totalProductCount - activeCount;
+
+    if (totalProductCount > 0) {
+      String details = '';
+      if (activeCount > 0 && archivedCount > 0) {
+        details = '$activeCount active product(s) and $archivedCount archived product(s) (in the Archived tab)';
+      } else if (archivedCount > 0) {
+        details = '$archivedCount archived product(s) (in the Archived tab)';
+      } else {
+        details = '$activeCount active product(s)';
+      }
+
+      await showDialog(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Cannot Delete Category'),
+          content: Text(
+            'The category "${category.name}" cannot be deleted because $details are still tied to it.\n\nPlease delete or reassign all associated products first.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Delete Category'),
+        content: Text('Are you sure you want to delete "${category.name}"? This action cannot be undone.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('Delete'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true && mounted) {
+      final result = await _categoryService.permanentlyDeleteCategory(category.id);
+      await _productService.permanentlyDeleteCategory(category.id);
+      if (mounted) {
+        if (result == null) {
+          TopNotification.show(context, 'Category deleted successfully');
+          setState(() {});
+        } else {
+          TopNotification.show(context, result, isError: true);
+        }
+      }
+    }
+  }
+
   // ==================== ARCHIVED SECTION METHODS ====================
 
   Future<void> _restoreProduct(BuildContext context, AdminProduct product) async {
@@ -945,44 +1638,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
           setState(() {});
         } else {
           TopNotification.show(context, 'Failed to restore user: $result', isError: true);
-        }
-      }
-    }
-  }
-
-  Future<void> _restoreCategory(BuildContext context, AdminCategory category) async {
-    if (!mounted) return;
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Restore Category'),
-        content: Text('Are you sure you want to restore "${category.name}" from archive?'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryOrange,
-            ),
-            child: const Text('Restore'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true && mounted) {
-      final result = await _productService.restoreCategory(category.id);
-      if (mounted) {
-        if (result == null) {
-          TopNotification.show(context, 'Category restored successfully');
-          // Refresh the archived section
-          setState(() {});
-        } else {
-          TopNotification.show(context, 'Failed to restore category: $result', isError: true);
         }
       }
     }
@@ -1064,44 +1719,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
     }
   }
 
-  Future<void> _deleteCategoryFromArchived(BuildContext context, AdminCategory category) async {
-    if (!mounted) return;
-
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Delete Category'),
-        content: Text('Are you sure you want to permanently delete "${category.name}"? This action cannot be undone.'),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.red,
-            ),
-            child: const Text('Delete'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true && mounted) {
-      final result = await _productService.permanentlyDeleteCategory(category.id);
-      if (mounted) {
-        if (result == null) {
-          TopNotification.show(context, 'Category deleted successfully');
-          // Refresh the archived section
-          setState(() {});
-        } else {
-          TopNotification.show(context, 'Failed to delete category: $result', isError: true);
-        }
-      }
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     final bool isMobile = MediaQuery.of(context).size.width < 900;
@@ -1166,14 +1783,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
         title: const Text('Tindahan ni Eca Admin', style: TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold)),
       ) : null,
       body: Row(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           // Sidebar
           if (!isMobile) _buildSidebar(),
           // Main Content
           Expanded(
-            child: SingleChildScrollView(
-              padding: EdgeInsets.all(isMobile ? 16 : 32),
-              child: _buildBody(),
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: SingleChildScrollView(
+                padding: EdgeInsets.all(isMobile ? 16 : 32),
+                child: _buildBody(),
+              ),
             ),
           ),
         ],
@@ -1337,15 +1958,18 @@ class _AdminDashboardState extends State<AdminDashboard> {
       case AdminSection.users:
         return UsersSection(
           userService: _userService,
-          searchQuery: '',
+          searchQuery: _searchQuery,
           rowsPerPage: 10,
-          pages: const {},
-          onPageChange: (_, _) {},
+          pages: _pages,
+          onPageChange: _onPageChange,
           onShowUserForm: (user) => _showUserForm(context, user),
           onShowUserDetail: (user) => _showUserDetail(context, user),
           onArchiveUser: (user) => _archiveUser(context, user),
           onDeleteUser: (user) => _deleteUser(context, user),
-          onClearFilters: () => setState(() {}),
+          onClearFilters: () => setState(() {
+            _searchQuery = '';
+            _pages['users'] = 1;
+          }),
         );
       case AdminSection.settings:
         return SettingsSection(
@@ -1363,67 +1987,73 @@ class _AdminDashboardState extends State<AdminDashboard> {
         return ProductsSection(
           productService: _productService,
           categoryService: _categoryService,
-          searchQuery: '',
+          searchQuery: _searchQuery,
           rowsPerPage: 10,
-          pages: const {},
+          pages: _pages,
           showCostColumn: false,
-          onPageChange: (_, _) {},
+          onPageChange: _onPageChange,
           onShowProductForm: (product) => _showProductForm(context, product),
           onAdjustStock: (product) => _adjustStock(context, product),
           onArchiveProduct: (product) => _archiveProduct(context, product),
           onDeleteProduct: (product) => _deleteProduct(context, product),
-          onClearFilters: () => setState(() {}),
+          onDeleteCategory: (category) => _deleteCategory(context, category),
+          onClearFilters: () => setState(() {
+            _searchQuery = '';
+            _pages['products'] = 1;
+          }),
         );
       case AdminSection.categories:
         return CategoriesSection(
           categoryService: _categoryService,
           productService: _productService,
-          searchQuery: '',
+          searchQuery: _searchQuery,
           rowsPerPage: 10,
-          pages: const {},
-          onPageChange: (_, _) {},
-          onShowCategoryForm: (category) => {}, // TODO: Implement category form
-          onArchiveCategory: (category) => {}, // TODO: Implement archive category
-          onDeleteCategory: (category) => {}, // TODO: Implement delete category
+          pages: _pages,
+          onPageChange: _onPageChange,
+          onShowCategoryForm: (category) => _showCategoryForm(context, category),
+          onDeleteCategory: (category) => _deleteCategory(context, category),
         );
       case AdminSection.sales:
         return SalesSection(
           saleService: _saleService,
-          searchQuery: '',
+          searchQuery: _searchQuery,
           rowsPerPage: 10,
-          pages: const {},
+          pages: _pages,
           storeName: 'Tindahan ni Eca',
-          onPageChange: (_, _) {},
+          onPageChange: _onPageChange,
           onShowReceipt: (sale) => {}, // TODO: Implement show receipt
           onVoidSale: (sale) => {}, // TODO: Implement void sale
           onCopyText: (_, _) {}, // TODO: Implement copy text
-          onClearFilters: () {}, // TODO: Implement clear filters
+          onClearFilters: () => setState(() {
+            _searchQuery = '';
+            _pages['sales'] = 1;
+          }),
         );
       case AdminSection.activity:
         return ActivitySection(
           auditService: _auditService,
-          searchQuery: '',
+          searchQuery: _searchQuery,
           rowsPerPage: 10,
-          pages: const {},
-          onPageChange: (_, _) {},
+          pages: _pages,
+          onPageChange: _onPageChange,
           onShowAuditDetail: (log) => {}, // TODO: Implement audit log detail
         );
       case AdminSection.archived:
         return ArchivedSection(
           productService: _productService,
           userService: _userService,
-          categoryService: _categoryService,
-          searchQuery: '',
+          searchQuery: _searchQuery,
           rowsPerPage: 10,
-          pages: const {},
-          onPageChange: (_, _) {},
+          pages: _pages,
+          onPageChange: _onPageChange,
           onRestoreProduct: (product) => _restoreProduct(context, product),
           onDeleteProduct: (product) => _deleteProductFromArchived(context, product),
           onRestoreUser: (user) => _restoreUser(context, user),
           onDeleteUser: (user) => _deleteUserFromArchived(context, user),
-          onRestoreCategory: (category) => _restoreCategory(context, category),
-          onDeleteCategory: (category) => _deleteCategoryFromArchived(context, category),
-          onClearFilters: () => setState(() {}),
+          onClearFilters: () => setState(() {
+            _searchQuery = '';
+            _pages['archived'] = 1;
+          }),
         );
     }
   }

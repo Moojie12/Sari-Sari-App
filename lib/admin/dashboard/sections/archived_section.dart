@@ -3,13 +3,11 @@ import '../../../core/theme/app_colors.dart';
 import '../../models/admin_models.dart';
 import '../../services/admin_product_service.dart';
 import '../../services/admin_user_service.dart';
-import '../../services/admin_category_service.dart';
 import '../widgets/dashboard_shared.dart';
 
 class ArchivedSection extends StatefulWidget {
   final AdminProductService productService;
   final AdminUserService userService;
-  final AdminCategoryService categoryService;
   final String searchQuery;
   final int rowsPerPage;
   final Map<String, int> pages;
@@ -18,15 +16,12 @@ class ArchivedSection extends StatefulWidget {
   final void Function(AdminProduct) onDeleteProduct;
   final void Function(AdminUser) onRestoreUser;
   final void Function(AdminUser) onDeleteUser;
-  final void Function(AdminCategory) onRestoreCategory;
-  final void Function(AdminCategory) onDeleteCategory;
   final void Function() onClearFilters;
 
   const ArchivedSection({
     super.key,
     required this.productService,
     required this.userService,
-    required this.categoryService,
     required this.searchQuery,
     required this.rowsPerPage,
     required this.pages,
@@ -35,8 +30,6 @@ class ArchivedSection extends StatefulWidget {
     required this.onDeleteProduct,
     required this.onRestoreUser,
     required this.onDeleteUser,
-    required this.onRestoreCategory,
-    required this.onDeleteCategory,
     required this.onClearFilters,
   });
 
@@ -45,19 +38,32 @@ class ArchivedSection extends StatefulWidget {
 }
 
 class _ArchivedSectionState extends State<ArchivedSection> {
+  late TextEditingController _searchController;
   String _archiveTypeFilter = 'All';
   String _productSort = 'name';
   bool _productAsc = true;
   String _userSort = 'name';
   bool _userAsc = true;
-  String _categorySort = 'name';
-  bool _categoryAsc = true;
-  late String _searchQuery;
 
   @override
   void initState() {
     super.initState();
-    _searchQuery = widget.searchQuery;
+    _searchController = TextEditingController(text: widget.searchQuery);
+  }
+
+  @override
+  void didUpdateWidget(covariant ArchivedSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.searchQuery != oldWidget.searchQuery &&
+        widget.searchQuery != _searchController.text) {
+      _searchController.text = widget.searchQuery;
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   List<AdminProduct> _archivedProducts() {
@@ -66,7 +72,7 @@ class _ArchivedSectionState extends State<ArchivedSection> {
       return [];
     }
 
-    final query = _searchQuery.toLowerCase().trim();
+    final query = (_searchController.text.isNotEmpty ? _searchController.text : widget.searchQuery).toLowerCase().trim();
     final list = widget.productService.archivedProducts.where((p) {
       final matchesQuery = query.isEmpty ||
           p.name.toLowerCase().contains(query) ||
@@ -102,7 +108,7 @@ class _ArchivedSectionState extends State<ArchivedSection> {
       return [];
     }
 
-    final query = _searchQuery.toLowerCase().trim();
+    final query = (_searchController.text.isNotEmpty ? _searchController.text : widget.searchQuery).toLowerCase().trim();
     final list = widget.userService.archivedUsers.where((u) {
       final matchesQuery = query.isEmpty ||
           u.fullName.toLowerCase().contains(query) ||
@@ -123,33 +129,6 @@ class _ArchivedSectionState extends State<ArchivedSection> {
     }
 
     list.sort((a, b) => _userAsc ? compare(a, b) : compare(b, a));
-    return list;
-  }
-
-  List<AdminCategory> _archivedCategories() {
-    // Wait for service to initialize
-    if (!widget.categoryService.isInitialized) {
-      return [];
-    }
-
-    final query = _searchQuery.toLowerCase().trim();
-    final list = widget.categoryService.archivedCategories.where((c) {
-      final matchesQuery = query.isEmpty ||
-          c.name.toLowerCase().contains(query) ||
-          c.description.toLowerCase().contains(query);
-      return matchesQuery;
-    }).toList();
-
-    int compare(AdminCategory a, AdminCategory b) {
-      switch (_categorySort) {
-        case 'name':
-          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-        default:
-          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-      }
-    }
-
-    list.sort((a, b) => _categoryAsc ? compare(a, b) : compare(b, a));
     return list;
   }
 
@@ -175,19 +154,7 @@ class _ArchivedSectionState extends State<ArchivedSection> {
     });
   }
 
-  void _onCategorySort(String key) {
-    setState(() {
-      if (_categorySort == key) {
-        _categoryAsc = !_categoryAsc;
-      } else {
-        _categorySort = key;
-        _categoryAsc = true;
-      }
-    });
-  }
-
-  bool get _hasFilters =>
-      widget.searchQuery.isNotEmpty;
+  bool get _hasFilters => _searchController.text.isNotEmpty || widget.searchQuery.isNotEmpty;
 
   @override
   Widget build(BuildContext context) {
@@ -195,15 +162,12 @@ class _ArchivedSectionState extends State<ArchivedSection> {
       listenable: Listenable.merge([
         widget.productService,
         widget.userService,
-        widget.categoryService,
       ]),
       builder: (context, _) {
         final anyLoading = widget.productService.isLoading ||
-            widget.userService.isLoading ||
-            widget.categoryService.isLoading;
+            widget.userService.isLoading;
         final allInitialized = widget.productService.isInitialized &&
-            widget.userService.isInitialized &&
-            widget.categoryService.isInitialized;
+            widget.userService.isInitialized;
 
         if (!allInitialized && anyLoading) {
           return const Center(
@@ -215,23 +179,31 @@ class _ArchivedSectionState extends State<ArchivedSection> {
 
         return LayoutBuilder(
           builder: (context, constraints) {
-            // Defensive check: If the layout hasn't determined a width yet, wait.
-            // This prevents "Cannot hit test a render box with no size" errors.
             if (constraints.maxWidth <= 0) {
               return const SizedBox.shrink();
             }
 
             return DefaultTabController(
-              length: 3,
+              length: 2,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   toolbar(
                     filters: [
+                      searchFilter(
+                        controller: _searchController,
+                        hintText: 'Search archived items...',
+                        onChanged: (value) => setState(() {
+                          widget.onPageChange('archived', 1);
+                        }),
+                        onClear: () => setState(() {
+                          widget.onPageChange('archived', 1);
+                        }),
+                      ),
                       dropdownFilter(
                         label: 'Type',
                         value: _archiveTypeFilter,
-                        options: const ['All', 'Products', 'Users', 'Categories'],
+                        options: const ['All', 'Products', 'Users'],
                         onChanged: (value) => setState(() {
                           _archiveTypeFilter = value;
                         }),
@@ -253,19 +225,15 @@ class _ArchivedSectionState extends State<ArchivedSection> {
                     tabs: const [
                       Tab(text: 'Products'),
                       Tab(text: 'Users'),
-                      Tab(text: 'Categories'),
                     ],
                   ),
                   const SizedBox(height: 20),
-                  // Use a constrained height for TabBarView inside a Column
-                  // or use Expanded if the parent provides constraints.
                   SizedBox(
-                    height: 600, // Provide a default height to ensure rendering
+                    height: 600,
                     child: TabBarView(
                       children: [
                         SingleChildScrollView(child: _buildArchivedProductsTab()),
                         SingleChildScrollView(child: _buildArchivedUsersTab()),
-                        SingleChildScrollView(child: _buildArchivedCategoriesTab()),
                       ],
                     ),
                   ),
@@ -313,11 +281,11 @@ class _ArchivedSectionState extends State<ArchivedSection> {
             message: _hasFilters
                 ? 'Try a different search term.'
                 : 'Archived products will appear here when you archive them.',
-            actionLabel: _hasFilters ? 'Clear filters' : 'Restore Selected',
+            actionLabel: _hasFilters ? 'Reset Filters' : 'Restore Selected',
             onAction: _hasFilters
                 ? () {
                   setState(() {
-                    _searchQuery = '';
+                    _searchController.clear();
                   });
                   widget.onClearFilters();
                 }
@@ -379,12 +347,11 @@ class _ArchivedSectionState extends State<ArchivedSection> {
             )),
             cell(
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  iconAction(Icons.edit_outlined, 'Edit', Colors.blue,
-                          () => {}), // TODO: Implement edit archived product
                   iconAction(Icons.restore_from_trash, 'Restore', Colors.green,
                           () => widget.onRestoreProduct(product)),
+                  const SizedBox(width: 8),
                   iconAction(Icons.delete_outline_rounded, 'Delete', Colors.red,
                           () => widget.onDeleteProduct(product)),
                 ],
@@ -432,11 +399,11 @@ class _ArchivedSectionState extends State<ArchivedSection> {
             message: _hasFilters
                 ? 'Try a different search term.'
                 : 'Archived users will appear here when you archive them.',
-            actionLabel: _hasFilters ? 'Clear filters' : 'Restore Selected',
+            actionLabel: _hasFilters ? 'Reset Filters' : 'Restore Selected',
             onAction: _hasFilters
                 ? () {
                   setState(() {
-                    _searchQuery = '';
+                    _searchController.clear();
                   });
                   widget.onClearFilters();
                 }
@@ -497,9 +464,9 @@ class _ArchivedSectionState extends State<ArchivedSection> {
                       ),
                     ),
                   ],
-                  ),
                 ),
               ),
+            ),
             cell(Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -535,14 +502,11 @@ class _ArchivedSectionState extends State<ArchivedSection> {
             )),
             cell(
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  iconAction(Icons.visibility_outlined, 'View', Colors.blueGrey,
-                          () => {}), // TODO: Implement view user
-                  iconAction(Icons.edit_outlined, 'Edit', Colors.blue,
-                          () => {}), // TODO: Implement edit archived user
                   iconAction(Icons.restore_from_trash, 'Restore', Colors.green,
                           () => widget.onRestoreUser(user)),
+                  const SizedBox(width: 8),
                   iconAction(Icons.delete_outline_rounded, 'Delete', Colors.red,
                           () => widget.onDeleteUser(user)),
                 ],
@@ -552,98 +516,6 @@ class _ArchivedSectionState extends State<ArchivedSection> {
           ],
       ],
       footer: paginationBar(paged, 'archived_users', 'users', {}, widget.onPageChange),
-    );
-  }
-
-  Widget _buildArchivedCategoriesTab() {
-    final categories = _archivedCategories();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        toolbar(
-          filters: const [],
-          action: primaryButton(
-            icon: Icons.restore_from_trash,
-            label: 'Restore Selected',
-            onPressed: () {
-              // TODO: Implement restore selected categories
-            },
-          ),
-        ),
-        const SizedBox(height: 20),
-        if (categories.isEmpty)
-          emptyState(
-            icon: Icons.sell_outlined,
-            title: _hasFilters
-                ? 'No archived categories match those filters'
-                : 'No archived categories yet',
-            message: _hasFilters
-                ? 'Try a different search term.'
-                : 'Archived categories will appear here when you archive them.',
-            actionLabel: _hasFilters ? 'Clear filters' : 'Restore Selected',
-            onAction: _hasFilters
-                ? () {
-                  setState(() {
-                    _searchQuery = '';
-                  });
-                  widget.onClearFilters();
-                }
-                : () {
-                  // TODO: Implement restore selected
-                },
-          )
-        else
-          _buildArchivedCategoriesTable(categories),
-      ],
-    );
-  }
-
-  Widget _buildArchivedCategoriesTable(List<AdminCategory> categories) {
-    final paged = paginate(categories, 'archived_categories', 10, {});
-
-    return tableShell(
-      minWidth: 800,
-      columnWidths: const {
-        0: FlexColumnWidth(2.5),
-        1: FlexColumnWidth(4),
-        2: FlexColumnWidth(1.5),
-        3: FixedColumnWidth(120),
-      },
-      header: [
-        sortableHeader('Category', 'name', _categorySort, _categoryAsc, _onCategorySort),
-        header('Description'),
-        header('Products'),
-        header('Actions'),
-      ],
-      rows: [
-        for (final category in paged.items)
-          [
-            cell(Text(category.name, style: const TextStyle(fontWeight: FontWeight.w600))),
-            cell(Text(
-              category.description.isEmpty ? '—' : category.description,
-              style: const TextStyle(color: AppColors.secondaryText, fontSize: 13),
-            )),
-            cell(Text(
-              '${widget.productService.getActiveProductCountForCategory(category.id)} products',
-              style: const TextStyle(fontSize: 13),
-            )),
-            cell(
-              Row(
-                children: [
-                  iconAction(Icons.edit_outlined, 'Edit', Colors.blue,
-                          () => {}), // TODO: Implement edit archived category
-                  iconAction(Icons.restore_from_trash, 'Restore', Colors.green,
-                          () => widget.onRestoreCategory(category)),
-                  iconAction(Icons.delete_outline_rounded, 'Delete', Colors.red,
-                          () => widget.onDeleteCategory(category)),
-                ],
-              ),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-            ),
-          ],
-      ],
-      footer: paginationBar(paged, 'archived_categories', 'categories', {}, widget.onPageChange),
     );
   }
 

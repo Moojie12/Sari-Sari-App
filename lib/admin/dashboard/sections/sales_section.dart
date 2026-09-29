@@ -35,7 +35,34 @@ class SalesSection extends StatefulWidget {
 }
 
 class _SalesSectionState extends State<SalesSection> {
+  late TextEditingController _searchController;
+  late int _rowsPerPage;
   String _saleStatusFilter = 'All';
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController(text: widget.searchQuery);
+    _rowsPerPage = widget.rowsPerPage;
+  }
+
+  @override
+  void didUpdateWidget(covariant SalesSection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.searchQuery != oldWidget.searchQuery &&
+        widget.searchQuery != _searchController.text) {
+      _searchController.text = widget.searchQuery;
+    }
+    if (widget.rowsPerPage != oldWidget.rowsPerPage) {
+      _rowsPerPage = widget.rowsPerPage;
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
 
   List<AdminSale> _filteredSales() {
     // Wait for service to initialize
@@ -43,7 +70,7 @@ class _SalesSectionState extends State<SalesSection> {
       return [];
     }
 
-    final query = widget.searchQuery.toLowerCase().trim();
+    final query = (_searchController.text.isNotEmpty ? _searchController.text : widget.searchQuery).toLowerCase().trim();
     return widget.saleService.allSales.where((sale) {
       final matchesQuery = query.isEmpty ||
           sale.receiptNumber.toLowerCase().contains(query) ||
@@ -75,6 +102,16 @@ class _SalesSectionState extends State<SalesSection> {
       children: [
         toolbar(
           filters: [
+            searchFilter(
+              controller: _searchController,
+              hintText: 'Search receipt, cashier, customer...',
+              onChanged: (value) => setState(() {
+                widget.onPageChange('sales', 1);
+              }),
+              onClear: () => setState(() {
+                widget.onPageChange('sales', 1);
+              }),
+            ),
             dropdownFilter(
               label: 'Status',
               value: _saleStatusFilter,

@@ -27,6 +27,29 @@ class ActivitySection extends StatefulWidget {
 }
 
 class _ActivitySectionState extends State<ActivitySection> {
+  late TextEditingController _searchController;
+
+  @override
+  void initState() {
+    super.initState();
+    _searchController = TextEditingController(text: widget.searchQuery);
+  }
+
+  @override
+  void didUpdateWidget(covariant ActivitySection oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.searchQuery != oldWidget.searchQuery &&
+        widget.searchQuery != _searchController.text) {
+      _searchController.text = widget.searchQuery;
+    }
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -40,7 +63,7 @@ class _ActivitySectionState extends State<ActivitySection> {
           );
         }
 
-        final query = widget.searchQuery.toLowerCase().trim();
+        final query = (_searchController.text.isNotEmpty ? _searchController.text : widget.searchQuery).toLowerCase().trim();
         final list = widget.auditService.allAuditLogs.where((log) {
           return query.isEmpty ||
               log.entityName.toLowerCase().contains(query) ||
@@ -51,6 +74,22 @@ class _ActivitySectionState extends State<ActivitySection> {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            toolbar(
+              filters: [
+                searchFilter(
+                  controller: _searchController,
+                  hintText: 'Search entity, user, type...',
+                  onChanged: (value) => setState(() {
+                    widget.onPageChange('activity', 1);
+                  }),
+                  onClear: () => setState(() {
+                    widget.onPageChange('activity', 1);
+                  }),
+                ),
+              ],
+              action: const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 20),
             if (list.isEmpty)
               emptyState(
                 icon: Icons.history,

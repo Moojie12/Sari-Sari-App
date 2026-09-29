@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
@@ -13,62 +14,92 @@ Widget tableShell({
   required Widget footer,
   double minWidth = 820,
 }) {
-  return Container(
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: AppColors.borderColor),
-    ),
-    clipBehavior: Clip.antiAlias,
-    child: Column(
-      children: [
-        LayoutBuilder(
-          builder: (context, constraints) {
-            final tableWidth = constraints.maxWidth < minWidth
-                ? minWidth
-                : constraints.maxWidth;
-            return SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: SizedBox(
-                width: tableWidth,
-                child: Table(
-                  columnWidths: columnWidths,
-                  defaultVerticalAlignment:
-                  TableCellVerticalAlignment.middle,
-                  children: [
-                    TableRow(
-                      decoration: const BoxDecoration(
-                        color: AppColors.lightBackground,
-                        border: Border(
-                          bottom: BorderSide(
-                              color: AppColors.borderColor, width: 1),
-                        ),
-                      ),
-                      children: header,
-                    ),
-                    for (var i = 0; i < rows.length; i++)
-                      TableRow(
-                        decoration: BoxDecoration(
-                          color: Colors.white,
-                          border: i == rows.length - 1
-                              ? null
-                              : const Border(
-                            bottom: BorderSide(
-                              color: AppColors.borderColor,
-                              width: 0.6,
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(20),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withValues(alpha: 0.92),
+              Colors.white.withValues(alpha: 0.78),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.9),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.darkText.withValues(alpha: 0.06),
+              blurRadius: 24,
+              offset: const Offset(0, 10),
+            ),
+            BoxShadow(
+              color: Colors.white.withValues(alpha: 0.6),
+              blurRadius: 0,
+              spreadRadius: 1,
+            ),
+          ],
+        ),
+        clipBehavior: Clip.antiAlias,
+        child: Column(
+          children: [
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final tableWidth = constraints.maxWidth < minWidth
+                    ? minWidth
+                    : constraints.maxWidth;
+                return SingleChildScrollView(
+                  scrollDirection: Axis.horizontal,
+                  child: SizedBox(
+                    width: tableWidth,
+                    child: Table(
+                      columnWidths: columnWidths,
+                      defaultVerticalAlignment:
+                      TableCellVerticalAlignment.middle,
+                      children: [
+                        TableRow(
+                          decoration: BoxDecoration(
+                            color: AppColors.primaryOrange.withValues(alpha: 0.06),
+                            border: const Border(
+                              bottom: BorderSide(
+                                  color: AppColors.borderColor, width: 1),
                             ),
                           ),
+                          children: header,
                         ),
-                        children: rows[i],
-                      ),
-                  ],
-                ),
-              ),
-            );
-          },
+                        for (var i = 0; i < rows.length; i++)
+                          TableRow(
+                            decoration: BoxDecoration(
+                              color: i % 2 == 0
+                                  ? Colors.white.withValues(alpha: 0.5)
+                                  : Colors.white.withValues(alpha: 0.8),
+                              border: i == rows.length - 1
+                                  ? null
+                                  : Border(
+                                bottom: BorderSide(
+                                  color: AppColors.borderColor.withValues(alpha: 0.6),
+                                  width: 0.6,
+                                ),
+                              ),
+                            ),
+                            children: rows[i],
+                          ),
+                      ],
+                    ),
+                  ),
+                );
+              },
+            ),
+            footer,
+          ],
         ),
-        footer,
-      ],
+      ),
     ),
   );
 }
@@ -326,49 +357,72 @@ Widget card({
   required Widget child,
   EdgeInsets padding = const EdgeInsets.all(22),
 }) {
-  return Container(
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: AppColors.borderColor),
-    ),
-    padding: padding,
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.darkText,
-                    ),
-                  ),
-                  if (subtitle != null) ...[
-                    const SizedBox(height: 3),
-                    Text(
-                      subtitle,
-                      style: const TextStyle(
-                        fontSize: 12.5,
-                        color: AppColors.secondaryText,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(20),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+      child: Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withValues(alpha: 0.92),
+              Colors.white.withValues(alpha: 0.78),
+            ],
+          ),
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.9),
+            width: 1.5,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.darkText.withValues(alpha: 0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
             ),
-            if (trailing != null) ...[trailing],
           ],
         ),
-        const SizedBox(height: 18),
-        child,
-      ],
+        padding: padding,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.darkText,
+                        ),
+                      ),
+                      if (subtitle != null) ...[
+                        const SizedBox(height: 3),
+                        Text(
+                          subtitle,
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+                if (trailing != null) ...[trailing],
+              ],
+            ),
+            const SizedBox(height: 18),
+            child,
+          ],
+        ),
+      ),
     ),
   );
 }
@@ -386,6 +440,57 @@ Widget toolbar({required List<Widget> filters, required Widget action}) {
   );
 }
 
+Widget searchFilter({
+  required TextEditingController controller,
+  required String hintText,
+  required ValueChanged<String> onChanged,
+  VoidCallback? onClear,
+}) {
+  return Container(
+    width: 240,
+    height: 40,
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.85),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1.2),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.03),
+          blurRadius: 8,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: TextField(
+      controller: controller,
+      onChanged: onChanged,
+      style: const TextStyle(fontSize: 13, color: AppColors.darkText, fontWeight: FontWeight.w500),
+      textAlignVertical: TextAlignVertical.center,
+      decoration: InputDecoration(
+        isDense: true,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+        hintText: hintText,
+        hintStyle: const TextStyle(fontSize: 12.5, color: AppColors.placeholderColor),
+        prefixIcon: const Icon(Icons.search, size: 18, color: AppColors.secondaryText),
+        prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+        suffixIcon: controller.text.isNotEmpty
+            ? IconButton(
+                icon: const Icon(Icons.clear, size: 16, color: AppColors.secondaryText),
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                onPressed: () {
+                  controller.clear();
+                  onChanged('');
+                  if (onClear != null) onClear();
+                },
+              )
+            : null,
+        border: InputBorder.none,
+      ),
+    ),
+  );
+}
+
 Widget dropdownFilter({
   required String label,
   required String value,
@@ -396,9 +501,16 @@ Widget dropdownFilter({
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 2),
     decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(10),
-      border: Border.all(color: AppColors.borderColor),
+      color: Colors.white.withValues(alpha: 0.85),
+      borderRadius: BorderRadius.circular(12),
+      border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1.2),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.black.withValues(alpha: 0.03),
+          blurRadius: 8,
+          offset: const Offset(0, 2),
+        ),
+      ],
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
@@ -416,7 +528,7 @@ Widget dropdownFilter({
           value: safeValue,
           underline: const SizedBox(),
           isDense: true,
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           style: const TextStyle(
             fontSize: 13,
             fontWeight: FontWeight.w600,
@@ -467,67 +579,90 @@ Widget emptyState({
   String? actionLabel,
   VoidCallback? onAction,
 }) {
-  return Container(
-    width: double.infinity,
-    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 56),
-    decoration: BoxDecoration(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(16),
-      border: Border.all(color: AppColors.borderColor),
-    ),
-    child: Column(
-      children: [
-        Container(
-          padding: const EdgeInsets.all(18),
-          decoration: const BoxDecoration(
-            color: AppColors.lightBackground,
-            shape: BoxShape.circle,
+  return ClipRRect(
+    borderRadius: BorderRadius.circular(20),
+    child: BackdropFilter(
+      filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 56),
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              Colors.white.withValues(alpha: 0.92),
+              Colors.white.withValues(alpha: 0.78),
+            ],
           ),
-          child: Icon(icon, size: 30, color: AppColors.placeholderColor),
-        ),
-        const SizedBox(height: 18),
-        Text(
-          title,
-          textAlign: TextAlign.center,
-          style: const TextStyle(
-            fontSize: 15.5,
-            fontWeight: FontWeight.w700,
-            color: AppColors.darkText,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.9),
+            width: 1.5,
           ),
-        ),
-        const SizedBox(height: 8),
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 420),
-          child: Text(
-            message,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 13.5,
-              color: AppColors.secondaryText,
-              height: 1.5,
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.darkText.withValues(alpha: 0.05),
+              blurRadius: 20,
+              offset: const Offset(0, 8),
             ),
-          ),
+          ],
         ),
-        if (actionLabel != null && onAction != null) ...[
-          const SizedBox(height: 22),
-          ElevatedButton(
-            onPressed: onAction,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryOrange,
-              elevation: 0,
-              padding:
-              const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
-              shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12)),
+        child: Column(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(18),
+              decoration: BoxDecoration(
+                color: AppColors.primaryOrange.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, size: 30, color: AppColors.primaryOrange),
             ),
-            child: Text(
-              actionLabel,
+            const SizedBox(height: 18),
+            Text(
+              title,
+              textAlign: TextAlign.center,
               style: const TextStyle(
-                  color: Colors.white, fontWeight: FontWeight.w700),
+                fontSize: 15.5,
+                fontWeight: FontWeight.w700,
+                color: AppColors.darkText,
+              ),
             ),
-          ),
-        ],
-      ],
+            const SizedBox(height: 8),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 420),
+              child: Text(
+                message,
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  fontSize: 13.5,
+                  color: AppColors.secondaryText,
+                  height: 1.5,
+                ),
+              ),
+            ),
+            if (actionLabel != null && onAction != null) ...[
+              const SizedBox(height: 22),
+              ElevatedButton(
+                onPressed: onAction,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryOrange,
+                  elevation: 0,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 22, vertical: 15),
+                  shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(12)),
+                ),
+                child: Text(
+                  actionLabel,
+                  style: const TextStyle(
+                      color: Colors.white, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ],
+        ),
+      ),
     ),
   );
 }
@@ -608,22 +743,28 @@ Paged<T> paginate<T>(List<T> items, String key, int rowsPerPage, Map<String, int
   );
 }
 
-Widget paginationBar(Paged paged, String key, String noun, Map<String, int> pages, void Function(String, int) onPageChange) {
+Widget paginationBar(
+  Paged paged,
+  String key,
+  String noun,
+  Map<String, int> pages,
+  void Function(String, int) onPageChange, {
+  int currentRowsPerPage = 10,
+  void Function(int)? onRowsPerPageChange,
+}) {
   final showing = paged.total == 0
       ? 'No $noun'
       : 'Showing ${paged.start + 1}–${paged.end} of ${paged.total} $noun';
 
   final windowStart = (paged.page - 2).clamp(1, paged.totalPages).toInt();
-  final windowEnd =
-  (windowStart + 4).clamp(1, paged.totalPages).toInt();
-  final adjustedStart =
-  (windowEnd - 4).clamp(1, paged.totalPages).toInt();
+  final windowEnd = (windowStart + 4).clamp(1, paged.totalPages).toInt();
+  final adjustedStart = (windowEnd - 4).clamp(1, paged.totalPages).toInt();
 
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
-    decoration: const BoxDecoration(
-      color: AppColors.lightBackground,
-      border: Border(top: BorderSide(color: AppColors.borderColor)),
+    decoration: BoxDecoration(
+      color: Colors.white.withValues(alpha: 0.65),
+      border: Border(top: BorderSide(color: AppColors.borderColor.withValues(alpha: 0.6))),
     ),
     child: Wrap(
       alignment: WrapAlignment.spaceBetween,
@@ -631,40 +772,97 @@ Widget paginationBar(Paged paged, String key, String noun, Map<String, int> page
       spacing: 16,
       runSpacing: 10,
       children: [
-        Text(
-          showing,
-          style: const TextStyle(
-            color: AppColors.secondaryText,
-            fontSize: 12.5,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-        if (paged.totalPages > 1)
-          // Wrap (not Row) so the pager reflows onto a second line
-          // instead of overflowing when the container gets narrow.
-          Wrap(
-            spacing: 4,
-            runSpacing: 6,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              _pageArrow(Icons.keyboard_double_arrow_left, 'First page',
-                  paged.page > 1, () => onPageChange(key, 1)),
-              _pageArrow(Icons.chevron_left, 'Previous page', paged.page > 1,
-                      () => onPageChange(key, paged.page - 1)),
-              for (var p = adjustedStart; p <= windowEnd; p++)
-                _pageNumber(p, p == paged.page, () => onPageChange(key, p)),
-              _pageArrow(
-                  Icons.chevron_right,
-                  'Next page',
-                  paged.page < paged.totalPages,
-                      () => onPageChange(key, paged.page + 1)),
-              _pageArrow(
-                  Icons.keyboard_double_arrow_right,
-                  'Last page',
-                  paged.page < paged.totalPages,
-                      () => onPageChange(key, paged.totalPages)),
+        Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (onRowsPerPageChange != null) ...[
+              const Text(
+                'Rows per page:',
+                style: TextStyle(
+                  color: AppColors.secondaryText,
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                height: 32,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: AppColors.borderColor),
+                ),
+                child: DropdownButtonHideUnderline(
+                  child: DropdownButton<int>(
+                    value: [5, 10, 20, 50, 100].contains(currentRowsPerPage)
+                        ? currentRowsPerPage
+                        : 10,
+                    isDense: true,
+                    style: const TextStyle(
+                      fontSize: 12.5,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.darkText,
+                    ),
+                    icon: const Icon(Icons.arrow_drop_down, size: 18, color: AppColors.secondaryText),
+                    items: const [
+                      DropdownMenuItem(value: 5, child: Text('5')),
+                      DropdownMenuItem(value: 10, child: Text('10')),
+                      DropdownMenuItem(value: 20, child: Text('20')),
+                      DropdownMenuItem(value: 50, child: Text('50')),
+                      DropdownMenuItem(value: 100, child: Text('100')),
+                    ],
+                    onChanged: (val) {
+                      if (val != null) onRowsPerPageChange(val);
+                    },
+                  ),
+                ),
+              ),
+              const SizedBox(width: 14),
             ],
-          ),
+            Text(
+              showing,
+              style: const TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+        Wrap(
+          spacing: 4,
+          runSpacing: 6,
+          crossAxisAlignment: WrapCrossAlignment.center,
+          children: [
+            _pageArrow(
+              Icons.keyboard_double_arrow_left,
+              'First page',
+              paged.page > 1,
+              () => onPageChange(key, 1),
+            ),
+            _pageArrow(
+              Icons.chevron_left,
+              'Previous page',
+              paged.page > 1,
+              () => onPageChange(key, paged.page - 1),
+            ),
+            for (var p = adjustedStart; p <= windowEnd; p++)
+              _pageNumber(p, p == paged.page, () => onPageChange(key, p)),
+            _pageArrow(
+              Icons.chevron_right,
+              'Next page',
+              paged.page < paged.totalPages,
+              () => onPageChange(key, paged.page + 1),
+            ),
+            _pageArrow(
+              Icons.keyboard_double_arrow_right,
+              'Last page',
+              paged.page < paged.totalPages,
+              () => onPageChange(key, paged.totalPages),
+            ),
+          ],
+        ),
       ],
     ),
   );
@@ -702,12 +900,12 @@ Widget _pageNumber(int page, bool isActive, VoidCallback onTap) {
       height: 32,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: isActive ? AppColors.primaryOrange : Colors.white,
+        color: isActive ? AppColors.primaryOrange : Colors.white.withValues(alpha: 0.8),
         borderRadius: BorderRadius.circular(8),
         border: Border.all(
           color: isActive
               ? AppColors.primaryOrange
-              : AppColors.borderColor,
+              : AppColors.borderColor.withValues(alpha: 0.8),
         ),
       ),
       child: Text(

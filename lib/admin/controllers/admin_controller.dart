@@ -714,13 +714,22 @@ class AdminController extends ChangeNotifier {
   String? permanentlyDeleteCategory(String id) {
     final category = categoryById(id);
     if (category == null) return 'That category no longer exists.';
-    if (!category.isArchived) return 'Archive the category before deleting it.';
 
-    final linked = getProductCountForCategory(id);
-    if (linked > 0) return '$linked products are still assigned to "${category.name}".';
+    final totalCount = getProductCountForCategory(id);
+    if (totalCount > 0) {
+      final activeCount = getActiveProductCountForCategory(id);
+      final archivedCount = totalCount - activeCount;
+      if (activeCount > 0 && archivedCount > 0) {
+        return 'Cannot delete "${category.name}" because $activeCount active product(s) and $archivedCount archived product(s) are still tied to it.';
+      } else if (archivedCount > 0) {
+        return 'Cannot delete "${category.name}" because $archivedCount archived product(s) in the Archived tab are still tied to it.';
+      } else {
+        return 'Cannot delete "${category.name}" because $activeCount active product(s) are still tied to it.';
+      }
+    }
 
     _categories.removeWhere((c) => c.id == id);
-    _log(AuditAction.permanentDelete, 'Category', id, category.name, 'Archived', 'Deleted');
+    _log(AuditAction.permanentDelete, 'Category', id, category.name, 'Active', 'Deleted');
     notifyListeners();
     return null;
   }
