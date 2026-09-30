@@ -39,7 +39,7 @@ class _CustomerChangePasswordPageState extends State<CustomerChangePasswordPage>
     final newPassword = _newPasswordController.text;
     final confirm = _confirmPasswordController.text;
 
-    final currentErr = current.isEmpty ? 'Please enter your current password.' : null;
+    final currentErr = PasswordValidator.validate(current, fieldName: 'Current password');
     final newErr = PasswordValidator.validate(newPassword, fieldName: 'New password');
     final confirmErr = PasswordValidator.validateConfirmPassword(confirm, newPassword);
 
@@ -51,6 +51,11 @@ class _CustomerChangePasswordPageState extends State<CustomerChangePasswordPage>
 
     if (current.isEmpty || newPassword.isEmpty || confirm.isEmpty) {
       TopNotification.show(context, 'Please fill in all fields.', isError: true);
+      return;
+    }
+
+    if (currentErr != null) {
+      TopNotification.show(context, currentErr, isError: true);
       return;
     }
 
@@ -142,9 +147,9 @@ class _CustomerChangePasswordPageState extends State<CustomerChangePasswordPage>
                 controller: _currentPasswordController,
                 errorText: _currentPasswordError,
                 onChanged: (val) {
-                  if (_currentPasswordError != null) {
-                    setState(() => _currentPasswordError = null);
-                  }
+                  setState(() {
+                    _currentPasswordError = PasswordValidator.validate(val, fieldName: 'Current password');
+                  });
                 },
               ),
               const SizedBox(height: 14),
@@ -156,10 +161,8 @@ class _CustomerChangePasswordPageState extends State<CustomerChangePasswordPage>
                 errorText: _newPasswordError,
                 onChanged: (val) {
                   setState(() {
-                    if (_newPasswordError != null) {
-                      _newPasswordError = PasswordValidator.validate(val, fieldName: 'New password');
-                    }
-                    if (_confirmPasswordError != null && _confirmPasswordController.text.isNotEmpty) {
+                    _newPasswordError = PasswordValidator.validate(val, fieldName: 'New password');
+                    if (_confirmPasswordController.text.isNotEmpty) {
                       _confirmPasswordError = PasswordValidator.validateConfirmPassword(
                         _confirmPasswordController.text,
                         val,
@@ -177,12 +180,10 @@ class _CustomerChangePasswordPageState extends State<CustomerChangePasswordPage>
                 errorText: _confirmPasswordError,
                 onChanged: (val) {
                   setState(() {
-                    if (_confirmPasswordError != null) {
-                      _confirmPasswordError = PasswordValidator.validateConfirmPassword(
-                        val,
-                        _newPasswordController.text,
-                      );
-                    }
+                    _confirmPasswordError = PasswordValidator.validateConfirmPassword(
+                      val,
+                      _newPasswordController.text,
+                    );
                   });
                 },
               ),

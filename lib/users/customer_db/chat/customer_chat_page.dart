@@ -1,7 +1,25 @@
 import 'package:flutter/material.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/editable_profile_avatar.dart';
 import '../../employee_db/messages/employee_message_model.dart';
 import 'customer_chat_controller.dart';
+
+class StoreStaffMember {
+  final String uid;
+  final String name;
+  final String role;
+  final String? photoUrl;
+  final bool isOwner;
+
+  StoreStaffMember({
+    required this.uid,
+    required this.name,
+    required this.role,
+    this.photoUrl,
+    this.isOwner = false,
+  });
+}
 
 class CustomerChatPage extends StatefulWidget {
   const CustomerChatPage({super.key});
@@ -53,6 +71,102 @@ class _CustomerChatPageState extends State<CustomerChatPage> {
     final minute = dateTime.minute.toString().padLeft(2, '0');
     final period = dateTime.hour >= 12 ? 'PM' : 'AM';
     return '$hour:$minute $period';
+  }
+
+  Future<List<StoreStaffMember>> _fetchStoreSupportTeam() async {
+    final List<StoreStaffMember> staffList = [];
+
+    try {
+      final snapshot = await AuthService().database.ref().child('users').get();
+      if (snapshot.exists && snapshot.value is Map) {
+        final rawMap = Map<dynamic, dynamic>.from(snapshot.value as Map);
+
+        rawMap.forEach((key, value) {
+          if (value is Map) {
+            final data = Map<String, dynamic>.from(value);
+            final status = (data['status'] ?? '').toString().toLowerCase();
+            final isArchived = data['isArchived'] == true || data['archived'] == true;
+
+            if (status == 'disabled' || status == 'archived' || isArchived) {
+              return;
+            }
+
+            final rawRole = (data['role'] ?? '').toString().toLowerCase().trim();
+            if (rawRole == 'owner' || rawRole == 'employee' || rawRole == 'admin' || rawRole == 'staff') {
+              String fName = (data['firstName'] ?? data['first_name'] ?? '').toString().trim();
+              String lName = (data['surname'] ?? data['lastName'] ?? data['last_name'] ?? '').toString().trim();
+              String mInit = (data['middleInitial'] ?? data['middle_initial'] ?? '').toString().trim();
+              String dName = (data['displayName'] ?? data['name'] ?? '').toString().trim();
+
+              String fullName = '';
+              if (fName.isNotEmpty || lName.isNotEmpty) {
+                final mi = mInit.isNotEmpty ? '${mInit.replaceAll(".", "").toUpperCase()}. ' : '';
+                fullName = '$fName $mi$lName'.trim();
+              } else if (dName.isNotEmpty) {
+                fullName = dName;
+              } else {
+                final email = (data['email'] ?? '').toString();
+                if (email.contains('@')) {
+                  fullName = email.split('@').first;
+                } else {
+                  fullName = (rawRole == 'owner' || rawRole == 'admin') ? 'Store Owner' : 'Employee';
+                }
+              }
+
+              String roleLabel = 'Employee';
+              bool isOwner = false;
+              if (rawRole == 'owner') {
+                roleLabel = 'Store Owner';
+                isOwner = true;
+              } else if (rawRole == 'admin') {
+                roleLabel = 'Administrator';
+                isOwner = true;
+              } else {
+                final customTitle = (data['roleTitle'] ?? data['designation'] ?? data['jobTitle'] ?? '').toString().trim();
+                roleLabel = customTitle.isNotEmpty ? customTitle : 'Employee';
+              }
+
+              final avatar = data['avatar_url']?.toString() ??
+                  data['photoUrl']?.toString() ??
+                  data['photo_url']?.toString();
+
+              staffList.add(StoreStaffMember(
+                uid: key.toString(),
+                name: fullName,
+                role: roleLabel,
+                photoUrl: avatar,
+                isOwner: isOwner,
+              ));
+            }
+          }
+        });
+      }
+    } catch (e) {
+      debugPrint('[CustomerChatPage] Error loading store support team: $e');
+    }
+
+    staffList.sort((a, b) {
+      if (a.isOwner && !b.isOwner) return -1;
+      if (!a.isOwner && b.isOwner) return 1;
+      return a.name.compareTo(b.name);
+    });
+
+    if (staffList.isEmpty) {
+      staffList.add(StoreStaffMember(
+        uid: 'owner-default',
+        name: 'Nico Maglente',
+        role: 'Store Owner',
+        isOwner: true,
+      ));
+      staffList.add(StoreStaffMember(
+        uid: 'employee-default',
+        name: 'Store Staff',
+        role: 'Employee',
+        isOwner: false,
+      ));
+    }
+
+    return staffList;
   }
 
   @override
@@ -153,9 +267,13 @@ class _CustomerChatPageState extends State<CustomerChatPage> {
   void _showStoreStaffInfo(BuildContext context) {
     showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (context) => Container(
-        padding: const EdgeInsets.fromLTRB(24, 20, 24, 32),
+        constraints: BoxConstraints(
+          maxHeight: MediaQuery.of(context).size.height * 0.75,
+        ),
+        padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
@@ -181,17 +299,49 @@ class _CustomerChatPageState extends State<CustomerChatPage> {
               'Both the owner and employees can assist you in this chat.',
               style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
             ),
-            const SizedBox(height: 24),
-            _StaffRow(
-              name: 'Nico Maglente',
-              role: 'Store Owner',
-              icon: Icons.storefront_outlined,
-            ),
-            const SizedBox(height: 16),
-            _StaffRow(
-              name: 'Store Staff',
-              role: 'Assistant',
-              icon: Icons.badge_outlined,
+            const SizedBox(height: 18),
+            Flexible(
+              child: FutureBuilder<List<StoreStaffMember>>(
+                future: _fetchStoreSupportTeam(),
+                builder: (context, snapshot) {
+                  if (snapshot.connectionState == ConnectionState.waiting) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: CircularProgressIndicator(color: AppColors.primaryOrange),
+                      ),
+                    );
+                  }
+
+                  final staffList = snapshot.data ?? [];
+                  if (staffList.isEmpty) {
+                    return const Center(
+                      child: Padding(
+                        padding: EdgeInsets.symmetric(vertical: 24),
+                        child: Text(
+                          'No store support staff found.',
+                          style: TextStyle(color: AppColors.secondaryText),
+                        ),
+                      ),
+                    );
+                  }
+
+                  return ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: staffList.length,
+                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    itemBuilder: (context, index) {
+                      final staff = staffList[index];
+                      return _StaffRow(
+                        name: staff.name,
+                        role: staff.role,
+                        icon: staff.isOwner ? Icons.storefront_outlined : Icons.badge_outlined,
+                        photoUrl: staff.photoUrl,
+                      );
+                    },
+                  );
+                },
+              ),
             ),
           ],
         ),
@@ -201,35 +351,75 @@ class _CustomerChatPageState extends State<CustomerChatPage> {
 }
 
 class _StaffRow extends StatelessWidget {
-  const _StaffRow({required this.name, required this.role, required this.icon});
+  const _StaffRow({
+    required this.name,
+    required this.role,
+    required this.icon,
+    this.photoUrl,
+  });
+
   final String name;
   final String role;
   final IconData icon;
+  final String? photoUrl;
+
+  String get _computedInitials {
+    final parts = name.trim().split(RegExp(r'\s+'));
+    if (parts.length >= 2) {
+      return '${parts[0][0]}${parts[1][0]}'.toUpperCase();
+    } else if (parts.isNotEmpty && parts[0].isNotEmpty) {
+      return parts[0][0].toUpperCase();
+    }
+    return '';
+  }
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      children: [
-        CircleAvatar(
-          radius: 20,
-          backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.1),
-          child: Icon(icon, color: AppColors.primaryOrange, size: 20),
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: AppColors.lightPeach.withValues(alpha: 0.4),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: AppColors.primaryOrange.withValues(alpha: 0.15),
+          width: 1,
         ),
-        const SizedBox(width: 14),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              name,
-              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText, fontSize: 15),
+      ),
+      child: Row(
+        children: [
+          EditableProfileAvatar(
+            initials: _computedInitials,
+            photoPath: photoUrl,
+            radius: 20,
+            isEditable: false,
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  name,
+                  style: const TextStyle(
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.darkText,
+                    fontSize: 15,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  role,
+                  style: const TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
             ),
-            Text(
-              role,
-              style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
-            ),
-          ],
-        ),
-      ],
+          ),
+        ],
+      ),
     );
   }
 }

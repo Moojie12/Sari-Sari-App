@@ -93,9 +93,9 @@ Future<String?> showProductImageCropDialog({
 
       return Dialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
         child: Container(
-          width: 380,
+          constraints: const BoxConstraints(maxWidth: 380),
           padding: const EdgeInsets.all(20),
           decoration: BoxDecoration(
             color: Colors.white,
@@ -107,14 +107,15 @@ Future<String?> showProductImageCropDialog({
             children: [
               // Header
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    title,
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: AppColors.darkText,
+                  Expanded(
+                    child: Text(
+                      title,
+                      style: const TextStyle(
+                        fontSize: 17,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.darkText,
+                      ),
                     ),
                   ),
                   IconButton(
@@ -222,7 +223,7 @@ Future<String?> showProductImageCropDialog({
 
               // Size & Storage Confirmation Badge
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
                 decoration: BoxDecoration(
                   color: Colors.green.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
@@ -232,13 +233,17 @@ Future<String?> showProductImageCropDialog({
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     const Icon(Icons.check_circle_rounded, color: Colors.green, size: 18),
-                    const SizedBox(width: 8),
-                    Text(
-                      'Passed Size Check ($mbSize MB / Max 5.0 MB)',
-                      style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.green,
+                    const SizedBox(width: 6),
+                    Flexible(
+                      child: Text(
+                        'Passed Size Check ($mbSize MB / Max 5.0 MB)',
+                        style: const TextStyle(
+                          fontSize: 11.5,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.green,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                       ),
                     ),
                   ],

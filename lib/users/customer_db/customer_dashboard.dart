@@ -10,8 +10,6 @@ import 'package:sari_sari/users/customer_db/notifications/customer_notifications
 import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_purchases_page.dart';
 import 'package:sari_sari/users/customer_db/profile/customer_profile_page.dart';
-import 'package:sari_sari/users/customer_db/chat/customer_chat_page.dart';
-import 'package:sari_sari/users/customer_db/chat/customer_chat_controller.dart';
 import 'package:sari_sari/users/customer_db/notifications/customer_notifications_controller.dart';
 
 /// Main shell for the customer-facing side of the app.
@@ -36,7 +34,6 @@ class CustomerDashboardState extends State<CustomerDashboard> {
   final _cartController = CustomerCartController();
   final _orderController = CustomerOrderController();
   final _notificationsController = CustomerNotificationsController();
-  final _chatController = CustomerChatController();
 
   bool _isNavBarVisible = true;
 
@@ -102,18 +99,13 @@ class CustomerDashboardState extends State<CustomerDashboard> {
             child: SafeArea(
               bottom: false,
               child: ListenableBuilder(
-                listenable: Listenable.merge([_cartController, _chatController]),
+                listenable: _cartController,
                 builder: (context, _) {
                   final isHome = _selectedIndex == 0;
-                  final isProfile = _selectedIndex == 3;
                   final hasItems = _cartController.itemCount > 0;
-                  final hasChats = _chatController.unreadCount > 0 || _chatController.hasActiveChats;
                   
                   // For Home: visible if nav bar is shown OR cart has items.
-                  // For Profile: visible if nav bar is shown OR if there are active chats.
-                  final isVisible = isHome 
-                      ? (_isNavBarVisible || hasItems) 
-                      : (isProfile && (_isNavBarVisible || hasChats));
+                  final isVisible = isHome && (_isNavBarVisible || hasItems);
 
                   return IgnorePointer(
                     ignoring: !isVisible,
@@ -138,13 +130,6 @@ class CustomerDashboardState extends State<CustomerDashboard> {
                                       ),
                                     ),
                                   );
-                                } else if (isProfile) {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => const CustomerChatPage(),
-                                    ),
-                                  );
                                 }
                               },
                               backgroundColor: AppColors.primaryOrange,
@@ -152,8 +137,8 @@ class CustomerDashboardState extends State<CustomerDashboard> {
                               shape: RoundedRectangleBorder(
                                 borderRadius: BorderRadius.circular(10),
                               ),
-                              child: Icon(
-                                isHome ? Icons.shopping_cart_outlined : Icons.chat_outlined,
+                              child: const Icon(
+                                Icons.shopping_cart_outlined,
                                 color: Colors.white,
                                 size: 20,
                               ),
@@ -164,14 +149,6 @@ class CustomerDashboardState extends State<CustomerDashboard> {
                                 top: -4,
                                 child: _StatusBadge(
                                   count: _cartController.itemCount,
-                                ),
-                              ),
-                            if (isProfile && _chatController.unreadCount > 0)
-                              Positioned(
-                                right: -4,
-                                top: -4,
-                                child: _StatusBadge(
-                                  count: _chatController.unreadCount,
                                 ),
                               ),
                           ],

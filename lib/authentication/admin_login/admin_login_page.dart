@@ -131,11 +131,12 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                     Container(
                       width: 72,
                       height: 72,
-                      decoration: const BoxDecoration(
+                      decoration: BoxDecoration(
                         color: AppColors.primaryOrange,
-                        shape: BoxShape.circle,
+                        borderRadius: BorderRadius.circular(18),
                       ),
-                      child: ClipOval(
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(18),
                         child: Image.asset(
                           'assets/images/logo.png',
                           fit: BoxFit.cover,

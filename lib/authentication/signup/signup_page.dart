@@ -313,7 +313,7 @@ class _Header extends StatelessWidget {
                     height: 78,
                     decoration: BoxDecoration(
                       color: Colors.white,
-                      shape: BoxShape.circle,
+                      borderRadius: BorderRadius.circular(18),
                       boxShadow: [
                         BoxShadow(
                           color: Colors.black.withValues(alpha: 0.12),
@@ -322,7 +322,8 @@ class _Header extends StatelessWidget {
                         ),
                       ],
                     ),
-                    child: ClipOval(
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(18),
                       child: Image.asset(
                         'assets/images/logo.png',
                         fit: BoxFit.cover,
