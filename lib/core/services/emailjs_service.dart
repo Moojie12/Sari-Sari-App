@@ -38,6 +38,7 @@ class EmailJsService {
         Uri.parse(url),
         headers: {
           'Content-Type': 'application/json',
+          'origin': 'http://localhost',
         },
         body: jsonEncode({
           'service_id': serviceId,

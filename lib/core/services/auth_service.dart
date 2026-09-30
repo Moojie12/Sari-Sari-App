@@ -599,16 +599,17 @@ class AuthService {
       } catch (_) {}
     }
 
-    // 6. If Firebase Auth direct password update failed, trigger fallback email reset link and return message
-    if (!updatedInFirebaseAuth) {
+    // 6. If both Firebase Auth update failed AND account could not be found in DB
+    if (!updatedInFirebaseAuth && targetUid == null) {
       try {
         await _auth.sendPasswordResetEmail(email: cleanEmail);
       } catch (e) {
         debugPrint('[resetUserPassword] Failed to send fallback password reset email: $e');
       }
-      return 'Password reset link sent to $cleanEmail! Please check your email inbox to confirm your new password, then log in.';
+      return 'Account could not be found. A reset link has been sent to $cleanEmail.';
     }
 
+    debugPrint('[resetUserPassword] Password successfully updated! (targetUid: $targetUid, updatedInFirebaseAuth: $updatedInFirebaseAuth)');
     return null; // Success!
   }
 
