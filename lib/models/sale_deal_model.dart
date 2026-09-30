@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'package:flutter/foundation.dart';
 
 /// A product item included inside a customized on-sale deal or bundle.
 class SaleDealItem {
@@ -50,11 +51,29 @@ class SaleDealItem {
   }
 
   factory SaleDealItem.fromMap(Map<dynamic, dynamic> map) {
+    int parseQty(dynamic val) {
+      if (val is num) return val.toInt();
+      if (val != null) {
+        final parsed = int.tryParse(val.toString());
+        if (parsed != null) return parsed;
+      }
+      return 1;
+    }
+
+    double parseDouble(dynamic val) {
+      if (val is num) return val.toDouble();
+      if (val != null) {
+        final parsed = double.tryParse(val.toString());
+        if (parsed != null) return parsed;
+      }
+      return 0.0;
+    }
+
     return SaleDealItem(
       productId: (map['productId'] ?? '').toString(),
       productName: (map['productName'] ?? '').toString(),
-      quantity: (map['quantity'] as num?)?.toInt() ?? 1,
-      originalPrice: (map['originalPrice'] as num?)?.toDouble() ?? 0.0,
+      quantity: parseQty(map['quantity']),
+      originalPrice: parseDouble(map['originalPrice']),
       image: map['image']?.toString(),
       unit: map['unit']?.toString(),
     );
@@ -165,28 +184,50 @@ class SaleDealModel {
     if (rawItems is List) {
       for (final raw in rawItems) {
         if (raw is Map) {
-          parsedItems.add(SaleDealItem.fromMap(raw));
+          try {
+            parsedItems.add(SaleDealItem.fromMap(raw));
+          } catch (e) {
+            debugPrint('Error parsing SaleDealItem: $e');
+          }
         }
       }
     } else if (rawItems is Map) {
       for (final val in rawItems.values) {
         if (val is Map) {
-          parsedItems.add(SaleDealItem.fromMap(val));
+          try {
+            parsedItems.add(SaleDealItem.fromMap(val));
+          } catch (e) {
+            debugPrint('Error parsing SaleDealItem from map value: $e');
+          }
         }
       }
     }
 
+    double parseDouble(dynamic val) {
+      if (val is num) return val.toDouble();
+      if (val != null) {
+        final parsed = double.tryParse(val.toString());
+        if (parsed != null) return parsed;
+      }
+      return 0.0;
+    }
+
     final createdStr = map['createdAt']?.toString();
     final updatedStr = map['updatedAt']?.toString();
+
+    final isActiveRaw = map['isActive'];
+    final bool isActive = isActiveRaw is bool
+        ? isActiveRaw
+        : (isActiveRaw?.toString().toLowerCase() != 'false');
 
     return SaleDealModel(
       id: (map['id'] ?? fallbackId ?? '').toString(),
       title: (map['title'] ?? '').toString(),
       description: (map['description'] ?? '').toString(),
       image: map['image']?.toString(),
-      salePrice: (map['salePrice'] as num?)?.toDouble() ?? 0.0,
+      salePrice: parseDouble(map['salePrice']),
       items: parsedItems,
-      isActive: map['isActive'] as bool? ?? true,
+      isActive: isActive,
       createdAt: createdStr != null ? (DateTime.tryParse(createdStr) ?? DateTime.now()) : DateTime.now(),
       updatedAt: updatedStr != null ? DateTime.tryParse(updatedStr) : null,
     );

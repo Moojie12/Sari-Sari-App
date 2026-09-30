@@ -223,10 +223,13 @@ void main() {
 
       final success = cart.addSaleDeal(deal, products);
       expect(success, isTrue);
-      expect(cart.items.length, 2);
+      // Added as ONE single bundled cart item
+      expect(cart.items.length, 1);
+      expect(cart.items.first.displayName, deal.title);
+      expect(cart.items.first.isDeal, isTrue);
 
-      // Sum of subtotals in cart matches deal salePrice (55.0 approx within rounding)
-      expect(cart.totalAmount, closeTo(55.0, 0.1));
+      // Total in cart matches deal salePrice exactly (55.0)
+      expect(cart.totalAmount, 55.0);
       expect(cart.items.first.isOnSalePromo, isTrue);
     });
   });
@@ -358,6 +361,7 @@ void main() {
 
       await tester.tap(find.text('Confirm & Publish'));
       await tester.pumpAndSettle();
+      await tester.pump(const Duration(seconds: 4));
 
       // Verify deal was saved to controller
       expect(SaleDealController.instance.deals.any((d) => d.title == 'Piattos Super Sale'), isTrue);

@@ -2,12 +2,14 @@ import 'package:flutter/material.dart';
 
 import 'package:sari_sari/core/theme/app_colors.dart';
 import 'package:sari_sari/shared/utils/top_notification.dart';
+import 'package:sari_sari/shared/widgets/product_image.dart';
 import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
 import 'package:sari_sari/users/employee_db/inventory/employee_product_model.dart';
 import 'package:sari_sari/users/customer_db/customer_cart_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_details_page.dart';
+import 'package:sari_sari/users/customer_db/checkout/customer_checkout_page.dart';
 import 'package:sari_sari/users/customer_db/home/customer_product_card.dart';
 import 'package:sari_sari/users/customer_db/home/customer_product_details_page.dart';
 import 'package:sari_sari/users/customer_db/home/customer_product_model.dart';
@@ -176,7 +178,10 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         .toList();
 
     return ListenableBuilder(
-      listenable: EmployeeInventoryController.instance,
+      listenable: Listenable.merge([
+        EmployeeInventoryController.instance,
+        SaleDealController.instance,
+      ]),
       builder: (context, _) {
         return Scaffold(
           backgroundColor: Colors.transparent,
@@ -577,18 +582,30 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     }
   }
 
+  void _buyNowSaleDeal(SaleDealModel deal) {
+    widget.cartController.clearCart();
+    final success = widget.cartController.addSaleDeal(deal, _allCustomerProducts);
+    if (success) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CustomerCheckoutPage(
+            cartController: widget.cartController,
+            orderController: widget.orderController,
+          ),
+        ),
+      );
+    } else {
+      TopNotification.show(context, 'Sorry, some items in this promo are out of stock.', isError: true);
+    }
+  }
+
   void _showSaleDealDetailsModal(BuildContext context, SaleDealModel deal) {
-    showModalBottomSheet(
+    showSaleDealDetailsModal(
       context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (context) => _SaleDealDetailsSheet(
-        deal: deal,
-        onAddToCart: () {
-          Navigator.pop(context);
-          _addSaleDealToCart(deal);
-        },
-      ),
+      deal: deal,
+      cartController: widget.cartController,
+      orderController: widget.orderController,
     );
   }
 
@@ -636,7 +653,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 236,
+            height: 240,
             child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -649,6 +666,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                       deal: deal,
                       onTap: () => _showSaleDealDetailsModal(context, deal),
                       onAddToCart: () => _addSaleDealToCart(deal),
+                      onBuyNow: () => _buyNowSaleDeal(deal),
                     ),
                   );
                 }),
@@ -786,80 +804,116 @@ class _SaleDealCard extends StatelessWidget {
   final SaleDealModel deal;
   final VoidCallback onTap;
   final VoidCallback onAddToCart;
+  final VoidCallback onBuyNow;
 
   const _SaleDealCard({
     required this.deal,
     required this.onTap,
     required this.onAddToCart,
+    required this.onBuyNow,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 175,
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(16),
-          border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.3), width: 1.2),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.04),
-              blurRadius: 10,
-              offset: const Offset(0, 4),
-            ),
-          ],
+    final image = deal.effectiveImage;
+
+    return Material(
+      color: Colors.white,
+      clipBehavior: Clip.antiAlias,
+      elevation: 0,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: BorderSide(
+          color: AppColors.borderColor.withValues(alpha: 0.5),
+          width: 1,
         ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Top Banner with Tag
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-              decoration: BoxDecoration(
-                color: AppColors.primaryOrange.withValues(alpha: 0.1),
-                borderRadius: const BorderRadius.only(
-                  topLeft: Radius.circular(15),
-                  topRight: Radius.circular(15),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: SizedBox(
+          width: 160,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              // Image Container with 8px Margin Inset Frame
+              Expanded(
+                child: Container(
+                  margin: const EdgeInsets.fromLTRB(8, 8, 8, 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryOrange.withValues(alpha: 0.05),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: Stack(
+                    fit: StackFit.expand,
+                    children: [
+                      if (image != null && image.isNotEmpty)
+                        ProductImage(
+                          image: image,
+                          width: double.infinity,
+                          height: double.infinity,
+                          fit: BoxFit.cover,
+                        )
+                      else
+                        Center(
+                          child: Icon(
+                            Icons.local_offer_rounded,
+                            size: 32,
+                            color: AppColors.primaryOrange.withValues(alpha: 0.4),
+                          ),
+                        ),
+                      // Item Count Badge Top Left
+                      Positioned(
+                        top: 6,
+                        left: 6,
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.65),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              const Icon(Icons.local_offer, size: 9, color: Colors.white),
+                              const SizedBox(width: 2),
+                              Text(
+                                '${deal.totalItemQuantity} Items',
+                                style: const TextStyle(
+                                  fontSize: 9,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.white,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      // Discount Badge Top Right
+                      if (deal.discountPercentage > 0)
+                        Positioned(
+                          top: 6,
+                          right: 6,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.red.shade600,
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '-${deal.discountPercentage}%',
+                              style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
                 ),
               ),
-              child: Row(
-                children: [
-                  const Icon(Icons.local_offer, size: 14, color: AppColors.primaryOrange),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      '${deal.totalItemQuantity} Items',
-                      style: const TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.bold,
-                        color: AppColors.primaryOrange,
-                      ),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                  ),
-                  if (deal.discountPercentage > 0)
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: Colors.red,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        '-${deal.discountPercentage}%',
-                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
-                      ),
-                    ),
-                ],
-              ),
-            ),
 
-            // Deal Content
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.all(10),
+              // Deal Content
+              Padding(
+                padding: const EdgeInsets.fromLTRB(10, 4, 10, 10),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -867,21 +921,21 @@ class _SaleDealCard extends StatelessWidget {
                       deal.title,
                       style: const TextStyle(
                         fontSize: 13,
-                        fontWeight: FontWeight.bold,
+                        fontWeight: FontWeight.w600,
                         color: AppColors.darkText,
                       ),
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 2),
                     // Inclusions Preview Text
                     Text(
                       deal.items.map((i) => '${i.quantity}x ${i.productName}').join(', '),
                       style: const TextStyle(fontSize: 11, color: AppColors.secondaryText),
-                      maxLines: 2,
+                      maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const Spacer(),
+                    const SizedBox(height: 4),
 
                     // Pricing
                     Row(
@@ -891,12 +945,12 @@ class _SaleDealCard extends StatelessWidget {
                         Text(
                           '₱${deal.salePrice.toStringAsFixed(2)}',
                           style: const TextStyle(
-                            fontSize: 15,
+                            fontSize: 14,
                             fontWeight: FontWeight.bold,
                             color: AppColors.primaryOrange,
                           ),
                         ),
-                        const SizedBox(width: 6),
+                        const SizedBox(width: 4),
                         if (deal.originalTotalPrice > deal.salePrice)
                           Text(
                             '₱${deal.originalTotalPrice.toStringAsFixed(0)}',
@@ -910,45 +964,154 @@ class _SaleDealCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 8),
 
-                    // Quick Add Button
+                    // Action Buttons Row: Purchase & Cart
                     SizedBox(
-                      width: double.infinity,
-                      height: 30,
-                      child: ElevatedButton(
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryOrange,
-                          padding: EdgeInsets.zero,
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        onPressed: onAddToCart,
-                        child: const Text(
-                          'Add Deal',
-                          style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
-                        ),
+                      height: 34,
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: ElevatedButton(
+                              style: ElevatedButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                backgroundColor: AppColors.primaryOrange,
+                                foregroundColor: Colors.white,
+                                elevation: 0,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed: onBuyNow,
+                              child: const Text(
+                                'Purchase',
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 6),
+                          SizedBox(
+                            width: 34,
+                            child: OutlinedButton(
+                              style: OutlinedButton.styleFrom(
+                                padding: EdgeInsets.zero,
+                                foregroundColor: AppColors.primaryOrange,
+                                side: const BorderSide(color: AppColors.primaryOrange),
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                              ),
+                              onPressed: onAddToCart,
+                              child: const Icon(Icons.add_shopping_cart, size: 16),
+                            ),
+                          ),
+                        ],
                       ),
                     ),
                   ],
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-class _SaleDealDetailsSheet extends StatelessWidget {
-  final SaleDealModel deal;
-  final VoidCallback onAddToCart;
+/// Shows the modal bottom sheet preview for an On-Sale Deal bundle.
+void showSaleDealDetailsModal({
+  required BuildContext context,
+  required SaleDealModel deal,
+  required CustomerCartController cartController,
+  required CustomerOrderController orderController,
+  bool showActions = true,
+}) {
+  final employeeProducts = EmployeeInventoryController.instance.products;
+  final allCustomerProducts = employeeProducts.map((ep) {
+    CustomerProductAvailability availability;
+    switch (ep.stockStatus) {
+      case EmployeeStockStatus.inStock:
+        availability = CustomerProductAvailability.inStock;
+        break;
+      case EmployeeStockStatus.lowStock:
+        availability = CustomerProductAvailability.lowStock;
+        break;
+      case EmployeeStockStatus.outOfStock:
+        availability = CustomerProductAvailability.outOfStock;
+        break;
+    }
+    return CustomerProduct(
+      id: ep.id,
+      name: ep.name,
+      category: ep.category,
+      price: ep.currentPrice,
+      capital: ep.capital,
+      sellableQuantity: ep.sellableQuantity,
+      image: ep.image ?? '',
+      availability: availability,
+      isOnSale: ep.hasExpiringSoonBatch,
+    );
+  }).toList();
 
-  const _SaleDealDetailsSheet({
+  showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    backgroundColor: Colors.transparent,
+    builder: (modalContext) => SaleDealDetailsSheet(
+      deal: deal,
+      showActions: showActions,
+      onAddToCart: () {
+        Navigator.pop(modalContext);
+        final success = cartController.addSaleDeal(deal, allCustomerProducts);
+        if (success) {
+          TopNotification.show(context, 'Added "${deal.title}" promo to your cart!');
+        } else {
+          TopNotification.show(context, 'Sorry, some items in this promo are out of stock.', isError: true);
+        }
+      },
+      onBuyNow: () {
+        Navigator.pop(modalContext);
+        cartController.clearCart();
+        final success = cartController.addSaleDeal(deal, allCustomerProducts);
+        if (success) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CustomerCheckoutPage(
+                cartController: cartController,
+                orderController: orderController,
+              ),
+            ),
+          );
+        } else {
+          TopNotification.show(context, 'Sorry, some items in this promo are out of stock.', isError: true);
+        }
+      },
+    ),
+  );
+}
+
+class SaleDealDetailsSheet extends StatelessWidget {
+  final SaleDealModel deal;
+  final VoidCallback? onAddToCart;
+  final VoidCallback? onBuyNow;
+  final bool showActions;
+
+  const SaleDealDetailsSheet({
+    super.key,
     required this.deal,
-    required this.onAddToCart,
+    this.onAddToCart,
+    this.onBuyNow,
+    this.showActions = true,
   });
 
   @override
   Widget build(BuildContext context) {
+    final image = deal.effectiveImage;
+
     return Container(
       decoration: const BoxDecoration(
         color: Colors.white,
@@ -956,181 +1119,272 @@ class _SaleDealDetailsSheet extends StatelessWidget {
       ),
       padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
       child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Container(
-                width: 40,
-                height: 4,
-                margin: const EdgeInsets.only(bottom: 16),
-                decoration: BoxDecoration(
-                  color: AppColors.borderColor,
-                  borderRadius: BorderRadius.circular(2),
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Center(
+                child: Container(
+                  width: 40,
+                  height: 4,
+                  margin: const EdgeInsets.only(bottom: 16),
+                  decoration: BoxDecoration(
+                    color: AppColors.borderColor,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
-            ),
-            Row(
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.primaryOrange.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: const Icon(Icons.local_offer, color: AppColors.primaryOrange, size: 22),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        deal.title,
-                        style: const TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.darkText,
-                        ),
-                      ),
-                      if (deal.discountPercentage > 0)
-                        Text(
-                          'Save ₱${deal.discountSavings.toStringAsFixed(2)} (${deal.discountPercentage}% OFF)',
-                          style: TextStyle(
-                            fontSize: 13,
-                            color: Colors.red.shade700,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                    ],
+
+              // Promotional Photo Preview Banner (if image exists)
+              if (image != null && image.isNotEmpty) ...[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(14),
+                  child: ProductImage(
+                    image: image,
+                    width: double.infinity,
+                    height: 140,
+                    fit: BoxFit.cover,
                   ),
                 ),
+                const SizedBox(height: 14),
               ],
-            ),
-            const Divider(height: 24),
-            const Text(
-              'Items Included in this Promo:',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.darkText),
-            ),
-            const SizedBox(height: 10),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 220),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: deal.items.length,
-                separatorBuilder: (_, _) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final item = deal.items[index];
-                  return Container(
-                    padding: const EdgeInsets.all(10),
+
+              // Deal Title Header
+              Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(8),
                     decoration: BoxDecoration(
-                      color: AppColors.lightBackground,
+                      color: AppColors.primaryOrange.withValues(alpha: 0.12),
                       borderRadius: BorderRadius.circular(10),
                     ),
-                    child: Row(
+                    child: const Icon(Icons.local_offer, color: AppColors.primaryOrange, size: 22),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(8),
-                            border: Border.all(color: AppColors.borderColor),
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            '${item.quantity}x',
-                            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryOrange, fontSize: 13),
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                item.productName,
-                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.darkText),
-                              ),
-                              Text(
-                                'Reg: ₱${item.originalPrice.toStringAsFixed(2)} each',
-                                style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
-                              ),
-                            ],
-                          ),
-                        ),
                         Text(
-                          '₱${item.totalOriginalPrice.toStringAsFixed(2)}',
-                          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: AppColors.darkText),
+                          deal.title,
+                          style: const TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.darkText,
+                          ),
                         ),
+                        if (deal.discountPercentage > 0)
+                          Text(
+                            'Save ₱${deal.discountSavings.toStringAsFixed(2)} (${deal.discountPercentage}% OFF)',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: Colors.red.shade700,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                       ],
                     ),
-                  );
-                },
-              ),
-            ),
-            const SizedBox(height: 16),
-            // Price Summary
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppColors.borderColor),
-              ),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      const Text('Total Value', style: TextStyle(fontSize: 11, color: AppColors.secondaryText)),
-                      Text(
-                        '₱${deal.originalTotalPrice.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          fontSize: 14,
-                          decoration: TextDecoration.lineThrough,
-                          color: AppColors.secondaryText,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Column(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      const Text('Special Deal Price', style: TextStyle(fontSize: 11, color: AppColors.secondaryText)),
-                      Text(
-                        '₱${deal.salePrice.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          fontSize: 20,
-                          fontWeight: FontWeight.bold,
-                          color: AppColors.primaryOrange,
-                        ),
-                      ),
-                    ],
                   ),
                 ],
               ),
-            ),
-            const SizedBox(height: 16),
-            SizedBox(
-              width: double.infinity,
-              height: 48,
-              child: ElevatedButton.icon(
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryOrange,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                icon: const Icon(Icons.add_shopping_cart, color: Colors.white),
-                label: Text(
-                  'Add Deal to Cart (₱${deal.salePrice.toStringAsFixed(2)})',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
-                ),
-                onPressed: onAddToCart,
+              const Divider(height: 24),
+
+              const Text(
+                'Items Included in this Promo:',
+                style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.darkText),
               ),
-            ),
-          ],
+              const SizedBox(height: 10),
+
+              // Items List with Product Photos!
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 220),
+                child: ListView.separated(
+                  shrinkWrap: true,
+                  itemCount: deal.items.length,
+                  separatorBuilder: (_, _) => const SizedBox(height: 8),
+                  itemBuilder: (context, index) {
+                    final item = deal.items[index];
+                    return Container(
+                      padding: const EdgeInsets.all(10),
+                      decoration: BoxDecoration(
+                        color: AppColors.lightBackground,
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.borderColor),
+                      ),
+                      child: Row(
+                        children: [
+                          // Product Photo
+                          ClipRRect(
+                            borderRadius: BorderRadius.circular(8),
+                            child: SizedBox(
+                              width: 44,
+                              height: 44,
+                              child: ProductImage(
+                                image: item.image,
+                                width: 44,
+                                height: 44,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+
+                          // Quantity Badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '${item.quantity}x',
+                              style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryOrange, fontSize: 12),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+
+                          // Product Info
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  item.productName,
+                                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.darkText),
+                                ),
+                                Text(
+                                  'Reg: ₱${item.originalPrice.toStringAsFixed(2)} each',
+                                  style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
+                                ),
+                              ],
+                            ),
+                          ),
+                          Text(
+                            '₱${item.totalOriginalPrice.toStringAsFixed(2)}',
+                            style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.darkText),
+                          ),
+                        ],
+                      ),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 16),
+
+              // Price Summary
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: AppColors.borderColor),
+                ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Total Value', style: TextStyle(fontSize: 11, color: AppColors.secondaryText)),
+                        Text(
+                          '₱${deal.originalTotalPrice.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 14,
+                            decoration: TextDecoration.lineThrough,
+                            color: AppColors.secondaryText,
+                          ),
+                        ),
+                      ],
+                    ),
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        const Text('Special Deal Price', style: TextStyle(fontSize: 11, color: AppColors.secondaryText)),
+                        Text(
+                          '₱${deal.salePrice.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryOrange,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Action Buttons or Close Button
+              if (showActions)
+                Row(
+                  children: [
+                    // Purchase
+                    Expanded(
+                      flex: 3,
+                      child: SizedBox(
+                        height: 48,
+                        child: ElevatedButton.icon(
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryOrange,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon: const Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 18),
+                          label: Text(
+                            'Purchase (₱${deal.salePrice.toStringAsFixed(2)})',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
+                          ),
+                          onPressed: onBuyNow,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+
+                    // Add to Cart
+                    Expanded(
+                      flex: 2,
+                      child: SizedBox(
+                        height: 48,
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.primaryOrange,
+                            side: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                          ),
+                          icon: const Icon(Icons.add_shopping_cart, size: 18),
+                          label: const Text(
+                            'Add to Cart',
+                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          ),
+                          onPressed: onAddToCart,
+                        ),
+                      ),
+                    ),
+                  ],
+                )
+              else
+                SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryOrange,
+                      foregroundColor: Colors.white,
+                      elevation: 0,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      'Close',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                    ),
+                  ),
+                ),
+            ],
+          ),
         ),
       ),
     );

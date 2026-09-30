@@ -15,11 +15,13 @@ class CustomerProductDetailsPage extends StatefulWidget {
     required this.product,
     required this.cartController,
     required this.orderController,
+    this.showActions = true,
   });
 
   final CustomerProduct product;
   final CustomerCartController cartController;
   final CustomerOrderController orderController;
+  final bool showActions;
 
   @override
   State<CustomerProductDetailsPage> createState() =>
@@ -283,57 +285,77 @@ class _CustomerProductDetailsPageState
               ),
             ],
           ),
-          child: Row(
-            children: [
-              Expanded(
-                child: SizedBox(
-                  height: 50,
-                  child: OutlinedButton.icon(
-                    onPressed: _isOutOfStock ? null : _handleAddToCart,
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primaryOrange,
-                      side: const BorderSide(color: AppColors.primaryOrange),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(12),
+          child: widget.showActions
+              ? Row(
+                  children: [
+                    Expanded(
+                      child: SizedBox(
+                        height: 50,
+                        child: OutlinedButton.icon(
+                          onPressed: _isOutOfStock ? null : _handleAddToCart,
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.primaryOrange,
+                            side: const BorderSide(color: AppColors.primaryOrange),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(Icons.add_shopping_cart, size: 20),
+                          label: const Text(
+                            'Add to Cart',
+                            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                          ),
+                        ),
                       ),
                     ),
-                    icon: const Icon(Icons.add_shopping_cart, size: 20),
-                    label: const Text(
-                      'Add to Cart',
-                      style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: SizedBox(
+                        height: 50,
+                        child: ElevatedButton.icon(
+                          onPressed: _isOutOfStock ? null : _handleBuyNow,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryOrange,
+                            foregroundColor: Colors.white,
+                            elevation: 0,
+                            disabledBackgroundColor:
+                                AppColors.borderColor.withValues(alpha: 0.5),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                          ),
+                          icon: const Icon(Icons.shopping_bag_outlined, size: 20),
+                          label: Text(
+                            _isOutOfStock ? 'Out of Stock' : 'Buy Now',
+                            style: const TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: SizedBox(
-                  height: 50,
-                  child: ElevatedButton.icon(
-                    onPressed: _isOutOfStock ? null : _handleBuyNow,
+                  ],
+                )
+              : SizedBox(
+                  width: double.infinity,
+                  height: 48,
+                  child: ElevatedButton(
                     style: ElevatedButton.styleFrom(
                       backgroundColor: AppColors.primaryOrange,
                       foregroundColor: Colors.white,
                       elevation: 0,
-                      disabledBackgroundColor:
-                      AppColors.borderColor.withValues(alpha: 0.5),
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(12),
                       ),
                     ),
-                    icon: const Icon(Icons.shopping_bag_outlined, size: 20),
-                    label: Text(
-                      _isOutOfStock ? 'Out of Stock' : 'Buy Now',
-                      style: const TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
-                      ),
+                    onPressed: () => Navigator.pop(context),
+                    child: const Text(
+                      'Close',
+                      style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                     ),
                   ),
                 ),
-              ),
-            ],
-          ),
         ),
       ),
     );

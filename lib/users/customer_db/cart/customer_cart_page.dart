@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
+import '../../../shared/widgets/product_image.dart';
 import '../customer_cart_controller.dart';
 import '../purchases/customer_order_controller.dart';
 import '../checkout/customer_checkout_page.dart';
+import '../home/customer_home_page.dart';
 import '../home/customer_product_details_page.dart';
 
 class CustomerCartPage extends StatelessWidget {
@@ -96,25 +98,36 @@ class CustomerCartPage extends StatelessWidget {
                     return _CartItemCard(
                       item: item,
                       onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (context) => CustomerProductDetailsPage(
-                              product: item.product,
-                              cartController: cartController,
-                              orderController: orderController,
+                        if (item.isDeal && item.deal != null) {
+                          showSaleDealDetailsModal(
+                            context: context,
+                            deal: item.deal!,
+                            cartController: cartController,
+                            orderController: orderController,
+                            showActions: false,
+                          );
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CustomerProductDetailsPage(
+                                product: item.product,
+                                cartController: cartController,
+                                orderController: orderController,
+                                showActions: false,
+                              ),
                             ),
-                          ),
-                        );
+                          );
+                        }
                       },
-                      onIncrement: () => cartController.incrementQuantity(item.product.id),
-                      onDecrement: () => cartController.decrementQuantity(item.product.id),
+                      onIncrement: () => cartController.incrementQuantity(item.id),
+                      onDecrement: () => cartController.decrementQuantity(item.id),
                       onRemove: () async {
                         final confirmed = await showDialog<bool>(
                           context: context,
                           builder: (context) => AlertDialog(
                             title: const Text('Remove Item', style: TextStyle(fontWeight: FontWeight.bold)),
-                            content: Text('Are you sure you want to remove "${item.product.name}" from your cart?'),
+                            content: Text('Are you sure you want to remove "${item.displayName}" from your cart?'),
                             actions: [
                               TextButton(
                                 onPressed: () => Navigator.pop(context, false),
@@ -129,7 +142,7 @@ class CustomerCartPage extends StatelessWidget {
                         );
 
                         if (confirmed == true) {
-                          cartController.removeFromCart(item.product.id);
+                          cartController.removeFromCart(item.id);
                           if (context.mounted) {
                             TopNotification.show(context, 'Item removed from cart');
                           }
@@ -217,7 +230,9 @@ class _CartItemCard extends StatelessWidget {
           ],
         ),
         child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            // Product / Deal Image Frame
             Container(
               width: 80,
               height: 80,
@@ -225,23 +240,28 @@ class _CartItemCard extends StatelessWidget {
                 color: AppColors.lightBackground,
                 borderRadius: BorderRadius.circular(12),
               ),
-              child: const Icon(
-                Icons.image_outlined,
-                color: AppColors.placeholderColor,
-                size: 32,
+              clipBehavior: Clip.antiAlias,
+              child: ProductImage(
+                image: item.image,
+                width: 80,
+                height: 80,
+                fit: BoxFit.cover,
               ),
             ),
             const SizedBox(width: 16),
+
+            // Content
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Title & Delete Button Row
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Expanded(
                         child: Text(
-                          item.product.name,
+                          item.displayName,
                           style: const TextStyle(
                             color: AppColors.darkText,
                             fontSize: 16,
@@ -259,6 +279,23 @@ class _CartItemCard extends StatelessWidget {
                       ),
                     ],
                   ),
+
+                  // Inclusions text if Deal bundle
+                  if (item.isDeal && item.dealInclusions != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      item.dealInclusions!,
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.secondaryText,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ],
+                  const SizedBox(height: 4),
+
+                  // Pricing Row
                   Row(
                     children: [
                       Text(
@@ -272,7 +309,7 @@ class _CartItemCard extends StatelessWidget {
                       if (item.isOnSalePromo) ...[
                         const SizedBox(width: 8),
                         Text(
-                          '₱${item.product.price.toStringAsFixed(2)}',
+                          '₱${item.originalUnitPrice.toStringAsFixed(2)}',
                           style: const TextStyle(
                             decoration: TextDecoration.lineThrough,
                             color: AppColors.secondaryText,
@@ -295,6 +332,8 @@ class _CartItemCard extends StatelessWidget {
                     ],
                   ),
                   const SizedBox(height: 12),
+
+                  // Stepper & Subtotal Row
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
@@ -314,7 +353,7 @@ class _CartItemCard extends StatelessWidget {
                           ),
                           _QuantityBtn(
                             icon: Icons.add,
-                            onPressed: item.quantity < 8 ? onIncrement : null,
+                            onPressed: onIncrement,
                           ),
                         ],
                       ),
