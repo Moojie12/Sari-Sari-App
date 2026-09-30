@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:sari_sari/core/theme/app_colors.dart';
+import 'package:sari_sari/core/services/sale_deal_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
 import 'package:sari_sari/users/employee_db/orders/employee_orders_controller.dart';
 import 'package:sari_sari/users/employee_db/pos/employee_pos_controller.dart';
 import 'package:sari_sari/users/owner_db/home/owner_analytics_section.dart';
 import 'package:sari_sari/users/owner_db/home/owner_weather_card.dart';
+import 'package:sari_sari/users/owner_db/promotions/owner_sale_management_page.dart';
 import 'package:sari_sari/users/owner_db/reports/owner_report_detail_screen.dart';
 
 class OwnerHomePage extends StatelessWidget {
@@ -30,13 +32,19 @@ class OwnerHomePage extends StatelessWidget {
       backgroundColor: Colors.transparent,
       body: SafeArea(
         child: ListenableBuilder(
-          listenable: Listenable.merge([inventory, EmployeeOrderController.instance]),
+          listenable: Listenable.merge([
+            inventory,
+            EmployeeOrderController.instance,
+            SaleDealController.instance,
+          ]),
           builder: (context, _) {
             final lowStock = inventory.lowStockProducts.length;
             final outOfStock = inventory.outOfStockProducts.length;
             final expiring5DaysCount = inventory.expiringIn5DaysProducts.length;
             final expiring2WeeksCount = inventory.expiringIn2WeeksProducts.length;
             final expiredCount = inventory.expiredProducts.length;
+
+            final activeSaleDeals = SaleDealController.instance.activeDeals;
 
             final now = DateTime.now();
             final orders = EmployeeOrderController.instance.orders;
@@ -171,6 +179,99 @@ class OwnerHomePage extends StatelessWidget {
                       ),
                     ),
                   ), // end InkWell
+
+                  const SizedBox(height: 24),
+
+                  // --- Active On-Sale Deals Section ---
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text(
+                        'On-Sale Promos & Deals',
+                        style: TextStyle(color: AppColors.darkText, fontSize: 18, fontWeight: FontWeight.bold),
+                      ),
+                      TextButton.icon(
+                        onPressed: () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const OwnerSaleManagementPage(),
+                            ),
+                          );
+                        },
+                        icon: const Icon(Icons.settings_outlined, size: 16, color: AppColors.primaryOrange),
+                        label: const Text('Manage', style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold, fontSize: 13)),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  InkWell(
+                    onTap: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const OwnerSaleManagementPage(),
+                        ),
+                      );
+                    },
+                    borderRadius: BorderRadius.circular(20),
+                    child: Container(
+                      padding: const EdgeInsets.all(16),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(color: AppColors.borderColor),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 10,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(Icons.local_offer_rounded, color: AppColors.primaryOrange, size: 24),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  '${activeSaleDeals.length} Active On-Sale Promo${activeSaleDeals.length == 1 ? '' : 's'}',
+                                  style: const TextStyle(
+                                    color: AppColors.darkText,
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  activeSaleDeals.isEmpty
+                                      ? 'Tap to create promo bundles & discounts for customers.'
+                                      : 'Live on customer feed: ${activeSaleDeals.map((d) => d.title).take(2).join(', ')}${activeSaleDeals.length > 2 ? '...' : ''}',
+                                  style: const TextStyle(
+                                    color: AppColors.secondaryText,
+                                    fontSize: 12,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.chevron_right, color: AppColors.secondaryText),
+                        ],
+                      ),
+                    ),
+                  ),
 
                   const SizedBox(height: 24),
                   const Text('Inventory Overview',

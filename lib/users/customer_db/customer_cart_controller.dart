@@ -2,23 +2,36 @@ import 'package:flutter/foundation.dart';
 import '../../models/sale_deal_model.dart';
 import 'home/customer_product_model.dart';
 
-/// Represents a single item in the shopping cart.
+/// Represents a single item or bundled deal item in the shopping cart.
 class CartItem {
   CartItem({
     required this.product,
     this.quantity = 1,
     this.customPrice,
     this.saleDealTitle,
+    this.deal,
   });
 
   final CustomerProduct product;
   int quantity;
   final double? customPrice;
   final String? saleDealTitle;
+  final SaleDealModel? deal;
 
-  double get unitPrice => customPrice ?? product.price;
+  bool get isDeal => deal != null;
+  String get id => isDeal ? 'deal_${deal!.id}' : product.id;
+  String get displayName => isDeal ? deal!.title : product.name;
+  String? get image => isDeal ? deal!.effectiveImage : product.image;
+
+  double get unitPrice => isDeal ? deal!.salePrice : (customPrice ?? product.price);
+  double get originalUnitPrice => isDeal ? deal!.originalTotalPrice : product.price;
   double get subtotal => unitPrice * quantity;
-  bool get isOnSalePromo => customPrice != null;
+  bool get isOnSalePromo => isDeal || customPrice != null;
+
+  String? get dealInclusions {
+    if (!isDeal) return null;
+    return deal!.items.map((i) => '${i.quantity * quantity}x ${i.productName}').join(', ');
+  }
 }
 
 /// Manages the shopping cart state.
@@ -32,8 +45,6 @@ class CustomerCartController extends ChangeNotifier {
   double get totalAmount => _items.fold(0.0, (sum, item) => sum + item.subtotal);
 
   /// Adds [quantity] of [product] to the cart.
-  /// If the product is already in the cart with the same pricing mode, it increments its quantity.
-  /// The total quantity for a single product is capped at its [sellableQuantity].
   bool addToCart(
     CustomerProduct product, {
     int quantity = 1,
@@ -43,7 +54,7 @@ class CustomerCartController extends ChangeNotifier {
     if (product.isOutOfStock) return false;
 
     final existingIndex = _items.indexWhere(
-      (item) => item.product.id == product.id && item.customPrice == customPrice,
+      (item) => item.product.id == product.id && item.customPrice == customPrice && !item.isDeal,
     );
     final maxAvailable = product.sellableQuantity.toInt();
 
@@ -66,7 +77,7 @@ class CustomerCartController extends ChangeNotifier {
     return true;
   }
 
-  /// Adds an entire customized on-sale deal/bundle into the cart at the promo price.
+  /// Adds an entire customized on-sale deal/bundle into the cart as ONE bundled CartItem.
   bool addSaleDeal(SaleDealModel deal, List<CustomerProduct> availableProducts) {
     if (deal.items.isEmpty) return false;
 
@@ -90,33 +101,32 @@ class CustomerCartController extends ChangeNotifier {
       }
     }
 
-    // 2. Compute proportional pricing so that total item sum equals deal.salePrice exactly
-    final originalTotal = deal.originalTotalPrice;
-    final ratio = originalTotal > 0 ? (deal.salePrice / originalTotal) : 1.0;
+    // 2. Add or increment deal as a single bundled CartItem
+    final dealCartId = 'deal_${deal.id}';
+    final existingIndex = _items.indexWhere((item) => item.id == dealCartId);
 
-    for (final item in deal.items) {
-      final product = availableProducts.firstWhere(
-        (p) => p.id == item.productId,
-        orElse: () => CustomerProduct(
-          id: item.productId,
-          name: item.productName,
-          category: '',
-          price: item.originalPrice,
-          capital: 0,
-          sellableQuantity: item.quantity.toDouble(),
-          image: '',
-          availability: CustomerProductAvailability.inStock,
-        ),
-      );
+    final anchorProduct = CustomerProduct(
+      id: dealCartId,
+      name: deal.title,
+      category: 'Promotions',
+      price: deal.salePrice,
+      capital: 0,
+      sellableQuantity: 999,
+      image: deal.effectiveImage ?? '',
+      availability: CustomerProductAvailability.inStock,
+      isOnSale: true,
+    );
 
-      final discountedPrice = double.parse((item.originalPrice * ratio).toStringAsFixed(2));
-
+    if (existingIndex >= 0) {
+      _items[existingIndex].quantity += 1;
+    } else {
       _items.add(
         CartItem(
-          product: product,
-          quantity: item.quantity,
-          customPrice: discountedPrice,
+          product: anchorProduct,
+          quantity: 1,
+          customPrice: deal.salePrice,
           saleDealTitle: deal.title,
+          deal: deal,
         ),
       );
     }
@@ -125,27 +135,37 @@ class CustomerCartController extends ChangeNotifier {
     return true;
   }
 
-  void incrementQuantity(String productId) {
-    final index = _items.indexWhere((item) => item.product.id == productId);
+  void incrementQuantity(String id) {
+    final index = _items.indexWhere((item) => item.id == id || item.product.id == id);
     if (index >= 0) {
-      final maxAvailable = _items[index].product.sellableQuantity.toInt();
-      if (_items[index].quantity < maxAvailable) {
-        _items[index].quantity++;
+      final item = _items[index];
+      if (item.isDeal) {
+        item.quantity++;
         notifyListeners();
+      } else {
+        final maxAvailable = item.product.sellableQuantity.toInt();
+        if (item.quantity < maxAvailable) {
+          item.quantity++;
+          notifyListeners();
+        }
       }
     }
   }
 
-  void decrementQuantity(String productId) {
-    final index = _items.indexWhere((item) => item.product.id == productId);
-    if (index >= 0 && _items[index].quantity > 1) {
-      _items[index].quantity--;
+  void decrementQuantity(String id) {
+    final index = _items.indexWhere((item) => item.id == id || item.product.id == id);
+    if (index >= 0) {
+      if (_items[index].quantity > 1) {
+        _items[index].quantity--;
+      } else {
+        _items.removeAt(index);
+      }
       notifyListeners();
     }
   }
 
-  void removeFromCart(String productId) {
-    _items.removeWhere((item) => item.product.id == productId);
+  void removeFromCart(String id) {
+    _items.removeWhere((item) => item.id == id || item.product.id == id);
     notifyListeners();
   }
 

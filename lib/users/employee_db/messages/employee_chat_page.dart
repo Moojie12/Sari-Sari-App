@@ -46,7 +46,8 @@ class _EmployeeChatPageState extends State<EmployeeChatPage> {
         customerId: widget.recipientId,
         isEmployeeView: true,
       ).listen((liveMessages) {
-        if (mounted && liveMessages.isNotEmpty) {
+        if (mounted) {
+          _controller.updateThreadMessages(widget.recipientId, liveMessages);
           WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
         }
       });
@@ -78,6 +79,10 @@ class _EmployeeChatPageState extends State<EmployeeChatPage> {
     _controller.sendMessage(widget.recipientId, text);
     _textController.clear();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
   String _formatTime(DateTime dateTime) {
@@ -194,10 +199,22 @@ class _EmployeeChatPageState extends State<EmployeeChatPage> {
                           controller: _scrollController,
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                           itemCount: messages.length,
-                          itemBuilder: (context, index) => _ChatBubble(
-                            message: messages[index],
-                            timeLabel: _formatTime(messages[index].sentAt),
-                          ),
+                          itemBuilder: (context, index) {
+                            final message = messages[index];
+                            final bool showDateHeader = index == 0 ||
+                                !_isSameDay(messages[index - 1].sentAt, message.sentAt);
+
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (showDateHeader) _DateHeaderChip(date: message.sentAt),
+                                _ChatBubble(
+                                  message: message,
+                                  timeLabel: _formatTime(message.sentAt),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                 ),
                 _MessageComposer(controller: _textController, onSend: _send),
@@ -310,6 +327,59 @@ class _MessageComposer extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DateHeaderChip extends StatelessWidget {
+  const _DateHeaderChip({required this.date});
+
+  final DateTime date;
+
+  String _formatDateHeader(DateTime dateTime) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = DateTime(now.year, now.month, now.day - 1);
+    final messageDate = DateTime(dateTime.year, dateTime.month, dateTime.day);
+
+    if (messageDate == today) {
+      return 'Today';
+    } else if (messageDate == yesterday) {
+      return 'Yesterday';
+    } else {
+      const monthNames = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      ];
+      const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      final dow = dayOfWeek[dateTime.weekday % 7];
+      final month = monthNames[dateTime.month - 1];
+      if (dateTime.year == now.year) {
+        return '$dow, $month ${dateTime.day}';
+      }
+      return '$dow, $month ${dateTime.day}, ${dateTime.year}';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.placeholderColor.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          _formatDateHeader(date),
+          style: const TextStyle(
+            color: AppColors.secondaryText,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }

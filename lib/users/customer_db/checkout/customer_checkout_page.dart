@@ -96,6 +96,16 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
 
     final orderId = widget.orderController.generateOrderNumber();
     final items = widget.cartController.items.map<CustomerOrderItem>((item) {
+      if (item.isDeal && item.deal != null) {
+        return CustomerOrderItem(
+          productId: item.id,
+          productName: '${item.deal!.title} (Promo Bundle)',
+          price: item.deal!.salePrice,
+          capital: item.deal!.items.fold(0.0, (sum, i) => sum + (i.originalPrice * 0.7 * i.quantity)),
+          quantity: item.quantity,
+          subtotal: item.subtotal,
+        );
+      }
       return CustomerOrderItem(
         productId: item.product.id,
         productName: item.product.name,
@@ -107,13 +117,28 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
     }).toList();
 
     // Reserve stock with 10-minute fallback timer
-    final reservedItems = widget.cartController.items.map((item) {
-      return ReservedItem(
-        productId: item.product.id,
-        productName: item.product.name,
-        quantity: item.quantity.toDouble(),
-      );
-    }).toList();
+    final reservedItems = <ReservedItem>[];
+    for (final item in widget.cartController.items) {
+      if (item.isDeal && item.deal != null) {
+        for (final dealItem in item.deal!.items) {
+          reservedItems.add(
+            ReservedItem(
+              productId: dealItem.productId,
+              productName: dealItem.productName,
+              quantity: (dealItem.quantity * item.quantity).toDouble(),
+            ),
+          );
+        }
+      } else {
+        reservedItems.add(
+          ReservedItem(
+            productId: item.product.id,
+            productName: item.product.name,
+            quantity: item.quantity.toDouble(),
+          ),
+        );
+      }
+    }
 
     StockReservationService.instance.reserveStock(
       reservationId: orderId,
@@ -296,16 +321,36 @@ class _OrderSummaryList extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
       ),
       child: Column(
-        children: items.map((item) => Padding(
-          padding: const EdgeInsets.only(bottom: 8.0),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              Text('${item.product.name} x${item.quantity}', style: const TextStyle(color: AppColors.secondaryText)),
-              Text('₱${item.subtotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.w600)),
-            ],
-          ),
-        )).toList(),
+        children: items.map((item) {
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 8.0),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        '${item.displayName} x${item.quantity}',
+                        style: const TextStyle(color: AppColors.darkText, fontWeight: FontWeight.w600),
+                      ),
+                      if (item.isDeal && item.dealInclusions != null)
+                        Text(
+                          item.dealInclusions!,
+                          style: const TextStyle(color: AppColors.secondaryText, fontSize: 11),
+                        ),
+                    ],
+                  ),
+                ),
+                Text(
+                  '₱${item.subtotal.toStringAsFixed(2)}',
+                  style: const TextStyle(fontWeight: FontWeight.bold),
+                ),
+              ],
+            ),
+          );
+        }).toList(),
       ),
     );
   }

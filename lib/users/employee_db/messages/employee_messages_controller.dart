@@ -93,15 +93,13 @@ class EmployeeMessagesController extends ChangeNotifier {
   }
 
   void _mergeThreads(List<ChatThread> realtimeThreads) {
+    _threads.clear();
+    _threads.addAll(realtimeThreads);
+
     for (final rtThread in realtimeThreads) {
-      final index = _threads.indexWhere((t) => t.recipient.id == rtThread.recipient.id);
-      if (index >= 0) {
-        _threads[index] = rtThread;
-      } else {
-        _threads.add(rtThread);
-      }
       fetchUserProfile(rtThread.recipient.id);
     }
+
     syncCustomersFromOrders();
     _sortThreads();
     notifyListeners();
@@ -110,11 +108,12 @@ class EmployeeMessagesController extends ChangeNotifier {
   /// Ensures every customer who placed an order is represented in the chat threads.
   void syncCustomersFromOrders() {
     final orders = EmployeeOrderController.instance.orders;
-    bool changed = false;
     for (final order in orders) {
       if (order.userId != null && order.userId!.isNotEmpty) {
         fetchUserProfile(order.userId!);
-        final existingIndex = _threads.indexWhere((t) => t.recipient.id == order.userId);
+        final existingIndex = _threads.indexWhere((t) =>
+            t.recipient.id == order.userId ||
+            t.recipient.name.trim().toLowerCase() == order.customerName.trim().toLowerCase());
         if (existingIndex < 0) {
           _threads.add(ChatThread(
             recipient: ChatRecipient(
@@ -125,14 +124,10 @@ class EmployeeMessagesController extends ChangeNotifier {
             ),
             messages: const [],
           ));
-          changed = true;
         }
       }
     }
-    if (changed) {
-      _sortThreads();
-      notifyListeners();
-    }
+    _sortThreads();
   }
 
   void _sortThreads() {
@@ -161,9 +156,13 @@ class EmployeeMessagesController extends ChangeNotifier {
     required String role,
     bool isCustomer = true,
   }) {
-    final existingIndex = _threads.indexWhere(
-      (t) => t.recipient.id == recipientId || t.recipient.name.toLowerCase() == name.toLowerCase(),
-    );
+    int existingIndex = _threads.indexWhere((t) => t.recipient.id == recipientId);
+    if (existingIndex < 0) {
+      existingIndex = _threads.indexWhere((t) =>
+          t.recipient.name.trim().toLowerCase() == name.trim().toLowerCase() &&
+          t.messages.isNotEmpty);
+    }
+
     if (existingIndex >= 0) {
       return _threads[existingIndex];
     }
@@ -185,6 +184,29 @@ class EmployeeMessagesController extends ChangeNotifier {
     return newThread;
   }
 
+  void updateThreadMessages(String recipientId, List<EmployeeMessage> newMessages) {
+    final index = _threads.indexWhere((t) => t.recipient.id == recipientId);
+    if (index >= 0) {
+      _threads[index] = _threads[index].copyWith(messages: newMessages);
+      _sortThreads();
+      notifyListeners();
+    } else {
+      final newThread = ChatThread(
+        recipient: ChatRecipient(
+          id: recipientId,
+          name: 'Customer ${recipientId.length > 6 ? recipientId.substring(0, 6) : recipientId}',
+          role: 'Customer',
+          isCustomer: true,
+        ),
+        messages: newMessages,
+      );
+      _threads.add(newThread);
+      fetchUserProfile(recipientId);
+      _sortThreads();
+      notifyListeners();
+    }
+  }
+
   void sendMessage(String recipientId, String text) {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
@@ -193,22 +215,14 @@ class EmployeeMessagesController extends ChangeNotifier {
     if (index < 0) return;
 
     final thread = _threads[index];
-    final newMessage = EmployeeMessage(
-      id: 'm-${DateTime.now().millisecondsSinceEpoch}',
-      sender: MessageSender.me,
-      text: trimmed,
-      sentAt: DateTime.now(),
-    );
-
-    final updatedMessages = List<EmployeeMessage>.from(thread.messages)..add(newMessage);
-    _threads[index] = thread.copyWith(messages: updatedMessages);
-    notifyListeners();
+    final email = AuthService().currentUser?.email?.toLowerCase() ?? '';
+    final senderRole = (email.contains('owner') || email.contains('admin')) ? 'owner' : 'employee';
 
     // Persist live message to Firebase Realtime Database
     ChatDatabaseService.instance.sendMessage(
       customerId: recipientId,
       customerName: thread.recipient.name,
-      sender: 'employee',
+      sender: senderRole,
       text: trimmed,
     );
   }
@@ -231,32 +245,5 @@ class EmployeeMessagesController extends ChangeNotifier {
       _threads[index] = thread.copyWith(messages: updatedMessages);
       notifyListeners();
     }
-  }
-
-  void _simulateReply(String recipientId) {
-    final thread = getThread(recipientId);
-    if (thread == null) return;
-
-    Future.delayed(const Duration(seconds: 2), () {
-      final replyText = thread.recipient.isCustomer
-          ? "Sige po, thank you!"
-          : "Noted, thank you for the update.";
-
-      final index = _threads.indexWhere((t) => t.recipient.id == recipientId);
-      if (index < 0) return;
-
-      final updatedThread = _threads[index];
-      final reply = EmployeeMessage(
-        id: 'r-${DateTime.now().millisecondsSinceEpoch}',
-        sender: MessageSender.them,
-        text: replyText,
-        sentAt: DateTime.now(),
-        isRead: false,
-      );
-
-      final newMessages = List<EmployeeMessage>.from(updatedThread.messages)..add(reply);
-      _threads[index] = updatedThread.copyWith(messages: newMessages);
-      notifyListeners();
-    });
   }
 }
