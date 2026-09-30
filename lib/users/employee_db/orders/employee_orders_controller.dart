@@ -51,6 +51,12 @@ class EmployeeOrderController extends ChangeNotifier {
     notifyListeners();
   }
 
+  @visibleForTesting
+  void addOrderForTesting(CustomerOrder order) {
+    _orders.add(order);
+    notifyListeners();
+  }
+
   List<CustomerOrder> get activeOrders => _orders
       .where((o) => o.status != OrderStatus.completed && o.status != OrderStatus.cancelled)
       .toList();

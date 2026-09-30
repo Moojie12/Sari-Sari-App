@@ -222,41 +222,22 @@ class _OrderInfoSection extends StatelessWidget {
                   final messagesController =
                       EmployeeMessagesController.instance;
 
-                  // Find a thread belonging to this customer first.
-                  // Dart infers the actual thread type from the controller,
-                  // so this does not depend on a ChatThread declaration here.
-                  final matchingName = messagesController.threads
-                      .where(
-                        (t) => t.recipient.name == order.customerName,
-                  )
-                      .toList();
+                  final recipientId = order.userId ??
+                      'cust_${order.customerName.toLowerCase().replaceAll(RegExp(r'\s+'), '_')}';
 
-                  final thread = matchingName.isNotEmpty
-                      ? matchingName.first
-                      : messagesController.threads
-                      .where(
-                        (t) => t.recipient.isCustomer == true,
-                  )
-                      .firstOrNull ??
-                      (messagesController.threads.isNotEmpty
-                          ? messagesController.threads.first
-                          : null);
-
-                  // A thread without a recipient cannot be opened.
-                  if (thread == null) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(
-                        content: Text('No chat thread available'),
-                      ),
-                    );
-                    return;
-                  }
+                  final thread = messagesController.getOrCreateThread(
+                    recipientId: recipientId,
+                    name: order.customerName,
+                    role: 'Customer',
+                    isCustomer: true,
+                  );
 
                   Navigator.push(
                     context,
                     MaterialPageRoute(
                       builder: (context) => EmployeeChatPage(
                         recipientId: thread.recipient.id,
+                        recipientName: thread.recipient.name,
                       ),
                     ),
                   );

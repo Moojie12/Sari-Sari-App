@@ -21,6 +21,7 @@ class _OwnerEditProfilePageState extends State<OwnerEditProfilePage> {
   late final TextEditingController _lastNameController;
   late final TextEditingController _emailController;
   late final TextEditingController _contactController;
+  String? _previewPhotoPath;
   bool _isSaving = false;
 
   @override
@@ -54,6 +55,17 @@ class _OwnerEditProfilePageState extends State<OwnerEditProfilePage> {
     if (_contactController.text.trim().isEmpty && profile.contactNumber.isNotEmpty) {
       _contactController.text = profile.contactNumber;
     }
+  }
+
+  String get _computedInitials {
+    final f = _firstNameController.text.trim();
+    final l = _lastNameController.text.trim();
+    if (f.isNotEmpty || l.isNotEmpty) {
+      final fChar = f.isNotEmpty ? f[0].toUpperCase() : '';
+      final lChar = l.isNotEmpty ? l[0].toUpperCase() : '';
+      return '$fChar$lChar';
+    }
+    return _controller.profile.initials;
   }
 
   @override
@@ -102,6 +114,9 @@ class _OwnerEditProfilePageState extends State<OwnerEditProfilePage> {
 
     setState(() => _isSaving = true);
     try {
+      if (_previewPhotoPath != null) {
+        await _controller.setPhoto(_previewPhotoPath == '' ? null : _previewPhotoPath);
+      }
       await _controller.updateProfile(
         firstName: firstName,
         middleInitial: middleInitial,
@@ -148,20 +163,37 @@ class _OwnerEditProfilePageState extends State<OwnerEditProfilePage> {
                 child: ListenableBuilder(
                   listenable: _controller,
                   builder: (context, _) {
+                    final photoToDisplay = _previewPhotoPath == ''
+                        ? null
+                        : (_previewPhotoPath ?? _controller.profile.photoPath);
                     return EditableProfileAvatar(
-                      initials: _controller.profile.initials,
-                      photoPath: _controller.profile.photoPath,
-                      onPhotoChanged: _controller.setPhoto,
+                      initials: _computedInitials,
+                      photoPath: photoToDisplay,
+                      onPhotoChanged: (newPath) {
+                        setState(() {
+                          _previewPhotoPath = newPath ?? '';
+                        });
+                      },
                       radius: 46,
                     );
                   },
                 ),
               ),
               const SizedBox(height: 8),
-              const Center(
+              Center(
                 child: Text(
-                  'Tap avatar to change photo',
-                  style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
+                  _previewPhotoPath != null && _previewPhotoPath!.isNotEmpty
+                      ? 'Photo preview ready. Tap Save Changes to keep.'
+                      : 'Tap avatar to change photo',
+                  style: TextStyle(
+                    color: _previewPhotoPath != null && _previewPhotoPath!.isNotEmpty
+                        ? AppColors.primaryOrange
+                        : AppColors.secondaryText,
+                    fontSize: 12,
+                    fontWeight: _previewPhotoPath != null && _previewPhotoPath!.isNotEmpty
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
                 ),
               ),
               const SizedBox(height: 24),

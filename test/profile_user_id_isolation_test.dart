@@ -6,6 +6,8 @@ import 'package:sari_sari/users/employee_db/profile/employee_profile_controller.
 import 'package:sari_sari/users/customer_db/profile/customer_profile_controller.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   group('Profile User ID Isolation Tests', () {
     test('EmployeeProfile holds distinct userId and preserves it on copyWith', () {
       const employee = EmployeeProfile(

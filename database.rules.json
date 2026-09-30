@@ -29,6 +29,16 @@
       ".read": "auth != null",
       ".write": "auth != null"
     },
+    "chats": {
+      "$customerId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "sale_deals": {
+      ".read": true,
+      ".write": "auth != null"
+    },
     ".read": false,
     ".write": false
   }

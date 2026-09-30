@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_sync_service.dart';
 import '../../employee_db/profile/employee_profile_model.dart';
@@ -31,6 +32,12 @@ class OwnerProfileController extends ChangeNotifier {
   EmployeeProfile get profile => _profile;
   String get currentUserId => _profile.userId;
 
+  void _safeNotifyListeners() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (hasListeners) notifyListeners();
+    });
+  }
+
   void clear() {
     _profile = const EmployeeProfile(
       userId: '',
@@ -41,7 +48,7 @@ class OwnerProfileController extends ChangeNotifier {
       contactNumber: '',
       role: 'Owner',
     );
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
   Future<void> loadProfile() async {
@@ -65,7 +72,7 @@ class OwnerProfileController extends ChangeNotifier {
     }
 
     _isLoading = true;
-    notifyListeners();
+    _safeNotifyListeners();
 
     try {
       final profileData = await UserProfileSyncService().loadProfileData(user.uid);
@@ -113,7 +120,7 @@ class OwnerProfileController extends ChangeNotifier {
       debugPrint('[OwnerProfileController] Error loading owner profile: $e');
     } finally {
       _isLoading = false;
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
@@ -168,7 +175,7 @@ class OwnerProfileController extends ChangeNotifier {
       contactNumber: contactNumber,
       role: 'Owner',
     );
-    notifyListeners();
+    _safeNotifyListeners();
 
     await UserProfileSyncService().saveProfileInfo(
       uid: user.uid,
@@ -190,7 +197,7 @@ class OwnerProfileController extends ChangeNotifier {
       photoPath: photoPath,
       clearPhoto: photoPath == null,
     );
-    notifyListeners();
+    _safeNotifyListeners();
 
     if (photoPath != null) {
       if (!photoPath.startsWith('http://') &&
@@ -203,7 +210,7 @@ class OwnerProfileController extends ChangeNotifier {
         );
         if (uploadedUrl != null) {
           _profile = _profile.copyWith(photoPath: uploadedUrl);
-          notifyListeners();
+          _safeNotifyListeners();
           await UserProfileSyncService().savePhoto(
             uid: user.uid,
             photoUrl: uploadedUrl,

@@ -16,12 +16,12 @@ class ShopSettingsController extends ChangeNotifier {
   int get expiryMonitoringDays => _expiryMonitoringDays;
 
   void updateDeliveryFee(double fee) {
-    _deliveryFeePer500m = fee;
+    _deliveryFeePer500m = fee.clamp(0.0, 99.0);
     notifyListeners();
   }
 
   void updateLowStockThreshold(int threshold) {
-    _lowStockThreshold = threshold;
+    _lowStockThreshold = threshold.clamp(0, 99);
     notifyListeners();
   }
 

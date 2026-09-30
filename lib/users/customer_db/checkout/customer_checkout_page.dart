@@ -99,7 +99,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       return CustomerOrderItem(
         productId: item.product.id,
         productName: item.product.name,
-        price: item.product.price,
+        price: item.unitPrice,
         capital: item.product.capital,
         quantity: item.quantity,
         subtotal: item.subtotal,

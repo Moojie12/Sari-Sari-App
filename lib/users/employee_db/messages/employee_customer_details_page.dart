@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/editable_profile_avatar.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
 import '../orders/employee_orders_controller.dart';
 import '../orders/employee_order_details_page.dart';
@@ -99,17 +100,11 @@ class _ProfileHeader extends StatelessWidget {
     return Center(
       child: Column(
         children: [
-          CircleAvatar(
+          EditableProfileAvatar(
+            initials: recipient.initials,
+            photoPath: recipient.avatarUrl,
             radius: 50,
-            backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.1),
-            child: Text(
-              recipient.initials,
-              style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primaryOrange,
-              ),
-            ),
+            isEditable: false,
           ),
           const SizedBox(height: 16),
           Text(

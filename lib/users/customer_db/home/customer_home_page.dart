@@ -12,6 +12,8 @@ import 'package:sari_sari/users/customer_db/home/customer_product_card.dart';
 import 'package:sari_sari/users/customer_db/home/customer_product_details_page.dart';
 import 'package:sari_sari/users/customer_db/home/customer_product_model.dart';
 import 'package:sari_sari/shared/widgets/skeleton.dart';
+import '../../../models/sale_deal_model.dart';
+import '../../../core/services/sale_deal_controller.dart';
 
 /// Customer "Home" tab: product browsing.
 class CustomerHomePage extends StatefulWidget {
@@ -41,7 +43,12 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   @override
   void initState() {
     super.initState();
+    SaleDealController.instance.addListener(_onSaleDealsUpdated);
     _simulateLoading();
+  }
+
+  void _onSaleDealsUpdated() {
+    if (mounted) setState(() {});
   }
 
   void _simulateLoading() async {
@@ -54,6 +61,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
 
   @override
   void dispose() {
+    SaleDealController.instance.removeListener(_onSaleDealsUpdated);
     _searchController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -555,45 +563,111 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     );
   }
 
+  List<CustomerProduct> get _allCustomerProducts {
+    final employeeProducts = EmployeeInventoryController.instance.products;
+    return employeeProducts.map((ep) => _mapToCustomerProduct(ep)).toList();
+  }
+
+  void _addSaleDealToCart(SaleDealModel deal) {
+    final success = widget.cartController.addSaleDeal(deal, _allCustomerProducts);
+    if (success) {
+      TopNotification.show(context, 'Added "${deal.title}" promo to your cart!');
+    } else {
+      TopNotification.show(context, 'Sorry, some items in this promo are out of stock.', isError: true);
+    }
+  }
+
+  void _showSaleDealDetailsModal(BuildContext context, SaleDealModel deal) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => _SaleDealDetailsSheet(
+        deal: deal,
+        onAddToCart: () {
+          Navigator.pop(context);
+          _addSaleDealToCart(deal);
+        },
+      ),
+    );
+  }
+
   Widget _buildOnSaleProducts(BuildContext context) {
+    final activeDeals = SaleDealController.instance.activeDeals;
     final onSale = _onSaleProducts;
-    if (onSale.isEmpty) return const SizedBox.shrink();
+    if (activeDeals.isEmpty && onSale.isEmpty) return const SizedBox.shrink();
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24),
-            child: Text(
-              'On Sale Products',
-              style: TextStyle(
-                color: AppColors.darkText,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(
+              children: [
+                const Text(
+                  'On Sale Deals & Promos',
+                  style: TextStyle(
+                    color: AppColors.darkText,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Text(
+                    'HOT DEALS',
+                    style: TextStyle(
+                      color: Colors.red.shade700,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 230,
-            child: ListView.separated(
+            height: 236,
+            child: ListView(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 24),
-              itemCount: onSale.length,
-              separatorBuilder: (context, index) => const SizedBox(width: 12),
-              itemBuilder: (context, index) {
-                final product = onSale[index];
-                return SizedBox(
-                  width: 160,
-                  child: CustomerProductCard(
-                    product: product,
-                    onTap: () => _openProductDetails(product),
-                    onAddToCart: () => _addToCart(product),
-                  ),
-                );
-              },
+              children: [
+                // 1. Customized On-Sale Deals created by Owner
+                ...activeDeals.map((deal) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: _SaleDealCard(
+                      deal: deal,
+                      onTap: () => _showSaleDealDetailsModal(context, deal),
+                      onAddToCart: () => _addSaleDealToCart(deal),
+                    ),
+                  );
+                }),
+
+                // 2. Individual expiring-soon on-sale items
+                ...onSale.map((product) {
+                  return Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: SizedBox(
+                      width: 160,
+                      child: CustomerProductCard(
+                        product: product,
+                        onTap: () => _openProductDetails(product),
+                        onAddToCart: () => _addToCart(product),
+                      ),
+                    ),
+                  );
+                }),
+              ],
             ),
           ),
         ],
@@ -707,3 +781,359 @@ class _PageButton extends StatelessWidget {
     );
   }
 }
+
+class _SaleDealCard extends StatelessWidget {
+  final SaleDealModel deal;
+  final VoidCallback onTap;
+  final VoidCallback onAddToCart;
+
+  const _SaleDealCard({
+    required this.deal,
+    required this.onTap,
+    required this.onAddToCart,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 175,
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.3), width: 1.2),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.04),
+              blurRadius: 10,
+              offset: const Offset(0, 4),
+            ),
+          ],
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Top Banner with Tag
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              decoration: BoxDecoration(
+                color: AppColors.primaryOrange.withValues(alpha: 0.1),
+                borderRadius: const BorderRadius.only(
+                  topLeft: Radius.circular(15),
+                  topRight: Radius.circular(15),
+                ),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.local_offer, size: 14, color: AppColors.primaryOrange),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      '${deal.totalItemQuantity} Items',
+                      style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.primaryOrange,
+                      ),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  if (deal.discountPercentage > 0)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.red,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        '-${deal.discountPercentage}%',
+                        style: const TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+
+            // Deal Content
+            Expanded(
+              child: Padding(
+                padding: const EdgeInsets.all(10),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      deal.title,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.darkText,
+                      ),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const SizedBox(height: 4),
+                    // Inclusions Preview Text
+                    Text(
+                      deal.items.map((i) => '${i.quantity}x ${i.productName}').join(', '),
+                      style: const TextStyle(fontSize: 11, color: AppColors.secondaryText),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    const Spacer(),
+
+                    // Pricing
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.baseline,
+                      textBaseline: TextBaseline.alphabetic,
+                      children: [
+                        Text(
+                          '₱${deal.salePrice.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryOrange,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        if (deal.originalTotalPrice > deal.salePrice)
+                          Text(
+                            '₱${deal.originalTotalPrice.toStringAsFixed(0)}',
+                            style: const TextStyle(
+                              fontSize: 11,
+                              decoration: TextDecoration.lineThrough,
+                              color: AppColors.secondaryText,
+                            ),
+                          ),
+                      ],
+                    ),
+                    const SizedBox(height: 8),
+
+                    // Quick Add Button
+                    SizedBox(
+                      width: double.infinity,
+                      height: 30,
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryOrange,
+                          padding: EdgeInsets.zero,
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        onPressed: onAddToCart,
+                        child: const Text(
+                          'Add Deal',
+                          style: TextStyle(fontSize: 11, color: Colors.white, fontWeight: FontWeight.bold),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SaleDealDetailsSheet extends StatelessWidget {
+  final SaleDealModel deal;
+  final VoidCallback onAddToCart;
+
+  const _SaleDealDetailsSheet({
+    required this.deal,
+    required this.onAddToCart,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      decoration: const BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+      child: SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: AppColors.borderColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: const Icon(Icons.local_offer, color: AppColors.primaryOrange, size: 22),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        deal.title,
+                        style: const TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.darkText,
+                        ),
+                      ),
+                      if (deal.discountPercentage > 0)
+                        Text(
+                          'Save ₱${deal.discountSavings.toStringAsFixed(2)} (${deal.discountPercentage}% OFF)',
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: Colors.red.shade700,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const Divider(height: 24),
+            const Text(
+              'Items Included in this Promo:',
+              style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.darkText),
+            ),
+            const SizedBox(height: 10),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxHeight: 220),
+              child: ListView.separated(
+                shrinkWrap: true,
+                itemCount: deal.items.length,
+                separatorBuilder: (_, _) => const SizedBox(height: 8),
+                itemBuilder: (context, index) {
+                  final item = deal.items[index];
+                  return Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: AppColors.lightBackground,
+                      borderRadius: BorderRadius.circular(10),
+                    ),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(8),
+                            border: Border.all(color: AppColors.borderColor),
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '${item.quantity}x',
+                            style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryOrange, fontSize: 13),
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                item.productName,
+                                style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: AppColors.darkText),
+                              ),
+                              Text(
+                                'Reg: ₱${item.originalPrice.toStringAsFixed(2)} each',
+                                style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Text(
+                          '₱${item.totalOriginalPrice.toStringAsFixed(2)}',
+                          style: const TextStyle(fontWeight: FontWeight.w500, fontSize: 13, color: AppColors.darkText),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+            // Price Summary
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: AppColors.borderColor),
+              ),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text('Total Value', style: TextStyle(fontSize: 11, color: AppColors.secondaryText)),
+                      Text(
+                        '₱${deal.originalTotalPrice.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 14,
+                          decoration: TextDecoration.lineThrough,
+                          color: AppColors.secondaryText,
+                        ),
+                      ),
+                    ],
+                  ),
+                  Column(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      const Text('Special Deal Price', style: TextStyle(fontSize: 11, color: AppColors.secondaryText)),
+                      Text(
+                        '₱${deal.salePrice.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          fontSize: 20,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.primaryOrange,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 16),
+            SizedBox(
+              width: double.infinity,
+              height: 48,
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryOrange,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                ),
+                icon: const Icon(Icons.add_shopping_cart, color: Colors.white),
+                label: Text(
+                  'Add Deal to Cart (₱${deal.salePrice.toStringAsFixed(2)})',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 15),
+                ),
+                onPressed: onAddToCart,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+

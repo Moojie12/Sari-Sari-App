@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:sari_sari/core/services/dashboard_navigation_controller.dart';
 import 'package:sari_sari/core/theme/app_colors.dart';
+import 'package:sari_sari/shared/widgets/product_image.dart';
+import '../employee_inventory_controller.dart';
+import '../inventory/employee_product_model.dart';
 import 'employee_notification_model.dart';
+import 'employee_notifications_page.dart';
 
 class EmployeeNotificationDetailsPage extends StatelessWidget {
   const EmployeeNotificationDetailsPage({
@@ -42,6 +47,10 @@ class EmployeeNotificationDetailsPage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final typeColor = notification.type.color;
+    final matchingProduct = findProductForNotification(
+      notification,
+      EmployeeInventoryController.instance,
+    );
 
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
@@ -156,28 +165,141 @@ class EmployeeNotificationDetailsPage extends StatelessWidget {
                       ),
                     ),
                   ),
+
+                  // Product Info Section if matched
+                  if (matchingProduct != null) ...[
+                    const SizedBox(height: 20),
+                    const Divider(height: 1),
+                    const SizedBox(height: 16),
+                    const Text(
+                      'Linked Product',
+                      style: TextStyle(
+                        color: AppColors.labelText,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: AppColors.lightBackground,
+                        borderRadius: BorderRadius.circular(14),
+                        border: Border.all(
+                          color: AppColors.borderColor.withValues(alpha: 0.6),
+                        ),
+                      ),
+                      child: Row(
+                        children: [
+                          ProductImage(
+                            image: matchingProduct.image,
+                            width: 52,
+                            height: 52,
+                            borderRadius: 10,
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  matchingProduct.name,
+                                  style: const TextStyle(
+                                    fontSize: 15,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.darkText,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '₱${matchingProduct.price.toStringAsFixed(2)} · ${matchingProduct.category}',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.secondaryText,
+                                  ),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${matchingProduct.stockStatus.label} · Qty: ${matchingProduct.quantity.toInt()} ${matchingProduct.unit}',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: notification.type.color,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
             const SizedBox(height: 24),
 
-            // Action Button
-            ElevatedButton(
-              onPressed: () => Navigator.pop(context),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primaryOrange,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(vertical: 14),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+            // Go to Inventory Button if product matched
+            if (matchingProduct != null) ...[
+              ElevatedButton.icon(
+                onPressed: () {
+                  if (Navigator.canPop(context)) {
+                    Navigator.pop(context);
+                  }
+                  Future.microtask(() {
+                    DashboardNavigationController.instance.navigateToInventory(
+                      openProductDetail: matchingProduct,
+                    );
+                  });
+                },
+                icon: const Icon(Icons.inventory_2_outlined, size: 20),
+                label: const Text(
+                  'Go to Product in Inventory',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                 ),
-                elevation: 2,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryOrange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                ),
               ),
-              child: const Text(
-                'Done / Close',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              const SizedBox(height: 12),
+              OutlinedButton(
+                onPressed: () => Navigator.pop(context),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.secondaryText,
+                  side: BorderSide(color: Colors.grey.shade300),
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                child: const Text('Close'),
               ),
-            ),
+            ] else ...[
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryOrange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  elevation: 2,
+                ),
+                child: const Text(
+                  'Done / Close',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
           ],
         ),
       ),

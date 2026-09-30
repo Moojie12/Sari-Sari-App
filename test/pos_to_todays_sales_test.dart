@@ -125,7 +125,8 @@ void main() {
         ),
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // Revenue: 4 * 25 = 100.00
       expect(find.text("₱ 100.00"), findsOneWidget);

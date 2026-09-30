@@ -41,6 +41,8 @@ class EmployeeNotificationsController extends ChangeNotifier {
       final id = 'outofstock-${product.id}';
       derived.add(EmployeeNotification(
         id: id,
+        productId: product.id,
+        productName: product.name,
         type: EmployeeNotificationType.outOfStock,
         title: 'Out of Stock',
         message: '${product.name} is now out of stock.',
@@ -52,6 +54,8 @@ class EmployeeNotificationsController extends ChangeNotifier {
       final id = 'lowstock-${product.id}';
       derived.add(EmployeeNotification(
         id: id,
+        productId: product.id,
+        productName: product.name,
         type: EmployeeNotificationType.lowStock,
         title: 'Low Stock',
         message: '${product.name} has only ${product.sellableQuantity} left.',
@@ -63,6 +67,8 @@ class EmployeeNotificationsController extends ChangeNotifier {
       final id = 'expired-${product.id}';
       derived.add(EmployeeNotification(
         id: id,
+        productId: product.id,
+        productName: product.name,
         type: EmployeeNotificationType.expiring,
         title: 'Product Expired',
         message: '${product.name} has an expired batch still in stock.',
@@ -74,6 +80,8 @@ class EmployeeNotificationsController extends ChangeNotifier {
       final id = 'expiringsoon-${product.id}';
       derived.add(EmployeeNotification(
         id: id,
+        productId: product.id,
+        productName: product.name,
         type: EmployeeNotificationType.expiring,
         title: 'Expiring Soon',
         message: '${product.name} has a batch expiring soon.',
@@ -168,17 +176,61 @@ class EmployeeNotificationsController extends ChangeNotifier {
     });
   }
 
+  /// Clear/delete all notifications that are already marked as read
+  void clearReadNotifications() {
+    final readNotifications = notifications.where((n) => n.isRead).toList();
+    final readIds = readNotifications.map((n) => n.id).toList();
+
+    for (final id in readIds) {
+      _readIds.add(id);
+      _dynamicNotifications.removeWhere((n) => n.id == id);
+      if (id.startsWith('store_notif_')) {
+        _dbService.deleteStoreNotification(id).catchError((e) {
+          debugPrint('Failed to delete store notification: $e');
+        });
+      }
+    }
+    notifyListeners();
+  }
+
+  /// Delete a single store notification
+  void deleteNotification(String id) {
+    _dynamicNotifications.removeWhere((n) => n.id == id);
+    _readIds.add(id);
+    notifyListeners();
+
+    _dbService.deleteStoreNotification(id).catchError((e) {
+      debugPrint('Failed to delete store notification: $e');
+    });
+  }
+
+  /// Clear all dynamic store notifications
+  void clearAllNotifications() {
+    _dynamicNotifications.clear();
+    notifyListeners();
+
+    _dbService.clearStoreNotifications().catchError((e) {
+      debugPrint('Failed to clear store notifications: $e');
+    });
+  }
+
   /// Add a store/employee notification and persist it to the database
   void addNotification({
     required EmployeeNotificationType type,
     required String title,
     required String message,
+    String? productId,
+    String? productName,
+    String? orderId,
   }) {
     final newNotif = EmployeeNotification(
       id: 'store_notif_${DateTime.now().millisecondsSinceEpoch}_${_dynamicNotifications.length}',
       type: type,
       title: title,
       message: message,
+      productId: productId,
+      productName: productName,
+      orderId: orderId,
       timestamp: DateTime.now(),
       isRead: false,
     );

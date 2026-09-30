@@ -1305,6 +1305,17 @@ class SupabaseService {
       if (updates.containsKey('archivedAt')) mappedUpdates['archived_at'] = updates['archivedAt'];
       if (updates.containsKey('archivedBy')) mappedUpdates['archived_by'] = updates['archivedBy'];
 
+      // Always ensure username is present to satisfy NOT NULL constraint
+      if (updates.containsKey('username') && updates['username'] != null && updates['username'].toString().trim().isNotEmpty) {
+        mappedUpdates['username'] = updates['username'].toString().trim();
+      } else {
+        final emailVal = updates['email']?.toString() ?? '';
+        final emailPart = emailVal.contains('@') ? emailVal.split('@').first : emailVal;
+        final cleanUsername = emailPart.replaceAll(RegExp(r'[^a-zA-Z0-9_]'), '_').toLowerCase();
+        final uidSub = firebaseUid.length >= 8 ? firebaseUid.substring(0, 8) : firebaseUid;
+        mappedUpdates['username'] = cleanUsername.isNotEmpty ? cleanUsername : 'user_$uidSub';
+      }
+
       // Always ensure firebase_uid is set if it's a new record
       mappedUpdates['firebase_uid'] = firebaseUid;
 

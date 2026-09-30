@@ -52,6 +52,9 @@ class EmployeeNotification {
     required this.title,
     required this.message,
     required this.timestamp,
+    this.productId,
+    this.productName,
+    this.orderId,
     this.isRead = false,
   });
 
@@ -60,15 +63,26 @@ class EmployeeNotification {
   final String title;
   final String message;
   final DateTime timestamp;
+  final String? productId;
+  final String? productName;
+  final String? orderId;
   final bool isRead;
 
-  EmployeeNotification copyWith({bool? isRead}) {
+  EmployeeNotification copyWith({
+    bool? isRead,
+    String? productId,
+    String? productName,
+    String? orderId,
+  }) {
     return EmployeeNotification(
       id: id,
       type: type,
       title: title,
       message: message,
       timestamp: timestamp,
+      productId: productId ?? this.productId,
+      productName: productName ?? this.productName,
+      orderId: orderId ?? this.orderId,
       isRead: isRead ?? this.isRead,
     );
   }

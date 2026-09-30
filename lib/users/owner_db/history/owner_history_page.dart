@@ -3,6 +3,7 @@ import '../../../core/theme/app_colors.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
 import '../../employee_db/orders/employee_orders_controller.dart';
 import '../../employee_db/messages/employee_chat_page.dart';
+import '../../employee_db/messages/employee_messages_controller.dart';
 
 class OwnerTransactionHistoryPage extends StatefulWidget {
   const OwnerTransactionHistoryPage({super.key});
@@ -88,51 +89,11 @@ class _DeliveryTransactionsList extends StatelessWidget {
             .where((o) => o.orderType == OrderType.delivery && o.status == OrderStatus.completed)
             .toList();
 
-        if (orders.isEmpty) {
-          return const Center(
-            child: Text('No completed delivery transactions', style: TextStyle(color: AppColors.secondaryText)),
-          );
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.all(24),
-          itemCount: orders.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            final order = orders[index];
-            return _HistoryCard(
-              title: 'Order #${order.displayOrderId}',
-              customerName: order.customerName,
-              itemsCount: order.items.length,
-              trailingText: '₱ ${order.totalAmount.toStringAsFixed(2)}',
-              date: order.formattedDate,
-              status: order.status.label,
-              statusColor: Colors.green,
-              revenue: order.subtotal,
-              capital: order.totalCapital,
-              profit: order.totalProfit,
-              processedBy: order.processedBy,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => CustomerOrderReceiptPage(order: order),
-                  ),
-                );
-              },
-              onCustomerTap: () {
-                // Navigate to chat with the customer
-                if (order.userId != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => EmployeeChatPage(recipientId: order.userId!),
-                    ),
-                  );
-                }
-              },
-            );
-          },
+        return _GroupedTransactionsListView(
+          orders: orders,
+          emptyMessage: 'No completed delivery transactions',
+          titlePrefix: 'Order',
+          statusLabel: 'Completed',
         );
       },
     );
@@ -229,51 +190,11 @@ class _PickupTransactionsList extends StatelessWidget {
             .where((o) => o.orderType == OrderType.pickup && o.customerName != 'Walk-in' && o.status == OrderStatus.completed)
             .toList();
 
-        if (orders.isEmpty) {
-          return const Center(
-            child: Text('No picked-up transactions', style: TextStyle(color: AppColors.secondaryText)),
-          );
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          itemCount: orders.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            final order = orders[index];
-            return _HistoryCard(
-              title: 'Pickup Order #${order.displayOrderId}',
-              customerName: order.customerName,
-              itemsCount: order.items.length,
-              trailingText: '₱ ${order.totalAmount.toStringAsFixed(2)}',
-              date: order.formattedDate,
-              status: 'Picked-up',
-              statusColor: Colors.green,
-              revenue: order.subtotal,
-              capital: order.totalCapital,
-              profit: order.totalProfit,
-              processedBy: order.processedBy,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => CustomerOrderReceiptPage(order: order),
-                  ),
-                );
-              },
-              onCustomerTap: () {
-                // Navigate to chat with the customer
-                if (order.userId != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => EmployeeChatPage(recipientId: order.userId!),
-                    ),
-                  );
-                }
-              },
-            );
-          },
+        return _GroupedTransactionsListView(
+          orders: orders,
+          emptyMessage: 'No picked-up transactions found',
+          titlePrefix: 'Pickup Order',
+          statusLabel: 'Picked-up',
         );
       },
     );
@@ -291,58 +212,370 @@ class _WalkInTransactionsList extends StatelessWidget {
             .where((o) => o.customerName == 'Walk-in' && o.status == OrderStatus.completed)
             .toList();
 
-        if (orders.isEmpty) {
-          return const Center(
-            child: Text('No walk-in transactions found', style: TextStyle(color: AppColors.secondaryText)),
-          );
-        }
-
-        return ListView.separated(
-          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-          itemCount: orders.length,
-          separatorBuilder: (_, _) => const SizedBox(height: 12),
-          itemBuilder: (context, index) {
-            final order = orders[index];
-            return _HistoryCard(
-              title: 'Walk-in Receipt #${order.displayOrderId}',
-              customerName: order.customerName,
-              itemsCount: order.items.length,
-              trailingText: '₱ ${order.totalAmount.toStringAsFixed(2)}',
-              date: order.formattedDate,
-              status: 'Completed',
-              statusColor: Colors.green,
-              revenue: order.subtotal,
-              capital: order.totalCapital,
-              profit: order.totalProfit,
-              processedBy: order.processedBy,
-              onTap: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (context) => CustomerOrderReceiptPage(order: order),
-                  ),
-                );
-              },
-              onCustomerTap: () {
-                // Navigate to chat with the customer
-                if (order.userId != null) {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => EmployeeChatPage(recipientId: order.userId!),
-                    ),
-                  );
-                }
-              },
-            );
-          },
+        return _GroupedTransactionsListView(
+          orders: orders,
+          emptyMessage: 'No walk-in transactions found',
+          titlePrefix: 'Walk-in Receipt',
+          statusLabel: 'Completed',
         );
       },
     );
   }
 }
 
+class _GroupedTransactionsListView extends StatefulWidget {
+  const _GroupedTransactionsListView({
+    required this.orders,
+    required this.emptyMessage,
+    required this.titlePrefix,
+    required this.statusLabel,
+  });
 
+  final List<CustomerOrder> orders;
+  final String emptyMessage;
+  final String titlePrefix;
+  final String statusLabel;
+
+  @override
+  State<_GroupedTransactionsListView> createState() => _GroupedTransactionsListViewState();
+}
+
+class _GroupedTransactionsListViewState extends State<_GroupedTransactionsListView> {
+  DateTime _selectedDate = DateTime.now();
+  bool _filterByDate = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final yyyy = _selectedDate.year.toString();
+    final mm = _selectedDate.month.toString().padLeft(2, '0');
+    final dd = _selectedDate.day.toString().padLeft(2, '0');
+    final dateFormatted = '$yyyy-$mm-$dd';
+
+    // Filter orders if _filterByDate is true
+    final filteredOrders = _filterByDate
+        ? widget.orders.where((o) {
+            return o.orderDate.year == _selectedDate.year &&
+                o.orderDate.month == _selectedDate.month &&
+                o.orderDate.day == _selectedDate.day;
+          }).toList()
+        : widget.orders;
+
+    return Column(
+      children: [
+        // --- Date Picker Navigation Bar ---
+        Container(
+          margin: const EdgeInsets.fromLTRB(24, 8, 24, 12),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(color: AppColors.borderColor.withValues(alpha: 0.8)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.03),
+                blurRadius: 6,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Row(
+            children: [
+              // Previous Day button
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                icon: const Icon(Icons.chevron_left, size: 22, color: AppColors.darkText),
+                onPressed: () {
+                  setState(() {
+                    _filterByDate = true;
+                    _selectedDate = _selectedDate.subtract(const Duration(days: 1));
+                  });
+                },
+                tooltip: 'Previous Day',
+              ),
+              const Spacer(),
+
+              // Date Picker trigger button (< 📅 YYYY-MM-DD ▼ >)
+              InkWell(
+                onTap: () async {
+                  final picked = await showDatePicker(
+                    context: context,
+                    initialDate: _selectedDate,
+                    firstDate: DateTime(2020),
+                    lastDate: DateTime(2030),
+                  );
+                  if (picked != null) {
+                    setState(() {
+                      _filterByDate = true;
+                      _selectedDate = picked;
+                    });
+                  }
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.calendar_month_outlined, size: 18, color: AppColors.primaryOrange),
+                      const SizedBox(width: 8),
+                      Text(
+                        dateFormatted,
+                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.darkText),
+                      ),
+                      const SizedBox(width: 4),
+                      const Icon(Icons.arrow_drop_down, size: 18, color: AppColors.secondaryText),
+                    ],
+                  ),
+                ),
+              ),
+              const Spacer(),
+
+              // Next Day button
+              IconButton(
+                padding: EdgeInsets.zero,
+                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+                icon: const Icon(Icons.chevron_right, size: 22, color: AppColors.darkText),
+                onPressed: () {
+                  setState(() {
+                    _filterByDate = true;
+                    _selectedDate = _selectedDate.add(const Duration(days: 1));
+                  });
+                },
+                tooltip: 'Next Day',
+              ),
+
+              const SizedBox(width: 4),
+              // Show All / Filter Toggle Chip
+              InkWell(
+                onTap: () {
+                  setState(() {
+                    _filterByDate = !_filterByDate;
+                  });
+                },
+                borderRadius: BorderRadius.circular(10),
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: !_filterByDate ? AppColors.primaryOrange : AppColors.lightBackground,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: !_filterByDate ? AppColors.primaryOrange : AppColors.borderColor,
+                    ),
+                  ),
+                  child: Text(
+                    !_filterByDate ? 'All Dates' : 'Show All',
+                    style: TextStyle(
+                      color: !_filterByDate ? Colors.white : AppColors.secondaryText,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // --- List Content ---
+        Expanded(
+          child: _buildListContent(filteredOrders, dateFormatted),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildListContent(List<CustomerOrder> filteredOrders, String dateFormatted) {
+    if (filteredOrders.isEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(Icons.event_busy_rounded, size: 48, color: AppColors.secondaryText.withValues(alpha: 0.4)),
+            const SizedBox(height: 12),
+            Text(
+              _filterByDate
+                  ? 'No transactions on $dateFormatted'
+                  : widget.emptyMessage,
+              style: const TextStyle(color: AppColors.secondaryText, fontSize: 14),
+            ),
+            if (_filterByDate) ...[
+              const SizedBox(height: 12),
+              TextButton.icon(
+                icon: const Icon(Icons.filter_alt_off_outlined, size: 16),
+                label: const Text('Show All Dates'),
+                style: TextButton.styleFrom(foregroundColor: AppColors.primaryOrange),
+                onPressed: () {
+                  setState(() {
+                    _filterByDate = false;
+                  });
+                },
+              ),
+            ],
+          ],
+        ),
+      );
+    }
+
+    // Sort descending by orderDate
+    final sortedOrders = List<CustomerOrder>.from(filteredOrders)
+      ..sort((a, b) => b.orderDate.compareTo(a.orderDate));
+
+    // Group by day
+    final Map<DateTime, List<CustomerOrder>> grouped = {};
+    for (final order in sortedOrders) {
+      final dayKey = DateTime(order.orderDate.year, order.orderDate.month, order.orderDate.day);
+      grouped.putIfAbsent(dayKey, () => []).add(order);
+    }
+
+    final sortedDates = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
+
+    return ListView.builder(
+      padding: const EdgeInsets.only(bottom: 24),
+      itemCount: sortedDates.length,
+      itemBuilder: (context, dateIndex) {
+        final dateKey = sortedDates[dateIndex];
+        final dayOrders = grouped[dateKey]!;
+
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Date Header per day
+            Padding(
+              padding: const EdgeInsets.fromLTRB(24, 8, 24, 10),
+              child: Row(
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: const Icon(Icons.calendar_month_outlined, size: 16, color: AppColors.primaryOrange),
+                  ),
+                  const SizedBox(width: 10),
+                  Text(
+                    _formatGroupDate(dateKey),
+                    style: const TextStyle(
+                      color: AppColors.darkText,
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const Spacer(),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
+                    decoration: BoxDecoration(
+                      color: AppColors.borderColor.withValues(alpha: 0.5),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: Text(
+                      '${dayOrders.length} ${dayOrders.length == 1 ? 'transaction' : 'transactions'}',
+                      style: const TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
+            // Order Cards for this date
+            ListView.separated(
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              padding: const EdgeInsets.symmetric(horizontal: 24),
+              itemCount: dayOrders.length,
+              separatorBuilder: (_, _) => const SizedBox(height: 12),
+              itemBuilder: (context, orderIndex) {
+                final order = dayOrders[orderIndex];
+                return _HistoryCard(
+                  title: '${widget.titlePrefix} #${order.displayOrderId}',
+                  customerName: order.customerName,
+                  itemsCount: order.items.length,
+                  trailingText: '₱ ${order.totalAmount.toStringAsFixed(2)}',
+                  date: _formatFullDateTime(order.orderDate),
+                  status: widget.statusLabel.isNotEmpty ? widget.statusLabel : order.status.label,
+                  statusColor: Colors.green,
+                  revenue: order.subtotal,
+                  capital: order.totalCapital,
+                  profit: order.totalProfit,
+                  processedBy: order.processedBy,
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => CustomerOrderReceiptPage(order: order),
+                      ),
+                    );
+                  },
+                  onCustomerTap: () {
+                    final messagesController = EmployeeMessagesController.instance;
+                    final recipientId = order.userId ??
+                        'cust_${order.customerName.toLowerCase().replaceAll(RegExp(r'\s+'), '_')}';
+                    final thread = messagesController.getOrCreateThread(
+                      recipientId: recipientId,
+                      name: order.customerName,
+                      role: 'Customer',
+                      isCustomer: true,
+                    );
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => EmployeeChatPage(
+                          recipientId: thread.recipient.id,
+                          recipientName: thread.recipient.name,
+                        ),
+                      ),
+                    );
+                  },
+                );
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  static String _formatGroupDate(DateTime date) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = today.subtract(const Duration(days: 1));
+    final itemDay = DateTime(date.year, date.month, date.day);
+
+    final monthNames = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    final monthStr = monthNames[date.month - 1];
+
+    if (itemDay == today) {
+      return 'Today — $monthStr ${date.day}, ${date.year}';
+    } else if (itemDay == yesterday) {
+      return 'Yesterday — $monthStr ${date.day}, ${date.year}';
+    } else {
+      final dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+      final weekdayStr = dayNames[date.weekday - 1];
+      return '$weekdayStr — $monthStr ${date.day}, ${date.year}';
+    }
+  }
+
+  static String _formatFullDateTime(DateTime date) {
+    final monthNames = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+    ];
+    final monthStr = monthNames[date.month - 1];
+    final hour = date.hour == 0 ? 12 : (date.hour > 12 ? date.hour - 12 : date.hour);
+    final minute = date.minute.toString().padLeft(2, '0');
+    final period = date.hour >= 12 ? 'PM' : 'AM';
+
+    return '$monthStr ${date.day}, ${date.year} • $hour:$minute $period';
+  }
+}
 
 class _ActivityLogsList extends StatelessWidget {
   @override
@@ -647,5 +880,3 @@ class _HistoryCard extends StatelessWidget {
     );
   }
 }
-
-

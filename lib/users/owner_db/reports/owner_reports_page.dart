@@ -1,125 +1,175 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/services/auth_service.dart';
+import '../../employee_db/employee_inventory_controller.dart';
+import '../../employee_db/orders/employee_orders_controller.dart';
 import 'owner_report_detail_screen.dart';
+import 'owner_analytics_charts.dart';
 
-class OwnerReportsPage extends StatelessWidget {
+enum _AnalyticsTab { descriptive, predictive, prescriptive }
+
+class OwnerReportsPage extends StatefulWidget {
   const OwnerReportsPage({super.key});
 
   @override
+  State<OwnerReportsPage> createState() => _OwnerReportsPageState();
+}
+
+class _OwnerReportsPageState extends State<OwnerReportsPage> {
+  _AnalyticsTab _currentTab = _AnalyticsTab.descriptive;
+
+  @override
+  void initState() {
+    super.initState();
+    AuthService().logAnalyticsEvent('view_reports_page', {'initial_tab': _currentTab.name});
+  }
+
+  void _onTabSelected(_AnalyticsTab tab) {
+    setState(() => _currentTab = tab);
+    AuthService().logAnalyticsEvent('select_reports_analytics_tier', {'tier': tab.name});
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final inventory = EmployeeInventoryController.instance;
+    final orderController = EmployeeOrderController.instance;
+
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
       appBar: AppBar(
         backgroundColor: AppColors.lightBackground,
         elevation: 0,
-        title: const Text('Reports',
-            style: TextStyle(color: AppColors.darkText, fontSize: 18, fontWeight: FontWeight.bold)),
+        title: const Text(
+          'Reports & Analytics',
+          style: TextStyle(
+            color: AppColors.darkText,
+            fontSize: 18,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         iconTheme: const IconThemeData(color: AppColors.darkText),
       ),
       body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                "Hard data and summaries to help you manage your store's health.",
-                style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.7), fontSize: 13),
-              ),
-              const SizedBox(height: 24),
+        child: ListenableBuilder(
+          listenable: Listenable.merge([inventory, orderController]),
+          builder: (context, _) {
+            final orders = orderController.orders;
 
-              _ReportCategory(
-                title: 'Sales & Payments',
-                reports: [
-                  _ReportItem(
-                    title: 'Daily Revenue Summary',
-                    subtitle: 'Total income across all channels',
-                    icon: Icons.analytics_outlined,
-                    color: Colors.blue,
-                    type: OwnerReportType.dailyRevenue,
+            return SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    "Real-time database analytics, forecasting, and store health reports.",
+                    style: TextStyle(
+                      color: AppColors.secondaryText.withValues(alpha: 0.7),
+                      fontSize: 13,
+                    ),
                   ),
-                  _ReportItem(
-                    title: 'Payment Reconciliation',
-                    subtitle: 'Cash on hand vs. GCash totals',
-                    icon: Icons.account_balance_wallet_outlined,
-                    color: Colors.green,
-                    type: OwnerReportType.paymentReconciliation,
+                  const SizedBox(height: 20),
+
+                  // ==========================================
+                  // 1. ANALYTICS TIER SWITCHER
+                  // ==========================================
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(4),
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(color: AppColors.borderColor.withValues(alpha: 0.6)),
+                    ),
+                    child: Row(
+                      children: _AnalyticsTab.values.map((tab) {
+                        final isSelected = tab == _currentTab;
+                        String label;
+                        switch (tab) {
+                          case _AnalyticsTab.descriptive:
+                            label = 'Descriptive';
+                            break;
+                          case _AnalyticsTab.predictive:
+                            label = 'Predictive';
+                            break;
+                          case _AnalyticsTab.prescriptive:
+                            label = 'Prescriptive';
+                            break;
+                        }
+
+                        return Expanded(
+                          child: InkWell(
+                            onTap: () => _onTabSelected(tab),
+                            borderRadius: BorderRadius.circular(12),
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(vertical: 10),
+                              decoration: BoxDecoration(
+                                color: isSelected ? AppColors.primaryOrange : Colors.transparent,
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: Center(
+                                child: Text(
+                                  label,
+                                  style: TextStyle(
+                                    fontSize: 13,
+                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                    color: isSelected ? Colors.white : AppColors.darkText,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
                   ),
-                  _ReportItem(
-                    title: 'Sales Channel Comparison',
-                    subtitle: 'In-store POS vs. Online orders',
-                    icon: Icons.compare_arrows_rounded,
-                    color: Colors.indigo,
-                    type: OwnerReportType.salesChannelComparison,
+                  const SizedBox(height: 20),
+
+                  // ==========================================
+                  // 2. ACTIVE ANALYTICS VIEW & CHARTS
+                  // ==========================================
+                  if (_currentTab == _AnalyticsTab.descriptive)
+                    DescriptiveAnalyticsView(orders: orders, inventory: inventory)
+                  else if (_currentTab == _AnalyticsTab.predictive)
+                    PredictiveAnalyticsView(orders: orders, inventory: inventory)
+                  else
+                    PrescriptiveAnalyticsView(orders: orders, inventory: inventory),
+
+                  const SizedBox(height: 28),
+
+                  // ==========================================
+                  // OPERATIONAL LOGS
+                  // ==========================================
+                  _ReportCategory(
+                    title: 'Operational Logs & Summaries',
+                    reports: [
+                      _ReportItem(
+                        title: 'Daily Revenue Summary',
+                        subtitle: 'Total income, capital & net profit breakdown',
+                        icon: Icons.analytics_outlined,
+                        color: Colors.indigo,
+                        type: OwnerReportType.dailyRevenue,
+                      ),
+                      _ReportItem(
+                        title: 'Wastage & Expiry Log',
+                        subtitle: 'Loss from expired or archived items',
+                        icon: Icons.delete_outline_rounded,
+                        color: Colors.deepOrange,
+                        type: OwnerReportType.wastageLog,
+                      ),
+                      _ReportItem(
+                        title: 'Consumables / Product Loss Log',
+                        subtitle: 'Stock taken by owner/staff or loss, deducted from profit',
+                        icon: Icons.set_meal_outlined,
+                        color: Colors.deepPurple,
+                        type: OwnerReportType.consumablesLog,
+                      ),
+                    ],
                   ),
+                  const SizedBox(height: 100),
                 ],
               ),
-              const SizedBox(height: 28),
-
-              _ReportCategory(
-                title: 'Inventory & Health',
-                reports: [
-                  _ReportItem(
-                    title: 'Total Inventory Value',
-                    subtitle: 'Current market value of all stock',
-                    icon: Icons.monetization_on_outlined,
-                    color: Colors.orange,
-                    type: OwnerReportType.inventoryValue,
-                  ),
-                  _ReportItem(
-                    title: 'Restock Checklist',
-                    subtitle: 'Items below low-stock threshold',
-                    icon: Icons.shopping_cart_checkout_outlined,
-                    color: Colors.red,
-                    type: OwnerReportType.restockChecklist,
-                  ),
-                  _ReportItem(
-                    title: 'Wastage & Expiry Log',
-                    subtitle: 'Loss from expired or archived items',
-                    icon: Icons.delete_outline_rounded,
-                    color: Colors.deepOrange,
-                    type: OwnerReportType.wastageLog,
-                  ),
-                  _ReportItem(
-                    title: 'Consumables / Product Loss Log',
-                    subtitle: 'Stock taken by owner/employees or lost, deducted from profit',
-                    icon: Icons.set_meal_outlined,
-                    color: Colors.deepPurple,
-                    type: OwnerReportType.consumablesLog,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 28),
-
-              _ReportCategory(
-                title: 'Business Insights',
-                reports: [
-                  _ReportItem(
-                    title: 'Best Selling Products',
-                    subtitle: 'Top performing items by volume',
-                    icon: Icons.star_outline_rounded,
-                    color: Colors.teal,
-                    type: OwnerReportType.bestSellers,
-                  ),
-                  _ReportItem(
-                    title: 'Slow-Moving Inventory',
-                    subtitle: 'Items with no sales in 30+ days',
-                    icon: Icons.hourglass_empty_rounded,
-                    color: Colors.brown,
-                    type: OwnerReportType.slowMoving,
-                  ),
-                  _ReportItem(
-                    title: 'Category Performance',
-                    subtitle: 'Sales breakdown by product type',
-                    icon: Icons.category_outlined,
-                    color: Colors.purple,
-                    type: OwnerReportType.categoryPerformance,
-                  ),
-                ],
-              ),
-              const SizedBox(height: 100),
-            ],
-          ),
+            );
+          },
         ),
       ),
     );
@@ -167,47 +217,50 @@ class _ReportCategory extends StatelessWidget {
 
               return Column(
                 children: [
-                  ListTile(
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                    leading: Container(
-                      padding: const EdgeInsets.all(10),
-                      decoration: BoxDecoration(
-                        color: report.color.withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(12),
+                  Material(
+                    color: Colors.transparent,
+                    child: ListTile(
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      leading: Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: report.color.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(report.icon, color: report.color, size: 22),
                       ),
-                      child: Icon(report.icon, color: report.color, size: 22),
-                    ),
-                    title: Text(
-                      report.title,
-                      style: const TextStyle(
-                        color: AppColors.darkText,
-                        fontWeight: FontWeight.w700,
-                        fontSize: 14,
-                      ),
-                    ),
-                    subtitle: Padding(
-                      padding: const EdgeInsets.only(top: 2),
-                      child: Text(
-                        report.subtitle,
-                        style: TextStyle(
-                          color: AppColors.secondaryText.withValues(alpha: 0.7),
-                          fontSize: 12,
+                      title: Text(
+                        report.title,
+                        style: const TextStyle(
+                          color: AppColors.darkText,
+                          fontWeight: FontWeight.w700,
+                          fontSize: 14,
                         ),
                       ),
-                    ),
-                    trailing: Icon(
-                      Icons.chevron_right_rounded,
-                      color: AppColors.secondaryText.withValues(alpha: 0.4),
-                      size: 20,
-                    ),
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => OwnerReportDetailScreen(type: report.type),
+                      subtitle: Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text(
+                          report.subtitle,
+                          style: TextStyle(
+                            color: AppColors.secondaryText.withValues(alpha: 0.7),
+                            fontSize: 12,
+                          ),
                         ),
-                      );
-                    },
+                      ),
+                      trailing: Icon(
+                        Icons.chevron_right_rounded,
+                        color: AppColors.secondaryText.withValues(alpha: 0.4),
+                        size: 20,
+                      ),
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => OwnerReportDetailScreen(type: report.type),
+                          ),
+                        );
+                      },
+                    ),
                   ),
                   if (!isLast)
                     Padding(

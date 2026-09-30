@@ -1,19 +1,19 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../utils/top_notification.dart';
+import 'product_image_crop_dialog.dart';
 
 /// Avatar used on every role's Profile tab and Profile Information screen.
 ///
 /// Shows the uploaded photo when [photoPath] is set, otherwise falls back
-/// to [initials]. A small camera badge in the corner opens a "Take Photo /
-/// Choose from Gallery / Remove Photo" sheet — this is the "Add Profile"
-/// (add/change profile photo) action shared by Owner, Employee, and
-/// Customer.
+/// to [initials] or a user icon. A small camera badge in the corner opens
+/// a "Take Photo / Choose from Gallery / Remove Photo" sheet.
 class EditableProfileAvatar extends StatefulWidget {
   const EditableProfileAvatar({
     super.key,
@@ -47,30 +47,26 @@ class _EditableProfileAvatarState extends State<EditableProfileAvatar> {
     try {
       final picked = await _picker.pickImage(
         source: source,
-        maxWidth: 1024,
+        maxWidth: 1200,
         imageQuality: 85,
       );
       if (picked != null) {
-        final file = File(picked.path);
-        final fileSize = await file.length();
-        const maxBytes = 5 * 1024 * 1024; // 5 MB maximum validation
-        if (fileSize > maxBytes) {
-          if (mounted) {
-            final mb = (fileSize / (1024 * 1024)).toStringAsFixed(1);
-            TopNotification.show(
-              context,
-              'Image exceeds 5MB limit ($mb MB). Please choose a smaller image.',
-              isError: true,
-            );
-          }
-          return;
-        }
+        if (!mounted) return;
+        final confirmedPath = await showProductImageCropDialog(
+          context: context,
+          xfile: picked,
+          title: 'Crop & Confirm Profile Photo',
+          subtitle: 'Pinch or zoom to position your profile photo in the frame.',
+          isCircular: true,
+        );
 
-        widget.onPhotoChanged?.call(picked.path);
+        if (confirmedPath != null) {
+          widget.onPhotoChanged?.call(confirmedPath);
+        }
       }
     } catch (_) {
       if (mounted) {
-        TopNotification.show(context, "Couldn't access that. Please check app permissions.", isError: true);
+        TopNotification.show(context, "Couldn't access image. Please check app permissions.", isError: true);
       }
     } finally {
       _isPicking = false;
@@ -126,7 +122,7 @@ class _EditableProfileAvatarState extends State<EditableProfileAvatar> {
                   _pickImage(ImageSource.gallery);
                 },
               ),
-              if (widget.photoPath != null)
+              if (widget.photoPath != null && widget.photoPath!.isNotEmpty)
                 ListTile(
                   leading: const Icon(Icons.delete_outline, color: Colors.redAccent),
                   title: const Text('Remove Photo', style: TextStyle(color: Colors.redAccent)),
@@ -143,43 +139,114 @@ class _EditableProfileAvatarState extends State<EditableProfileAvatar> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final hasPhoto = widget.photoPath != null && widget.photoPath!.isNotEmpty;
-    ImageProvider? imageProvider;
+  Widget _buildAvatarContent() {
+    final path = widget.photoPath?.trim();
+    final hasPhoto = path != null && path.isNotEmpty;
+
     if (hasPhoto) {
-      final path = widget.photoPath!;
-      if (path.startsWith('http://') || path.startsWith('https://')) {
-        imageProvider = NetworkImage(path);
-      } else if (path.startsWith('data:image')) {
+      // 1. Blob URL (Web) or HTTP / HTTPS network URL
+      if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:')) {
+        return Image.network(
+          path,
+          width: widget.radius * 2,
+          height: widget.radius * 2,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildFallbackContent(),
+        );
+      }
+
+      // 2. Base64 Data URI
+      if (path.startsWith('data:image')) {
         final commaIndex = path.indexOf(',');
         if (commaIndex != -1) {
           try {
             final bytes = base64Decode(path.substring(commaIndex + 1));
-            imageProvider = MemoryImage(bytes);
-          } catch (_) {
-            imageProvider = null;
-          }
+            return Image.memory(
+              bytes,
+              width: widget.radius * 2,
+              height: widget.radius * 2,
+              fit: BoxFit.cover,
+              errorBuilder: (_, __, ___) => _buildFallbackContent(),
+            );
+          } catch (_) {}
         }
-      } else {
-        imageProvider = FileImage(File(path));
       }
+
+      // 3. Web platform fallback
+      if (kIsWeb) {
+        return Image.network(
+          path,
+          width: widget.radius * 2,
+          height: widget.radius * 2,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildFallbackContent(),
+        );
+      }
+
+      // 4. Asset image path
+      if (path.startsWith('assets/')) {
+        return Image.asset(
+          path,
+          width: widget.radius * 2,
+          height: widget.radius * 2,
+          fit: BoxFit.cover,
+          errorBuilder: (_, __, ___) => _buildFallbackContent(),
+        );
+      }
+
+      // 5. Local File Path (Mobile / Desktop)
+      try {
+        final file = File(path);
+        if (file.existsSync()) {
+          return Image.file(
+            file,
+            width: widget.radius * 2,
+            height: widget.radius * 2,
+            fit: BoxFit.cover,
+            errorBuilder: (_, __, ___) => _buildFallbackContent(),
+          );
+        }
+      } catch (_) {}
     }
 
-    final avatar = CircleAvatar(
-      radius: widget.radius,
-      backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.12),
-      backgroundImage: imageProvider,
-      child: hasPhoto
-          ? null
-          : Text(
-              widget.initials,
-              style: TextStyle(
-                color: AppColors.primaryOrange,
-                fontSize: widget.radius * 0.65,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
+    return _buildFallbackContent();
+  }
+
+  Widget _buildFallbackContent() {
+    final initials = widget.initials.trim();
+    if (initials.isNotEmpty) {
+      return Center(
+        child: Text(
+          initials,
+          style: TextStyle(
+            color: AppColors.primaryOrange,
+            fontSize: widget.radius * 0.65,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      );
+    }
+    return Center(
+      child: Icon(
+        Icons.person_rounded,
+        size: widget.radius * 1.1,
+        color: AppColors.primaryOrange,
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final avatar = Container(
+      width: widget.radius * 2,
+      height: widget.radius * 2,
+      decoration: BoxDecoration(
+        color: AppColors.primaryOrange.withValues(alpha: 0.12),
+        shape: BoxShape.circle,
+      ),
+      child: ClipOval(
+        child: _buildAvatarContent(),
+      ),
     );
 
     if (!widget.isEditable || widget.onPhotoChanged == null) {

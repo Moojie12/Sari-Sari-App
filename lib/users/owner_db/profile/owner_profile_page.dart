@@ -14,11 +14,9 @@ import '../../employee_db/notifications/employee_notifications_controller.dart';
 import '../../employee_db/notifications/employee_notifications_page.dart';
 import '../history/owner_history_page.dart';
 import '../reports/owner_reports_page.dart';
-import '../reports/owner_shift_reports_page.dart';
-import 'owner_archived_products_page.dart';
-import '../../employee_db/profile/employee_my_consumables_page.dart';
+import '../reports/owner_operational_logs_page.dart';
 import 'shop_settings_controller.dart';
-import 'owner_create_employee_page.dart';
+import '../promotions/owner_sale_management_page.dart';
 import '../../../shared/widgets/editable_profile_avatar.dart';
 
 class OwnerProfilePage extends StatefulWidget {
@@ -94,19 +92,6 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
             _MenuCard(
               children: [
                 _MenuTile(
-                  icon: Icons.person_add_alt_1_outlined,
-                  label: 'Create Employee',
-                  onTap: () async {
-                    final created = await Navigator.push<bool>(
-                      context,
-                      MaterialPageRoute(builder: (context) => const OwnerCreateEmployeePage()),
-                    );
-                    if (created == true && context.mounted) {
-                      _showSuccessDialog(context, 'Employee account created successfully.');
-                    }
-                  },
-                ),
-                _MenuTile(
                   icon: Icons.edit_outlined,
                   label: 'Edit Profile',
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerEditProfilePage())),
@@ -161,30 +146,28 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerTransactionHistoryPage())),
                 ),
                 _MenuTile(
-                  icon: Icons.bar_chart_rounded,
-                  label: 'View Reports',
+                  icon: Icons.insights_rounded,
+                  label: 'View Reports & Analytics',
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerReportsPage())),
                 ),
                 _MenuTile(
-                  icon: Icons.point_of_sale_outlined,
-                  label: 'Shift Reports',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerShiftReportsPage())),
-                ),
-                _MenuTile(
-                  icon: Icons.list_alt,
-                  label: 'Employee Activity Logs',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerActivityLogsPage())),
-                ),
-                _MenuTile(
-                  icon: Icons.archive_outlined,
-                  label: 'Archived Products',
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerArchivedProductsPage())),
-                ),
-                _MenuTile(
-                  icon: Icons.set_meal_outlined,
-                  label: 'My Consumables',
+                  icon: Icons.receipt_long_rounded,
+                  label: 'Operational Logs & Summaries',
                   isLast: true,
-                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const EmployeeMyConsumablesPage(role: 'Owner'))),
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerOperationalLogsPage())),
+                ),
+              ],
+            ),
+            const SizedBox(height: 28),
+            const Text('Promotions & Discounts', style: TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            _MenuCard(
+              children: [
+                _MenuTile(
+                  icon: Icons.local_offer_rounded,
+                  label: 'Customize On-Sale Deals',
+                  isLast: true,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerSaleManagementPage())),
                 ),
               ],
             ),
@@ -296,7 +279,7 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
 
   void _showThresholdDialog(BuildContext context) {
     final controller = ShopSettingsController.instance;
-    final textController = TextEditingController(text: controller.lowStockThreshold.toString());
+    final textController = TextEditingController(text: controller.lowStockThreshold.clamp(0, 99).toString());
     String? errorText;
 
     showDialog(
@@ -307,20 +290,21 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Set the default item count for low stock alerts.'),
+              const Text('Set the default item count for low stock alerts (max 2 digits).'),
               const SizedBox(height: 16),
               TextField(
                 controller: textController,
                 keyboardType: TextInputType.number,
                 inputFormatters: [
                   FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(2),
                 ],
                 onChanged: (_) {
                   if (errorText != null) setState(() => errorText = null);
                 },
                 decoration: InputDecoration(
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  hintText: 'e.g. 10',
+                  hintText: 'e.g. 10 (max 99)',
                   errorText: errorText,
                 ),
               ),
@@ -335,9 +319,9 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
                   return;
                 }
 
-                final newValue = int.tryParse(textController.text);
-                if (newValue == null) {
-                  setState(() => errorText = 'Please enter a valid number');
+                final newValue = int.tryParse(textController.text.trim());
+                if (newValue == null || newValue < 0 || newValue > 99) {
+                  setState(() => errorText = 'Please enter a valid 2-digit number (0-99)');
                   return;
                 }
 
@@ -372,7 +356,12 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
 
   void _showDeliveryFeeDialog(BuildContext context) {
     final controller = ShopSettingsController.instance;
-    final textController = TextEditingController(text: controller.deliveryFeePer500m.toString());
+    final currentFee = controller.deliveryFeePer500m;
+    final textController = TextEditingController(
+      text: currentFee == currentFee.roundToDouble()
+          ? currentFee.toInt().clamp(0, 99).toString()
+          : currentFee.clamp(0.0, 99.0).toStringAsFixed(0),
+    );
     String? errorText;
 
     showDialog(
@@ -383,14 +372,14 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('Set the delivery fee for every 500 meters (0.5 km) distance.'),
+              const Text('Set the delivery fee for every 500 meters (0.5 km) distance (max 2 digits).'),
               const SizedBox(height: 16),
               TextField(
                 controller: textController,
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: TextInputType.number,
                 inputFormatters: [
-                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
-                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                  FilteringTextInputFormatter.digitsOnly,
+                  LengthLimitingTextInputFormatter(2),
                 ],
                 onChanged: (_) {
                   if (errorText != null) setState(() => errorText = null);
@@ -398,7 +387,7 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
                 decoration: InputDecoration(
                   prefixText: '₱ ',
                   border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                  hintText: 'e.g. 5.00',
+                  hintText: 'e.g. 5 (max ₱99)',
                   labelText: 'Fee per 500m',
                   errorText: errorText,
                 ),
@@ -414,9 +403,9 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
                   return;
                 }
 
-                final newValue = double.tryParse(textController.text);
-                if (newValue == null) {
-                  setState(() => errorText = 'Please enter a valid amount');
+                final newValue = double.tryParse(textController.text.trim());
+                if (newValue == null || newValue < 0 || newValue > 99) {
+                  setState(() => errorText = 'Please enter a valid 2-digit amount (0-99)');
                   return;
                 }
 

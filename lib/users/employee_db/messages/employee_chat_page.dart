@@ -1,6 +1,9 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 
+import '../../../core/services/chat_database_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/editable_profile_avatar.dart';
 import 'employee_customer_details_page.dart';
 import 'employee_message_model.dart';
 import 'employee_messages_controller.dart';
@@ -10,9 +13,11 @@ class EmployeeChatPage extends StatefulWidget {
   const EmployeeChatPage({
     super.key,
     required this.recipientId,
+    this.recipientName,
   });
 
   final String recipientId;
+  final String? recipientName;
 
   @override
   State<EmployeeChatPage> createState() => _EmployeeChatPageState();
@@ -22,18 +27,37 @@ class _EmployeeChatPageState extends State<EmployeeChatPage> {
   final _controller = EmployeeMessagesController();
   final _textController = TextEditingController();
   final _scrollController = ScrollController();
+  StreamSubscription<List<EmployeeMessage>>? _messagesSubscription;
 
   @override
   void initState() {
     super.initState();
+    _subscribeToLiveMessages();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _controller.markAllRead(widget.recipientId);
       _scrollToBottom();
     });
   }
 
+  void _subscribeToLiveMessages() {
+    try {
+      _messagesSubscription?.cancel();
+      _messagesSubscription = ChatDatabaseService.instance.streamMessages(
+        customerId: widget.recipientId,
+        isEmployeeView: true,
+      ).listen((liveMessages) {
+        if (mounted && liveMessages.isNotEmpty) {
+          WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+        }
+      });
+    } catch (e) {
+      debugPrint('Error subscribing to live messages in chat page: $e');
+    }
+  }
+
   @override
   void dispose() {
+    _messagesSubscription?.cancel();
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -68,7 +92,16 @@ class _EmployeeChatPageState extends State<EmployeeChatPage> {
     return ListenableBuilder(
       listenable: _controller,
       builder: (context, _) {
-        final thread = _controller.getThread(widget.recipientId);
+        var thread = _controller.getThread(widget.recipientId);
+        if (thread == null && widget.recipientName != null) {
+          thread = _controller.getOrCreateThread(
+            recipientId: widget.recipientId,
+            name: widget.recipientName!,
+            role: 'Customer',
+            isCustomer: true,
+          );
+        }
+
         if (thread == null) {
           return Scaffold(
             appBar: AppBar(title: const Text('Chat')),
@@ -91,15 +124,11 @@ class _EmployeeChatPageState extends State<EmployeeChatPage> {
             titleSpacing: 0,
             title: Row(
               children: [
-                CircleAvatar(
+                EditableProfileAvatar(
+                  initials: recipient.initials,
+                  photoPath: recipient.avatarUrl,
                   radius: 16,
-                  backgroundColor: Colors.white.withValues(alpha: 0.2),
-                  child: recipient.isCustomer
-                      ? Text(
-                          recipient.initials,
-                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.bold),
-                        )
-                      : Icon(recipient.avatarIcon, color: Colors.white, size: 16),
+                  isEditable: false,
                 ),
                 const SizedBox(width: 10),
                 Column(
@@ -139,15 +168,37 @@ class _EmployeeChatPageState extends State<EmployeeChatPage> {
             child: Column(
               children: [
                 Expanded(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) => _ChatBubble(
-                      message: messages[index],
-                      timeLabel: _formatTime(messages[index].sentAt),
-                    ),
-                  ),
+                  child: messages.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.chat_bubble_outline,
+                                size: 48,
+                                color: AppColors.placeholderColor.withValues(alpha: 0.5),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'No messages yet.\nType a message below to start chatting.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppColors.secondaryText.withValues(alpha: 0.7),
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          itemCount: messages.length,
+                          itemBuilder: (context, index) => _ChatBubble(
+                            message: messages[index],
+                            timeLabel: _formatTime(messages[index].sentAt),
+                          ),
+                        ),
                 ),
                 _MessageComposer(controller: _textController, onSend: _send),
               ],

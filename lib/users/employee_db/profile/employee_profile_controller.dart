@@ -1,13 +1,16 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_sync_service.dart';
+import '../../../shared/utils/password_validator.dart';
 import 'employee_profile_model.dart';
 
 enum ChangePasswordResult {
   success,
   incorrectCurrentPassword,
   newPasswordTooShort,
+  invalidPasswordFormat,
   newPasswordsDoNotMatch,
   failed,
 }
@@ -38,6 +41,12 @@ class EmployeeProfileController extends ChangeNotifier {
   EmployeeProfile get profile => _profile;
   String get currentUserId => _profile.userId;
 
+  void _safeNotifyListeners() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (hasListeners) notifyListeners();
+    });
+  }
+
   void clear() {
     _profile = const EmployeeProfile(
       userId: '',
@@ -48,7 +57,7 @@ class EmployeeProfileController extends ChangeNotifier {
       contactNumber: '',
       role: 'Employee',
     );
-    notifyListeners();
+    _safeNotifyListeners();
   }
 
   Future<void> loadProfile() async {
@@ -72,7 +81,7 @@ class EmployeeProfileController extends ChangeNotifier {
     }
 
     _isLoading = true;
-    notifyListeners();
+    _safeNotifyListeners();
 
     try {
       final profileData = await UserProfileSyncService().loadProfileData(user.uid);
@@ -136,7 +145,7 @@ class EmployeeProfileController extends ChangeNotifier {
       debugPrint('Error loading employee/owner profile: $e');
     } finally {
       _isLoading = false;
-      notifyListeners();
+      _safeNotifyListeners();
     }
   }
 
@@ -190,7 +199,7 @@ class EmployeeProfileController extends ChangeNotifier {
       email: email,
       contactNumber: contactNumber,
     );
-    notifyListeners();
+    _safeNotifyListeners();
 
     await UserProfileSyncService().saveProfileInfo(
       uid: user.uid,
@@ -212,7 +221,7 @@ class EmployeeProfileController extends ChangeNotifier {
       photoPath: photoPath,
       clearPhoto: photoPath == null,
     );
-    notifyListeners();
+    _safeNotifyListeners();
 
     if (photoPath != null) {
       if (!photoPath.startsWith('http://') &&
@@ -225,7 +234,7 @@ class EmployeeProfileController extends ChangeNotifier {
         );
         if (uploadedUrl != null) {
           _profile = _profile.copyWith(photoPath: uploadedUrl);
-          notifyListeners();
+          _safeNotifyListeners();
           await UserProfileSyncService().savePhoto(
             uid: user.uid,
             photoUrl: uploadedUrl,
@@ -250,8 +259,9 @@ class EmployeeProfileController extends ChangeNotifier {
     required String newPassword,
     required String confirmPassword,
   }) async {
-    if (newPassword.length < 6) {
-      return ChangePasswordResult.newPasswordTooShort;
+    final passError = PasswordValidator.validate(newPassword);
+    if (passError != null) {
+      return ChangePasswordResult.invalidPasswordFormat;
     }
     if (newPassword != confirmPassword) {
       return ChangePasswordResult.newPasswordsDoNotMatch;
@@ -268,7 +278,7 @@ class EmployeeProfileController extends ChangeNotifier {
       return ChangePasswordResult.failed;
     }
 
-    notifyListeners();
+    _safeNotifyListeners();
     return ChangePasswordResult.success;
   }
 }

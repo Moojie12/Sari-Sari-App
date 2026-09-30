@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/custom_text_field.dart';
+import '../../shared/widgets/password_requirements_widget.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../shared/utils/top_notification.dart';
+import '../../shared/utils/password_validator.dart';
 import '../../core/services/auth_service.dart';
 import '../forgot_password/otp_verification_page.dart';
 
@@ -121,35 +123,11 @@ class _SignUpPageState extends State<SignUpPage> {
   }
 
   String? _validatePassword(String value) {
-    if (value.isEmpty) {
-      return 'Please enter your password';
-    }
-    if (value.length < 8) {
-      return 'Password must be at least 8 characters long';
-    }
-    if (!RegExp(r'[A-Z]').hasMatch(value)) {
-      return 'Password must contain at least 1 uppercase letter';
-    }
-    if (!RegExp(r'[a-z]').hasMatch(value)) {
-      return 'Password must contain at least 1 lowercase letter';
-    }
-    if (!RegExp(r'[0-9]').hasMatch(value)) {
-      return 'Password must contain at least 1 number';
-    }
-    if (!RegExp(r'[!@#$%^&*(),.?":{}|<>_\-+=/\\]').hasMatch(value)) {
-      return 'Password must contain at least 1 special character';
-    }
-    return null;
+    return PasswordValidator.validate(value);
   }
 
   String? _validateConfirmPassword(String value) {
-    if (value.isEmpty) {
-      return 'Please confirm your password';
-    }
-    if (value != _passwordController.text) {
-      return 'Passwords do not match';
-    }
-    return null;
+    return PasswordValidator.validateConfirmPassword(value, _passwordController.text);
   }
 
   Future<void> _handleSignUp() async {
@@ -649,6 +627,11 @@ class _SignUpCard extends StatelessWidget {
               isPassword: true,
               errorText: confirmPasswordError,
               onChanged: onConfirmPasswordChanged,
+            ),
+            const SizedBox(height: 12),
+            PasswordRequirementsWidget(
+              password: passwordController.text,
+              confirmPassword: confirmPasswordController.text,
             ),
             const SizedBox(height: 24),
 

@@ -35,7 +35,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
   late final _barcodeController = TextEditingController(text: widget.product.barcode);
   late final _sellingPriceController = TextEditingController(text: widget.product.price.toString());
   late final _capitalController = TextEditingController(text: widget.product.capital.toString());
-  late final _thresholdController = TextEditingController(text: widget.product.lowStockThreshold.toString());
+  late final _thresholdController = TextEditingController(text: widget.product.lowStockThreshold.round().clamp(0, 99).toString());
   final _newCategoryController = TextEditingController();
 
   String? _imagePath;
@@ -206,7 +206,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
     final name = _nameController.text.trim();
     final barcode = _barcodeController.text.trim();
     final thresholdText = _thresholdController.text.trim();
-    final threshold = double.tryParse(thresholdText) ?? 10.0;
+    final threshold = (double.tryParse(thresholdText) ?? 10.0).clamp(0.0, 99.0);
     final category = _isAddingNewCategory ? _newCategoryController.text.trim() : _category;
 
     if (!_isWeightBased && widget.product.quantity != widget.product.quantity.roundToDouble()) {
@@ -501,11 +501,12 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
             const SizedBox(height: 8),
             TextField(
               controller: _thresholdController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: TextInputType.number,
               inputFormatters: [
                 FilteringTextInputFormatter.digitsOnly,
+                LengthLimitingTextInputFormatter(2),
               ],
-              decoration: _fieldDecoration('e.g. 10'),
+              decoration: _fieldDecoration('e.g. 10 (max 99)'),
             ),
             const SizedBox(height: 16),
             if (widget.product.batches.isNotEmpty) ...[

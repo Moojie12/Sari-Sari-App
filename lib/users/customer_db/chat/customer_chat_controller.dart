@@ -1,49 +1,68 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../../../core/services/auth_service.dart';
+import '../../../core/services/chat_database_service.dart';
 import '../../employee_db/messages/employee_message_model.dart';
 
 class CustomerChatController extends ChangeNotifier {
-  CustomerChatController._();
+  CustomerChatController._() {
+    _subscribeToLiveMessages();
+  }
   static final CustomerChatController instance = CustomerChatController._();
   factory CustomerChatController() => instance;
 
-  final List<EmployeeMessage> _messages = [
-    EmployeeMessage(
-      id: '1',
-      sender: MessageSender.them,
-      text: 'Hello! How can we help you today?',
-      sentAt: DateTime.now().subtract(const Duration(hours: 1)),
-    ),
-  ];
+  final List<EmployeeMessage> _messages = <EmployeeMessage>[];
+  StreamSubscription<List<EmployeeMessage>>? _messagesSubscription;
 
   List<EmployeeMessage> get messages => List.unmodifiable(_messages);
 
   int get unreadCount => _messages.where((m) => m.sender == MessageSender.them && !m.isRead).length;
 
-  void sendMessage(String text) {
-    if (text.trim().isEmpty) return;
-    
+  String get effectiveCustomerId => AuthService().currentUser?.uid ?? 'current_customer';
+  String get effectiveCustomerName => AuthService().currentUser?.displayName ?? 'Customer';
+
+  void _subscribeToLiveMessages() {
+    try {
+      _messagesSubscription?.cancel();
+      _messagesSubscription = ChatDatabaseService.instance.streamMessages(
+        customerId: effectiveCustomerId,
+        isEmployeeView: false,
+      ).listen((liveMessages) {
+        _messages.clear();
+        _messages.addAll(liveMessages);
+        notifyListeners();
+      }, onError: (e) {
+        debugPrint('Error streaming customer messages: $e');
+      });
+    } catch (e) {
+      debugPrint('Failed to subscribe to customer messages: $e');
+    }
+  }
+
+  void sendMessage(String text, {String? customerId, String? customerName}) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return;
+
+    final targetId = customerId ?? effectiveCustomerId;
+    final targetName = customerName ?? effectiveCustomerName;
+
     final newMessage = EmployeeMessage(
-      id: DateTime.now().millisecondsSinceEpoch.toString(),
+      id: 'm-${DateTime.now().millisecondsSinceEpoch}',
       sender: MessageSender.me,
-      text: text,
+      text: trimmed,
       sentAt: DateTime.now(),
     );
 
     _messages.add(newMessage);
     notifyListeners();
 
-    // Simulate store response
-    Future.delayed(const Duration(seconds: 2), () {
-      final reply = EmployeeMessage(
-        id: DateTime.now().millisecondsSinceEpoch.toString(),
-        sender: MessageSender.them,
-        text: 'Thank you for your message. We will get back to you shortly.',
-        sentAt: DateTime.now(),
-        isRead: false,
-      );
-      _messages.add(reply);
-      notifyListeners();
-    });
+    // Send to Firebase Live Database
+    ChatDatabaseService.instance.sendMessage(
+      customerId: targetId,
+      customerName: targetName,
+      sender: 'customer',
+      text: trimmed,
+    );
   }
 
   void markAllAsRead() {

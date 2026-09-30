@@ -142,6 +142,9 @@ class NotificationDatabaseService {
         'message': notification.message,
         'timestamp': notification.timestamp.toIso8601String(),
         'isRead': notification.isRead,
+        if (notification.productId != null) 'productId': notification.productId,
+        if (notification.productName != null) 'productName': notification.productName,
+        if (notification.orderId != null) 'orderId': notification.orderId,
       });
       debugPrint('Saved store notification #${notification.id} to database');
     } catch (e) {
@@ -159,6 +162,29 @@ class NotificationDatabaseService {
       });
     } catch (e) {
       debugPrint('Failed to mark store notification read: $e');
+    }
+  }
+
+  /// Delete a store notification from Firebase Realtime Database
+  Future<void> deleteStoreNotification(String notifId) async {
+    if (notifId.isEmpty) return;
+    try {
+      final db = _authService.database;
+      await db.ref().child('notifications/store/$notifId').remove();
+      debugPrint('Deleted store notification #$notifId from database');
+    } catch (e) {
+      debugPrint('Failed to delete store notification: $e');
+    }
+  }
+
+  /// Clear all store notifications from Firebase Realtime Database
+  Future<void> clearStoreNotifications() async {
+    try {
+      final db = _authService.database;
+      await db.ref().child('notifications/store').remove();
+      debugPrint('Cleared all store notifications from database');
+    } catch (e) {
+      debugPrint('Failed to clear store notifications: $e');
     }
   }
 
@@ -273,6 +299,12 @@ class NotificationDatabaseService {
       final id = map['id']?.toString() ?? '';
       final title = map['title']?.toString() ?? 'Notification';
       final message = map['message']?.toString() ?? '';
+
+      // Ignore dummy / incomplete records with generic title and blank message
+      if ((title == 'Notification' || title.isEmpty) && message.trim().isEmpty) {
+        return null;
+      }
+
       final isRead = map['isRead'] == true;
       final timestampStr = map['timestamp']?.toString();
       final timestamp = timestampStr != null
@@ -298,6 +330,9 @@ class NotificationDatabaseService {
         message: message,
         timestamp: timestamp,
         isRead: isRead,
+        productId: map['productId']?.toString(),
+        productName: map['productName']?.toString(),
+        orderId: map['orderId']?.toString(),
       );
     } catch (e) {
       debugPrint('Error parsing employee notification: $e');

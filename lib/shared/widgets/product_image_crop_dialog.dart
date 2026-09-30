@@ -8,6 +8,9 @@ import '../../core/theme/app_colors.dart';
 Future<String?> showProductImageCropDialog({
   required BuildContext context,
   required XFile xfile,
+  String title = 'Crop & Confirm Photo',
+  String subtitle = 'Pinch or zoom to position the image in the 1:1 frame.',
+  bool isCircular = false,
 }) async {
   final bytes = await xfile.readAsBytes();
   final fileSize = bytes.length;
@@ -106,9 +109,9 @@ Future<String?> showProductImageCropDialog({
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
-                    'Crop & Confirm Photo',
-                    style: TextStyle(
+                  Text(
+                    title,
+                    style: const TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                       color: AppColors.darkText,
@@ -121,22 +124,23 @@ Future<String?> showProductImageCropDialog({
                 ],
               ),
               const SizedBox(height: 4),
-              const Align(
+              Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Pinch or zoom to position the product in the 1:1 square frame.',
-                  style: TextStyle(fontSize: 12, color: AppColors.secondaryText),
+                  subtitle,
+                  style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
                 ),
               ),
               const SizedBox(height: 16),
 
-              // 1:1 Square Crop Viewport with Interactive Viewer
+              // 1:1 Crop Viewport with Interactive Viewer
               Container(
                 width: 260,
                 height: 260,
                 decoration: BoxDecoration(
                   color: Colors.black12,
-                  borderRadius: BorderRadius.circular(16),
+                  shape: isCircular ? BoxShape.circle : BoxShape.rectangle,
+                  borderRadius: isCircular ? null : BorderRadius.circular(16),
                   border: Border.all(color: AppColors.primaryOrange, width: 2),
                   boxShadow: [
                     BoxShadow(
@@ -149,7 +153,7 @@ Future<String?> showProductImageCropDialog({
                 child: Stack(
                   children: [
                     ClipRRect(
-                      borderRadius: BorderRadius.circular(14),
+                      borderRadius: isCircular ? BorderRadius.circular(130) : BorderRadius.circular(14),
                       child: InteractiveViewer(
                         transformationController: transformationController,
                         minScale: 1.0,
@@ -173,7 +177,8 @@ Future<String?> showProductImageCropDialog({
                     IgnorePointer(
                       child: Container(
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(14),
+                          shape: isCircular ? BoxShape.circle : BoxShape.rectangle,
+                          borderRadius: isCircular ? null : BorderRadius.circular(14),
                           border: Border.all(color: Colors.white.withValues(alpha: 0.4), width: 1),
                         ),
                         child: Column(

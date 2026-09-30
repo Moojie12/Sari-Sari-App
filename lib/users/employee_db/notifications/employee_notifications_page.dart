@@ -1,9 +1,91 @@
 import 'package:flutter/material.dart';
 
+import '../../../core/services/dashboard_navigation_controller.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../customer_db/purchases/customer_order_model.dart';
+import '../employee_inventory_controller.dart';
+import '../inventory/employee_product_model.dart';
+import '../orders/employee_orders_controller.dart';
 import 'employee_notification_details_page.dart';
 import 'employee_notification_model.dart';
 import 'employee_notifications_controller.dart';
+
+EmployeeProduct? findProductForNotification(
+  EmployeeNotification notification,
+  EmployeeInventoryController inventory,
+) {
+  final products = inventory.products;
+  if (products.isEmpty) return null;
+
+  // 1. Check explicit productId
+  if (notification.productId != null && notification.productId!.isNotEmpty) {
+    final prod = inventory.findById(notification.productId!);
+    if (prod != null) return prod;
+  }
+
+  // 2. Check notification id suffix (e.g. 'outofstock-prod123', 'expired-prod123')
+  for (final prod in products) {
+    if (notification.id.endsWith(prod.id)) {
+      return prod;
+    }
+  }
+
+  // 3. Check explicit productName match
+  if (notification.productName != null && notification.productName!.isNotEmpty) {
+    final nameLower = notification.productName!.trim().toLowerCase();
+    for (final prod in products) {
+      if (prod.name.trim().toLowerCase() == nameLower) return prod;
+    }
+  }
+
+  // 4. Match product name inside title or message
+  final titleLower = notification.title.toLowerCase();
+  final messageLower = notification.message.toLowerCase();
+
+  EmployeeProduct? bestMatch;
+  int longestNameLength = 0;
+
+  for (final prod in products) {
+    final pNameLower = prod.name.trim().toLowerCase();
+    if (pNameLower.isEmpty) continue;
+
+    if (messageLower.contains(pNameLower) || titleLower.contains(pNameLower)) {
+      if (pNameLower.length > longestNameLength) {
+        longestNameLength = pNameLower.length;
+        bestMatch = prod;
+      }
+    }
+  }
+
+  return bestMatch;
+}
+
+CustomerOrder? findOrderForNotification(
+  EmployeeNotification notification,
+  EmployeeOrderController orderController,
+) {
+  final orders = orderController.orders;
+  if (orders.isEmpty) return null;
+
+  // 1. Explicit orderId
+  if (notification.orderId != null && notification.orderId!.isNotEmpty) {
+    for (final order in orders) {
+      if (order.orderId == notification.orderId) return order;
+    }
+  }
+
+  // 2. Search orderId inside message or title
+  final message = notification.message;
+  final title = notification.title;
+
+  for (final order in orders) {
+    if (order.orderId.isNotEmpty && (message.contains(order.orderId) || title.contains(order.orderId))) {
+      return order;
+    }
+  }
+
+  return null;
+}
 
 /// "Notifications" screen: shows low stock, out-of-stock, and expiring
 /// product alerts, plus any mock orders or tasks assigned to the employee.
@@ -19,20 +101,39 @@ class EmployeeNotificationsPage extends StatelessWidget {
       appBar: AppBar(
         backgroundColor: AppColors.primaryOrange,
         elevation: 0,
+        titleSpacing: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
           onPressed: () => Navigator.pop(context),
         ),
         title: const Text(
           'Notifications',
-          style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
+          style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
         ),
         actions: [
           TextButton(
             onPressed: () => controller.markAllAsRead(),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
             child: const Text(
-              'Mark all as read',
-              style: TextStyle(color: Colors.white, fontSize: 12),
+              'Mark read',
+              style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+            ),
+          ),
+          const SizedBox(width: 4),
+          TextButton(
+            onPressed: () => controller.clearReadNotifications(),
+            style: TextButton.styleFrom(
+              padding: const EdgeInsets.symmetric(horizontal: 6),
+              minimumSize: Size.zero,
+              tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            ),
+            child: const Text(
+              'Clear read',
+              style: TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
             ),
           ),
           const SizedBox(width: 8),
@@ -78,19 +179,73 @@ class EmployeeNotificationsPage extends StatelessWidget {
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final notification = notifications[index];
-                return _NotificationTile(
-                  notification: notification,
-                  onTap: () {
-                    controller.markAsRead(notification.id);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => EmployeeNotificationDetailsPage(
-                          notification: notification.copyWith(isRead: true),
-                        ),
-                      ),
-                    );
+                return Dismissible(
+                  key: Key(notification.id),
+                  direction: DismissDirection.endToStart,
+                  onDismissed: (_) {
+                    controller.deleteNotification(notification.id);
                   },
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade400,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
+                  ),
+                  child: _NotificationTile(
+                    notification: notification,
+                    onTap: () {
+                      controller.markAsRead(notification.id);
+
+                      // 1. Try product match
+                      final matchingProduct = findProductForNotification(
+                        notification,
+                        EmployeeInventoryController.instance,
+                      );
+
+                      if (matchingProduct != null) {
+                        if (Navigator.canPop(context)) {
+                          Navigator.pop(context);
+                        }
+                        Future.microtask(() {
+                          DashboardNavigationController.instance.navigateToInventory(
+                            openProductDetail: matchingProduct,
+                          );
+                        });
+                        return;
+                      }
+
+                      // 2. Try order match
+                      final matchingOrder = findOrderForNotification(
+                        notification,
+                        EmployeeOrderController.instance,
+                      );
+
+                      if (matchingOrder != null) {
+                        if (Navigator.canPop(context)) {
+                          Navigator.pop(context);
+                        }
+                        Future.microtask(() {
+                          DashboardNavigationController.instance.navigateToOrders(
+                            openOrderDetail: matchingOrder,
+                          );
+                        });
+                        return;
+                      }
+
+                      // 3. Fallback to details page
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => EmployeeNotificationDetailsPage(
+                            notification: notification.copyWith(isRead: true),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 );
               },
             ),

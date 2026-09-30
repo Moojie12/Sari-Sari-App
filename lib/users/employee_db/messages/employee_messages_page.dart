@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/editable_profile_avatar.dart';
 import 'employee_chat_page.dart';
 import 'employee_message_model.dart';
 import 'employee_messages_controller.dart';
@@ -44,7 +45,15 @@ class EmployeeMessagesPage extends StatelessWidget {
       body: ListenableBuilder(
         listenable: controller,
         builder: (context, _) {
-          final threads = controller.threads.where((t) => t.recipient.role != viewerRole).toList();
+          controller.syncCustomersFromOrders();
+          final threads = controller.threads.where((t) {
+            final nameLower = t.recipient.name.toLowerCase();
+            final isWalkIn = nameLower.contains('walk-in') || nameLower.contains('walkin');
+            final isSameRole = t.recipient.role == viewerRole;
+            final hasMessages = t.messages.isNotEmpty;
+
+            return !isWalkIn && !isSameRole && hasMessages;
+          }).toList();
 
           if (threads.isEmpty) {
             return Center(
@@ -94,18 +103,11 @@ class EmployeeMessagesPage extends StatelessWidget {
                     padding: const EdgeInsets.all(14),
                     child: Row(
                       children: [
-                        CircleAvatar(
+                        EditableProfileAvatar(
+                          initials: recipient.initials,
+                          photoPath: recipient.avatarUrl,
                           radius: 26,
-                          backgroundColor: AppColors.primaryOrange.withValues(alpha: 0.12),
-                          child: recipient.isCustomer
-                              ? Text(
-                                  recipient.initials,
-                                  style: const TextStyle(
-                                    color: AppColors.primaryOrange,
-                                    fontWeight: FontWeight.bold,
-                                  ),
-                                )
-                              : Icon(recipient.avatarIcon, color: AppColors.primaryOrange),
+                          isEditable: false,
                         ),
                         const SizedBox(width: 14),
                         Expanded(

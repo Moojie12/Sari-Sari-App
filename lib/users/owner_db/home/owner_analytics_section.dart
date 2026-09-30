@@ -130,7 +130,7 @@ class _OwnerAnalyticsSectionState extends State<OwnerAnalyticsSection> {
             : 'Top sellers will automatically be computed as POS and online orders are completed.',
         icon: Icons.star_rounded,
         color: Colors.teal,
-        onTap: () => _navigateToReport(context, OwnerReportType.bestSellers),
+        onTap: () => _navigateToReport(context, OwnerReportType.descriptiveAnalytics),
       ),
       _AnalyticsInsight(
         title: 'Inventory & Consumables / Loss Summary',
@@ -180,14 +180,14 @@ class _OwnerAnalyticsSectionState extends State<OwnerAnalyticsSection> {
         detail: stockoutRiskDetail,
         icon: Icons.warning_amber_rounded,
         color: Colors.red,
-        onTap: () => _navigateToReport(context, OwnerReportType.restockChecklist),
+        onTap: () => _navigateToReport(context, OwnerReportType.predictiveAnalytics),
       ),
       _AnalyticsInsight(
         title: 'Weather-Driven Demand Forecast',
         detail: 'Rain chance detected. Historical store data indicates +20% higher demand for instant noodles, canned soups, and hot coffee.',
         icon: Icons.water_drop_outlined,
         color: Colors.indigo,
-        onTap: () => _navigateToReport(context, OwnerReportType.dailyRevenue),
+        onTap: () => _navigateToReport(context, OwnerReportType.predictiveAnalytics),
       ),
     ];
   }
@@ -219,7 +219,7 @@ class _OwnerAnalyticsSectionState extends State<OwnerAnalyticsSection> {
         detail: restockAction,
         icon: Icons.shopping_cart_checkout_rounded,
         color: Colors.green,
-        onTap: () => _navigateToReport(context, OwnerReportType.restockChecklist),
+        onTap: () => _navigateToReport(context, OwnerReportType.prescriptiveAnalytics),
       ),
       _AnalyticsInsight(
         title: 'Promote & Discount Recommendation',
@@ -240,7 +240,7 @@ class _OwnerAnalyticsSectionState extends State<OwnerAnalyticsSection> {
         detail: 'Focus sales push on high-margin categories (Snacks and Beverages) to boost store net profit margin above 25%.',
         icon: Icons.insights_rounded,
         color: AppColors.primaryOrange,
-        onTap: () => _navigateToReport(context, OwnerReportType.categoryPerformance),
+        onTap: () => _navigateToReport(context, OwnerReportType.prescriptiveAnalytics),
       ),
     ];
   }

@@ -8,9 +8,7 @@ import '../../../shared/widgets/primary_button.dart';
 import 'customer_profile_controller.dart';
 
 /// "Edit Profile" screen: lets the customer update their own name (with
-/// middle initial), email, and contact number. Fields here match exactly
-/// what's shown on "Profile Information" — there is no username field,
-/// since Profile Information doesn't show one either.
+/// middle initial), email, and contact number.
 class CustomerEditProfilePage extends StatefulWidget {
   const CustomerEditProfilePage({super.key});
 
@@ -26,6 +24,7 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
   late final TextEditingController _lastNameController;
   late final TextEditingController _emailController;
   late final TextEditingController _contactController;
+  String? _previewPhotoPath;
 
   @override
   void initState() {
@@ -58,6 +57,17 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
     if (_contactController.text.trim().isEmpty && profile.contactNumber.isNotEmpty) {
       _contactController.text = profile.contactNumber;
     }
+  }
+
+  String get _computedInitials {
+    final f = _firstNameController.text.trim();
+    final l = _lastNameController.text.trim();
+    if (f.isNotEmpty || l.isNotEmpty) {
+      final fChar = f.isNotEmpty ? f[0].toUpperCase() : '';
+      final lChar = l.isNotEmpty ? l[0].toUpperCase() : '';
+      return '$fChar$lChar';
+    }
+    return _controller.profile.initials;
   }
 
   @override
@@ -104,6 +114,9 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
     if (confirmed != true) return;
     if (!mounted) return;
 
+    if (_previewPhotoPath != null) {
+      await _controller.setPhoto(_previewPhotoPath == '' ? null : _previewPhotoPath);
+    }
     await _controller.updateProfile(
       firstName: firstName,
       middleInitial: middleInitial,
@@ -143,20 +156,37 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
                 child: ListenableBuilder(
                   listenable: _controller,
                   builder: (context, _) {
+                    final photoToDisplay = _previewPhotoPath == ''
+                        ? null
+                        : (_previewPhotoPath ?? _controller.profile.photoPath);
                     return EditableProfileAvatar(
-                      initials: _controller.profile.initials,
-                      photoPath: _controller.profile.photoPath,
-                      onPhotoChanged: _controller.setPhoto,
+                      initials: _computedInitials,
+                      photoPath: photoToDisplay,
+                      onPhotoChanged: (newPath) {
+                        setState(() {
+                          _previewPhotoPath = newPath ?? '';
+                        });
+                      },
                       radius: 46,
                     );
                   },
                 ),
               ),
               const SizedBox(height: 8),
-              const Center(
+              Center(
                 child: Text(
-                  'Tap avatar to change photo',
-                  style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
+                  _previewPhotoPath != null && _previewPhotoPath!.isNotEmpty
+                      ? 'Photo preview ready. Tap Save Changes to keep.'
+                      : 'Tap avatar to change photo',
+                  style: TextStyle(
+                    color: _previewPhotoPath != null && _previewPhotoPath!.isNotEmpty
+                        ? AppColors.primaryOrange
+                        : AppColors.secondaryText,
+                    fontSize: 12,
+                    fontWeight: _previewPhotoPath != null && _previewPhotoPath!.isNotEmpty
+                        ? FontWeight.w600
+                        : FontWeight.normal,
+                  ),
                 ),
               ),
               const SizedBox(height: 24),

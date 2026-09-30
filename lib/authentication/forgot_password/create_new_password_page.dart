@@ -2,8 +2,10 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/custom_text_field.dart';
+import '../../shared/widgets/password_requirements_widget.dart';
 import '../../shared/widgets/primary_button.dart';
 import '../../shared/utils/top_notification.dart';
+import '../../shared/utils/password_validator.dart';
 import '../../core/services/auth_service.dart';
 
 class CreateNewPasswordPage extends StatefulWidget {
@@ -34,35 +36,11 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
   }
 
   String? _validatePassword(String value) {
-    if (value.isEmpty) {
-      return 'Please enter your password';
-    }
-    if (value.length < 8) {
-      return 'Password must be at least 8 characters long';
-    }
-    if (!RegExp(r'[A-Z]').hasMatch(value)) {
-      return 'Password must contain at least 1 uppercase letter';
-    }
-    if (!RegExp(r'[a-z]').hasMatch(value)) {
-      return 'Password must contain at least 1 lowercase letter';
-    }
-    if (!RegExp(r'[0-9]').hasMatch(value)) {
-      return 'Password must contain at least 1 number';
-    }
-    if (!RegExp(r'[!@#$%^&*(),.?":{}|<>_\-+=/\\]').hasMatch(value)) {
-      return 'Password must contain at least 1 special character';
-    }
-    return null;
+    return PasswordValidator.validate(value);
   }
 
   String? _validateConfirmPassword(String value) {
-    if (value.isEmpty) {
-      return 'Please confirm your password';
-    }
-    if (value != _passwordController.text) {
-      return 'Passwords do not match';
-    }
-    return null;
+    return PasswordValidator.validateConfirmPassword(value, _passwordController.text);
   }
 
   Future<void> _handleSavePassword() async {
@@ -174,14 +152,14 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
                 controller: _passwordController,
                 errorText: _passwordError,
                 onChanged: (val) {
-                  if (_passwordError != null) {
-                    setState(() {
+                  setState(() {
+                    if (_passwordError != null) {
                       _passwordError = _validatePassword(val);
-                      if (_confirmPasswordController.text.isNotEmpty) {
-                        _confirmPasswordError = _validateConfirmPassword(_confirmPasswordController.text);
-                      }
-                    });
-                  }
+                    }
+                    if (_confirmPasswordError != null && _confirmPasswordController.text.isNotEmpty) {
+                      _confirmPasswordError = _validateConfirmPassword(_confirmPasswordController.text);
+                    }
+                  });
                 },
               ),
               const SizedBox(height: 20),
@@ -202,12 +180,17 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
                 controller: _confirmPasswordController,
                 errorText: _confirmPasswordError,
                 onChanged: (val) {
-                  if (_confirmPasswordError != null) {
-                    setState(() {
+                  setState(() {
+                    if (_confirmPasswordError != null) {
                       _confirmPasswordError = _validateConfirmPassword(val);
-                    });
-                  }
+                    }
+                  });
                 },
+              ),
+              const SizedBox(height: 16),
+              PasswordRequirementsWidget(
+                password: _passwordController.text,
+                confirmPassword: _confirmPasswordController.text,
               ),
               const SizedBox(height: 32),
               

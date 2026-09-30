@@ -259,13 +259,40 @@ class _CartItemCard extends StatelessWidget {
                       ),
                     ],
                   ),
-                  Text(
-                    '₱${item.product.price.toStringAsFixed(2)}',
-                    style: const TextStyle(
-                      color: AppColors.primaryOrange,
-                      fontSize: 14,
-                      fontWeight: FontWeight.w600,
-                    ),
+                  Row(
+                    children: [
+                      Text(
+                        '₱${item.unitPrice.toStringAsFixed(2)}',
+                        style: const TextStyle(
+                          color: AppColors.primaryOrange,
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      if (item.isOnSalePromo) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          '₱${item.product.price.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            decoration: TextDecoration.lineThrough,
+                            color: AppColors.secondaryText,
+                            fontSize: 12,
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.red.shade50,
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: const Text(
+                            'PROMO',
+                            style: TextStyle(color: Colors.red, fontSize: 9, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   const SizedBox(height: 12),
                   Row(

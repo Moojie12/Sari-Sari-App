@@ -10,6 +10,7 @@ class ChatRecipient {
     required this.id,
     required this.name,
     required this.role,
+    this.avatarUrl,
     this.isCustomer = false,
     this.avatarIcon = Icons.person_outline,
     this.email,
@@ -19,6 +20,7 @@ class ChatRecipient {
   final String id;
   final String name;
   final String role;
+  final String? avatarUrl;
   final bool isCustomer;
   final IconData avatarIcon;
   final String? email;
@@ -76,8 +78,16 @@ class ChatThread {
 
   EmployeeMessage? get lastMessage => messages.isEmpty ? null : messages.last;
 
-  int get unreadCount =>
-      messages.where((m) => m.sender == MessageSender.them && !m.isRead).length;
+  int get unreadCount {
+    if (messages.isEmpty) return 0;
+    int total = 0;
+    for (final m in messages) {
+      if (m.sender == MessageSender.them && !m.isRead) {
+        total++;
+      }
+    }
+    return total;
+  }
 
   ChatThread copyWith({List<EmployeeMessage>? messages}) {
     return ChatThread(

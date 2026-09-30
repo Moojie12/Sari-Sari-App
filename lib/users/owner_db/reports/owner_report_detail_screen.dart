@@ -1,21 +1,19 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/services/auth_service.dart';
 import '../../employee_db/employee_inventory_controller.dart';
 import '../../employee_db/orders/employee_orders_controller.dart';
 import '../../employee_db/inventory/employee_product_model.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
+import 'owner_analytics_charts.dart';
 
 enum OwnerReportType {
   dailyRevenue,
-  paymentReconciliation,
-  salesChannelComparison,
-  inventoryValue,
-  restockChecklist,
   wastageLog,
   consumablesLog,
-  bestSellers,
-  slowMoving,
-  categoryPerformance,
+  descriptiveAnalytics,
+  predictiveAnalytics,
+  prescriptiveAnalytics,
 }
 
 class OwnerReportDetailScreen extends StatefulWidget {
@@ -39,6 +37,9 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
   void initState() {
     super.initState();
     _selectedDate = widget.initialDate ?? DateTime.now();
+    AuthService().logAnalyticsEvent('view_report_detail', {
+      'report_type': widget.type.name,
+    });
   }
 
   bool _isSameDay(DateTime a, DateTime b) {
@@ -47,17 +48,25 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
 
   String get _title {
     switch (widget.type) {
-      case OwnerReportType.dailyRevenue: return 'Daily Revenue Summary';
-      case OwnerReportType.paymentReconciliation: return 'Payment Reconciliation';
-      case OwnerReportType.salesChannelComparison: return 'Sales Channel Comparison';
-      case OwnerReportType.inventoryValue: return 'Total Inventory Value';
-      case OwnerReportType.restockChecklist: return 'Restock Checklist';
-      case OwnerReportType.wastageLog: return 'Wastage & Expiry Log';
-      case OwnerReportType.consumablesLog: return 'Consumables / Product Loss Log';
-      case OwnerReportType.bestSellers: return 'Best Selling Products';
-      case OwnerReportType.slowMoving: return 'Slow-Moving Inventory';
-      case OwnerReportType.categoryPerformance: return 'Category Performance';
+      case OwnerReportType.dailyRevenue:
+        return 'Daily Revenue Summary';
+      case OwnerReportType.wastageLog:
+        return 'Wastage & Expiry Log';
+      case OwnerReportType.consumablesLog:
+        return 'Consumables / Product Loss Log';
+      case OwnerReportType.descriptiveAnalytics:
+        return 'Descriptive Analytics';
+      case OwnerReportType.predictiveAnalytics:
+        return 'Predictive Analytics';
+      case OwnerReportType.prescriptiveAnalytics:
+        return 'Prescriptive Analytics';
     }
+  }
+
+  bool get _isAnalyticsType {
+    return widget.type == OwnerReportType.descriptiveAnalytics ||
+        widget.type == OwnerReportType.predictiveAnalytics ||
+        widget.type == OwnerReportType.prescriptiveAnalytics;
   }
 
   @override
@@ -77,14 +86,18 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
         child: ListenableBuilder(
           listenable: Listenable.merge([inventory, orderController]),
           builder: (context, _) {
+            final orders = orderController.orders;
+
             return SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  _buildSummaryHeader(),
-                  const SizedBox(height: 24),
-                  _buildReportContent(context),
+                  if (!_isAnalyticsType) ...[
+                    _buildSummaryHeader(),
+                    const SizedBox(height: 24),
+                  ],
+                  _buildReportContent(context, orders, inventory),
                   const SizedBox(height: 40),
                 ],
               ),
@@ -106,7 +119,11 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
         color: Colors.white,
         borderRadius: BorderRadius.circular(20),
         boxShadow: [
-          BoxShadow(color: Colors.black.withValues(alpha: 0.03), blurRadius: 10, offset: const Offset(0, 4)),
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.03),
+            blurRadius: 10,
+            offset: const Offset(0, 4),
+          ),
         ],
       ),
       child: Column(
@@ -115,8 +132,15 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              const Text('REPORT SUMMARY',
-                  style: TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppColors.secondaryText, letterSpacing: 1)),
+              const Text(
+                'REPORT SUMMARY',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.secondaryText,
+                  letterSpacing: 1,
+                ),
+              ),
               if (isToday)
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
@@ -124,7 +148,14 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
                     color: AppColors.primaryOrange.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(10),
                   ),
-                  child: const Text('Today', style: TextStyle(fontSize: 10, fontWeight: FontWeight.bold, color: AppColors.primaryOrange)),
+                  child: const Text(
+                    'Today',
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.primaryOrange,
+                    ),
+                  ),
                 ),
             ],
           ),
@@ -175,7 +206,11 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
                         const SizedBox(width: 8),
                         Text(
                           dateFormatted,
-                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.darkText),
+                          style: const TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 14,
+                            color: AppColors.darkText,
+                          ),
                         ),
                         const SizedBox(width: 4),
                         const Icon(Icons.arrow_drop_down, color: AppColors.secondaryText, size: 20),
@@ -212,66 +247,41 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
     switch (widget.type) {
       case OwnerReportType.dailyRevenue:
         final completed = orders.where((o) =>
-          o.status == OrderStatus.completed &&
-          _isSameDay(o.orderDate, _selectedDate)
-        ).toList();
+            o.status == OrderStatus.completed &&
+            _isSameDay(o.orderDate, _selectedDate)).toList();
         final revenue = completed.fold(0.0, (sum, o) => sum + o.subtotal);
         final capital = completed.fold(0.0, (sum, o) => sum + o.totalCapital);
         final consumablesCost = inventory.totalConsumablesCost;
         final profit = revenue - capital - consumablesCost;
         return Column(
           children: [
-            _KpiRow(label: 'Total Revenue', value: '₱ ${revenue.toStringAsFixed(2)}', icon: Icons.payments, color: Colors.blue),
+            _KpiRow(
+              label: 'Total Revenue',
+              value: '₱ ${revenue.toStringAsFixed(2)}',
+              icon: Icons.payments,
+              color: Colors.blue,
+            ),
             const SizedBox(height: 12),
-            _KpiRow(label: 'Total Capital', value: '₱ ${capital.toStringAsFixed(2)}', icon: Icons.shopping_bag, color: Colors.blueGrey),
+            _KpiRow(
+              label: 'Total Capital',
+              value: '₱ ${capital.toStringAsFixed(2)}',
+              icon: Icons.shopping_bag,
+              color: Colors.blueGrey,
+            ),
             const SizedBox(height: 12),
-            _KpiRow(label: 'Consumables / Product Loss', value: '₱ ${consumablesCost.toStringAsFixed(2)}', icon: Icons.set_meal_outlined, color: Colors.deepPurple),
+            _KpiRow(
+              label: 'Consumables / Product Loss',
+              value: '₱ ${consumablesCost.toStringAsFixed(2)}',
+              icon: Icons.set_meal_outlined,
+              color: Colors.deepPurple,
+            ),
             const SizedBox(height: 12),
-            _KpiRow(label: 'Net Profit', value: '₱ ${profit.toStringAsFixed(2)}', icon: Icons.trending_up, color: Colors.green),
-          ],
-        );
-
-      case OwnerReportType.paymentReconciliation:
-        final completed = orders.where((o) =>
-          o.status == OrderStatus.completed &&
-          _isSameDay(o.orderDate, _selectedDate)
-        ).toList();
-        final cashTotal = completed.where((o) => o.paymentMethod == PaymentMethod.cashOnDelivery).fold(0.0, (sum, o) => sum + o.subtotal);
-        final gcashTotal = completed.where((o) => o.paymentMethod == PaymentMethod.gCash).fold(0.0, (sum, o) => sum + o.subtotal);
-        return Column(
-          children: [
-            _KpiRow(label: 'Cash Sales', value: '₱ ${cashTotal.toStringAsFixed(2)}', icon: Icons.money, color: Colors.green),
-            const SizedBox(height: 12),
-            _KpiRow(label: 'GCash Sales', value: '₱ ${gcashTotal.toStringAsFixed(2)}', icon: Icons.account_balance_wallet, color: Colors.blue),
-          ],
-        );
-
-      case OwnerReportType.salesChannelComparison:
-        final completed = orders.where((o) =>
-          o.status == OrderStatus.completed &&
-          _isSameDay(o.orderDate, _selectedDate)
-        ).toList();
-        final posSales = completed.where((o) => o.customerName == 'Walk-in' || o.orderId.startsWith('RC-')).fold(0.0, (sum, o) => sum + o.subtotal);
-        final onlineSales = completed.where((o) => o.customerName != 'Walk-in' && !o.orderId.startsWith('RC-')).fold(0.0, (sum, o) => sum + o.subtotal);
-        return Column(
-          children: [
-            _KpiRow(label: 'In-Store (POS) Sales', value: '₱ ${posSales.toStringAsFixed(2)}', icon: Icons.point_of_sale, color: Colors.indigo),
-            const SizedBox(height: 12),
-            _KpiRow(label: 'Online Orders Sales', value: '₱ ${onlineSales.toStringAsFixed(2)}', icon: Icons.shopping_bag, color: Colors.orange),
-          ],
-        );
-
-      case OwnerReportType.inventoryValue:
-        final totalRev = inventory.products.fold(0.0, (sum, p) => sum + p.totalRevenue);
-        final totalCap = inventory.products.fold(0.0, (sum, p) => sum + p.totalCapital);
-        final totalProf = totalRev - totalCap;
-        return Column(
-          children: [
-            _KpiRow(label: 'Potential Revenue', value: '₱ ${totalRev.toStringAsFixed(2)}', icon: Icons.monetization_on, color: Colors.orange),
-            const SizedBox(height: 12),
-            _KpiRow(label: 'Capital Tied Up', value: '₱ ${totalCap.toStringAsFixed(2)}', icon: Icons.account_balance_wallet, color: Colors.blueGrey),
-            const SizedBox(height: 12),
-            _KpiRow(label: 'Potential Profit', value: '₱ ${totalProf.toStringAsFixed(2)}', icon: Icons.show_chart, color: Colors.green),
+            _KpiRow(
+              label: 'Net Profit',
+              value: '₱ ${profit.toStringAsFixed(2)}',
+              icon: Icons.trending_up,
+              color: Colors.green,
+            ),
           ],
         );
 
@@ -279,96 +289,64 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
         final totalLoss = inventory.archivedStock
             .where((a) => a.reason == StockRemovalReason.wastage)
             .fold(0.0, (sum, a) => sum + a.capital);
-        return _KpiRow(label: 'Total Capital Loss', value: '₱ ${totalLoss.toStringAsFixed(2)}', icon: Icons.delete_forever, color: Colors.red);
+        return _KpiRow(
+          label: 'Total Capital Loss',
+          value: '₱ ${totalLoss.toStringAsFixed(2)}',
+          icon: Icons.delete_forever,
+          color: Colors.red,
+        );
 
       case OwnerReportType.consumablesLog:
         final totalCost = inventory.totalConsumablesCost;
-        return _KpiRow(label: 'Total Consumables / Loss Cost', value: '₱ ${totalCost.toStringAsFixed(2)}', icon: Icons.set_meal_outlined, color: Colors.deepPurple);
-
-      case OwnerReportType.restockChecklist:
-        final count = inventory.lowStockProducts.length + inventory.outOfStockProducts.length;
-        return _KpiRow(label: 'Items to Restock', value: '$count items', icon: Icons.warning_amber, color: Colors.red);
-
-      case OwnerReportType.bestSellers:
-        final Map<String, int> qtyMap = {};
-        for (final o in orders.where((o) => o.status == OrderStatus.completed)) {
-          for (final item in o.items) {
-            qtyMap[item.productName] = (qtyMap[item.productName] ?? 0) + item.quantity;
-          }
-        }
-        final sorted = qtyMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-        final topName = sorted.isNotEmpty ? sorted.first.key : 'None yet';
-        return _KpiRow(label: 'Top Selling Item', value: topName, icon: Icons.star, color: Colors.teal);
+        return _KpiRow(
+          label: 'Total Consumables / Loss Cost',
+          value: '₱ ${totalCost.toStringAsFixed(2)}',
+          icon: Icons.set_meal_outlined,
+          color: Colors.deepPurple,
+        );
 
       default:
-        return _KpiRow(label: 'Overall Status', value: 'Healthy', icon: Icons.check_circle_outline, color: AppColors.primaryOrange);
+        return const SizedBox.shrink();
     }
   }
 
-  Widget _buildReportContent(BuildContext context) {
-    final inventory = EmployeeInventoryController.instance;
-    final orders = EmployeeOrderController.instance.orders;
-
+  Widget _buildReportContent(
+    BuildContext context,
+    List<CustomerOrder> orders,
+    EmployeeInventoryController inventory,
+  ) {
     switch (widget.type) {
+      case OwnerReportType.descriptiveAnalytics:
+        return DescriptiveAnalyticsView(
+          orders: orders,
+          inventory: inventory,
+        );
+
+      case OwnerReportType.predictiveAnalytics:
+        return PredictiveAnalyticsView(
+          orders: orders,
+          inventory: inventory,
+        );
+
+      case OwnerReportType.prescriptiveAnalytics:
+        return PrescriptiveAnalyticsView(
+          orders: orders,
+          inventory: inventory,
+        );
+
       case OwnerReportType.dailyRevenue:
         final completed = orders.where((o) =>
-          o.status == OrderStatus.completed &&
-          _isSameDay(o.orderDate, _selectedDate)
-        ).toList();
+            o.status == OrderStatus.completed &&
+            _isSameDay(o.orderDate, _selectedDate)).toList();
         return _TransactionCardList(
           title: 'Completed Transactions',
           orders: completed,
         );
 
-      case OwnerReportType.paymentReconciliation:
-        final completed = orders.where((o) =>
-          o.status == OrderStatus.completed &&
-          _isSameDay(o.orderDate, _selectedDate)
-        ).toList();
-        return _TransactionCardList(
-          title: 'Payment Breakdown',
-          orders: completed,
-        );
-
-      case OwnerReportType.salesChannelComparison:
-        final completed = orders.where((o) =>
-          o.status == OrderStatus.completed &&
-          _isSameDay(o.orderDate, _selectedDate)
-        ).toList();
-        return _TransactionCardList(
-          title: 'Channel Sales History',
-          orders: completed,
-        );
-
-      case OwnerReportType.restockChecklist:
-        final items = [...inventory.outOfStockProducts, ...inventory.lowStockProducts];
-        return _ReportTable(
-          title: 'Items Requiring Attention',
-          columns: const ['Product', 'Stock', 'Threshold'],
-          flexes: const [2, 1, 1],
-          rows: items.map((p) => [
-            p.name,
-            '${p.quantity} pcs',
-            '${p.lowStockThreshold} pcs',
-          ]).toList(),
-        );
-
-      case OwnerReportType.inventoryValue:
-        return _ReportTable(
-          title: 'Value Breakdown by Product',
-          columns: const ['Product', 'Capital', 'Revenue', 'Profit'],
-          flexes: const [2, 1, 1, 1],
-          rows: inventory.products.map((p) => [
-            p.name,
-            '₱${p.totalCapital.toStringAsFixed(2)}',
-            '₱${p.totalRevenue.toStringAsFixed(2)}',
-            '₱${p.totalProfit.toStringAsFixed(2)}',
-          ]).toList(),
-        );
-
       case OwnerReportType.wastageLog:
-        final archived =
-        inventory.archivedStock.where((a) => a.reason == StockRemovalReason.wastage).toList();
+        final archived = inventory.archivedStock
+            .where((a) => a.reason == StockRemovalReason.wastage)
+            .toList();
         return _ReportTable(
           title: 'Archive & Loss History',
           columns: const ['Item', 'Qty', 'Loss (Cap)'],
@@ -395,70 +373,18 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
             '₱${a.capital.toStringAsFixed(2)}',
           ]).toList(),
         );
-
-      case OwnerReportType.bestSellers:
-        final Map<String, int> qtyMap = {};
-        final Map<String, double> revMap = {};
-        for (final o in orders.where((o) => o.status == OrderStatus.completed)) {
-          for (final item in o.items) {
-            qtyMap[item.productName] = (qtyMap[item.productName] ?? 0) + item.quantity;
-            revMap[item.productName] = (revMap[item.productName] ?? 0.0) + item.subtotal;
-          }
-        }
-        final sorted = qtyMap.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-        return _ReportTable(
-          title: 'Best Selling Products',
-          columns: const ['Product', 'Units Sold', 'Total Revenue'],
-          flexes: const [2, 1, 1],
-          rows: sorted.map((e) => [
-            e.key,
-            '${e.value} pcs',
-            '₱${(revMap[e.key] ?? 0.0).toStringAsFixed(2)}',
-          ]).toList(),
-        );
-
-      case OwnerReportType.slowMoving:
-        final soldNames = orders.where((o) => o.status == OrderStatus.completed)
-            .expand((o) => o.items)
-            .map((i) => i.productName)
-            .toSet();
-        final slow = inventory.products.where((p) => !soldNames.contains(p.name)).toList();
-        return _ReportTable(
-          title: 'Slow-Moving / Unsold Items',
-          columns: const ['Product', 'Stock', 'Price'],
-          flexes: const [2, 1, 1],
-          rows: slow.map((p) => [
-            p.name,
-            '${p.quantity} pcs',
-            '₱${p.price.toStringAsFixed(2)}',
-          ]).toList(),
-        );
-
-      case OwnerReportType.categoryPerformance:
-        final Map<String, double> catRev = {};
-        for (final o in orders.where((o) => o.status == OrderStatus.completed)) {
-          for (final item in o.items) {
-            final prod = inventory.findById(item.productId);
-            final cat = prod?.category ?? 'General';
-            catRev[cat] = (catRev[cat] ?? 0.0) + item.subtotal;
-          }
-        }
-        final sorted = catRev.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-        return _ReportTable(
-          title: 'Sales by Category',
-          columns: const ['Category', 'Total Revenue'],
-          flexes: const [2, 1],
-          rows: sorted.map((e) => [
-            e.key,
-            '₱${e.value.toStringAsFixed(2)}',
-          ]).toList(),
-        );
     }
   }
 }
 
 class _KpiRow extends StatelessWidget {
-  const _KpiRow({required this.label, required this.value, required this.icon, required this.color});
+  const _KpiRow({
+    required this.label,
+    required this.value,
+    required this.icon,
+    required this.color,
+  });
+
   final String label;
   final String value;
   final IconData icon;
@@ -470,16 +396,39 @@ class _KpiRow extends StatelessWidget {
       children: [
         Container(
           padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(color: color.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(12)),
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.1),
+            borderRadius: BorderRadius.circular(12),
+          ),
           child: Icon(icon, color: color, size: 24),
         ),
         const SizedBox(width: 16),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(label, style: const TextStyle(color: AppColors.secondaryText, fontSize: 12, fontWeight: FontWeight.w500)),
-            Text(value, style: const TextStyle(color: AppColors.darkText, fontSize: 24, fontWeight: FontWeight.w900)),
-          ],
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                label,
+                style: const TextStyle(
+                  color: AppColors.secondaryText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  value,
+                  style: const TextStyle(
+                    color: AppColors.darkText,
+                    fontSize: 22,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -497,7 +446,10 @@ class _TransactionCardList extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(title, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkText)),
+        Text(
+          title,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkText),
+        ),
         const SizedBox(height: 16),
         if (orders.isEmpty)
           Container(
@@ -509,7 +461,10 @@ class _TransactionCardList extends StatelessWidget {
               border: Border.all(color: AppColors.borderColor.withValues(alpha: 0.5)),
             ),
             child: const Center(
-              child: Text('No records found for this period.', style: TextStyle(color: AppColors.secondaryText, fontSize: 13)),
+              child: Text(
+                'No records found for this period.',
+                style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+              ),
             ),
           )
         else
@@ -517,7 +472,8 @@ class _TransactionCardList extends StatelessWidget {
             final productsText = o.items.isNotEmpty
                 ? o.items.map((i) => '${i.productName} (${i.quantity}x)').join(', ')
                 : 'Walk-in Sale';
-            final timeStr = '${o.orderDate.hour.toString().padLeft(2, '0')}:${o.orderDate.minute.toString().padLeft(2, '0')}';
+            final timeStr =
+                '${o.orderDate.hour.toString().padLeft(2, '0')}:${o.orderDate.minute.toString().padLeft(2, '0')}';
 
             return Padding(
               padding: const EdgeInsets.only(bottom: 12),
@@ -528,7 +484,11 @@ class _TransactionCardList extends StatelessWidget {
                   borderRadius: BorderRadius.circular(20),
                   border: Border.all(color: AppColors.borderColor.withValues(alpha: 0.5)),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withValues(alpha: 0.02), blurRadius: 8, offset: const Offset(0, 3)),
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
                   ],
                 ),
                 child: Column(
@@ -614,15 +574,27 @@ class _TransactionCardList extends StatelessWidget {
                           Row(
                             children: [
                               const Text('Capital: ', style: TextStyle(fontSize: 12, color: AppColors.secondaryText)),
-                              Text('₱${o.totalCapital.toStringAsFixed(2)}',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.darkText)),
+                              Text(
+                                '₱${o.totalCapital.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.darkText,
+                                ),
+                              ),
                             ],
                           ),
                           Row(
                             children: [
                               const Text('Net Profit: ', style: TextStyle(fontSize: 12, color: AppColors.secondaryText)),
-                              Text('₱${o.totalProfit.toStringAsFixed(2)}',
-                                  style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.green)),
+                              Text(
+                                '₱${o.totalProfit.toStringAsFixed(2)}',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green,
+                                ),
+                              ),
                             ],
                           ),
                         ],
@@ -681,7 +653,11 @@ class _ReportTable extends StatelessWidget {
                       flex: flex,
                       child: Text(
                         columns[i],
-                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppColors.secondaryText),
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w800,
+                          color: AppColors.secondaryText,
+                        ),
                       ),
                     );
                   }),
@@ -691,7 +667,10 @@ class _ReportTable extends StatelessWidget {
               if (rows.isEmpty)
                 const Padding(
                   padding: EdgeInsets.all(24),
-                  child: Text('No records found for this period.', style: TextStyle(color: AppColors.secondaryText, fontSize: 13)),
+                  child: Text(
+                    'No records found for this period.',
+                    style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+                  ),
                 )
               else
                 ...List.generate(rows.length, (index) {
@@ -700,7 +679,11 @@ class _ReportTable extends StatelessWidget {
                   return Container(
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
                     decoration: BoxDecoration(
-                      border: isLast ? null : Border(bottom: BorderSide(color: AppColors.borderColor.withValues(alpha: 0.3))),
+                      border: isLast
+                          ? null
+                          : Border(
+                              bottom: BorderSide(color: AppColors.borderColor.withValues(alpha: 0.3)),
+                            ),
                     ),
                     child: Row(
                       children: List.generate(row.length, (i) {
@@ -709,7 +692,11 @@ class _ReportTable extends StatelessWidget {
                           flex: flex,
                           child: Text(
                             row[i],
-                            style: const TextStyle(fontSize: 13, color: AppColors.darkText, fontWeight: FontWeight.w500),
+                            style: const TextStyle(
+                              fontSize: 13,
+                              color: AppColors.darkText,
+                              fontWeight: FontWeight.w500,
+                            ),
                           ),
                         );
                       }),

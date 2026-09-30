@@ -10,10 +10,17 @@ import 'package:sari_sari/users/owner_db/home/owner_home_page.dart';
 import 'package:sari_sari/users/owner_db/inventory/owner_inventory_page.dart';
 import 'package:sari_sari/users/employee_db/inventory/employee_expiring_products_page.dart';
 import 'package:sari_sari/users/owner_db/profile/owner_profile_page.dart';
+import 'package:sari_sari/users/employee_db/orders/employee_order_details_page.dart';
 import 'package:sari_sari/users/employee_db/orders/employee_orders_controller.dart';
 import 'package:sari_sari/users/employee_db/orders/employee_orders_page.dart';
 import 'package:sari_sari/users/employee_db/messages/employee_messages_controller.dart';
 import 'package:sari_sari/users/employee_db/notifications/employee_notifications_controller.dart';
+
+import 'package:sari_sari/core/services/dashboard_navigation_controller.dart';
+import 'package:sari_sari/users/employee_db/inventory/employee_batch_detail_sheet.dart';
+import 'package:sari_sari/users/employee_db/inventory/employee_edit_product_page.dart';
+import 'package:sari_sari/users/employee_db/inventory/employee_archive_stock_dialog.dart';
+import 'package:sari_sari/users/employee_db/inventory/employee_consume_stock_dialog.dart';
 
 class OwnerDashboard extends StatefulWidget {
   const OwnerDashboard({super.key});
@@ -31,6 +38,100 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   final _notificationsController = EmployeeNotificationsController.instance;
 
   bool _isNavBarVisible = true;
+
+  @override
+  void initState() {
+    super.initState();
+    DashboardNavigationController.instance.addListener(_handleNavigationRequest);
+  }
+
+  @override
+  void dispose() {
+    DashboardNavigationController.instance.removeListener(_handleNavigationRequest);
+    _posController.dispose();
+    super.dispose();
+  }
+
+  void _handleNavigationRequest() {
+    final nav = DashboardNavigationController.instance;
+    final targetIndex = nav.requestedIndex;
+    final pendingProduct = nav.pendingProductForDetail;
+    final pendingOrder = nav.pendingOrderForDetail;
+
+    if (targetIndex != null) {
+      setState(() => _selectedIndex = targetIndex);
+    }
+
+    if (pendingOrder != null) {
+      nav.consumePendingRequest();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EmployeeOrderDetailsPage(
+                order: pendingOrder,
+                controller: _ordersController,
+              ),
+            ),
+          );
+        }
+      });
+      return;
+    }
+
+    if (pendingProduct != null) {
+      nav.consumePendingRequest();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (sheetContext) => EmployeeBatchDetailSheet(
+              product: pendingProduct,
+              inventory: _inventoryController,
+              onEditProduct: () {
+                Navigator.pop(sheetContext);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => EmployeeEditProductPage(
+                      inventory: _inventoryController,
+                      product: pendingProduct,
+                    ),
+                  ),
+                );
+              },
+              onArchiveProduct: () {
+                Navigator.pop(sheetContext);
+                showDialog(
+                  context: context,
+                  builder: (context) => EmployeeArchiveStockDialog(
+                    product: pendingProduct,
+                    inventory: _inventoryController,
+                  ),
+                );
+              },
+              onConsumeProduct: () {
+                Navigator.pop(sheetContext);
+                showDialog(
+                  context: context,
+                  builder: (context) => EmployeeConsumeStockDialog(
+                    product: pendingProduct,
+                    inventory: _inventoryController,
+                    role: 'Owner',
+                  ),
+                );
+              },
+            ),
+          );
+        }
+      });
+    } else if (targetIndex != null) {
+      nav.consumePendingRequest();
+    }
+  }
 
   void _onDestinationSelected(int index) {
     if (index == _selectedIndex) return;
@@ -54,11 +155,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     return false;
   }
 
-  @override
-  void dispose() {
-    _posController.dispose();
-    super.dispose();
-  }
+
 
   @override
   Widget build(BuildContext context) {

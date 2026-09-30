@@ -1,14 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
+import '../../core/services/dashboard_navigation_controller.dart';
 import '../../core/theme/app_colors.dart';
 import 'employee_floating_nav_bar.dart';
 import 'employee_inventory_controller.dart';
 import 'home/employee_home_page.dart';
 import 'inventory/employee_inventory_page.dart';
 import 'inventory/employee_expiring_products_page.dart';
+import 'inventory/employee_batch_detail_sheet.dart';
+import 'inventory/employee_edit_product_page.dart';
+import 'inventory/employee_archive_stock_dialog.dart';
+import 'inventory/employee_consume_stock_dialog.dart';
 import 'messages/employee_messages_controller.dart';
 import 'notifications/employee_notifications_controller.dart';
+import 'orders/employee_order_details_page.dart';
 import 'orders/employee_orders_controller.dart';
 import 'orders/employee_orders_page.dart';
 import 'pos/employee_pos_controller.dart';
@@ -44,6 +50,99 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   // [_handleScrollNotification] as the active tab's content scrolls.
   bool _isNavBarVisible = true;
 
+  @override
+  void initState() {
+    super.initState();
+    DashboardNavigationController.instance.addListener(_handleNavigationRequest);
+  }
+
+  @override
+  void dispose() {
+    DashboardNavigationController.instance.removeListener(_handleNavigationRequest);
+    _posController.dispose();
+    super.dispose();
+  }
+
+  void _handleNavigationRequest() {
+    final nav = DashboardNavigationController.instance;
+    final targetIndex = nav.requestedIndex;
+    final pendingProduct = nav.pendingProductForDetail;
+    final pendingOrder = nav.pendingOrderForDetail;
+
+    if (targetIndex != null) {
+      setState(() => _selectedIndex = targetIndex);
+    }
+
+    if (pendingOrder != null) {
+      nav.consumePendingRequest();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => EmployeeOrderDetailsPage(
+                order: pendingOrder,
+                controller: _ordersController,
+              ),
+            ),
+          );
+        }
+      });
+      return;
+    }
+
+    if (pendingProduct != null) {
+      nav.consumePendingRequest();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) {
+          showModalBottomSheet(
+            context: context,
+            isScrollControlled: true,
+            backgroundColor: Colors.transparent,
+            builder: (sheetContext) => EmployeeBatchDetailSheet(
+              product: pendingProduct,
+              inventory: _inventoryController,
+              onEditProduct: () {
+                Navigator.pop(sheetContext);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => EmployeeEditProductPage(
+                      inventory: _inventoryController,
+                      product: pendingProduct,
+                    ),
+                  ),
+                );
+              },
+              onArchiveProduct: () {
+                Navigator.pop(sheetContext);
+                showDialog(
+                  context: context,
+                  builder: (context) => EmployeeArchiveStockDialog(
+                    product: pendingProduct,
+                    inventory: _inventoryController,
+                  ),
+                );
+              },
+              onConsumeProduct: () {
+                Navigator.pop(sheetContext);
+                showDialog(
+                  context: context,
+                  builder: (context) => EmployeeConsumeStockDialog(
+                    product: pendingProduct,
+                    inventory: _inventoryController,
+                  ),
+                );
+              },
+            ),
+          );
+        }
+      });
+    } else if (targetIndex != null) {
+      nav.consumePendingRequest();
+    }
+  }
+
   List<Widget> get _pages => [
     EmployeeHomePage(
       inventory: _inventoryController,
@@ -65,11 +164,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     const EmployeeProfilePage(),
   ];
 
-  @override
-  void dispose() {
-    _posController.dispose();
-    super.dispose();
-  }
+
 
   static const Duration _navBarAnimationDuration = Duration(milliseconds: 260);
 

@@ -1,5 +1,6 @@
 import 'dart:math';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import '../../core/theme/app_colors.dart';
 import '../../authentication/login/login_page.dart';
@@ -525,7 +526,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     final priceController = TextEditingController(text: product?.price != null ? product!.price.toString() : '');
     final costController = TextEditingController(text: product?.cost != null ? product!.cost.toString() : '');
     final quantityController = TextEditingController(text: product?.quantity != null ? product!.quantity.toString() : '1');
-    final thresholdController = TextEditingController(text: product?.lowStockThreshold != null ? product!.lowStockThreshold.toString() : '5');
+    final thresholdController = TextEditingController(text: product?.lowStockThreshold != null ? product!.lowStockThreshold.round().clamp(0, 99).toString() : '5');
 
     // Bulk Purchase Entry Calculator
     bool isBulkMode = false;
@@ -1003,11 +1004,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                           Expanded(
                                             child: TextFormField(
                                               controller: thresholdController,
-                                              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                              keyboardType: TextInputType.number,
+                                              inputFormatters: [
+                                                FilteringTextInputFormatter.digitsOnly,
+                                                LengthLimitingTextInputFormatter(2),
+                                              ],
                                               decoration: const InputDecoration(
                                                 labelText: 'Low Stock Limit',
                                                 hintText: '5',
+                                                helperText: 'Max 2 digits (0-99)',
                                               ),
+                                              validator: (val) {
+                                                if (val != null && val.isNotEmpty) {
+                                                  final num = int.tryParse(val);
+                                                  if (num == null || num < 0 || num > 99) {
+                                                    return '0 - 99 only';
+                                                  }
+                                                }
+                                                return null;
+                                              },
                                             ),
                                           ),
                                         ],
@@ -1151,7 +1166,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                             final price = double.tryParse(priceController.text.trim()) ?? 0.0;
                             final cost = double.tryParse(costController.text.trim()) ?? 0.0;
                             final qty = double.tryParse(quantityController.text.trim()) ?? 0.0;
-                            final threshold = double.tryParse(thresholdController.text.trim()) ?? 5.0;
+                            final threshold = (double.tryParse(thresholdController.text.trim()) ?? 5.0).clamp(0.0, 99.0);
 
                             try {
                               String? error;

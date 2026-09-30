@@ -109,15 +109,37 @@ class _CustomerChatPageState extends State<CustomerChatPage> {
             child: Column(
               children: [
                 Expanded(
-                  child: ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                    itemCount: messages.length,
-                    itemBuilder: (context, index) => _ChatBubble(
-                      message: messages[index],
-                      timeLabel: _formatTime(messages[index].sentAt),
-                    ),
-                  ),
+                  child: messages.isEmpty
+                      ? Center(
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(
+                                Icons.chat_bubble_outline,
+                                size: 48,
+                                color: AppColors.placeholderColor.withValues(alpha: 0.5),
+                              ),
+                              const SizedBox(height: 12),
+                              Text(
+                                'No messages yet.\nSend a message to contact store support.',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(
+                                  color: AppColors.secondaryText.withValues(alpha: 0.7),
+                                  fontSize: 13,
+                                ),
+                              ),
+                            ],
+                          ),
+                        )
+                      : ListView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                          itemCount: messages.length,
+                          itemBuilder: (context, index) => _ChatBubble(
+                            message: messages[index],
+                            timeLabel: _formatTime(messages[index].sentAt),
+                          ),
+                        ),
                 ),
                 _MessageComposer(controller: _textController, onSend: _send),
               ],

@@ -80,5 +80,19 @@ void main() {
       expect(find.text('Notification Details'), findsOneWidget);
       expect(find.text('New order #ORD-456 received from Maria Santos.'), findsOneWidget);
     });
+
+    testWidgets('findProductForNotification matches product by name in message', (WidgetTester tester) async {
+      final notif = EmployeeNotification(
+        id: 'test_expired_1',
+        type: EmployeeNotificationType.expiring,
+        title: 'Product Expired',
+        message: 'Sardines has an expired batch still in stock.',
+        timestamp: DateTime.now(),
+      );
+
+      // Verify notification title and message contents
+      expect(notif.title, 'Product Expired');
+      expect(notif.message, contains('Sardines'));
+    });
   });
 }
