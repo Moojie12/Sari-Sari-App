@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 
@@ -104,15 +105,46 @@ class SaleDealModel {
     this.updatedAt,
   });
 
-  /// Returns the custom promo image, or falls back to the first item image with a photo
+  /// Returns the custom promo image, or falls back to the first item image with a valid photo
   String? get effectiveImage {
-    if (image != null && image!.trim().isNotEmpty) {
-      return image;
+    final promoImg = _validDisplayImage(image);
+    if (promoImg != null) {
+      return promoImg;
     }
     for (final item in items) {
-      if (item.image != null && item.image!.trim().isNotEmpty) {
-        return item.image;
+      final itemImg = _validDisplayImage(item.image);
+      if (itemImg != null) {
+        return itemImg;
       }
+    }
+    return null;
+  }
+
+  static String? _validDisplayImage(String? img) {
+    if (img == null) return null;
+    final trimmed = img.trim();
+    if (trimmed.isEmpty) return null;
+
+    // Remote network URLs, Base64 data URIs, and assets are universally valid across devices
+    if (trimmed.startsWith('http://') ||
+        trimmed.startsWith('https://') ||
+        trimmed.startsWith('data:image/') ||
+        trimmed.startsWith('assets/')) {
+      return trimmed;
+    }
+
+    // Local file path: only valid if it actually exists on THIS device.
+    // If it's a local device path from another device (/data/user/0/...), return null to fall back!
+    if (!kIsWeb) {
+      String cleanPath = trimmed;
+      if (cleanPath.startsWith('file://')) {
+        cleanPath = cleanPath.substring(7);
+      }
+      try {
+        if (File(cleanPath).existsSync()) {
+          return cleanPath;
+        }
+      } catch (_) {}
     }
     return null;
   }

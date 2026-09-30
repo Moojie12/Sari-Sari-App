@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -1067,22 +1069,39 @@ class _OwnerEditSaleDealPageState extends State<OwnerEditSaleDealPage> {
     // Show quick feedback that deal is being processed
     TopNotification.show(context, 'Saving sale deal...');
 
-    String? finalImageUrl = _imagePath;
-    if (_imagePath != null &&
-        _imagePath!.isNotEmpty &&
-        !_imagePath!.startsWith('http') &&
-        !_imagePath!.startsWith('data:image')) {
-      try {
-        final uploadedUrl = await SupabaseService().uploadProductImageFromPathOrBytes(
-          productId: 'deal_$dealId',
-          filePath: _imagePath,
-        );
-        if (uploadedUrl != null && uploadedUrl.isNotEmpty) {
-          finalImageUrl = uploadedUrl;
-          debugPrint('Sale deal promo image uploaded: $finalImageUrl');
+    String? finalImageUrl;
+    if (_imagePath != null && _imagePath!.trim().isNotEmpty) {
+      final trimmedPath = _imagePath!.trim();
+      if (trimmedPath.startsWith('http://') ||
+          trimmedPath.startsWith('https://') ||
+          trimmedPath.startsWith('data:image/')) {
+        finalImageUrl = trimmedPath;
+      } else {
+        try {
+          final uploadedUrl = await SupabaseService().uploadProductImageFromPathOrBytes(
+            productId: 'deal_$dealId',
+            filePath: trimmedPath,
+          );
+          if (uploadedUrl != null &&
+              uploadedUrl.isNotEmpty &&
+              !uploadedUrl.startsWith('/') &&
+              !uploadedUrl.startsWith('file://')) {
+            finalImageUrl = uploadedUrl;
+            debugPrint('Sale deal promo image uploaded: $finalImageUrl');
+          } else {
+            // Absolute safety fallback: convert file bytes directly to Base64 data URI
+            String cleanPath = trimmedPath;
+            if (cleanPath.startsWith('file://')) cleanPath = cleanPath.substring(7);
+            final file = File(cleanPath);
+            if (await file.exists()) {
+              final bytes = await file.readAsBytes();
+              final ext = cleanPath.endsWith('.png') ? 'png' : 'jpg';
+              finalImageUrl = 'data:image/$ext;base64,${base64Encode(bytes)}';
+            }
+          }
+        } catch (e) {
+          debugPrint('Error uploading deal image: $e');
         }
-      } catch (e) {
-        debugPrint('Error uploading deal image: $e');
       }
     }
 

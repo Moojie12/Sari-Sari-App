@@ -195,7 +195,9 @@ class CustomerProfileController extends ChangeNotifier {
       if (!photoPath.startsWith('http://') &&
           !photoPath.startsWith('https://') &&
           !photoPath.startsWith('data:image')) {
-        final file = File(photoPath);
+        String cleanPath = photoPath.trim();
+        if (cleanPath.startsWith('file://')) cleanPath = cleanPath.substring(7);
+        final file = File(cleanPath);
         final uploadedUrl = await UserProfileSyncService().uploadAvatar(
           uid: user.uid,
           file: file,

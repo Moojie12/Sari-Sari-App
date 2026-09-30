@@ -101,15 +101,19 @@ class UserProfileSyncService {
   /// 3. Falls back to Base64 data URI
   Future<String?> uploadAvatar({required String uid, required File file}) async {
     try {
-      if (!await file.exists()) return null;
+      String cleanPath = file.path.trim();
+      if (cleanPath.startsWith('file://')) cleanPath = cleanPath.substring(7);
+      final cleanFile = File(cleanPath);
 
-      final fileSize = await file.length();
+      if (!await cleanFile.exists()) return null;
+
+      final fileSize = await cleanFile.length();
       const maxBytes = 5 * 1024 * 1024; // 5 MB
       if (fileSize > maxBytes) {
         throw Exception('Image size exceeds 5MB limit.');
       }
 
-      final ext = file.path.split('.').last.toLowerCase();
+      final ext = cleanPath.split('.').last.toLowerCase();
       final validExt = (ext == 'png' || ext == 'webp') ? ext : 'jpg';
       final fileName = '${uid}_${DateTime.now().millisecondsSinceEpoch}.$validExt';
       final storagePath = 'avatars/$uid/$fileName';
@@ -118,7 +122,7 @@ class UserProfileSyncService {
       try {
         final ref = FirebaseStorage.instance.ref().child(storagePath);
         await ref.putFile(
-          file,
+          cleanFile,
           SettableMetadata(contentType: 'image/$validExt'),
         );
         final downloadUrl = await ref.getDownloadURL();
@@ -130,7 +134,7 @@ class UserProfileSyncService {
 
       // 2. Try Supabase Storage
       try {
-        final sbUrl = await SupabaseService().uploadProfileAvatar(uid, file);
+        final sbUrl = await SupabaseService().uploadProfileAvatar(uid, cleanFile);
         if (sbUrl != null && sbUrl.isNotEmpty) {
           debugPrint('[UserProfileSyncService] Uploaded to Supabase Storage: $sbUrl');
           return sbUrl;

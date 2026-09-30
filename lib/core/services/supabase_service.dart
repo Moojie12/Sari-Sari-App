@@ -1362,17 +1362,28 @@ class SupabaseService {
   /// with automatic fallback to Firebase Storage or Base64 database data.
   Future<String?> uploadProfileAvatar(String userId, File file) async {
     try {
-      final fileSize = await file.length();
+      String cleanPath = file.path.trim();
+      if (cleanPath.startsWith('file://')) {
+        cleanPath = cleanPath.substring(7);
+      }
+      final cleanFile = File(cleanPath);
+
+      if (!await cleanFile.exists()) {
+        debugPrint('Profile avatar file does not exist at $cleanPath');
+        return null;
+      }
+
+      final fileSize = await cleanFile.length();
       const maxBytes = 5 * 1024 * 1024; // 5MB limit
       if (fileSize > maxBytes) {
         throw Exception('Image size exceeds 5MB limit.');
       }
 
-      final ext = file.path.split('.').last.toLowerCase();
+      final ext = cleanPath.split('.').last.toLowerCase();
       final validExt = (ext == 'png' || ext == 'webp') ? ext : 'jpg';
       final fileName = '${userId}_${DateTime.now().millisecondsSinceEpoch}.$validExt';
       final storagePath = '$userId/$fileName';
-      final bytes = await file.readAsBytes();
+      final bytes = await cleanFile.readAsBytes();
 
       // 1. Try Supabase Storage 'avatars' bucket
       try {
@@ -1385,7 +1396,7 @@ class SupabaseService {
           ),
         );
         final publicUrl = _client.storage.from('avatars').getPublicUrl(storagePath);
-        return publicUrl;
+        if (publicUrl.isNotEmpty) return publicUrl;
       } catch (storageError) {
         debugPrint('Supabase storage upload error: $storageError');
       }
@@ -1398,7 +1409,7 @@ class SupabaseService {
           SettableMetadata(contentType: 'image/$validExt'),
         );
         final downloadUrl = await ref.getDownloadURL();
-        return downloadUrl;
+        if (downloadUrl.isNotEmpty) return downloadUrl;
       } catch (fbError) {
         debugPrint('Firebase storage upload error: $fbError');
       }
@@ -1422,29 +1433,41 @@ class SupabaseService {
     Uint8List? bytes,
   }) async {
     try {
-      Uint8List imageBytes;
+      Uint8List? imageBytes = bytes;
       String validExt = 'jpg';
 
-      if (bytes != null && bytes.isNotEmpty) {
-        imageBytes = bytes;
-      } else if (filePath != null && filePath.isNotEmpty) {
-        if (!kIsWeb) {
-          final file = File(filePath);
-          if (!await file.exists()) {
-            debugPrint('Product image file does not exist at $filePath');
-            return null;
-          }
-          imageBytes = await file.readAsBytes();
-        } else {
-          // On Web, data URIs or network URLs are handled directly
-          if (filePath.startsWith('http') || filePath.startsWith('data:image')) {
-            return filePath;
-          }
-          return filePath;
+      if (filePath != null && filePath.trim().isNotEmpty) {
+        final trimmedPath = filePath.trim();
+
+        // 1. If already a network URL or Base64 data URI, return as-is
+        if (trimmedPath.startsWith('http://') ||
+            trimmedPath.startsWith('https://') ||
+            trimmedPath.startsWith('data:image/')) {
+          return trimmedPath;
         }
-        final ext = filePath.split('.').last.toLowerCase();
+
+        // 2. Clean file:// prefix if present
+        String cleanPath = trimmedPath;
+        if (cleanPath.startsWith('file://')) {
+          cleanPath = cleanPath.substring(7);
+        }
+
+        final ext = cleanPath.split('.').last.toLowerCase();
         if (ext == 'png' || ext == 'webp') validExt = ext;
-      } else {
+
+        if (imageBytes == null || imageBytes.isEmpty) {
+          if (!kIsWeb) {
+            final file = File(cleanPath);
+            if (!await file.exists()) {
+              debugPrint('Product image file does not exist at $cleanPath');
+              return null;
+            }
+            imageBytes = await file.readAsBytes();
+          }
+        }
+      }
+
+      if (imageBytes == null || imageBytes.isEmpty) {
         return null;
       }
 
@@ -1468,8 +1491,10 @@ class SupabaseService {
           ),
         );
         final publicUrl = _client.storage.from('products').getPublicUrl(storagePath);
-        debugPrint('Successfully uploaded product image to Supabase storage: $publicUrl');
-        return publicUrl;
+        if (publicUrl.isNotEmpty) {
+          debugPrint('Successfully uploaded product image to Supabase storage: $publicUrl');
+          return publicUrl;
+        }
       } catch (storageError) {
         debugPrint('Supabase storage product upload error: $storageError');
       }
@@ -1482,15 +1507,19 @@ class SupabaseService {
           SettableMetadata(contentType: 'image/$validExt'),
         );
         final downloadUrl = await ref.getDownloadURL();
-        debugPrint('Successfully uploaded product image to Firebase storage: $downloadUrl');
-        return downloadUrl;
+        if (downloadUrl.isNotEmpty) {
+          debugPrint('Successfully uploaded product image to Firebase storage: $downloadUrl');
+          return downloadUrl;
+        }
       } catch (fbError) {
         debugPrint('Firebase storage product upload error: $fbError');
       }
 
-      // 3. Fallback to Base64 data URI
+      // 3. Robust Fallback: Base64 data URI
       final base64String = base64Encode(imageBytes);
-      return 'data:image/$validExt;base64,$base64String';
+      final dataUri = 'data:image/$validExt;base64,$base64String';
+      debugPrint('Fallback product image to Base64 URI');
+      return dataUri;
     } catch (e) {
       debugPrint('Failed to upload product image: $e');
       return null;

@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -291,19 +293,39 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
     if (!mounted) return;
 
     setState(() => _isSaving = true);
-    String? finalImageUrl = _imagePath;
-    if (_imagePath != null && _imagePath != widget.product.image && !_imagePath!.startsWith('http') && !_imagePath!.startsWith('data:image')) {
-      try {
-        final uploadedUrl = await SupabaseService().uploadProductImageFromPathOrBytes(
-          productId: widget.product.id,
-          filePath: _imagePath,
-        );
-        if (uploadedUrl != null) {
-          finalImageUrl = uploadedUrl;
-          debugPrint('Edited product photo uploaded to Supabase: $finalImageUrl');
+    String? finalImageUrl;
+    if (_imagePath != null && _imagePath!.trim().isNotEmpty) {
+      final trimmedPath = _imagePath!.trim();
+      if (trimmedPath.startsWith('http://') ||
+          trimmedPath.startsWith('https://') ||
+          trimmedPath.startsWith('data:image/')) {
+        finalImageUrl = trimmedPath;
+      } else {
+        try {
+          final uploadedUrl = await SupabaseService().uploadProductImageFromPathOrBytes(
+            productId: widget.product.id,
+            filePath: trimmedPath,
+          );
+          if (uploadedUrl != null &&
+              uploadedUrl.isNotEmpty &&
+              !uploadedUrl.startsWith('/') &&
+              !uploadedUrl.startsWith('file://')) {
+            finalImageUrl = uploadedUrl;
+            debugPrint('Edited product photo uploaded to Supabase: $finalImageUrl');
+          } else {
+            // Absolute safety fallback: convert file bytes directly to Base64 data URI
+            String cleanPath = trimmedPath;
+            if (cleanPath.startsWith('file://')) cleanPath = cleanPath.substring(7);
+            final file = File(cleanPath);
+            if (await file.exists()) {
+              final bytes = await file.readAsBytes();
+              final ext = cleanPath.endsWith('.png') ? 'png' : 'jpg';
+              finalImageUrl = 'data:image/$ext;base64,${base64Encode(bytes)}';
+            }
+          }
+        } catch (e) {
+          debugPrint('Error uploading edited product photo to Supabase: $e');
         }
-      } catch (e) {
-        debugPrint('Error uploading edited product photo to Supabase: $e');
       }
     }
 

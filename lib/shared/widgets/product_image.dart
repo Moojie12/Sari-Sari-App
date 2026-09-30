@@ -118,7 +118,11 @@ class ProductImage extends StatelessWidget {
 
     // 5. Local File Path (Mobile / Desktop)
     try {
-      final file = File(img);
+      String cleanPath = img;
+      if (cleanPath.startsWith('file://')) {
+        cleanPath = cleanPath.substring(7);
+      }
+      final file = File(cleanPath);
       if (file.existsSync()) {
         return Image.file(
           file,
