@@ -17,7 +17,7 @@ class ChatDatabaseService {
   Future<void> sendMessage({
     required String customerId,
     required String customerName,
-    required String sender, // 'customer' or 'employee'
+    required String sender, // 'customer', 'employee', 'owner'
     required String text,
     String? avatarUrl,
   }) async {
@@ -50,7 +50,7 @@ class ChatDatabaseService {
       }
       await metaRef.update(metaData);
 
-      debugPrint('Live chat message sent to Firebase for customer $customerId');
+      debugPrint('Live chat message sent to Firebase for customer $customerId by $sender');
     } catch (e) {
       debugPrint('Failed to send live chat message to database: $e');
     }
@@ -77,12 +77,12 @@ class ChatDatabaseService {
 
         rawMap.forEach((key, val) {
           if (val is Map) {
-            final senderRole = val['sender']?.toString() ?? 'customer';
-            
-            // If employee view: 'employee' is me, 'customer' is them
-            // If customer view: 'customer' is me, 'employee' is them
+            final senderRole = val['sender']?.toString().toLowerCase() ?? 'customer';
+
+            // If employee or owner view: 'employee'/'owner'/'staff'/'me' is me, 'customer' is them
+            // If customer view: 'customer'/'me' is me, 'employee'/'owner'/'staff' is them
             final bool isMe = isEmployeeView
-                ? (senderRole == 'employee' || senderRole == 'me')
+                ? (senderRole == 'employee' || senderRole == 'owner' || senderRole == 'me' || senderRole == 'staff')
                 : (senderRole == 'customer' || senderRole == 'me');
 
             list.add(
@@ -127,7 +127,7 @@ class ChatDatabaseService {
             final meta = val['meta'];
             final messagesMap = val['messages'];
 
-            String customerName = 'Customer $customerId';
+            String customerName = 'Customer ${customerId.length > 6 ? customerId.substring(0, 6) : customerId}';
             String? avatarUrl;
             if (meta is Map) {
               customerName = meta['customerName']?.toString() ?? customerName;
@@ -139,8 +139,8 @@ class ChatDatabaseService {
             if (messagesMap is Map) {
               messagesMap.forEach((msgKey, msgVal) {
                 if (msgVal is Map) {
-                  final senderRole = msgVal['sender']?.toString() ?? 'customer';
-                  final bool isMe = (senderRole == 'employee' || senderRole == 'me' || senderRole == 'owner');
+                  final senderRole = msgVal['sender']?.toString().toLowerCase() ?? 'customer';
+                  final bool isMe = (senderRole == 'employee' || senderRole == 'owner' || senderRole == 'me' || senderRole == 'staff');
 
                   messages.add(
                     EmployeeMessage(

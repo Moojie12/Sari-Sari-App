@@ -4,19 +4,15 @@
       ".read": "auth != null",
       "$uid": {
         ".read": "auth != null",
-        ".write": "auth != null",
-        "email": {
-          ".validate": "newData.isString() && newData.val().matches(/^[^@]+@[^@]+\\.[^@]+$/)"
-        },
-        "role": {
-          ".validate": "newData.isString() && (newData.val() == 'admin' || newData.val() == 'owner' || newData.val() == 'employee' || newData.val() == 'customer')"
-        }
+        ".write": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'owner')"
       }
     },
     "notifications": {
+      ".read": "auth != null",
+      ".write": "auth != null",
       "customers": {
         "$uid": {
-          ".read": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'owner' || root.child('users').child(auth.uid).child('role').val() == 'employee')",
+          ".read": "auth != null",
           ".write": "auth != null"
         }
       },
@@ -30,16 +26,26 @@
       ".write": "auth != null"
     },
     "chats": {
+      ".read": "auth != null",
+      ".write": "auth != null",
       "$customerId": {
         ".read": "auth != null",
-        ".write": "auth != null"
+        ".write": "auth != null",
+        "messages": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        },
+        "meta": {
+          ".read": "auth != null",
+          ".write": "auth != null"
+        }
       }
     },
     "sale_deals": {
       ".read": true,
       ".write": "auth != null"
     },
-    ".read": false,
-    ".write": false
+    ".read": "auth != null",
+    ".write": "auth != null"
   }
 }

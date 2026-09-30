@@ -45,14 +45,12 @@ class EmployeeMessagesPage extends StatelessWidget {
       body: ListenableBuilder(
         listenable: controller,
         builder: (context, _) {
-          controller.syncCustomersFromOrders();
           final threads = controller.threads.where((t) {
             final nameLower = t.recipient.name.toLowerCase();
             final isWalkIn = nameLower.contains('walk-in') || nameLower.contains('walkin');
-            final isSameRole = t.recipient.role == viewerRole;
             final hasMessages = t.messages.isNotEmpty;
 
-            return !isWalkIn && !isSameRole && hasMessages;
+            return !isWalkIn && hasMessages;
           }).toList();
 
           if (threads.isEmpty) {

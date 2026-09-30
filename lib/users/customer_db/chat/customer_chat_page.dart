@@ -37,14 +37,23 @@ class _CustomerChatPageState extends State<CustomerChatPage> {
   @override
   void initState() {
     super.initState();
+    _controller.refreshSubscription();
+    _controller.addListener(_onMessagesChanged);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _controller.markAllAsRead();
       _scrollToBottom();
     });
   }
 
+  void _onMessagesChanged() {
+    if (mounted) {
+      WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    }
+  }
+
   @override
   void dispose() {
+    _controller.removeListener(_onMessagesChanged);
     _textController.dispose();
     _scrollController.dispose();
     super.dispose();
@@ -65,6 +74,10 @@ class _CustomerChatPageState extends State<CustomerChatPage> {
     _controller.sendMessage(text);
     _textController.clear();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+  }
+
+  bool _isSameDay(DateTime a, DateTime b) {
+    return a.year == b.year && a.month == b.month && a.day == b.day;
   }
 
   String _formatTime(DateTime dateTime) {
@@ -90,10 +103,21 @@ class _CustomerChatPageState extends State<CustomerChatPage> {
       }
 
       final rawRole = (data['role'] ?? '').toString().toLowerCase().trim();
-      if (rawRole == 'owner' ||
+      final emailLower = (data['email'] ?? '').toString().toLowerCase().trim();
+
+      final isStaffRole = rawRole == 'owner' ||
           rawRole == 'employee' ||
           rawRole == 'admin' ||
-          rawRole == 'staff') {
+          rawRole == 'staff' ||
+          rawRole == 'cashier' ||
+          rawRole == 'manager' ||
+          (rawRole != 'customer' && rawRole != 'user' && rawRole.isNotEmpty) ||
+          emailLower.contains('owner') ||
+          emailLower.contains('employee') ||
+          emailLower.contains('staff') ||
+          emailLower.contains('cashier');
+
+      if (isStaffRole) {
         String fName =
             (data['firstName'] ?? data['first_name'] ?? '').toString().trim();
         String lName = (data['surname'] ??
@@ -109,7 +133,16 @@ class _CustomerChatPageState extends State<CustomerChatPage> {
             (data['displayName'] ?? data['name'] ?? '').toString().trim();
 
         String fullName = '';
-        if (fName.isNotEmpty || lName.isNotEmpty) {
+        final fNameLower = fName.toLowerCase();
+        final lNameLower = lName.toLowerCase();
+
+        if ((fNameLower == 'owner' && (lNameLower == 'owner' || lNameLower.isEmpty)) ||
+            (fNameLower.isEmpty && lNameLower == 'owner')) {
+          fullName = 'Store Owner';
+        } else if ((fNameLower == 'employee' && (lNameLower == 'employee' || lNameLower.isEmpty)) ||
+            (fNameLower.isEmpty && lNameLower == 'employee')) {
+          fullName = 'Store Employee';
+        } else if (fName.isNotEmpty || lName.isNotEmpty) {
           final mi = mInit.isNotEmpty
               ? '${mInit.replaceAll(".", "").toUpperCase()}. '
               : '';
@@ -117,19 +150,18 @@ class _CustomerChatPageState extends State<CustomerChatPage> {
         } else if (dName.isNotEmpty) {
           fullName = dName;
         } else {
-          final email = (data['email'] ?? '').toString().trim();
-          if (email.contains('@')) {
-            fullName = email.split('@').first;
+          if (emailLower.contains('@')) {
+            fullName = emailLower.split('@').first;
           } else {
-            fullName = (rawRole == 'owner' || rawRole == 'admin')
+            fullName = (rawRole == 'owner' || rawRole == 'admin' || emailLower.contains('owner'))
                 ? 'Store Owner'
-                : 'Employee';
+                : 'Store Employee';
           }
         }
 
         String roleLabel = 'Employee';
         bool isOwner = false;
-        if (rawRole == 'owner' || rawRole == 'admin') {
+        if (rawRole == 'owner' || rawRole == 'admin' || emailLower.contains('owner')) {
           roleLabel = 'Store Owner';
           isOwner = true;
         } else {
@@ -196,6 +228,18 @@ class _CustomerChatPageState extends State<CustomerChatPage> {
     }
 
     final List<StoreStaffMember> staffList = staffMap.values.toList();
+
+    // Ensure at least one Store Employee entry is displayed alongside the owner
+    if (!staffList.any((s) => !s.isOwner)) {
+      staffList.add(
+        StoreStaffMember(
+          uid: 'employee_support_default',
+          name: 'Store Staff / Cashier',
+          role: 'Employee',
+          isOwner: false,
+        ),
+      );
+    }
 
     staffList.sort((a, b) {
       if (a.isOwner && !b.isOwner) return -1;
@@ -286,10 +330,22 @@ class _CustomerChatPageState extends State<CustomerChatPage> {
                           controller: _scrollController,
                           padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
                           itemCount: messages.length,
-                          itemBuilder: (context, index) => _ChatBubble(
-                            message: messages[index],
-                            timeLabel: _formatTime(messages[index].sentAt),
-                          ),
+                          itemBuilder: (context, index) {
+                            final message = messages[index];
+                            final bool showDateHeader = index == 0 ||
+                                !_isSameDay(messages[index - 1].sentAt, message.sentAt);
+
+                            return Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                if (showDateHeader) _DateHeaderChip(date: message.sentAt),
+                                _ChatBubble(
+                                  message: message,
+                                  timeLabel: _formatTime(message.sentAt),
+                                ),
+                              ],
+                            );
+                          },
                         ),
                 ),
                 _MessageComposer(controller: _textController, onSend: _send),
@@ -569,6 +625,59 @@ class _MessageComposer extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _DateHeaderChip extends StatelessWidget {
+  const _DateHeaderChip({required this.date});
+
+  final DateTime date;
+
+  String _formatDateHeader(DateTime dateTime) {
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    final yesterday = DateTime(now.year, now.month, now.day - 1);
+    final messageDate = DateTime(dateTime.year, dateTime.month, dateTime.day);
+
+    if (messageDate == today) {
+      return 'Today';
+    } else if (messageDate == yesterday) {
+      return 'Yesterday';
+    } else {
+      const monthNames = [
+        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+      ];
+      const dayOfWeek = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+      final dow = dayOfWeek[dateTime.weekday % 7];
+      final month = monthNames[dateTime.month - 1];
+      if (dateTime.year == now.year) {
+        return '$dow, $month ${dateTime.day}';
+      }
+      return '$dow, $month ${dateTime.day}, ${dateTime.year}';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Container(
+        margin: const EdgeInsets.symmetric(vertical: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.placeholderColor.withValues(alpha: 0.15),
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: Text(
+          _formatDateHeader(date),
+          style: const TextStyle(
+            color: AppColors.secondaryText,
+            fontSize: 11,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
       ),
     );
   }

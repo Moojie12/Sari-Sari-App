@@ -6,26 +6,49 @@ import '../../employee_db/messages/employee_message_model.dart';
 
 class CustomerChatController extends ChangeNotifier {
   CustomerChatController._() {
-    _subscribeToLiveMessages();
+    refreshSubscription();
   }
   static final CustomerChatController instance = CustomerChatController._();
   factory CustomerChatController() => instance;
 
   final List<EmployeeMessage> _messages = <EmployeeMessage>[];
   StreamSubscription<List<EmployeeMessage>>? _messagesSubscription;
+  String? _subscribedCustomerId;
 
   List<EmployeeMessage> get messages => List.unmodifiable(_messages);
 
   int get unreadCount => _messages.where((m) => m.sender == MessageSender.them && !m.isRead).length;
 
-  String get effectiveCustomerId => AuthService().currentUser?.uid ?? 'current_customer';
+  String get effectiveCustomerId => AuthService().currentUser?.uid ?? '';
   String get effectiveCustomerName => AuthService().currentUser?.displayName ?? 'Customer';
 
-  void _subscribeToLiveMessages() {
+  void clear() {
+    _subscribedCustomerId = null;
+    _messagesSubscription?.cancel();
+    _messagesSubscription = null;
+    _messages.clear();
+    notifyListeners();
+  }
+
+  void refreshSubscription() {
+    final customerId = effectiveCustomerId;
+    if (customerId.isEmpty) {
+      clear();
+      return;
+    }
+
+    if (_subscribedCustomerId == customerId && _messagesSubscription != null) {
+      return;
+    }
+
+    _subscribedCustomerId = customerId;
+    _messages.clear();
+    notifyListeners();
+
     try {
       _messagesSubscription?.cancel();
       _messagesSubscription = ChatDatabaseService.instance.streamMessages(
-        customerId: effectiveCustomerId,
+        customerId: customerId,
         isEmployeeView: false,
       ).listen((liveMessages) {
         _messages.clear();
@@ -43,20 +66,17 @@ class CustomerChatController extends ChangeNotifier {
     final trimmed = text.trim();
     if (trimmed.isEmpty) return;
 
-    final targetId = customerId ?? effectiveCustomerId;
-    final targetName = customerName ?? effectiveCustomerName;
+    final targetId = (customerId != null && customerId.isNotEmpty) ? customerId : effectiveCustomerId;
+    final targetName = (customerName != null && customerName.isNotEmpty) ? customerName : effectiveCustomerName;
 
-    final newMessage = EmployeeMessage(
-      id: 'm-${DateTime.now().millisecondsSinceEpoch}',
-      sender: MessageSender.me,
-      text: trimmed,
-      sentAt: DateTime.now(),
-    );
+    if (targetId.isEmpty) return;
 
-    _messages.add(newMessage);
-    notifyListeners();
+    // Ensure we are subscribed to the current target customer ID
+    if (_subscribedCustomerId != targetId) {
+      refreshSubscription();
+    }
 
-    // Send to Firebase Live Database
+    // Send to Firebase Realtime Database (RTDB stream will update _messages automatically)
     ChatDatabaseService.instance.sendMessage(
       customerId: targetId,
       customerName: targetName,
