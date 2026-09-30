@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/editable_profile_avatar.dart';
 import '../../employee_db/messages/employee_message_model.dart';
@@ -74,97 +75,133 @@ class _CustomerChatPageState extends State<CustomerChatPage> {
   }
 
   Future<List<StoreStaffMember>> _fetchStoreSupportTeam() async {
-    final List<StoreStaffMember> staffList = [];
+    final Map<String, StoreStaffMember> staffMap = {};
 
+    void processUserRecord(String uid, Map<String, dynamic> data) {
+      if (uid.trim().isEmpty) return;
+
+      final status = (data['status'] ?? '').toString().toLowerCase().trim();
+      final isArchived = data['isArchived'] == true ||
+          data['archived'] == true ||
+          data['is_archived'] == true;
+
+      if (status == 'disabled' || status == 'archived' || isArchived) {
+        return;
+      }
+
+      final rawRole = (data['role'] ?? '').toString().toLowerCase().trim();
+      if (rawRole == 'owner' ||
+          rawRole == 'employee' ||
+          rawRole == 'admin' ||
+          rawRole == 'staff') {
+        String fName =
+            (data['firstName'] ?? data['first_name'] ?? '').toString().trim();
+        String lName = (data['surname'] ??
+                data['lastName'] ??
+                data['last_name'] ??
+                '')
+            .toString()
+            .trim();
+        String mInit = (data['middleInitial'] ?? data['middle_initial'] ?? '')
+            .toString()
+            .trim();
+        String dName =
+            (data['displayName'] ?? data['name'] ?? '').toString().trim();
+
+        String fullName = '';
+        if (fName.isNotEmpty || lName.isNotEmpty) {
+          final mi = mInit.isNotEmpty
+              ? '${mInit.replaceAll(".", "").toUpperCase()}. '
+              : '';
+          fullName = '$fName $mi$lName'.trim();
+        } else if (dName.isNotEmpty) {
+          fullName = dName;
+        } else {
+          final email = (data['email'] ?? '').toString().trim();
+          if (email.contains('@')) {
+            fullName = email.split('@').first;
+          } else {
+            fullName = (rawRole == 'owner' || rawRole == 'admin')
+                ? 'Store Owner'
+                : 'Employee';
+          }
+        }
+
+        String roleLabel = 'Employee';
+        bool isOwner = false;
+        if (rawRole == 'owner' || rawRole == 'admin') {
+          roleLabel = 'Store Owner';
+          isOwner = true;
+        } else {
+          final customTitle = (data['roleTitle'] ??
+                  data['designation'] ??
+                  data['jobTitle'] ??
+                  '')
+              .toString()
+              .trim();
+          roleLabel = customTitle.isNotEmpty ? customTitle : 'Employee';
+        }
+
+        final avatar = data['avatar_url']?.toString() ??
+            data['photoUrl']?.toString() ??
+            data['photo_url']?.toString() ??
+            data['photoPath']?.toString();
+
+        staffMap[uid] = StoreStaffMember(
+          uid: uid,
+          name: fullName,
+          role: roleLabel,
+          photoUrl: avatar,
+          isOwner: isOwner,
+        );
+      }
+    }
+
+    // 1. Fetch from Firebase Realtime Database
     try {
       final snapshot = await AuthService().database.ref().child('users').get();
       if (snapshot.exists && snapshot.value is Map) {
         final rawMap = Map<dynamic, dynamic>.from(snapshot.value as Map);
-
         rawMap.forEach((key, value) {
           if (value is Map) {
             final data = Map<String, dynamic>.from(value);
-            final status = (data['status'] ?? '').toString().toLowerCase();
-            final isArchived = data['isArchived'] == true || data['archived'] == true;
-
-            if (status == 'disabled' || status == 'archived' || isArchived) {
-              return;
-            }
-
-            final rawRole = (data['role'] ?? '').toString().toLowerCase().trim();
-            if (rawRole == 'owner' || rawRole == 'employee' || rawRole == 'admin' || rawRole == 'staff') {
-              String fName = (data['firstName'] ?? data['first_name'] ?? '').toString().trim();
-              String lName = (data['surname'] ?? data['lastName'] ?? data['last_name'] ?? '').toString().trim();
-              String mInit = (data['middleInitial'] ?? data['middle_initial'] ?? '').toString().trim();
-              String dName = (data['displayName'] ?? data['name'] ?? '').toString().trim();
-
-              String fullName = '';
-              if (fName.isNotEmpty || lName.isNotEmpty) {
-                final mi = mInit.isNotEmpty ? '${mInit.replaceAll(".", "").toUpperCase()}. ' : '';
-                fullName = '$fName $mi$lName'.trim();
-              } else if (dName.isNotEmpty) {
-                fullName = dName;
-              } else {
-                final email = (data['email'] ?? '').toString();
-                if (email.contains('@')) {
-                  fullName = email.split('@').first;
-                } else {
-                  fullName = (rawRole == 'owner' || rawRole == 'admin') ? 'Store Owner' : 'Employee';
-                }
-              }
-
-              String roleLabel = 'Employee';
-              bool isOwner = false;
-              if (rawRole == 'owner') {
-                roleLabel = 'Store Owner';
-                isOwner = true;
-              } else if (rawRole == 'admin') {
-                roleLabel = 'Administrator';
-                isOwner = true;
-              } else {
-                final customTitle = (data['roleTitle'] ?? data['designation'] ?? data['jobTitle'] ?? '').toString().trim();
-                roleLabel = customTitle.isNotEmpty ? customTitle : 'Employee';
-              }
-
-              final avatar = data['avatar_url']?.toString() ??
-                  data['photoUrl']?.toString() ??
-                  data['photo_url']?.toString();
-
-              staffList.add(StoreStaffMember(
-                uid: key.toString(),
-                name: fullName,
-                role: roleLabel,
-                photoUrl: avatar,
-                isOwner: isOwner,
-              ));
-            }
+            processUserRecord(key.toString(), data);
           }
         });
       }
     } catch (e) {
-      debugPrint('[CustomerChatPage] Error loading store support team: $e');
+      debugPrint('[CustomerChatPage] Error loading store support team from RTDB: $e');
     }
+
+    // 2. Fetch from Supabase profiles as complement or fallback
+    try {
+      final profiles = await SupabaseService().getAllProfiles();
+      for (final profile in profiles) {
+        final uid = profile['firebase_uid']?.toString().isNotEmpty == true
+            ? profile['firebase_uid'].toString()
+            : (profile['id']?.toString() ?? '');
+        if (uid.isNotEmpty) {
+          final existing = staffMap[uid];
+          if (existing == null) {
+            processUserRecord(uid, profile);
+          } else if ((existing.name == 'Store Owner' || existing.name == 'Employee') &&
+              ((profile['first_name']?.toString().isNotEmpty ?? false) ||
+                  (profile['surname']?.toString().isNotEmpty ?? false))) {
+            processUserRecord(uid, profile);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[CustomerChatPage] Error loading store support team from Supabase: $e');
+    }
+
+    final List<StoreStaffMember> staffList = staffMap.values.toList();
 
     staffList.sort((a, b) {
       if (a.isOwner && !b.isOwner) return -1;
       if (!a.isOwner && b.isOwner) return 1;
       return a.name.compareTo(b.name);
     });
-
-    if (staffList.isEmpty) {
-      staffList.add(StoreStaffMember(
-        uid: 'owner-default',
-        name: 'Nico Maglente',
-        role: 'Store Owner',
-        isOwner: true,
-      ));
-      staffList.add(StoreStaffMember(
-        uid: 'employee-default',
-        name: 'Store Staff',
-        role: 'Employee',
-        isOwner: false,
-      ));
-    }
 
     return staffList;
   }
@@ -329,7 +366,7 @@ class _CustomerChatPageState extends State<CustomerChatPage> {
                   return ListView.separated(
                     shrinkWrap: true,
                     itemCount: staffList.length,
-                    separatorBuilder: (_, __) => const SizedBox(height: 10),
+                    separatorBuilder: (_, _) => const SizedBox(height: 10),
                     itemBuilder: (context, index) {
                       final staff = staffList[index];
                       return _StaffRow(

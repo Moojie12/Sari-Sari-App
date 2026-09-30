@@ -484,11 +484,17 @@ class AdminUserService extends ChangeNotifier {
         break;
     }
 
-    String firstName = data['firstName'] != null ? data['firstName'].toString().trim() : '';
-    String middleInitial = data['middleInitial'] != null ? data['middleInitial'].toString().trim() : '';
+    String firstName = data['firstName'] != null
+        ? data['firstName'].toString().trim()
+        : (data['first_name'] != null ? data['first_name'].toString().trim() : '');
+    String middleInitial = data['middleInitial'] != null
+        ? data['middleInitial'].toString().trim()
+        : (data['middle_initial'] != null ? data['middle_initial'].toString().trim() : '');
     String surname = data['surname'] != null
         ? data['surname'].toString().trim()
-        : (data['lastName'] != null ? data['lastName'].toString().trim() : '');
+        : (data['lastName'] != null
+            ? data['lastName'].toString().trim()
+            : (data['last_name'] != null ? data['last_name'].toString().trim() : ''));
 
     if (firstName.isEmpty && surname.isEmpty) {
       final displayName = data['displayName'] != null ? data['displayName'].toString().trim() : '';
