@@ -391,183 +391,77 @@ class _CancelOrderSection extends StatefulWidget {
 class _CancelOrderSectionState extends State<_CancelOrderSection> {
   bool _isCancelling = false;
 
-  final List<String> _cancellationReasons = const [
-    'Changed my mind',
-    'Ordered by mistake / Incorrect item',
-    'Delivery or pickup takes too long',
-    'Found cheaper price elsewhere',
-    'Other reason',
-  ];
-
   void _showCancelOrderDialog() {
-    String selectedReason = _cancellationReasons.first;
-    final customReasonController = TextEditingController();
-    final formKey = GlobalKey<FormState>();
-
     showDialog(
       context: context,
-      barrierDismissible: false,
-      builder: (dialogCtx) => StatefulBuilder(
-        builder: (context, setDialogState) {
-          return AlertDialog(
-            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            title: Row(
-              children: [
-                const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Cancel Order #${widget.order.displayOrderId}',
-                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-                  ),
-                ),
-              ],
-            ),
-            content: Form(
-              key: formKey,
-              child: SingleChildScrollView(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Please select a reason for cancelling this order. This will be recorded and sent to the store.',
-                      style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
-                    ),
-                    const SizedBox(height: 16),
-                    DropdownButtonFormField<String>(
-                      value: selectedReason,
-                      decoration: InputDecoration(
-                        labelText: 'Reason for Cancellation *',
-                        filled: true,
-                        fillColor: Colors.grey.shade50,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.primaryOrange, width: 2),
-                        ),
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+            SizedBox(width: 8),
+            Text('Cancel Order', style: TextStyle(fontWeight: FontWeight.bold)),
+          ],
+        ),
+        content: Text(
+          'Are you sure you want to cancel Order #${widget.order.displayOrderId}? This action cannot be undone.',
+          style: const TextStyle(color: AppColors.darkText),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Keep Order', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(dialogCtx);
+              setState(() => _isCancelling = true);
+
+              // Live verification: Only pending orders can be cancelled
+              final liveOrder = CustomerOrderController.instance.getOrderById(widget.order.orderId);
+              if (liveOrder != null && liveOrder.status != OrderStatus.pending) {
+                if (mounted) {
+                  setState(() => _isCancelling = false);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text(
+                        'Cannot cancel order: status has already been updated to "${liveOrder.status.label}".',
                       ),
-                      items: _cancellationReasons.map((r) {
-                        return DropdownMenuItem<String>(
-                          value: r,
-                          child: Text(r, style: const TextStyle(fontSize: 13, color: AppColors.darkText)),
-                        );
-                      }).toList(),
-                      onChanged: (val) {
-                        if (val != null) {
-                          setDialogState(() => selectedReason = val);
-                        }
-                      },
+                      backgroundColor: Colors.red,
                     ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: customReasonController,
-                      maxLines: 2,
-                      maxLength: 150,
-                      decoration: InputDecoration(
-                        labelText: selectedReason == 'Other reason'
-                            ? 'Specify Reason *'
-                            : 'Additional Note (Optional)',
-                        hintText: 'e.g. Need to change delivery address',
-                        alignLabelWithHint: true,
-                        filled: true,
-                        fillColor: Colors.grey.shade50,
-                        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                        focusedBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: AppColors.primaryOrange, width: 2),
-                        ),
-                        errorBorder: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(12),
-                          borderSide: const BorderSide(color: Colors.red, width: 1.5),
-                        ),
-                      ),
-                      validator: (v) {
-                        if (selectedReason == 'Other reason') {
-                          if (v == null || v.trim().isEmpty) {
-                            return 'Please specify your reason for cancelling';
-                          }
-                          if (v.trim().length < 3) {
-                            return 'Reason must be at least 3 characters long';
-                          }
-                        }
-                        return null;
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(dialogCtx),
-                child: const Text('Keep Order', style: TextStyle(color: AppColors.secondaryText)),
-              ),
-              ElevatedButton(
-                onPressed: () async {
-                  if (!formKey.currentState!.validate()) return;
-
-                  final extraNote = customReasonController.text.trim();
-                  String finalReason = selectedReason;
-                  if (selectedReason == 'Other reason') {
-                    finalReason = extraNote;
-                  } else if (extraNote.isNotEmpty) {
-                    finalReason = '$selectedReason ($extraNote)';
-                  }
-
-                  Navigator.pop(dialogCtx);
-                  setState(() => _isCancelling = true);
-
-                  // Live verification: Only pending orders can be cancelled
-                  final liveOrder = CustomerOrderController.instance.getOrderById(widget.order.orderId);
-                  if (liveOrder != null && liveOrder.status != OrderStatus.pending) {
-                    if (mounted) {
-                      setState(() => _isCancelling = false);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text(
-                            'Cannot cancel order: status has already been updated to "${liveOrder.status.label}".',
-                          ),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                    return;
-                  }
-
-                  final success = await CustomerOrderController.instance.cancelOrder(
-                    widget.order.orderId,
-                    reason: finalReason,
                   );
-                  if (mounted) {
-                    setState(() => _isCancelling = false);
-                    if (success) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Order #${widget.order.displayOrderId} has been successfully cancelled.'),
-                          backgroundColor: Colors.green,
-                        ),
-                      );
-                    } else {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text('Failed to cancel order. Only pending orders can be cancelled.'),
-                          backgroundColor: Colors.red,
-                        ),
-                      );
-                    }
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.red,
-                  foregroundColor: Colors.white,
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                ),
-                child: const Text('Confirm Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
-              ),
-            ],
-          );
-        },
+                }
+                return;
+              }
+
+              final success = await CustomerOrderController.instance.cancelOrder(widget.order.orderId);
+              if (mounted) {
+                setState(() => _isCancelling = false);
+                if (success) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                      content: Text('Order #${widget.order.displayOrderId} has been successfully cancelled.'),
+                      backgroundColor: Colors.green,
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(
+                      content: Text('Failed to cancel order. Only pending orders can be cancelled.'),
+                      backgroundColor: Colors.red,
+                    ),
+                  );
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Yes, Cancel Order'),
+          ),
+        ],
       ),
     );
   }
