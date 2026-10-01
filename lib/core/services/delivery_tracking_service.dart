@@ -127,6 +127,70 @@ class DeliveryTrackingData {
   }
 }
 
+class NavigationStep {
+  const NavigationStep({
+    required this.instruction,
+    required this.streetName,
+    required this.distanceMeters,
+    required this.durationSeconds,
+    required this.location,
+    required this.maneuverType,
+    this.modifier,
+  });
+
+  final String instruction;
+  final String streetName;
+  final double distanceMeters;
+  final double durationSeconds;
+  final LatLng location;
+  final String maneuverType; // 'turn', 'depart', 'arrive', 'continue', 'roundabout', etc.
+  final String? modifier; // 'left', 'right', 'slight left', 'slight right', etc.
+
+  String get formattedDistance {
+    if (distanceMeters < 1000) {
+      return '${distanceMeters.round()} m';
+    }
+    return '${(distanceMeters / 1000).toStringAsFixed(1)} km';
+  }
+
+  String get displayStreet =>
+      streetName.trim().isNotEmpty && streetName.trim().toLowerCase() != 'road'
+          ? streetName.trim()
+          : 'road';
+}
+
+class RoadRouteResult {
+  const RoadRouteResult({
+    required this.points,
+    this.distanceMeters,
+    this.durationSeconds,
+    this.steps = const [],
+  });
+
+  final List<LatLng> points;
+  final double? distanceMeters;
+  final double? durationSeconds;
+  final List<NavigationStep> steps;
+
+  String get formattedDistance {
+    if (distanceMeters == null) return '';
+    if (distanceMeters! < 1000) {
+      return '${distanceMeters!.round()} m';
+    }
+    return '${(distanceMeters! / 1000).toStringAsFixed(1)} km';
+  }
+
+  String get formattedDuration {
+    if (durationSeconds == null) return '';
+    final minutes = (durationSeconds! / 60).round();
+    if (minutes < 1) return '< 1 min';
+    if (minutes < 60) return '$minutes mins';
+    final hours = minutes ~/ 60;
+    final remainingMins = minutes % 60;
+    return '${hours}h ${remainingMins}m';
+  }
+}
+
 class DeliveryTrackingService {
   DeliveryTrackingService._internal();
   static final DeliveryTrackingService instance = DeliveryTrackingService._internal();
@@ -139,7 +203,7 @@ class DeliveryTrackingService {
   final Map<String, DeliveryTrackingData> _trackingCache = {};
   final Map<String, StreamController<DeliveryTrackingData?>> _streamControllers = {};
   final Map<String, StreamSubscription<Position>> _gpsSubscriptions = {};
-  final Map<String, Timer> _simulationTimers = {};
+  final Map<String, RoadRouteResult> _roadRouteCache = {};
 
   // Store coordinates (Santa Rosa, Laguna)
   static const LatLng storeLocation = LatLng(14.3122, 121.1114);
@@ -425,10 +489,6 @@ class DeliveryTrackingService {
     _gpsSubscriptions[orderId]?.cancel();
     _gpsSubscriptions.remove(orderId);
 
-    // Cancel simulation timer if active
-    _simulationTimers[orderId]?.cancel();
-    _simulationTimers.remove(orderId);
-
     final existing = _trackingCache[orderId];
     if (existing != null) {
       final stopped = DeliveryTrackingData(
@@ -565,40 +625,209 @@ class DeliveryTrackingService {
     _gpsSubscriptions.remove(orderId);
   }
 
-  /// Simulated Rider Movement for testing/demonstration without physical movement
-  void startSimulatedMovement({
-    required String orderId,
-    required LatLng start,
-    required LatLng destination,
-    Duration stepInterval = const Duration(seconds: 2),
-    int totalSteps = 20,
-  }) {
-    _simulationTimers[orderId]?.cancel();
-
-    int currentStep = 0;
-    _simulationTimers[orderId] = Timer.periodic(stepInterval, (timer) {
-      if (currentStep >= totalSteps) {
-        timer.cancel();
-        _simulationTimers.remove(orderId);
-        return;
-      }
-
-      currentStep++;
-      final fraction = currentStep / totalSteps;
-      final lat = start.latitude + (destination.latitude - start.latitude) * fraction;
-      final lng = start.longitude + (destination.longitude - start.longitude) * fraction;
-
-      updateRiderLocation(
-        orderId: orderId,
-        latitude: lat,
-        longitude: lng,
+  /// Fetch real driving route along legal/public roads via OpenStreetMap OSRM routing API.
+  /// Strictly avoids water bodies, off-road paths, and draws exact public road geometries.
+  Future<RoadRouteResult> getRoadRouteResult(LatLng start, LatLng destination) async {
+    // If start and destination are basically the same point, return direct 2-point line
+    if ((start.latitude - destination.latitude).abs() < 0.0001 &&
+        (start.longitude - destination.longitude).abs() < 0.0001) {
+      return RoadRouteResult(
+        points: [start, destination],
+        distanceMeters: 0,
+        durationSeconds: 0,
+        steps: [
+          NavigationStep(
+            instruction: 'You have arrived at customer delivery address',
+            streetName: 'Destination',
+            distanceMeters: 0,
+            durationSeconds: 0,
+            location: destination,
+            maneuverType: 'arrive',
+          ),
+        ],
       );
-    });
+    }
+
+    final cacheKey =
+        '${start.latitude.toStringAsFixed(4)},${start.longitude.toStringAsFixed(4)}->${destination.latitude.toStringAsFixed(4)},${destination.longitude.toStringAsFixed(4)}';
+    if (_roadRouteCache.containsKey(cacheKey)) {
+      return _roadRouteCache[cacheKey]!;
+    }
+
+    try {
+      final uri = Uri.parse(
+        'https://router.project-osrm.org/route/v1/driving/'
+        '${start.longitude},${start.latitude};'
+        '${destination.longitude},${destination.latitude}'
+        '?overview=full&geometries=geojson&steps=true',
+      );
+
+      final response = await http.get(uri, headers: {
+        'User-Agent': 'TindahanNiEca-DeliveryTracker/1.0 (sarisari@delivery.ph)',
+      }).timeout(const Duration(seconds: 6));
+
+      if (response.statusCode == 200) {
+        final Map<String, dynamic> data = jsonDecode(response.body) as Map<String, dynamic>;
+        final routes = data['routes'] as List?;
+        if (routes != null && routes.isNotEmpty) {
+          final firstRoute = routes[0] as Map<String, dynamic>;
+          final geometry = firstRoute['geometry'] as Map<String, dynamic>?;
+          final coordinates = geometry?['coordinates'] as List?;
+          final distance = (firstRoute['distance'] as num?)?.toDouble();
+          final duration = (firstRoute['duration'] as num?)?.toDouble();
+
+          if (coordinates != null && coordinates.length >= 2) {
+            final List<LatLng> roadPoints = [];
+            for (final item in coordinates) {
+              if (item is List && item.length >= 2) {
+                final lng = (item[0] as num).toDouble();
+                final lat = (item[1] as num).toDouble();
+                roadPoints.add(LatLng(lat, lng));
+              }
+            }
+
+            final List<NavigationStep> navSteps = [];
+            final legs = firstRoute['legs'] as List?;
+            if (legs != null && legs.isNotEmpty) {
+              final firstLeg = legs[0] as Map<String, dynamic>;
+              final rawSteps = firstLeg['steps'] as List?;
+              if (rawSteps != null) {
+                for (final s in rawSteps) {
+                  if (s is Map<String, dynamic>) {
+                    final maneuver = s['maneuver'] as Map<String, dynamic>? ?? {};
+                    final maneuverType = maneuver['type']?.toString().toLowerCase() ?? 'turn';
+                    final modifier = maneuver['modifier']?.toString().toLowerCase();
+                    final rawLocation = maneuver['location'] as List?;
+                    final stepLat = rawLocation != null && rawLocation.length >= 2 ? (rawLocation[1] as num).toDouble() : 0.0;
+                    final stepLng = rawLocation != null && rawLocation.length >= 2 ? (rawLocation[0] as num).toDouble() : 0.0;
+                    final streetName = s['name']?.toString() ?? '';
+                    final stepDist = (s['distance'] as num?)?.toDouble() ?? 0.0;
+                    final stepDur = (s['duration'] as num?)?.toDouble() ?? 0.0;
+
+                    final displayStreet = streetName.trim().isNotEmpty ? streetName.trim() : 'road';
+                    String instruction = '';
+                    if (maneuverType == 'depart') {
+                      instruction = 'Head out on $displayStreet';
+                    } else if (maneuverType == 'arrive') {
+                      instruction = 'Arrive at delivery destination';
+                    } else if (maneuverType == 'turn') {
+                      if (modifier == 'left') {
+                        instruction = 'Turn left onto $displayStreet';
+                      } else if (modifier == 'right') {
+                        instruction = 'Turn right onto $displayStreet';
+                      } else if (modifier == 'slight left') {
+                        instruction = 'Keep slight left onto $displayStreet';
+                      } else if (modifier == 'slight right') {
+                        instruction = 'Keep slight right onto $displayStreet';
+                      } else if (modifier == 'sharp left') {
+                        instruction = 'Sharp left onto $displayStreet';
+                      } else if (modifier == 'sharp right') {
+                        instruction = 'Sharp right onto $displayStreet';
+                      } else if (modifier == 'uturn') {
+                        instruction = 'Make a U-turn onto $displayStreet';
+                      } else {
+                        instruction = 'Turn onto $displayStreet';
+                      }
+                    } else if (maneuverType == 'continue') {
+                      instruction = 'Continue straight on $displayStreet';
+                    } else if (maneuverType == 'roundabout') {
+                      instruction = 'At roundabout, take exit onto $displayStreet';
+                    } else if (maneuverType == 'merge') {
+                      instruction = 'Merge onto $displayStreet';
+                    } else {
+                      instruction = 'Continue on $displayStreet';
+                    }
+
+                    navSteps.add(NavigationStep(
+                      instruction: instruction,
+                      streetName: streetName,
+                      distanceMeters: stepDist,
+                      durationSeconds: stepDur,
+                      location: LatLng(stepLat, stepLng),
+                      maneuverType: maneuverType,
+                      modifier: modifier,
+                    ));
+                  }
+                }
+              }
+            }
+
+            if (navSteps.isEmpty) {
+              navSteps.add(NavigationStep(
+                instruction: 'Head towards customer delivery address',
+                streetName: 'Public Road',
+                distanceMeters: distance ?? 500,
+                durationSeconds: duration ?? 120,
+                location: start,
+                maneuverType: 'depart',
+              ));
+              navSteps.add(NavigationStep(
+                instruction: 'Arrive at customer delivery address',
+                streetName: 'Destination',
+                distanceMeters: 0,
+                durationSeconds: 0,
+                location: destination,
+                maneuverType: 'arrive',
+              ));
+            }
+
+            if (roadPoints.isNotEmpty) {
+              final result = RoadRouteResult(
+                points: roadPoints,
+                distanceMeters: distance,
+                durationSeconds: duration,
+                steps: navSteps,
+              );
+              _roadRouteCache[cacheKey] = result;
+              debugPrint('[DeliveryTracking] Fetched road route with ${roadPoints.length} points and ${navSteps.length} navigation steps via OSRM (${result.formattedDistance}, ${result.formattedDuration})');
+              return result;
+            }
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('[DeliveryTracking] OSRM road routing error (falling back to direct): $e');
+    }
+
+    final approxDistance = Geolocator.distanceBetween(
+      start.latitude,
+      start.longitude,
+      destination.latitude,
+      destination.longitude,
+    );
+    final approxDuration = (approxDistance / 6.94); // ~25 km/h driving speed
+
+    final fallbackSteps = [
+      NavigationStep(
+        instruction: 'Head towards customer delivery destination',
+        streetName: 'Public Road',
+        distanceMeters: approxDistance,
+        durationSeconds: approxDuration,
+        location: start,
+        maneuverType: 'depart',
+      ),
+      NavigationStep(
+        instruction: 'Arrive at customer delivery address',
+        streetName: 'Destination',
+        distanceMeters: 0,
+        durationSeconds: 0,
+        location: destination,
+        maneuverType: 'arrive',
+      ),
+    ];
+    final fallback = RoadRouteResult(
+      points: [start, destination],
+      distanceMeters: approxDistance,
+      durationSeconds: approxDuration,
+      steps: fallbackSteps,
+    );
+    return fallback;
   }
 
-  void stopSimulatedMovement(String orderId) {
-    _simulationTimers[orderId]?.cancel();
-    _simulationTimers.remove(orderId);
+  /// Convenience method returning just the road waypoints
+  Future<List<LatLng>> getRoadRoute(LatLng start, LatLng destination) async {
+    final result = await getRoadRouteResult(start, destination);
+    return result.points;
   }
 
   void _emitLocal(String orderId, DeliveryTrackingData data) {
@@ -614,14 +843,10 @@ class DeliveryTrackingService {
     }
     _gpsSubscriptions.clear();
 
-    for (var timer in _simulationTimers.values) {
-      timer.cancel();
-    }
-    _simulationTimers.clear();
-
     for (var ctrl in _streamControllers.values) {
       ctrl.close();
     }
     _streamControllers.clear();
+    _roadRouteCache.clear();
   }
 }

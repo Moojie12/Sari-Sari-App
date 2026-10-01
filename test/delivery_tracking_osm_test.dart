@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:sari_sari/core/services/delivery_tracking_service.dart';
+import 'package:sari_sari/core/services/navigation_voice_service.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 import 'package:sari_sari/users/employee_db/orders/employee_orders_controller.dart';
@@ -278,5 +279,134 @@ void main() {
       final meterDistance = distanceCalc.as(LengthUnit.Meter, start, dest);
       expect(meterDistance, greaterThan(0));
     });
+
+    test('Step 7: Public road routing via OSRM returns valid route waypoints', () async {
+      const start = LatLng(14.3122, 121.1114); // Santa Rosa
+      const dest = LatLng(14.3414, 121.0803); // Biñan
+
+      final result = await trackingService.getRoadRouteResult(start, dest);
+      expect(result, isNotNull);
+      expect(result.points, isNotEmpty);
+      expect(result.points.length, greaterThanOrEqualTo(2));
+
+      final routePoints = await trackingService.getRoadRoute(start, dest);
+      expect(routePoints, isNotEmpty);
+      expect(routePoints.first.latitude, closeTo(start.latitude, 0.05));
+    });
+
+    test('Step 8: Customer side reflects assigned delivery person name and role correctly', () {
+      // Test Owner assignment
+      final ownerOrder = CustomerOrder(
+        orderId: 'ORD-OWNER-01',
+        customerName: 'Customer A',
+        orderDate: DateTime.now(),
+        items: const [],
+        orderType: OrderType.delivery,
+        paymentMethod: PaymentMethod.cashOnDelivery,
+        paymentStatus: PaymentStatus.unpaid,
+        status: OrderStatus.outForDelivery,
+        deliveryPersonId: 'owner-1',
+        deliveryPersonName: 'Ate Eca',
+        deliveryPersonRole: 'Owner',
+        deliveryAddress: 'Sta. Rosa, Laguna',
+        subtotal: 50.0,
+        deliveryFee: 10.0,
+        totalAmount: 60.0,
+      );
+
+      expect(ownerOrder.deliveryPersonName, 'Ate Eca');
+      expect(ownerOrder.deliveryPersonRole, 'Owner');
+
+      // Test Employee assignment
+      final employeeOrder = CustomerOrder(
+        orderId: 'ORD-EMP-01',
+        customerName: 'Customer B',
+        orderDate: DateTime.now(),
+        items: const [],
+        orderType: OrderType.delivery,
+        paymentMethod: PaymentMethod.cashOnDelivery,
+        paymentStatus: PaymentStatus.unpaid,
+        status: OrderStatus.outForDelivery,
+        deliveryPersonId: 'emp-1',
+        deliveryPersonName: 'Juan Staff',
+        deliveryPersonRole: 'Employee',
+        deliveryAddress: 'Biñan, Laguna',
+        subtotal: 50.0,
+        deliveryFee: 10.0,
+        totalAmount: 60.0,
+      );
+
+      expect(employeeOrder.deliveryPersonName, 'Juan Staff');
+      expect(employeeOrder.deliveryPersonRole, 'Employee');
+    });
+
+    test('Step 9: Turn-by-turn navigation steps are generated with valid instructions', () async {
+      final trackingService = DeliveryTrackingService();
+      const start = LatLng(14.3122, 121.1114);
+      const dest = LatLng(14.2800, 121.1200);
+
+      final result = await trackingService.getRoadRouteResult(start, dest);
+      expect(result.points, isNotEmpty);
+      expect(result.distanceMeters, greaterThan(0));
+      expect(result.durationSeconds, greaterThan(0));
+      expect(result.steps, isNotEmpty);
+
+      // Verify first step has an instruction and maneuver
+      final firstStep = result.steps.first;
+      expect(firstStep.instruction, isNotEmpty);
+      expect(firstStep.formattedDistance, isNotEmpty);
+    });
+
+    test('Step 10: Navigation voice guidance generates natural Waze/Google Maps spoken prompts', () {
+      // 1. Advance warning at 100m
+      final advance100m = NavigationVoiceService.formatSpokenInstruction(
+        maneuverType: 'turn',
+        modifier: 'right',
+        streetName: 'Rizal Boulevard',
+        distanceMeters: 100,
+        isImmediate: false,
+      );
+      expect(advance100m, 'In 100 meters, turn right onto Rizal Boulevard.');
+
+      // 2. Immediate turn when arriving right at the corner (<30m)
+      final immediateTurn = NavigationVoiceService.formatSpokenInstruction(
+        maneuverType: 'turn',
+        modifier: 'right',
+        streetName: 'Rizal Boulevard',
+        distanceMeters: 20,
+        isImmediate: true,
+      );
+      expect(immediateTurn, 'turn right onto Rizal Boulevard now.');
+
+      // 3. Left turn with 80m warning
+      final advanceLeft = NavigationVoiceService.formatSpokenInstruction(
+        maneuverType: 'turn',
+        modifier: 'left',
+        streetName: 'Mabini Street',
+        distanceMeters: 80,
+        isImmediate: false,
+      );
+      expect(advanceLeft, 'In 80 meters, turn left onto Mabini Street.');
+
+      // 4. Arrival prompt
+      final arrivePrompt = NavigationVoiceService.formatSpokenInstruction(
+        maneuverType: 'arrive',
+        modifier: null,
+        streetName: 'Customer House',
+        distanceMeters: 10,
+        isImmediate: true,
+      );
+      expect(arrivePrompt, 'You have arrived at the customer delivery destination.');
+
+      // 5. Mute toggle functionality
+      final voiceService = NavigationVoiceService();
+      expect(voiceService.isMuted, isFalse);
+      voiceService.toggleMute();
+      expect(voiceService.isMuted, isTrue);
+      voiceService.setMuted(false);
+      expect(voiceService.isMuted, isFalse);
+    });
   });
 }
+
+
