@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
+import '../../../core/services/delivery_tracking_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/osm_delivery_map.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
+import 'assign_delivery_person_sheet.dart';
+import 'employee_delivery_tracking_page.dart';
 import 'employee_orders_controller.dart';
 import 'employee_orders_page.dart';
 import '../messages/employee_chat_page.dart';
@@ -45,6 +50,10 @@ class EmployeeOrderDetailsPage extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _OrderInfoSection(order: currentOrder),
+                if (currentOrder.status == OrderStatus.cancelled) ...[
+                  const SizedBox(height: 16),
+                  _CancelledOrderBanner(reason: currentOrder.cancellationReason),
+                ],
                 const SizedBox(height: 24),
                 const Text('Order Progress', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
                 const SizedBox(height: 12),
@@ -131,6 +140,16 @@ class EmployeeOrderDetailsPage extends StatelessWidget {
               StatusTimelinePicker(
                 order: currentOrder,
                 onStatusSelected: (newStatus) {
+                  if (newStatus == OrderStatus.outForDelivery) {
+                    Navigator.pop(bottomSheetContext);
+                    AssignDeliveryPersonSheet.show(
+                      context,
+                      order: currentOrder,
+                      controller: controller,
+                    );
+                    return;
+                  }
+
                   _showConfirmationDialog(
                     context: context,
                     title: 'Update Status',
@@ -147,15 +166,11 @@ class EmployeeOrderDetailsPage extends StatelessWidget {
                 width: double.infinity,
                 child: TextButton(
                   onPressed: () {
-                    _showConfirmationDialog(
+                    _showCancelOrderDialog(
                       context: context,
-                      title: 'Cancel Order',
-                      message: 'Are you sure you want to cancel this order? This action cannot be undone.',
-                      confirmColor: Colors.red,
-                      onConfirm: () {
-                        controller.updateOrderStatus(currentOrder.orderId, OrderStatus.cancelled);
-                        Navigator.pop(bottomSheetContext);
-                      },
+                      order: currentOrder,
+                      controller: controller,
+                      bottomSheetContext: bottomSheetContext,
                     );
                   },
                   style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -166,6 +181,107 @@ class EmployeeOrderDetailsPage extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  void _showCancelOrderDialog({
+    required BuildContext context,
+    required CustomerOrder order,
+    required EmployeeOrderController controller,
+    required BuildContext bottomSheetContext,
+  }) {
+    final formKey = GlobalKey<FormState>();
+    final reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Cancel Order #${order.displayOrderId}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Please state the reason for cancelling this order. This will be recorded and sent to the customer.',
+                style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: reasonController,
+                maxLines: 3,
+                maxLength: 150,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'Reason for Cancellation *',
+                  hintText: 'e.g. Out of stock, Store closed, Unresponsive customer',
+                  alignLabelWithHint: true,
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.primaryOrange, width: 2),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.red, width: 1.5),
+                  ),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter a cancellation reason';
+                  }
+                  if (value.trim().length < 3) {
+                    return 'Reason must be at least 3 characters long';
+                  }
+                  if (value.trim().length > 150) {
+                    return 'Reason cannot exceed 150 characters';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Keep Order', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                final reason = reasonController.text.trim();
+                Navigator.pop(dialogContext);
+                controller.updateOrderStatus(order.orderId, OrderStatus.cancelled, cancellationReason: reason);
+                Navigator.pop(bottomSheetContext);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Confirm Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 
@@ -456,7 +572,16 @@ class _DeliveryMapSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final riderName = order.deliveryPersonName ?? 'Store Rider';
+    final riderRole = order.deliveryPersonRole ?? 'Employee';
+    final riderCoords = DeliveryTrackingService.instance.getCachedTracking(order.orderId)?.riderLatLng ??
+        DeliveryTrackingService.storeLocation;
+    final destCoords = order.deliveryLatitude != null && order.deliveryLongitude != null
+        ? LatLng(order.deliveryLatitude!, order.deliveryLongitude!)
+        : DeliveryTrackingService.storeLocation;
+
     return InkWell(
+      borderRadius: BorderRadius.circular(16),
       onTap: () {
         Navigator.push(
           context,
@@ -466,211 +591,91 @@ class _DeliveryMapSection extends StatelessWidget {
         );
       },
       child: Container(
-        height: 180,
+        height: 200,
         width: double.infinity,
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withValues(alpha: 0.05),
+              color: Colors.black.withValues(alpha: 0.08),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
           ],
         ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(16),
-          child: Stack(
-            children: [
-              // Placeholder for the Map
-              Image.network(
-                'https://static-maps.yandex.ru/1.x/?lang=en_US&ll=121.0483,14.5547&z=14&l=map&size=600,300',
-                fit: BoxFit.cover,
-                width: double.infinity,
-                errorBuilder: (context, error, stackTrace) => Container(
-                  color: Colors.grey[200],
-                  child: const Center(child: Icon(Icons.map, size: 50, color: Colors.grey)),
-                ),
+        clipBehavior: Clip.antiAlias,
+        child: Stack(
+          children: [
+            Positioned.fill(
+              child: OsmDeliveryMap(
+                riderLocation: riderCoords,
+                destinationLocation: destCoords,
+                riderName: riderName,
+                riderRole: riderRole,
+                destinationAddress: order.deliveryAddress ?? 'Customer Address',
+                showControls: false,
+                interactive: false,
               ),
-              // Overlay to make it look like a map preview
-              Container(
+            ),
+            // Header info pill
+            Positioned(
+              top: 12,
+              left: 12,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                 decoration: BoxDecoration(
-                  gradient: LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Colors.transparent,
-                      Colors.black.withValues(alpha: 0.3),
-                    ],
-                  ),
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(12),
+                  boxShadow: [
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.15), blurRadius: 4),
+                  ],
                 ),
-              ),
-              const Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(Icons.location_on, color: AppColors.primaryOrange, size: 40),
-                    SizedBox(height: 8),
+                    const Icon(Icons.two_wheeler, color: AppColors.primaryOrange, size: 16),
+                    const SizedBox(width: 6),
                     Text(
-                      'Tap to View Real-time Map',
-                      style: TextStyle(
-                        color: Colors.white,
-                        fontWeight: FontWeight.bold,
-                        shadows: [Shadow(blurRadius: 10, color: Colors.black)],
-                      ),
+                      'Rider: $riderName ($riderRole)',
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 11, color: AppColors.darkText),
                     ),
                   ],
                 ),
               ),
-            ],
-          ),
+            ),
+            // Action button
+            Positioned(
+              bottom: 12,
+              right: 12,
+              child: Material(
+                color: AppColors.primaryOrange,
+                borderRadius: BorderRadius.circular(20),
+                elevation: 3,
+                child: const Padding(
+                  padding: EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.gps_fixed, color: Colors.white, size: 14),
+                      SizedBox(width: 4),
+                      Text(
+                        'Tap to Track & Share GPS',
+                        style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class EmployeeDeliveryTrackingPage extends StatelessWidget {
-  const EmployeeDeliveryTrackingPage({super.key, required this.order});
-  final CustomerOrder order;
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Real-time Delivery Tracking',
-            style: TextStyle(color: AppColors.darkText, fontSize: 18, fontWeight: FontWeight.bold)),
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.darkText),
-      ),
-      body: Stack(
-        children: [
-          // Simulated Full Screen Map
-          Container(
-            color: Colors.grey[100],
-            child: const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.map_outlined, size: 100, color: AppColors.placeholderColor),
-                  SizedBox(height: 16),
-                  Text('Google Maps / Mapbox Integration Here',
-                      style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.bold)),
-                  Text('Showing rider movement and destination',
-                      style: TextStyle(color: AppColors.secondaryText)),
-                ],
-              ),
-            ),
-          ),
-          // Floating Info Card
-          Positioned(
-            bottom: 24,
-            left: 20,
-            right: 20,
-            child: Container(
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(20),
-                boxShadow: [
-                  BoxShadow(color: Colors.black.withValues(alpha: 0.1), blurRadius: 20, offset: const Offset(0, 5)),
-                ],
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Row(
-                    children: [
-                      const CircleAvatar(
-                        backgroundColor: AppColors.lightBackground,
-                        child: Icon(Icons.person, color: AppColors.primaryOrange),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(order.customerName,
-                                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-                            Text(order.deliveryAddress ?? 'No address provided',
-                                style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis),
-                          ],
-                        ),
-                      ),
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-                        decoration: BoxDecoration(
-                          color: Colors.green.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                        child: const Text('On the way',
-                            style: TextStyle(color: Colors.green, fontSize: 12, fontWeight: FontWeight.bold)),
-                      ),
-                    ],
-                  ),
-                  const Divider(height: 32),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceAround,
-                    children: [
-                      _TrackingAction(icon: Icons.phone, label: 'Call', onTap: () {}),
-                      _TrackingAction(icon: Icons.chat_bubble_outline, label: 'Message', onTap: () {
-                        Navigator.pop(context); // Go back to details to use chat
-                      }),
-                      _TrackingAction(icon: Icons.navigation_outlined, label: 'Navigate', onTap: () {}),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ),
-          // Simple marker placeholders on map
-          Positioned(
-            top: 150,
-            left: 100,
-            child: Icon(Icons.location_on, color: AppColors.primaryOrange, size: 40),
-          ),
-          Positioned(
-            top: 300,
-            right: 80,
-            child: Icon(Icons.delivery_dining, color: Colors.blue, size: 40),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TrackingAction extends StatelessWidget {
-  const _TrackingAction({required this.icon, required this.label, required this.onTap});
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return InkWell(
-      onTap: onTap,
-      child: Column(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              color: AppColors.lightBackground,
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: AppColors.darkText, size: 24),
-          ),
-          const SizedBox(height: 8),
-          Text(label, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
-        ],
-      ),
-    );
-  }
-}
 
 class _StatusBadge extends StatelessWidget {
   const _StatusBadge({required this.status});
@@ -704,3 +709,93 @@ class _StatusBadge extends StatelessWidget {
     );
   }
 }
+
+class _CancelledOrderBanner extends StatelessWidget {
+  const _CancelledOrderBanner({this.reason});
+  final String? reason;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFFFFEBEE),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFFFCDD2)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(8),
+            decoration: const BoxDecoration(
+              color: Color(0xFFFFCDD2),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.cancel_outlined, color: Colors.red, size: 28),
+          ),
+          const SizedBox(width: 16),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Order Cancelled',
+                  style: TextStyle(
+                    fontWeight: FontWeight.bold,
+                    fontSize: 16,
+                    color: Colors.red,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                const Text(
+                  'This order was cancelled and is no longer active.',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: Color(0xFFC62828),
+                  ),
+                ),
+                if (reason != null && reason!.isNotEmpty) ...[
+                  const SizedBox(height: 8),
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.8),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: Colors.red.shade200),
+                    ),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Reason: ',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            fontSize: 12,
+                            color: Color(0xFFB71C1C),
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            reason!,
+                            style: const TextStyle(
+                              fontSize: 12,
+                              color: Color(0xFFB71C1C),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+

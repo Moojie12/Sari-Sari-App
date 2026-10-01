@@ -145,6 +145,12 @@ class CustomerOrder {
     this.userId,
     this.dbId,
     this.processedBy,
+    this.deliveryPersonId,
+    this.deliveryPersonName,
+    this.deliveryPersonRole,
+    this.deliveryLatitude,
+    this.deliveryLongitude,
+    this.cancellationReason,
   });
 
   final String orderId;
@@ -162,6 +168,12 @@ class CustomerOrder {
   final String? userId;
   final String? dbId;
   final String? processedBy;
+  final String? deliveryPersonId;
+  final String? deliveryPersonName;
+  final String? deliveryPersonRole;
+  final double? deliveryLatitude;
+  final double? deliveryLongitude;
+  final String? cancellationReason;
 
   String get formattedDate => '${orderDate.day}/${orderDate.month}/${orderDate.year}';
 
@@ -197,6 +209,54 @@ class CustomerOrder {
   double get totalCapital => items.fold(0.0, (sum, item) => sum + item.totalCapital);
   double get totalProfit => subtotal - totalCapital;
 
+  CustomerOrder copyWith({
+    String? orderId,
+    String? customerName,
+    DateTime? orderDate,
+    List<CustomerOrderItem>? items,
+    OrderType? orderType,
+    PaymentMethod? paymentMethod,
+    PaymentStatus? paymentStatus,
+    String? deliveryAddress,
+    double? subtotal,
+    double? deliveryFee,
+    double? totalAmount,
+    OrderStatus? status,
+    String? userId,
+    String? dbId,
+    String? processedBy,
+    String? deliveryPersonId,
+    String? deliveryPersonName,
+    String? deliveryPersonRole,
+    double? deliveryLatitude,
+    double? deliveryLongitude,
+    String? cancellationReason,
+  }) {
+    return CustomerOrder(
+      orderId: orderId ?? this.orderId,
+      customerName: customerName ?? this.customerName,
+      orderDate: orderDate ?? this.orderDate,
+      items: items ?? this.items,
+      orderType: orderType ?? this.orderType,
+      paymentMethod: paymentMethod ?? this.paymentMethod,
+      paymentStatus: paymentStatus ?? this.paymentStatus,
+      deliveryAddress: deliveryAddress ?? this.deliveryAddress,
+      subtotal: subtotal ?? this.subtotal,
+      deliveryFee: deliveryFee ?? this.deliveryFee,
+      totalAmount: totalAmount ?? this.totalAmount,
+      status: status ?? this.status,
+      userId: userId ?? this.userId,
+      dbId: dbId ?? this.dbId,
+      processedBy: processedBy ?? this.processedBy,
+      deliveryPersonId: deliveryPersonId ?? this.deliveryPersonId,
+      deliveryPersonName: deliveryPersonName ?? this.deliveryPersonName,
+      deliveryPersonRole: deliveryPersonRole ?? this.deliveryPersonRole,
+      deliveryLatitude: deliveryLatitude ?? this.deliveryLatitude,
+      deliveryLongitude: deliveryLongitude ?? this.deliveryLongitude,
+      cancellationReason: cancellationReason ?? this.cancellationReason,
+    );
+  }
+
   Map<String, dynamic> toMap() {
     return {
       'orderId': orderId,
@@ -215,6 +275,12 @@ class CustomerOrder {
       'items': items.map((i) => i.toMap()).toList(),
       'dbId': dbId,
       'processedBy': processedBy,
+      'deliveryPersonId': deliveryPersonId,
+      'deliveryPersonName': deliveryPersonName,
+      'deliveryPersonRole': deliveryPersonRole,
+      'deliveryLatitude': deliveryLatitude,
+      'deliveryLongitude': deliveryLongitude,
+      'cancellationReason': cancellationReason,
     };
   }
 
@@ -238,6 +304,19 @@ class CustomerOrder {
     final dateStr = map['orderDate']?.toString() ?? map['placed_at']?.toString() ?? map['createdAt']?.toString();
     final parsedDate = dateStr != null ? DateTime.tryParse(dateStr) ?? DateTime.now() : DateTime.now();
 
+    final deliveryPerson = _parseDeliveryPerson(
+      map['deliveryPersonId']?.toString() ?? map['delivery_person_id']?.toString(),
+      map['deliveryPersonName']?.toString() ?? map['delivery_person_name']?.toString(),
+      map['deliveryPersonRole']?.toString() ?? map['delivery_person_role']?.toString(),
+      map['order_notes']?.toString(),
+    );
+
+    final coords = _parseCoords(
+      (map['deliveryLatitude'] as num?)?.toDouble() ?? (map['delivery_latitude'] as num?)?.toDouble(),
+      (map['deliveryLongitude'] as num?)?.toDouble() ?? (map['delivery_longitude'] as num?)?.toDouble(),
+      map['order_notes']?.toString(),
+    );
+
     return CustomerOrder(
       orderId: map['orderId']?.toString() ?? map['order_number']?.toString() ?? map['id']?.toString() ?? '',
       customerName: map['customerName']?.toString() ?? map['customer_name']?.toString() ?? 'Customer',
@@ -257,6 +336,15 @@ class CustomerOrder {
       userId: map['userId']?.toString() ?? map['user_id']?.toString(),
       dbId: map['dbId']?.toString() ?? map['id']?.toString(),
       processedBy: _parseProcessedBy(map['processedBy']?.toString(), map['order_notes']?.toString()),
+      deliveryPersonId: deliveryPerson.id,
+      deliveryPersonName: deliveryPerson.name,
+      deliveryPersonRole: deliveryPerson.role,
+      deliveryLatitude: coords.lat,
+      deliveryLongitude: coords.lng,
+      cancellationReason: _parseCancellationReason(
+        map['cancellationReason']?.toString() ?? map['cancellation_reason']?.toString(),
+        map['order_notes']?.toString(),
+      ),
     );
   }
 
@@ -279,6 +367,19 @@ class CustomerOrder {
     final finalSubtotal = dbSubtotal > 0 ? dbSubtotal : itemsSubtotal;
     final totalAmt = (map['total_amount'] as num?)?.toDouble() ?? finalSubtotal;
 
+    final deliveryPerson = _parseDeliveryPerson(
+      map['delivery_person_id']?.toString(),
+      map['delivery_person_name']?.toString(),
+      map['delivery_person_role']?.toString(),
+      map['order_notes']?.toString(),
+    );
+
+    final coords = _parseCoords(
+      (map['delivery_latitude'] as num?)?.toDouble(),
+      (map['delivery_longitude'] as num?)?.toDouble(),
+      map['order_notes']?.toString(),
+    );
+
     return CustomerOrder(
       dbId: map['id']?.toString(),
       orderId: map['order_number']?.toString() ?? map['id']?.toString() ?? '',
@@ -298,8 +399,72 @@ class CustomerOrder {
       status: _parseOrderStatus(map['status']?.toString(), map['order_notes']?.toString()),
       userId: map['user_id']?.toString(),
       processedBy: _parseProcessedBy(map['processed_by']?.toString(), map['order_notes']?.toString()),
+      deliveryPersonId: deliveryPerson.id,
+      deliveryPersonName: deliveryPerson.name,
+      deliveryPersonRole: deliveryPerson.role,
+      deliveryLatitude: coords.lat,
+      deliveryLongitude: coords.lng,
+      cancellationReason: _parseCancellationReason(
+        map['cancellation_reason']?.toString() ?? map['cancellationReason']?.toString(),
+        map['order_notes']?.toString(),
+      ),
     );
   }
+}
+
+class _DeliveryPersonInfo {
+  final String? id;
+  final String? name;
+  final String? role;
+  const _DeliveryPersonInfo({this.id, this.name, this.role});
+}
+
+_DeliveryPersonInfo _parseDeliveryPerson(
+  String? rawId,
+  String? rawName,
+  String? rawRole,
+  String? orderNotes,
+) {
+  if (rawName != null && rawName.trim().isNotEmpty) {
+    return _DeliveryPersonInfo(
+      id: rawId?.trim(),
+      name: rawName.trim(),
+      role: rawRole?.trim() ?? 'Employee',
+    );
+  }
+  if (orderNotes != null && orderNotes.contains('[delivery_person:')) {
+    final match = RegExp(r'\[delivery_person:\s*([^|\]]+)\|([^|\]]+)(?:\|([^|\]]+))?\]').firstMatch(orderNotes);
+    if (match != null) {
+      return _DeliveryPersonInfo(
+        id: match.group(1)?.trim(),
+        name: match.group(2)?.trim(),
+        role: match.group(3)?.trim() ?? 'Employee',
+      );
+    }
+  }
+  return const _DeliveryPersonInfo();
+}
+
+class _CoordsInfo {
+  final double? lat;
+  final double? lng;
+  const _CoordsInfo({this.lat, this.lng});
+}
+
+_CoordsInfo _parseCoords(double? lat, double? lng, String? orderNotes) {
+  if (lat != null && lng != null) {
+    return _CoordsInfo(lat: lat, lng: lng);
+  }
+  if (orderNotes != null && orderNotes.contains('[coords:')) {
+    final match = RegExp(r'\[coords:\s*([0-9.-]+),\s*([0-9.-]+)\]').firstMatch(orderNotes);
+    if (match != null) {
+      return _CoordsInfo(
+        lat: double.tryParse(match.group(1)!),
+        lng: double.tryParse(match.group(2)!),
+      );
+    }
+  }
+  return const _CoordsInfo();
 }
 
 String? _parseProcessedBy(String? rawProcessedBy, String? orderNotes) {
@@ -372,3 +537,17 @@ PaymentStatus _parsePaymentStatus(String? status) {
   if (s.contains('partially')) return PaymentStatus.partiallyPaid;
   return PaymentStatus.unpaid;
 }
+
+String? _parseCancellationReason(String? rawReason, String? orderNotes) {
+  if (rawReason != null && rawReason.trim().isNotEmpty) {
+    return rawReason.trim();
+  }
+  if (orderNotes != null && orderNotes.contains('[cancellation_reason:')) {
+    final match = RegExp(r'\[cancellation_reason:\s*([^\]]+)\]').firstMatch(orderNotes);
+    if (match != null && match.group(1) != null) {
+      return match.group(1)!.trim();
+    }
+  }
+  return null;
+}
+

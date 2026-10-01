@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
+import 'assign_delivery_person_sheet.dart';
 import 'employee_order_details_page.dart';
 import 'employee_orders_controller.dart';
 
@@ -487,6 +488,15 @@ class _OrderCard extends StatelessWidget {
   }
 
   void _handleNextAction(BuildContext context, OrderStatus nextStatus) {
+    if (nextStatus == OrderStatus.outForDelivery) {
+      AssignDeliveryPersonSheet.show(
+        context,
+        order: order,
+        controller: controller,
+      );
+      return;
+    }
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -719,6 +729,16 @@ class _OrderCard extends StatelessWidget {
               StatusTimelinePicker(
                 order: order,
                 onStatusSelected: (newStatus) {
+                  if (newStatus == OrderStatus.outForDelivery) {
+                    Navigator.pop(bottomSheetContext);
+                    AssignDeliveryPersonSheet.show(
+                      context,
+                      order: order,
+                      controller: controller,
+                    );
+                    return;
+                  }
+
                   _showConfirmationDialog(
                     context: context,
                     title: 'Update Status',
@@ -735,15 +755,11 @@ class _OrderCard extends StatelessWidget {
                 width: double.infinity,
                 child: TextButton(
                   onPressed: () {
-                    _showConfirmationDialog(
+                    _showCancelOrderDialog(
                       context: context,
-                      title: 'Cancel Order',
-                      message: 'Are you sure you want to cancel Order #${order.displayOrderId}? This action cannot be undone.',
-                      confirmColor: Colors.red,
-                      onConfirm: () {
-                        controller.updateOrderStatus(order.orderId, OrderStatus.cancelled);
-                        Navigator.pop(bottomSheetContext);
-                      },
+                      order: order,
+                      controller: controller,
+                      bottomSheetContext: bottomSheetContext,
                     );
                   },
                   style: TextButton.styleFrom(foregroundColor: Colors.red),
@@ -754,6 +770,107 @@ class _OrderCard extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+
+  void _showCancelOrderDialog({
+    required BuildContext context,
+    required CustomerOrder order,
+    required EmployeeOrderController controller,
+    required BuildContext bottomSheetContext,
+  }) {
+    final formKey = GlobalKey<FormState>();
+    final reasonController = TextEditingController();
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                'Cancel Order #${order.displayOrderId}',
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+              ),
+            ),
+          ],
+        ),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Please state the reason for cancelling this order. This will be recorded and sent to the customer.',
+                style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: reasonController,
+                maxLines: 3,
+                maxLength: 150,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'Reason for Cancellation *',
+                  hintText: 'e.g. Out of stock, Store closed, Unresponsive customer',
+                  alignLabelWithHint: true,
+                  filled: true,
+                  fillColor: Colors.grey.shade50,
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.primaryOrange, width: 2),
+                  ),
+                  errorBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: Colors.red, width: 1.5),
+                  ),
+                ),
+                validator: (value) {
+                  if (value == null || value.trim().isEmpty) {
+                    return 'Please enter a cancellation reason';
+                  }
+                  if (value.trim().length < 3) {
+                    return 'Reason must be at least 3 characters long';
+                  }
+                  if (value.trim().length > 150) {
+                    return 'Reason cannot exceed 150 characters';
+                  }
+                  return null;
+                },
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Keep Order', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              if (formKey.currentState!.validate()) {
+                final reason = reasonController.text.trim();
+                Navigator.pop(dialogContext);
+                controller.updateOrderStatus(order.orderId, OrderStatus.cancelled, cancellationReason: reason);
+                Navigator.pop(bottomSheetContext);
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Confirm Cancel', style: TextStyle(fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
     );
   }
 }

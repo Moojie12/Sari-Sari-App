@@ -55,6 +55,8 @@ dependencies:
   firebase_crashlytics: ^5.4.0
   firebase_database: ^12.6.0
   firebase_messaging: ^16.7.0
+  flutter_map: ^8.3.2
+  latlong2: ^0.10.1
 
 dev_dependencies:
   flutter_test:

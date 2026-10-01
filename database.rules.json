@@ -45,6 +45,14 @@
       ".read": true,
       ".write": "auth != null"
     },
+    "delivery_tracking": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      "$orderId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
     ".read": "auth != null",
     ".write": "auth != null"
   }
