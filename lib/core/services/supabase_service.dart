@@ -459,6 +459,12 @@ class SupabaseService {
       return newProd['id'] as String?;
     } catch (e) {
       debugPrint('Error ensuring product exists in Supabase: $e');
+      try {
+        final fallback = await _client.from('products').select('id').limit(1).maybeSingle();
+        if (fallback != null && fallback['id'] != null) {
+          return fallback['id'] as String;
+        }
+      } catch (_) {}
     }
     return null;
   }
@@ -497,9 +503,14 @@ class SupabaseService {
         throw Exception('Failed to resolve or create profile ID for user.');
       }
 
-      final sellerNote = order.processedBy != null && order.processedBy!.isNotEmpty
-          ? 'Sold by: ${order.processedBy}'
-          : '';
+      final notes = <String>[];
+      if (order.processedBy != null && order.processedBy!.isNotEmpty) {
+        notes.add('Sold by: ${order.processedBy}');
+      }
+      if (order.cancellationReason != null && order.cancellationReason!.isNotEmpty) {
+        notes.add('[cancellation_reason: ${order.cancellationReason}]');
+      }
+      final sellerNote = notes.join(' ');
 
       final orderData = <String, dynamic>{
         'user_id': profileId,
@@ -575,7 +586,7 @@ class SupabaseService {
   }
 
   /// Update order status in Supabase database with resilience against missing columns or strict constraints
-  Future<bool> updateOrderStatusInDb(String orderNumberOrDbId, String status, [String? paymentStatus]) async {
+  Future<bool> updateOrderStatusInDb(String orderNumberOrDbId, String status, [String? paymentStatus, String? cancellationReason]) async {
     final nowIso = DateTime.now().toIso8601String();
 
     Future<bool> tryUpdate(Map<String, dynamic> data) async {
@@ -603,6 +614,22 @@ class SupabaseService {
       if (paymentStatus != null && paymentStatus.isNotEmpty) {
         payload['payment_status'] = paymentStatus;
       }
+      if (cancellationReason != null && cancellationReason.isNotEmpty) {
+        try {
+          final existing = await _client
+              .from('orders')
+              .select('order_notes')
+              .or('order_number.eq.$orderNumberOrDbId,id.eq.$orderNumberOrDbId')
+              .maybeSingle();
+
+          String notes = existing?['order_notes']?.toString() ?? '';
+          notes = notes.replaceAll(RegExp(r'\[cancellation_reason:[^\]]+\]'), '').trim();
+
+          final reasonTag = '[cancellation_reason: $cancellationReason]';
+          payload['order_notes'] = notes.isEmpty ? reasonTag : '$notes $reasonTag';
+        } catch (_) {}
+      }
+
       final success = await tryUpdate(payload);
       if (success) {
         debugPrint('Successfully updated order $orderNumberOrDbId status to $status in Supabase.');
