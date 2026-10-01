@@ -46,20 +46,21 @@ void main() {
         isArchived: false,
       );
 
-      const archivedUser = AdminUser(
+      const disabledUser = AdminUser(
         id: 'u2',
-        firstName: 'Archived',
+        firstName: 'Disabled',
         middleInitial: '',
         surname: 'User',
-        email: 'archived@eca.com',
+        email: 'disabled@eca.com',
         phone: '',
         role: AdminRole.customer,
         status: 'Disabled',
-        isArchived: true,
+        isArchived: false,
       );
 
+      expect(activeUser.isActive, isTrue);
+      expect(disabledUser.isActive, isFalse);
       expect(activeUser.isArchived, isFalse);
-      expect(archivedUser.isArchived, isTrue);
     });
 
     test('AdminUser handles photoUrl and copyWith correctly', () {

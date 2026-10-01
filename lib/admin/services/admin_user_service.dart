@@ -377,6 +377,50 @@ class AdminUserService extends ChangeNotifier {
     }
   }
 
+  Future<String?> toggleUserStatus(String id, bool enable) async {
+    try {
+      final index = _users.indexWhere((u) => u.id == id);
+      if (index == -1) return 'That account no longer exists.';
+
+      final user = _users[index];
+      if (user.isArchived) return 'Cannot change status of an archived user.';
+
+      final newStatus = enable ? 'Enabled' : 'Disabled';
+
+      // Safeguard: Prevent disabling the last active Owner account
+      if (!enable && user.role == AdminRole.owner) {
+        final remainingActiveOwners = activeUsers
+            .where((u) => u.role == AdminRole.owner && u.id != id && u.status == 'Enabled')
+            .length;
+        if (remainingActiveOwners == 0) {
+          return "You can't disable the only active owner account.";
+        }
+      }
+
+      final now = DateTime.now().millisecondsSinceEpoch;
+
+      // Update in Firebase Realtime Database
+      await _authService.database.ref().child('users/$id').update({
+        'status': newStatus,
+        'updatedAt': now,
+      });
+
+      // Try syncing to Supabase as well
+      try {
+        await SupabaseService().updateUserProfile(id, {
+          'status': newStatus,
+          'updatedAt': DateTime.now().toIso8601String(),
+        });
+      } catch (_) {}
+
+      await _loadUsers();
+
+      return null;
+    } catch (e) {
+      return 'Failed to update user status: $e';
+    }
+  }
+
   Future<String?> archiveUser(String id) async {
     try {
       final index = _users.indexWhere((u) => u.id == id);

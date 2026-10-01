@@ -42,6 +42,21 @@ class _SplashPageState extends State<SplashPage> {
     final user = AuthService().currentUser;
 
     if (user != null) {
+      // Check if user account is disabled or archived
+      final bool isDisabled = await AuthService().isUserDisabled(user.uid);
+      if (isDisabled) {
+        await AuthService().signOut();
+        if (mounted) {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(
+              builder: (context) => const LoginPage(),
+            ),
+          );
+        }
+        return;
+      }
+
       // Check role and go to appropriate database (works for both web and mobile)
       try {
         final bool isOwner = await AuthService().hasRole('owner');

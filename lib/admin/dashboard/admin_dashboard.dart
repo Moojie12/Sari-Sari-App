@@ -15,6 +15,8 @@ import '../services/admin_analytics_service.dart';
 import '../../core/services/auth_service.dart';
 import '../../shared/utils/text_formatters.dart';
 import '../../shared/utils/top_notification.dart';
+import '../../shared/utils/password_validator.dart';
+import '../../shared/widgets/password_requirements_widget.dart';
 import './widgets/dashboard_shared.dart';
 import './sections/overview_section.dart';
 import './sections/settings_section.dart';
@@ -108,185 +110,582 @@ class _AdminDashboardState extends State<AdminDashboard> {
     final phoneController = TextEditingController(text: user?.phone ?? '');
     final passwordController = TextEditingController();
     final confirmPasswordController = TextEditingController();
-    
+
     AdminRole selectedRole = user?.role ?? AdminRole.customer;
-    bool isEnabled = user?.isActive ?? true;
+    bool isSubmitting = false;
+    bool showPasswordText = false;
+    bool showConfirmPasswordText = false;
+
+    String? validateFirstName(String val) {
+      final v = val.trim();
+      if (v.isEmpty) return 'Enter first name';
+      if (v.length < 2) return 'At least 2 characters';
+      if (!RegExp(r"^[a-zA-Z\s\-']+$").hasMatch(v)) return 'Letters and spaces only';
+      return null;
+    }
+
+    String? validateMiddleInitial(String val) {
+      final v = val.trim();
+      if (v.isNotEmpty && !RegExp(r'^[a-zA-Z]{1,2}$').hasMatch(v)) {
+        return '1-2 letters only';
+      }
+      return null;
+    }
+
+    String? validateSurname(String val) {
+      final v = val.trim();
+      if (v.isEmpty) return 'Enter surname';
+      if (v.length < 2) return 'At least 2 characters';
+      if (!RegExp(r"^[a-zA-Z\s\-']+$").hasMatch(v)) return 'Letters and spaces only';
+      return null;
+    }
+
+    String? validateEmail(String val) {
+      final v = val.trim();
+      if (v.isEmpty) return 'Enter email address';
+      if (!RegExp(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$').hasMatch(v)) {
+        return 'Enter valid email address';
+      }
+      return null;
+    }
+
+    String? validatePhone(String val) {
+      final v = val.trim();
+      if (v.isEmpty) return 'Enter phone number';
+      if (!v.startsWith('09') && !v.startsWith('+639')) {
+        return 'Start with 09 or +639';
+      }
+      if (v.startsWith('09') && v.length != 11) {
+        return 'Must be 11 digits (09xxxxxxxx)';
+      }
+      if (v.startsWith('+639') && v.length != 13) {
+        return 'Must be 13 characters (+639xxxxxxxx)';
+      }
+      if (RegExp(r'(\d)\1{3}').hasMatch(v)) {
+        return 'Cannot contain 4 consecutive same digits';
+      }
+      return null;
+    }
+
+    String? validatePassword(String val) {
+      if (isEdit) return null;
+      return PasswordValidator.validate(val);
+    }
+
+    String? validateConfirmPassword(String val) {
+      if (isEdit) return null;
+      return PasswordValidator.validateConfirmPassword(val, passwordController.text);
+    }
+
+    InputDecoration liveInputDecoration({
+      required IconData icon,
+      String? hint,
+      required String value,
+      required String? errorText,
+      Widget? customSuffix,
+    }) {
+      final isNotEmpty = value.trim().isNotEmpty;
+      final isValid = isNotEmpty && errorText == null;
+      final isError = errorText != null;
+
+      Widget? suffix;
+      if (customSuffix != null) {
+        suffix = customSuffix;
+      } else if (isValid) {
+        suffix = const Padding(
+          padding: EdgeInsets.only(right: 12),
+          child: Icon(Icons.check_circle_rounded, size: 18, color: Colors.green),
+        );
+      } else if (isError && isNotEmpty) {
+        suffix = const Padding(
+          padding: EdgeInsets.only(right: 12),
+          child: Icon(Icons.error_outline_rounded, size: 18, color: Colors.redAccent),
+        );
+      }
+
+      return InputDecoration(
+        hintText: hint,
+        floatingLabelBehavior: FloatingLabelBehavior.never,
+        errorText: isNotEmpty ? errorText : null,
+        errorMaxLines: 2,
+        prefixIcon: Icon(
+          icon,
+          size: 18,
+          color: (isError && isNotEmpty) ? Colors.redAccent : (isValid ? Colors.green : AppColors.primaryOrange),
+        ),
+        suffixIcon: suffix,
+        filled: true,
+        fillColor: AppColors.lightPeach,
+        contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: isValid
+              ? const BorderSide(color: Colors.green, width: 1)
+              : BorderSide.none,
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(
+            color: (isError && isNotEmpty) ? Colors.redAccent : AppColors.primaryOrange,
+            width: 1.5,
+          ),
+        ),
+        errorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1),
+        ),
+        focusedErrorBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
+        ),
+      );
+    }
+
+    Widget fieldLabel(String text) {
+      return Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(
+          text,
+          style: const TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+            color: AppColors.darkText,
+          ),
+        ),
+      );
+    }
 
     await showDialog<bool>(
       context: context,
+      barrierDismissible: false,
       builder: (context) => StatefulBuilder(
-        builder: (context, setState) => AlertDialog(
-          title: Text(isEdit ? 'Edit User' : 'Add User'),
-          content: SingleChildScrollView(
-            child: Form(
-              key: formKey,
+        builder: (context, setModalState) {
+          final fnVal = firstNameController.text;
+          final miVal = middleInitialController.text;
+          final snVal = surnameController.text;
+          final emVal = emailController.text;
+          final phVal = phoneController.text;
+          final pwVal = passwordController.text;
+          final cpwVal = confirmPasswordController.text;
+
+          final fnError = validateFirstName(fnVal);
+          final miError = validateMiddleInitial(miVal);
+          final snError = validateSurname(snVal);
+          final emError = validateEmail(emVal);
+          final phError = validatePhone(phVal);
+          final pwError = validatePassword(pwVal);
+          final cpwError = validateConfirmPassword(cpwVal);
+
+          return Dialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            child: Container(
+              width: 620,
+              constraints: BoxConstraints(
+                maxHeight: MediaQuery.of(context).size.height * 0.88,
+              ),
+              padding: const EdgeInsets.all(24),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
+                  // Modal Header
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Expanded(
-                        flex: 5,
-                        child: TextFormField(
-                          controller: firstNameController,
-                          decoration: const InputDecoration(
-                            labelText: 'First Name',
-                            icon: Icon(Icons.person),
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(10),
+                            ),
+                            child: Icon(
+                              isEdit ? Icons.edit_note_rounded : Icons.person_add_alt_1_rounded,
+                              color: AppColors.primaryOrange,
+                              size: 22,
+                            ),
                           ),
-                          validator: (value) => value == null || value.isEmpty ? 'Required' : null,
-                        ),
+                          const SizedBox(width: 12),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                isEdit ? 'Edit User Details' : 'Add New User',
+                                style: const TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.darkText,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                isEdit
+                                    ? 'Update profile information for ${user.fullName}'
+                                    : 'Enter user registration details with live validation',
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: AppColors.secondaryText,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        flex: 2,
-                        child: TextFormField(
-                          controller: middleInitialController,
-                          decoration: const InputDecoration(
-                            labelText: 'M.I.',
-                          ),
-                        ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded, size: 20, color: AppColors.placeholderColor),
+                        onPressed: () => Navigator.pop(context, false),
                       ),
                     ],
                   ),
-                  TextFormField(
-                    controller: surnameController,
-                    decoration: const InputDecoration(
-                      labelText: 'Surname',
-                      icon: Icon(Icons.person_outlined),
-                    ),
-                    validator: (value) => value == null || value.isEmpty ? 'Required' : null,
-                  ),
-                  TextFormField(
-                    controller: emailController,
-                    decoration: const InputDecoration(
-                      labelText: 'Email',
-                      icon: Icon(Icons.email),
-                    ),
-                    validator: (value) {
-                      if (value == null || value.isEmpty) return 'Required';
-                      if (!value.contains('@')) return 'Invalid email';
-                      return null;
-                    },
-                  ),
-                  TextFormField(
-                    controller: phoneController,
-                    decoration: const InputDecoration(
-                      labelText: 'Phone Number',
-                      icon: Icon(Icons.phone),
-                    ),
-                    validator: (value) => value == null || value.isEmpty ? 'Required' : null,
-                  ),
-                  if (!isEdit) ...[
-                    TextFormField(
-                      controller: passwordController,
-                      decoration: const InputDecoration(
-                        labelText: 'Password',
-                        icon: Icon(Icons.lock_outline),
-                      ),
-                      obscureText: true,
-                      validator: (value) => !isEdit && (value == null || value.length < 6) ? 'Min 6 chars' : null,
-                    ),
-                    TextFormField(
-                      controller: confirmPasswordController,
-                      decoration: const InputDecoration(
-                        labelText: 'Confirm Password',
-                        icon: Icon(Icons.lock_reset),
-                      ),
-                      obscureText: true,
-                      validator: (value) => !isEdit && value != passwordController.text ? 'Mismatch' : null,
-                    ),
-                  ],
                   const SizedBox(height: 16),
-                  DropdownButtonFormField<AdminRole>(
-                    initialValue: selectedRole,
-                    decoration: const InputDecoration(
-                      labelText: 'Role',
-                      icon: Icon(Icons.person_search),
-                    ),
-                    items: AdminRole.values.map((role) => DropdownMenuItem(
-                      value: role,
-                      child: Text(role.label),
-                    )).toList(),
-                    onChanged: (value) {
-                      if (value != null) {
-                        setState(() => selectedRole = value);
-                      }
-                    },
-                  ),
+                  const Divider(height: 1, color: AppColors.borderColor),
                   const SizedBox(height: 16),
-                  SwitchListTile(
-                    title: const Text('Account Status'),
-                    value: isEnabled,
-                    onChanged: (value) => setState(() => isEnabled = value),
-                    secondary: Icon(
-                      isEnabled ? Icons.check_circle : Icons.cancel,
-                      color: isEnabled ? Colors.green : Colors.red,
+
+                  // Modal Form Fields
+                  Flexible(
+                    child: SingleChildScrollView(
+                      child: Form(
+                        key: formKey,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            // First Name and Middle Initial
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  flex: 4,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      fieldLabel('First Name *'),
+                                      TextFormField(
+                                        controller: firstNameController,
+                                        onChanged: (_) => setModalState(() {}),
+                                        decoration: liveInputDecoration(
+                                          icon: Icons.person_outline_rounded,
+                                          hint: 'e.g. Juan',
+                                          value: fnVal,
+                                          errorText: fnError,
+                                        ),
+                                        validator: (_) => fnError,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  flex: 2,
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      fieldLabel('M.I.'),
+                                      TextFormField(
+                                        controller: middleInitialController,
+                                        onChanged: (_) => setModalState(() {}),
+                                        textCapitalization: TextCapitalization.characters,
+                                        decoration: liveInputDecoration(
+                                          icon: Icons.short_text_rounded,
+                                          hint: 'e.g. D',
+                                          value: miVal,
+                                          errorText: miError,
+                                        ),
+                                        validator: (_) => miError,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 14),
+
+                            // Surname
+                            fieldLabel('Surname / Last Name *'),
+                            TextFormField(
+                              controller: surnameController,
+                              onChanged: (_) => setModalState(() {}),
+                              decoration: liveInputDecoration(
+                                icon: Icons.badge_outlined,
+                                hint: 'e.g. Cruz',
+                                value: snVal,
+                                errorText: snError,
+                              ),
+                              validator: (_) => snError,
+                            ),
+                            const SizedBox(height: 14),
+
+                            // Email & Phone Number
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      fieldLabel('Email Address *'),
+                                      TextFormField(
+                                        controller: emailController,
+                                        onChanged: (_) => setModalState(() {}),
+                                        keyboardType: TextInputType.emailAddress,
+                                        decoration: liveInputDecoration(
+                                          icon: Icons.email_outlined,
+                                          hint: 'user@example.com',
+                                          value: emVal,
+                                          errorText: emError,
+                                        ),
+                                        validator: (_) => emError,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      fieldLabel('Phone Number *'),
+                                      TextFormField(
+                                        controller: phoneController,
+                                        onChanged: (_) => setModalState(() {}),
+                                        keyboardType: TextInputType.phone,
+                                        decoration: liveInputDecoration(
+                                          icon: Icons.phone_outlined,
+                                          hint: '09123456789',
+                                          value: phVal,
+                                          errorText: phError,
+                                        ),
+                                        validator: (_) => phError,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                              ],
+                            ),
+
+                            // Password & Confirm Password (For new user creation)
+                            if (!isEdit) ...[
+                              const SizedBox(height: 14),
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        fieldLabel('Password *'),
+                                        TextFormField(
+                                          controller: passwordController,
+                                          onChanged: (_) => setModalState(() {}),
+                                          obscureText: !showPasswordText,
+                                          decoration: liveInputDecoration(
+                                            icon: Icons.lock_outline_rounded,
+                                            hint: 'Min 8 chars, A-Z, 0-9, special',
+                                            value: pwVal,
+                                            errorText: pwError,
+                                            customSuffix: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                if (pwVal.isNotEmpty && pwError == null)
+                                                  const Icon(Icons.check_circle_rounded, size: 18, color: Colors.green),
+                                                IconButton(
+                                                  icon: Icon(
+                                                    showPasswordText
+                                                        ? Icons.visibility_outlined
+                                                        : Icons.visibility_off_outlined,
+                                                    size: 18,
+                                                    color: AppColors.placeholderColor,
+                                                  ),
+                                                  onPressed: () => setModalState(() => showPasswordText = !showPasswordText),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          validator: (_) => pwError,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        fieldLabel('Confirm Password *'),
+                                        TextFormField(
+                                          controller: confirmPasswordController,
+                                          onChanged: (_) => setModalState(() {}),
+                                          obscureText: !showConfirmPasswordText,
+                                          decoration: liveInputDecoration(
+                                            icon: Icons.lock_reset_rounded,
+                                            hint: 'Repeat password',
+                                            value: cpwVal,
+                                            errorText: cpwError,
+                                            customSuffix: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                if (cpwVal.isNotEmpty && cpwError == null)
+                                                  const Icon(Icons.check_circle_rounded, size: 18, color: Colors.green),
+                                                IconButton(
+                                                  icon: Icon(
+                                                    showConfirmPasswordText
+                                                        ? Icons.visibility_outlined
+                                                        : Icons.visibility_off_outlined,
+                                                    size: 18,
+                                                    color: AppColors.placeholderColor,
+                                                  ),
+                                                  onPressed: () => setModalState(() => showConfirmPasswordText = !showConfirmPasswordText),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                          validator: (_) => cpwError,
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              PasswordRequirementsWidget(
+                                password: pwVal,
+                                confirmPassword: cpwVal,
+                              ),
+                            ],
+                            const SizedBox(height: 14),
+
+                            // Role Dropdown
+                            fieldLabel('User Role *'),
+                            DropdownButtonFormField<AdminRole>(
+                              initialValue: selectedRole,
+                              decoration: liveInputDecoration(
+                                icon: Icons.admin_panel_settings_outlined,
+                                value: selectedRole.label,
+                                errorText: null,
+                              ),
+                              items: AdminRole.values.map((role) {
+                                return DropdownMenuItem(
+                                  value: role,
+                                  child: Text(
+                                    role.label,
+                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                                  ),
+                                );
+                              }).toList(),
+                              onChanged: (val) {
+                                if (val != null) {
+                                  setModalState(() => selectedRole = val);
+                                }
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
                     ),
+                  ),
+                  const SizedBox(height: 20),
+
+                  // Modal Actions (Cancel & Save)
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      OutlinedButton(
+                        onPressed: isSubmitting ? null : () => Navigator.pop(context, false),
+                        style: OutlinedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                          side: const BorderSide(color: AppColors.borderColor),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        child: const Text('Cancel', style: TextStyle(color: AppColors.darkText)),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: isSubmitting
+                            ? null
+                            : () async {
+                                if (!formKey.currentState!.validate()) return;
+
+                                setModalState(() => isSubmitting = true);
+
+                                final firstName = firstNameController.text.trim();
+                                final mi = middleInitialController.text.trim();
+                                final surname = surnameController.text.trim();
+                                final email = emailController.text.trim();
+                                final phone = phoneController.text.trim();
+
+                                try {
+                                  String? result;
+                                  if (isEdit) {
+                                    result = await _userService.updateUser(
+                                      id: user.id,
+                                      firstName: firstName,
+                                      middleInitial: mi,
+                                      surname: surname,
+                                      email: email,
+                                      phone: phone,
+                                      role: selectedRole,
+                                      status: user.status,
+                                    );
+                                  } else {
+                                    result = await _userService.createUser(
+                                      firstName: firstName,
+                                      middleInitial: mi,
+                                      surname: surname,
+                                      email: email,
+                                      phone: phone,
+                                      role: selectedRole,
+                                      status: 'Enabled',
+                                      password: passwordController.text,
+                                      confirmPassword: confirmPasswordController.text,
+                                    );
+                                  }
+
+                                  if (mounted && context.mounted) {
+                                    setModalState(() => isSubmitting = false);
+                                    if (result == null) {
+                                      TopNotification.show(
+                                        context,
+                                        isEdit ? 'User details updated successfully' : 'User account created successfully',
+                                      );
+                                      Navigator.pop(context, true);
+                                    } else {
+                                      TopNotification.show(context, result, isError: true);
+                                    }
+                                  }
+                                } catch (e) {
+                                  if (mounted && context.mounted) {
+                                    setModalState(() => isSubmitting = false);
+                                    TopNotification.show(context, 'Error: $e', isError: true);
+                                  }
+                                }
+                              },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryOrange,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                        icon: isSubmitting
+                            ? const SizedBox(
+                                width: 16,
+                                height: 16,
+                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                              )
+                            : Icon(isEdit ? Icons.save_outlined : Icons.person_add_rounded, size: 18),
+                        label: Text(isEdit ? 'Save Changes' : 'Add User'),
+                      ),
+                    ],
                   ),
                 ],
               ),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context, false),
-              child: const Text('Cancel'),
-            ),
-            ElevatedButton(
-              onPressed: () async {
-                if (!formKey.currentState!.validate()) return;
-
-                final firstName = firstNameController.text.trim();
-                final mi = middleInitialController.text.trim();
-                final surname = surnameController.text.trim();
-                final email = emailController.text.trim();
-                final phone = phoneController.text.trim();
-
-                try {
-                  String? result;
-                  if (isEdit) {
-                    result = await _userService.updateUser(
-                      id: user.id,
-                      firstName: firstName,
-                      middleInitial: mi,
-                      surname: surname,
-                      email: email,
-                      phone: phone,
-                      role: selectedRole,
-                      status: isEnabled ? 'Enabled' : 'Disabled',
-                    );
-                  } else {
-                    result = await _userService.createUser(
-                      firstName: firstName,
-                      middleInitial: mi,
-                      surname: surname,
-                      email: email,
-                      phone: phone,
-                      role: selectedRole,
-                      status: isEnabled ? 'Enabled' : 'Disabled',
-                      password: passwordController.text,
-                      confirmPassword: confirmPasswordController.text,
-                    );
-                  }
-
-                  if (mounted && context.mounted) {
-                    if (result == null) {
-                      Navigator.pop(context, true);
-                    } else {
-                      TopNotification.show(context, result, isError: true);
-                    }
-                  }
-                } catch (e) {
-                  if (mounted && context.mounted) {
-                    TopNotification.show(context, 'Error: $e', isError: true);
-                  }
-                }
-              },
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
-              child: Text(isEdit ? 'Update' : 'Add'),
-            ),
-          ],
-        ),
+          );
+        },
       ),
     );
   }
@@ -466,7 +865,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
       if (mounted && context.mounted) {
         if (result == null) {
           TopNotification.show(context, 'User archived successfully');
-          // Refresh the users section
           setState(() {});
         } else {
           TopNotification.show(context, 'Failed to archive user: $result', isError: true);

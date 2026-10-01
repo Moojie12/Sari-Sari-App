@@ -74,17 +74,15 @@ class _UsersSectionState extends State<UsersSection> {
     }
 
     final query = (_searchController.text.isNotEmpty ? _searchController.text : widget.searchQuery).toLowerCase().trim();
-    final list = widget.userService.allUsers.where((u) {
+    final list = widget.userService.activeUsers.where((u) {
       final matchesQuery = query.isEmpty ||
           u.fullName.toLowerCase().contains(query) ||
           u.email.toLowerCase().contains(query) ||
           u.phone.contains(query);
       final matchesRole =
           _userRoleFilter == 'All roles' || u.role.label == _userRoleFilter;
-      final matchesStatus = _userStatusFilter == 'All' ||
-          (_userStatusFilter == 'Archived'
-              ? u.isArchived
-              : (!u.isArchived && u.status == _userStatusFilter));
+      final matchesStatus =
+          _userStatusFilter == 'All' || u.status == _userStatusFilter;
       return matchesQuery && matchesRole && matchesStatus;
     }).toList();
 
@@ -211,9 +209,9 @@ class _UsersSectionState extends State<UsersSection> {
                   }),
                 ),
                 dropdownFilter(
-                  label: 'State',
+                  label: 'Status',
                   value: _userStatusFilter,
-                  options: const ['All', 'Enabled', 'Disabled', 'Archived'],
+                  options: const ['All', 'Enabled', 'Disabled'],
                   onChanged: (value) => setState(() {
                     _userStatusFilter = value;
                     widget.onPageChange('users', 1);
@@ -273,7 +271,7 @@ class _UsersSectionState extends State<UsersSection> {
         sortableHeader('Name', 'name', _userSort, _userAsc, _onSort),
         header('Contact'),
         sortableHeader('Role', 'role', _userSort, _userAsc, _onSort),
-        header('State'),
+        header('Status'),
         sortableHeader('Joined', 'joined', _userSort, _userAsc, _onSort),
         header('Actions'),
       ],
@@ -331,10 +329,8 @@ class _UsersSectionState extends State<UsersSection> {
             )),
             cell(_rolePill(user.role)),
             cell(statusPill(
-              user.isArchived ? 'Archived' : user.status,
-              user.isArchived
-                  ? Colors.orange
-                  : (user.isActive ? Colors.green : AppColors.placeholderColor),
+              user.status,
+              user.isActive ? Colors.green : Colors.red,
             )),
             cell(Text(
               formatDate(user.createdAt),
@@ -345,21 +341,34 @@ class _UsersSectionState extends State<UsersSection> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                 children: [
-                  iconAction(Icons.visibility_outlined, 'View', Colors.blueGrey,
-                          () => widget.onShowUserDetail(user)),
                   iconAction(Icons.edit_outlined, 'Edit', Colors.blue,
                           () => widget.onShowUserForm(user)),
-                  if (user.isArchived)
-                    iconAction(Icons.unarchive_outlined, 'Restore', Colors.teal,
-                            () => widget.userService.restoreUser(user.id))
-                  else
-                    iconAction(Icons.archive_outlined, 'Archive', Colors.orange,
-                            () => widget.onArchiveUser(user)),
-                  iconAction(Icons.delete_outline_rounded, 'Delete', Colors.red,
-                          () => widget.onDeleteUser(user)),
+                  iconAction(Icons.archive_outlined, 'Archive', Colors.orange,
+                          () => widget.onArchiveUser(user)),
+                  Transform.scale(
+                    scale: 0.75,
+                    child: Tooltip(
+                      message: user.isActive ? 'Disable User' : 'Enable User',
+                      child: Switch(
+                        value: user.isActive,
+                        activeColor: AppColors.primaryOrange,
+                        onChanged: (bool enabled) async {
+                          final err = await widget.userService.toggleUserStatus(user.id, enabled);
+                          if (err != null && context.mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text(err),
+                                backgroundColor: Colors.red,
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                    ),
+                  ),
                 ],
               ),
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
+              padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
             ),
           ],
       ],

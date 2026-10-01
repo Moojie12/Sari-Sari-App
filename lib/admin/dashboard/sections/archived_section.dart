@@ -434,7 +434,7 @@ class _ArchivedSectionState extends State<ArchivedSection> {
         sortableHeader('Name', 'name', _userSort, _userAsc, _onUserSort),
         header('Contact'),
         sortableHeader('Role', 'role', _userSort, _userAsc, _onUserSort),
-        header('State'),
+        header('Status'),
         sortableHeader('Joined', 'joined', _userSort, _userAsc, _onUserSort),
         header('Actions'),
       ],

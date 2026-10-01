@@ -64,26 +64,11 @@ class AuthService {
       primaryAuthException = e;
     } catch (_) {}
 
-    // 2. If direct sign-in failed, search RTDB and Supabase for candidate fallback passwords
+    // 2. If direct sign-in failed, check if the entered password matches database profile
     if (userCredential == null) {
+      bool isDatabasePasswordMatch = false;
       final candidatePasswords = <String>{};
 
-      // Search Supabase profiles table
-      try {
-        final supaRes = await SupabaseService().client
-            .from('profiles')
-            .select('password, previous_password')
-            .ilike('email', cleanEmail)
-            .maybeSingle();
-        if (supaRes != null) {
-          if (supaRes['password'] != null) candidatePasswords.add(supaRes['password'].toString());
-          if (supaRes['previous_password'] != null) candidatePasswords.add(supaRes['previous_password'].toString());
-        }
-      } catch (e) {
-        debugPrint('Supabase password lookup note: $e');
-      }
-
-      // Search Realtime Database users node
       try {
         final snapshot = await _database.ref().child('users').get();
         if (snapshot.exists && snapshot.value is Map) {
@@ -92,9 +77,15 @@ class AuthService {
             if (entry is Map) {
               final rawEmail = entry['email'] != null ? entry['email'].toString() : '';
               if (rawEmail.trim().toLowerCase() == cleanEmail) {
-                if (entry['password'] != null) candidatePasswords.add(entry['password'].toString());
-                if (entry['previousPassword'] != null) candidatePasswords.add(entry['previousPassword'].toString());
-                if (entry['oldPassword'] != null) candidatePasswords.add(entry['oldPassword'].toString());
+                final dbPass = entry['password']?.toString();
+                final prevPass = entry['previousPassword']?.toString() ?? entry['oldPassword']?.toString();
+
+                if (dbPass != null && dbPass.isNotEmpty) candidatePasswords.add(dbPass);
+                if (prevPass != null && prevPass.isNotEmpty) candidatePasswords.add(prevPass);
+
+                if (dbPass == password || prevPass == password) {
+                  isDatabasePasswordMatch = true;
+                }
               }
             }
           }
@@ -103,30 +94,58 @@ class AuthService {
         debugPrint('RTDB password lookup note: $e');
       }
 
-      // Remove the password already attempted
-      candidatePasswords.remove(password);
+      try {
+        final supaRes = await SupabaseService().client
+            .from('profiles')
+            .select('password, previous_password')
+            .ilike('email', cleanEmail)
+            .maybeSingle();
+        if (supaRes != null) {
+          final dbPass = supaRes['password']?.toString();
+          final prevPass = supaRes['previous_password']?.toString();
 
-      // Try each candidate password in Firebase Auth
-      for (final fallback in candidatePasswords) {
-        if (fallback.trim().isEmpty) continue;
-        try {
-          userCredential = await _auth.signInWithEmailAndPassword(
-            email: cleanEmail,
-            password: fallback,
-          );
+          if (dbPass != null && dbPass.isNotEmpty) candidatePasswords.add(dbPass);
+          if (prevPass != null && prevPass.isNotEmpty) candidatePasswords.add(prevPass);
 
-          // If fallback sign-in succeeds, update Firebase Auth password to match the new password entered
-          if (userCredential.user != null) {
-            try {
-              await userCredential.user!.updatePassword(password);
-              debugPrint('Successfully auto-synced Firebase Auth password to new password.');
-            } catch (e) {
-              debugPrint('Failed to auto-update Firebase Auth password: $e');
-            }
-            break;
+          if (dbPass == password || prevPass == password) {
+            isDatabasePasswordMatch = true;
           }
-        } catch (e) {
-          debugPrint('Fallback password sign-in attempt failed: $e');
+        }
+      } catch (e) {
+        debugPrint('Supabase password lookup note: $e');
+      }
+
+      if (isDatabasePasswordMatch) {
+        if (primaryAuthException?.code == 'user-not-found' ||
+            primaryAuthException?.code == 'invalid-credential' ||
+            primaryAuthException?.code == 'INVALID_LOGIN_CREDENTIALS') {
+          try {
+            userCredential = await _auth.createUserWithEmailAndPassword(
+              email: cleanEmail,
+              password: password,
+            );
+          } catch (e) {
+            debugPrint('Auto-create Firebase Auth user note: $e');
+          }
+        }
+
+        if (userCredential == null) {
+          for (final fallback in candidatePasswords) {
+            if (fallback.trim().isEmpty) continue;
+            try {
+              userCredential = await _auth.signInWithEmailAndPassword(
+                email: cleanEmail,
+                password: fallback,
+              );
+
+              if (userCredential.user != null) {
+                try {
+                  await userCredential.user!.updatePassword(password);
+                } catch (_) {}
+                break;
+              }
+            } catch (_) {}
+          }
         }
       }
     }
@@ -134,6 +153,13 @@ class AuthService {
     // 3. Handle sign-in success or failure
     if (userCredential != null && userCredential.user != null) {
       final User firebaseUser = userCredential.user!;
+
+      // Check if account is disabled or archived
+      if (await isUserDisabled(firebaseUser.uid)) {
+        await _auth.signOut();
+        return 'Your account has been disabled. Please contact the administrator.';
+      }
+
       try {
         final ref = _database.ref().child('users/${firebaseUser.uid}');
         final snapshot = await ref.get();
@@ -639,6 +665,42 @@ class AuthService {
       default:
         return 'Incorrect email or password. Please try again';
     }
+  }
+
+  /// Checks if a user account is disabled or archived in Realtime Database or Supabase
+  Future<bool> isUserDisabled(String uid) async {
+    try {
+      final snapshot = await _database.ref().child('users/$uid').get();
+      if (snapshot.exists && snapshot.value is Map) {
+        final data = snapshot.value as Map<dynamic, dynamic>;
+        final status = data['status']?.toString();
+        final isArchived = (data['isArchived'] as bool?) ?? (data['is_archived'] as bool?) ?? false;
+        if (status == 'Disabled' || isArchived) {
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking RTDB user status: $e');
+    }
+
+    try {
+      final supaRes = await SupabaseService().client
+          .from('profiles')
+          .select('status, is_archived')
+          .eq('firebase_uid', uid)
+          .maybeSingle();
+      if (supaRes != null) {
+        final status = supaRes['status']?.toString();
+        final isArchived = supaRes['is_archived'] == true;
+        if (status == 'Disabled' || isArchived) {
+          return true;
+        }
+      }
+    } catch (e) {
+      debugPrint('Error checking Supabase user status: $e');
+    }
+
+    return false;
   }
 
   /// Check if user has a specific role
