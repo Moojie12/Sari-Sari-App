@@ -68,19 +68,19 @@ class OverviewSection extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            _twoColumn(
-              _buildSalesChartCard(),
-              _buildTopSellersCard(),
-              flexA: 3,
-              flexB: 2,
-            ),
+            // HERO CARD: Best Sellers (Replacing old Sales this week chart)
+            _buildTopSellersCard(),
             const SizedBox(height: 20),
+
+            // SALES BREAKDOWN CARDS (Daily, Weekly, Monthlyconnected to Database)
             _threeColumn([
               _buildDailySalesCard(),
               _buildWeeklySalesCard(),
               _buildMonthlySalesCard(),
             ]),
             const SizedBox(height: 20),
+
+            // INVENTORY RESTOCK & RECENT ACTIVITY
             _twoColumn(
               _buildLowStockCard(),
               _buildRecentActivityCard(),
@@ -116,15 +116,11 @@ class OverviewSection extends StatelessWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final width = constraints.maxWidth;
-        // If width is zero (e.g. during initial layout), return a placeholder or empty container
-        // to avoid "Cannot hit test a render box with no size" errors.
         if (width <= 0) return const SizedBox.shrink();
 
         final columns = width < 700 ? 1 : (width < 1180 ? 2 : 3);
         const spacing = 20.0;
         final cardWidth = (width - spacing * (columns - 1)) / columns;
-        
-        // Ensure cardWidth is at least a reasonable minimum
         final effectiveCardWidth = cardWidth < 100 ? width : cardWidth;
 
         return Wrap(
@@ -138,142 +134,189 @@ class OverviewSection extends StatelessWidget {
     );
   }
 
-  Widget _buildSalesChartCard() {
-    final data = analyticsService.salesByDay(7);
-    final maxValue = data.fold<double>(
-        0, (max, d) => d.total > max ? d.total : max);
-    final weekTotal = data.fold<double>(0, (sum, d) => sum + d.total);
-
-    return card(
-      title: 'Sales this week',
-      subtitle: '${formatPeso(weekTotal)} over the last 7 days',
-      child: SizedBox(
-        height: 190,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.end,
-          children: [
-            for (final day in data)
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 5),
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          day.total == 0
-                              ? '—'
-                              : formatPesoCompact(day.total),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            fontWeight: FontWeight.w700,
-                            color: AppColors.secondaryText,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: 6),
-                      Container(
-                        height: maxValue == 0
-                            ? 2
-                            : 4 + (day.total / maxValue) * 118,
-                        decoration: BoxDecoration(
-                          color: isSameDay(day.day, DateTime.now())
-                              ? AppColors.primaryOrange
-                              : AppColors.primaryOrange
-                              .withValues(alpha: 0.28),
-                          borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(6)),
-                        ),
-                      ),
-                      const SizedBox(height: 8),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        child: Text(
-                          formatShortDate(day.day),
-                          style: const TextStyle(
-                            fontSize: 11,
-                            color: AppColors.placeholderColor,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
-    );
-  }
-
   Widget _buildTopSellersCard() {
-    final stats = analyticsService.topSellingProducts(limit: 5);
+    final stats = analyticsService.topSellingProducts(limit: 6);
     final topRevenue = stats.isEmpty ? 0.0 : stats.first.revenue;
 
     return card(
-      title: 'Best sellers',
-      subtitle: 'By revenue, all time',
+      title: 'Best Sellers',
+      subtitle: 'Top products ranked by revenue and total units sold',
+      trailing: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: AppColors.primaryOrange.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(20),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: const [
+            Icon(Icons.emoji_events_rounded, size: 14, color: AppColors.primaryOrange),
+            SizedBox(width: 4),
+            Text(
+              'LIVE RANKINGS',
+              style: TextStyle(
+                fontSize: 10.5,
+                fontWeight: FontWeight.bold,
+                color: AppColors.primaryOrange,
+                letterSpacing: 0.8,
+              ),
+            ),
+          ],
+        ),
+      ),
       child: stats.isEmpty
-          ? _inlineEmpty('No sales recorded yet.')
-          : Column(
-            children: [
-              for (final stat in stats)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: Column(
+          ? _inlineEmpty('No sales recorded yet in database.')
+          : LayoutBuilder(
+              builder: (context, constraints) {
+                final isWide = constraints.maxWidth > 800;
+                if (isWide) {
+                  // Grid of 2 columns on wide screens
+                  final halfLength = (stats.length / 2).ceil();
+                  final col1 = stats.take(halfLength).toList();
+                  final col2 = stats.skip(halfLength).toList();
+
+                  return Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              stat.productName,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.darkText,
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 10),
-                          Text(
-                            formatPeso(stat.revenue),
-                            style: const TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w700,
-                              color: AppColors.darkText,
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 6),
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(4),
-                        child: LinearProgressIndicator(
-                          value: (topRevenue <= 0)
-                              ? 0
-                              : (stat.revenue / topRevenue).clamp(0.0, 1.0),
-                          minHeight: 6,
-                          backgroundColor: AppColors.lightBackground,
-                          valueColor: const AlwaysStoppedAnimation<Color>(
-                              AppColors.primaryOrange),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            for (var i = 0; i < col1.length; i++) ...[
+                              _buildBestSellerRow(col1[i], i + 1, topRevenue),
+                              if (i < col1.length - 1) const SizedBox(height: 16),
+                            ],
+                          ],
                         ),
                       ),
-                      const SizedBox(height: 4),
-                      Text(
-                        '${formatQuantity(stat.unitsSold, stat.unit)} sold',
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          color: AppColors.placeholderColor,
+                      const SizedBox(width: 24),
+                      Expanded(
+                        child: Column(
+                          children: [
+                            for (var i = 0; i < col2.length; i++) ...[
+                              _buildBestSellerRow(col2[i], halfLength + i + 1, topRevenue),
+                              if (i < col2.length - 1) const SizedBox(height: 16),
+                            ],
+                          ],
                         ),
                       ),
                     ],
-                  ),
+                  );
+                }
+
+                // Single column on narrow screens
+                return Column(
+                  children: [
+                    for (var i = 0; i < stats.length; i++) ...[
+                      _buildBestSellerRow(stats[i], i + 1, topRevenue),
+                      if (i < stats.length - 1) const SizedBox(height: 16),
+                    ],
+                  ],
+                );
+              },
+            ),
+    );
+  }
+
+  Widget _buildBestSellerRow(ProductSalesStat stat, int rank, double topRevenue) {
+    Color badgeColor;
+    IconData? icon;
+
+    if (rank == 1) {
+      badgeColor = const Color(0xFFFFD700); // Gold
+      icon = Icons.emoji_events_rounded;
+    } else if (rank == 2) {
+      badgeColor = const Color(0xFFC0C0C0); // Silver
+      icon = Icons.workspace_premium_rounded;
+    } else if (rank == 3) {
+      badgeColor = const Color(0xFFCD7F32); // Bronze
+      icon = Icons.military_tech_rounded;
+    } else {
+      badgeColor = AppColors.primaryOrange.withValues(alpha: 0.15);
+    }
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: AppColors.lightBackground.withValues(alpha: 0.5),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.primaryOrange.withValues(alpha: 0.08),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              // Rank Badge
+              Container(
+                width: 32,
+                height: 32,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: badgeColor.withValues(alpha: 0.22),
+                  shape: BoxShape.circle,
+                  border: Border.all(color: badgeColor, width: 1.5),
                 ),
+                child: icon != null
+                    ? Icon(icon, size: 16, color: rank <= 3 ? AppColors.darkText : AppColors.secondaryText)
+                    : Text(
+                        '#$rank',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          color: AppColors.secondaryText,
+                        ),
+                      ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      stat.productName,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                        color: AppColors.darkText,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      '${formatQuantity(stat.unitsSold, stat.unit)} sold',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Text(
+                analyticsService.formatPeso(stat.revenue),
+                style: const TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: AppColors.primaryOrange,
+                ),
+              ),
             ],
           ),
+          const SizedBox(height: 10),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: (topRevenue <= 0) ? 0 : (stat.revenue / topRevenue).clamp(0.0, 1.0),
+              minHeight: 6,
+              backgroundColor: AppColors.lightPeach,
+              valueColor: const AlwaysStoppedAnimation<Color>(AppColors.primaryOrange),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -339,95 +382,104 @@ class OverviewSection extends StatelessWidget {
     required List<_PeriodRow> rows,
   }) {
     final total = rows.fold<double>(0, (sum, r) => sum + r.total);
+    final totalOrders = rows.fold<int>(0, (sum, r) => sum + r.orders);
     final hasAnySales = rows.any((r) => r.total > 0);
 
     return card(
       title: title,
       subtitle: subtitle,
       child: !hasAnySales
-          ? _inlineEmpty('No sales recorded yet.')
+          ? _inlineEmpty('No sales recorded yet in database.')
           : Column(
-            children: [
-              for (final row in rows)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 10),
-                  child: Row(
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        margin: const EdgeInsets.only(right: 10),
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: row.isCurrent
-                              ? AppColors.primaryOrange
-                              : Colors.transparent,
-                        ),
-                      ),
-                      Expanded(
-                        child: Text(
-                          row.label,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight:
-                            row.isCurrent ? FontWeight.w700 : FontWeight.w500,
-                            color: row.isCurrent
-                                ? AppColors.darkText
-                                : AppColors.secondaryText,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Text(
-                        '${row.orders}',
-                        style: const TextStyle(
-                          fontSize: 11.5,
-                          color: AppColors.placeholderColor,
-                        ),
-                      ),
-                      const SizedBox(width: 10),
-                      SizedBox(
-                        width: 78,
-                        child: Text(
-                          formatPeso(row.total),
-                          textAlign: TextAlign.right,
-                          style: TextStyle(
-                            fontSize: 12.5,
-                            fontWeight: FontWeight.w700,
-                            color: row.total == 0
-                                ? AppColors.placeholderColor
-                                : AppColors.darkText,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-            const Divider(height: 18),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                const Text(
-                  'Total',
-                  style: TextStyle(
-                    fontSize: 12.5,
-                    fontWeight: FontWeight.w700,
-                    color: AppColors.secondaryText,
+                for (final row in rows)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 10),
+                    child: Row(
+                      children: [
+                        Container(
+                          width: 6,
+                          height: 6,
+                          margin: const EdgeInsets.only(right: 10),
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: row.isCurrent
+                                ? AppColors.primaryOrange
+                                : Colors.transparent,
+                          ),
+                        ),
+                        Expanded(
+                          child: Text(
+                            row.label,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight:
+                                  row.isCurrent ? FontWeight.w700 : FontWeight.w500,
+                              color: row.isCurrent
+                                  ? AppColors.darkText
+                                  : AppColors.secondaryText,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: AppColors.lightPeach,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Text(
+                            '${row.orders} orders',
+                            style: const TextStyle(
+                              fontSize: 10.5,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.primaryOrange,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 10),
+                        SizedBox(
+                          width: 85,
+                          child: Text(
+                            analyticsService.formatPeso(row.total),
+                            textAlign: TextAlign.right,
+                            style: TextStyle(
+                              fontSize: 12.5,
+                              fontWeight: FontWeight.w700,
+                              color: row.total == 0
+                                  ? AppColors.placeholderColor
+                                  : AppColors.darkText,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-                Text(
-                  formatPeso(total),
-                  style: const TextStyle(
-                    fontSize: 13.5,
-                    fontWeight: FontWeight.w800,
-                    color: AppColors.primaryOrange,
-                  ),
+                const Divider(height: 18),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Text(
+                      'Total ($totalOrders orders)',
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: AppColors.secondaryText,
+                      ),
+                    ),
+                    Text(
+                      analyticsService.formatPeso(total),
+                      style: const TextStyle(
+                        fontSize: 13.5,
+                        fontWeight: FontWeight.w800,
+                        color: AppColors.primaryOrange,
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
-          ],
-        ),
     );
   }
 
@@ -440,60 +492,60 @@ class OverviewSection extends StatelessWidget {
       trailing: items.isEmpty
           ? null
           : TextButton(
-            onPressed: () => onGoTo(AdminSection.products),
-            child: const Text('See all'),
-          ),
+              onPressed: () => onGoTo(AdminSection.products),
+              child: const Text('See all'),
+            ),
       child: items.isEmpty
           ? _inlineEmpty('Everything is well stocked.')
           : Column(
-            children: [
-              for (final product in items)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              product.name,
-                              overflow: TextOverflow.ellipsis,
-                              style: const TextStyle(
-                                fontSize: 13.5,
-                                fontWeight: FontWeight.w600,
-                                color: AppColors.darkText,
+              children: [
+                for (final product in items)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                product.name,
+                                overflow: TextOverflow.ellipsis,
+                                style: const TextStyle(
+                                  fontSize: 13.5,
+                                  fontWeight: FontWeight.w600,
+                                  color: AppColors.darkText,
+                                ),
                               ),
-                            ),
-                            Text(
-                              product.categoryName,
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                color: AppColors.placeholderColor,
+                              Text(
+                                product.categoryName,
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: AppColors.placeholderColor,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      statusPill(
-                        product.isOutOfStock
-                            ? 'Out of stock'
-                            : formatQuantity(product.quantity, product.unit),
-                        product.isOutOfStock ? Colors.red : Colors.orange,
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton(
-                        tooltip: 'Adjust stock',
-                        icon: const Icon(Icons.add_circle_outline, size: 20),
-                        color: AppColors.primaryOrange,
-                        onPressed: () => onAdjustStock(product),
-                      ),
-                    ],
+                        const SizedBox(width: 12),
+                        statusPill(
+                          product.isOutOfStock
+                              ? 'Out of stock'
+                              : formatQuantity(product.quantity, product.unit),
+                          product.isOutOfStock ? Colors.red : Colors.orange,
+                        ),
+                        const SizedBox(width: 8),
+                        IconButton(
+                          tooltip: 'Adjust stock',
+                          icon: const Icon(Icons.add_circle_outline, size: 20),
+                          color: AppColors.primaryOrange,
+                          onPressed: () => onAdjustStock(product),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-            ],
-          ),
+              ],
+            ),
     );
   }
 
@@ -510,50 +562,50 @@ class OverviewSection extends StatelessWidget {
       child: logs.isEmpty
           ? _inlineEmpty('Nothing has changed yet.')
           : Column(
-            children: [
-              for (final log in logs)
-                Padding(
-                  padding: const EdgeInsets.only(bottom: 14),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Container(
-                        margin: const EdgeInsets.only(top: 4),
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: _actionColor(log.action),
-                          shape: BoxShape.circle,
+              children: [
+                for (final log in logs)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 14),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Container(
+                          margin: const EdgeInsets.only(top: 4),
+                          width: 8,
+                          height: 8,
+                          decoration: BoxDecoration(
+                            color: _actionColor(log.action),
+                            shape: BoxShape.circle,
+                          ),
                         ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              '${log.action.label} ${log.entityType.toLowerCase()} "${log.entityName}"',
-                              style: const TextStyle(
-                                fontSize: 13,
-                                color: AppColors.darkText,
-                                fontWeight: FontWeight.w500,
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${log.action.label} ${log.entityType.toLowerCase()} "${log.entityName}"',
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: AppColors.darkText,
+                                  fontWeight: FontWeight.w500,
+                                ),
                               ),
-                            ),
-                            Text(
-                              '${log.performedBy} · ${formatRelative(log.timestamp)}',
-                              style: const TextStyle(
-                                fontSize: 11.5,
-                                color: AppColors.placeholderColor,
+                              Text(
+                                '${log.performedBy} · ${formatRelative(log.timestamp)}',
+                                style: const TextStyle(
+                                  fontSize: 11.5,
+                                  color: AppColors.placeholderColor,
+                                ),
                               ),
-                            ),
-                          ],
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-            ],
-          ),
+              ],
+            ),
     );
   }
 
@@ -589,16 +641,40 @@ class OverviewSection extends StatelessWidget {
       ),
     );
   }
-}
 
-String formatPesoCompact(double value) {
-  if (value.abs() >= 1000000) {
-    return '₱${(value / 1000000).toStringAsFixed(1)}M';
+  String formatQuantity(double value, String unit) {
+    final isWhole = value == value.roundToDouble();
+    final text = isWhole ? value.toStringAsFixed(0) : value.toStringAsFixed(2);
+    return '$text $unit';
   }
-  if (value.abs() >= 1000) {
-    return '₱${(value / 1000).toStringAsFixed(1)}k';
+
+  String formatShortDate(DateTime dt) => '${dt.day} ${_kMonths[dt.month - 1]}';
+
+  String formatMonthYear(int year, int month) => '${_kMonths[month - 1]} $year';
+
+  String formatWeekRange(DateTime start, DateTime end) {
+    if (start.month == end.month) {
+      return '${start.day}–${end.day} ${_kMonths[start.month - 1]}';
+    }
+    return '${start.day} ${_kMonths[start.month - 1]} – ${end.day} ${_kMonths[end.month - 1]}';
   }
-  return '₱${value.toStringAsFixed(0)}';
+
+  String formatRelative(DateTime dt) {
+    final diff = DateTime.now().difference(dt);
+    if (diff.inMinutes < 1) return 'just now';
+    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
+    if (diff.inHours < 24) return '${diff.inHours} hr ago';
+    if (diff.inDays < 7) return '${diff.inDays} d ago';
+    return '${dt.day} ${_kMonths[dt.month - 1]} ${dt.year}';
+  }
+
+  bool isSameDay(DateTime a, DateTime b) =>
+      a.year == b.year && a.month == b.month && a.day == b.day;
+
+  static const List<String> _kMonths = [
+    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+  ];
 }
 
 /// One row in a daily/weekly/monthly sales list card.

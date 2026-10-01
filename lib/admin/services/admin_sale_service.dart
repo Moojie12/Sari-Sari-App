@@ -52,8 +52,7 @@ class AdminSaleService extends ChangeNotifier {
 
   Future<void> _loadSales() async {
     try {
-      // Get all orders from Supabase
-      final supabaseSales = await _supabaseService.getAllOrders();
+      final supabaseSales = await _supabaseService.getAllOrdersWithItems();
       _sales = supabaseSales.map(_fromSupabaseSale).toList();
     } catch (e) {
       _error = 'Failed to load sales: $e';
@@ -62,6 +61,7 @@ class AdminSaleService extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    _isInitialized = false;
     await initialize();
   }
 
@@ -80,24 +80,14 @@ class AdminSaleService extends ChangeNotifier {
   }) async {
     try {
       if (items.isEmpty) return 'Add at least one item to the sale.';
-
-      // Validate cashier exists
-      // In a real implementation, we'd check against user service
-      // For now, we'll assume the cashierId is valid if it's not empty
       if (cashierId.isEmpty) return 'Invalid cashier.';
 
-      // Validate products and check stock would require product service
-      // For now, we'll proceed and let Supabase handle constraints
-      // The product service should be notified separately to update stock
-
-      // Calculate totals
       final subtotal = items.fold<double>(0, (sum, item) => sum + item.lineTotal);
       final total = subtotal - discount;
       if (amountPaid < total) {
         return 'Amount paid is less than the total of ${formatPeso(total)}.';
       }
 
-      // Create order with items using Supabase RPC
       final orderNumber = 'OR-${DateTime.now().year}-${_generateSequenceNumber()}';
 
       final itemsData = items.map((item) => {
@@ -108,25 +98,20 @@ class AdminSaleService extends ChangeNotifier {
       }).toList();
 
       final orderId = await _supabaseService.createOrderWithItems(
-        firebaseUid: cashierId, // Assuming cashierId is Firebase UID for now
+        firebaseUid: cashierId,
         orderNumber: orderNumber,
         totalAmount: total,
         totalItems: items.length,
         items: itemsData,
         customerName: customerName.trim().isEmpty ? 'Walk-in' : customerName.trim(),
-        orderNotes: '', // Could add discount info here
+        orderNotes: '',
       );
 
-      // TODO: Update product quantities (decrease stock)
-      // This would require coordination with product service
-      // For now, we'll note that stock adjustment needs to happen elsewhere
-
-      // Create AdminSale object for local cache
       final newSale = AdminSale(
         id: orderId,
         receiptNumber: orderNumber,
         cashierId: cashierId,
-        cashierName: 'Unknown Cashier', // Would come from user service
+        cashierName: 'Cashier',
         customerName: customerName.trim().isEmpty ? 'Walk-in' : customerName.trim(),
         items: items,
         discount: discount,
@@ -153,17 +138,12 @@ class AdminSaleService extends ChangeNotifier {
       if (!sale.isCompleted) return 'That receipt is already ${sale.status.label.toLowerCase()}.';
       if (reason.trim().isEmpty) return 'Enter a reason for voiding this sale.';
 
-      // Update order status in Supabase
       await _supabaseService.updateOrderStatus(id, 'voided');
 
-      // TODO: Restore product quantities
-      // This would require coordination with product service
-
-      // Update local cache
       final voidedSale = sale.copyWith(
         status: SaleStatus.voided,
         voidReason: reason.trim(),
-        voidedBy: 'Current User', // TODO: Get actual current user
+        voidedBy: 'Current User',
         voidedAt: DateTime.now(),
       );
 
@@ -201,7 +181,6 @@ class AdminSaleService extends ChangeNotifier {
   List<WeekSales> salesByWeek(int weeks) {
     final now = DateTime.now();
     final todayMidnight = DateTime(now.year, now.month, now.day);
-    // Monday of the current week (DateTime.weekday: Mon = 1 ... Sun = 7).
     final currentWeekStart =
     todayMidnight.subtract(Duration(days: todayMidnight.weekday - 1));
 
@@ -243,7 +222,7 @@ class AdminSaleService extends ChangeNotifier {
     return result;
   }
 
-  List<ProductSalesStat> topSellingProducts({int limit = 5}) {
+  List<ProductSalesStat> topSellingProducts({int limit = 6}) {
     final units = <String, double>{};
     final revenue = <String, double>{};
     final names = <String, String>{};
@@ -325,44 +304,44 @@ class AdminSaleService extends ChangeNotifier {
       a.year == b.year && a.month == b.month && a.day == b.day;
 
   int _generateSequenceNumber() {
-    // Simple sequence number generator - in production this would be more robust
     return DateTime.now().millisecondsSinceEpoch % 10000;
   }
 
   // ==================== DATA TRANSFORMATION ====================
 
   AdminSale _fromSupabaseSale(Map<String, dynamic> data) {
-    // Convert order items to SaleItem list
     final List<SaleItem> items = [];
     if (data['order_items'] != null && data['order_items'] is List) {
       for (var itemData in data['order_items']) {
         items.add(SaleItem(
-          productId: itemData['product_id'] as String,
-          productName: (itemData['product_name'] as String?) ?? 'Unknown Product',
-          unit: (itemData['unit'] as String?) ?? 'piece',
-          unitPrice: (itemData['unit_price'] as num).toDouble(),
-          unitCost: (itemData['unit_cost'] as num).toDouble(),
-          quantity: (itemData['quantity'] as num).toDouble(),
+          productId: itemData['product_id']?.toString() ?? '',
+          productName: itemData['product_name']?.toString() ?? 'Item',
+          unit: itemData['unit']?.toString() ?? 'piece',
+          unitPrice: (itemData['unit_price'] as num? ?? 0).toDouble(),
+          unitCost: (itemData['unit_cost'] as num? ?? 0).toDouble(),
+          quantity: (itemData['quantity'] as num? ?? 0).toDouble(),
         ));
       }
     }
 
     return AdminSale(
-      id: data['id'] as String,
-      receiptNumber: (data['order_number'] as String?) ?? '',
-      cashierId: (data['user_id'] as String?) ?? '',
-      cashierName: (data['cashier_name'] as String?) ?? 'Unknown Cashier',
-      customerName: (data['customer_name'] as String?) ?? 'Walk-in',
+      id: data['id']?.toString() ?? '',
+      receiptNumber: data['order_number']?.toString() ?? '',
+      cashierId: data['user_id']?.toString() ?? '',
+      cashierName: data['cashier_name']?.toString() ?? 'Cashier',
+      customerName: data['customer_name']?.toString() ?? 'Walk-in',
       items: items,
       discount: (data['discount'] as num?)?.toDouble() ?? 0,
-      paymentMethod: _parsePaymentMethod(data['payment_method'] as String?),
-      amountPaid: (data['amount_paid'] as num).toDouble(),
-      timestamp: DateTime.parse(data['placed_at'] as String),
-      status: _parseSaleStatus(data['status'] as String?),
-      voidReason: data['void_reason'] as String?,
-      voidedBy: data['voided_by'] as String?,
+      paymentMethod: _parsePaymentMethod(data['payment_method']?.toString()),
+      amountPaid: (data['total_amount'] as num? ?? 0).toDouble(),
+      timestamp: data['placed_at'] != null 
+          ? DateTime.tryParse(data['placed_at'] as String) ?? DateTime.now()
+          : DateTime.now(),
+      status: _parseSaleStatus(data['status']?.toString()),
+      voidReason: data['void_reason']?.toString(),
+      voidedBy: data['voided_by']?.toString(),
       voidedAt: data['voided_at'] != null
-          ? DateTime.parse(data['voided_at'] as String)
+          ? DateTime.tryParse(data['voided_at'] as String)
           : null,
     );
   }
@@ -383,6 +362,7 @@ class AdminSaleService extends ChangeNotifier {
   SaleStatus _parseSaleStatus(String? status) {
     switch (status?.toLowerCase()) {
       case 'voided':
+      case 'cancelled':
         return SaleStatus.voided;
       case 'refunded':
         return SaleStatus.refunded;

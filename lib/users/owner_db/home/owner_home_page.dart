@@ -183,26 +183,9 @@ class OwnerHomePage extends StatelessWidget {
                   const SizedBox(height: 24),
 
                   // --- Active On-Sale Deals Section ---
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text(
-                        'On-Sale Promos & Deals',
-                        style: TextStyle(color: AppColors.darkText, fontSize: 18, fontWeight: FontWeight.bold),
-                      ),
-                      TextButton.icon(
-                        onPressed: () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const OwnerSaleManagementPage(),
-                            ),
-                          );
-                        },
-                        icon: const Icon(Icons.settings_outlined, size: 16, color: AppColors.primaryOrange),
-                        label: const Text('Manage', style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold, fontSize: 13)),
-                      ),
-                    ],
+                  const Text(
+                    'On-Sale Promos & Deals',
+                    style: TextStyle(color: AppColors.darkText, fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 8),
                   InkWell(
