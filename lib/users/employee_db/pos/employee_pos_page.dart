@@ -48,7 +48,7 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
     super.initState();
     _cartPulseController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 250),
+      duration: const Duration(milliseconds: 1500),
     );
     _cartScaleAnimation = TweenSequence<double>([
       TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.25), weight: 50),
@@ -92,7 +92,7 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
     late OverlayEntry overlayEntry;
     final AnimationController flyController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 550),
+      duration: const Duration(milliseconds: 850),
     );
 
     final Animation<double> progress = CurvedAnimation(

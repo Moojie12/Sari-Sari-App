@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
 import 'package:sari_sari/core/theme/app_colors.dart';
+import 'package:sari_sari/shared/widgets/product_image.dart';
 import 'package:sari_sari/users/customer_db/cart/customer_cart_page.dart';
 import 'package:sari_sari/users/customer_db/customer_cart_controller.dart';
 import 'package:sari_sari/users/customer_db/customer_floating_nav_bar.dart';
@@ -21,7 +22,7 @@ class CustomerDashboard extends StatefulWidget {
   State<CustomerDashboard> createState() => CustomerDashboardState();
 }
 
-class CustomerDashboardState extends State<CustomerDashboard> {
+class CustomerDashboardState extends State<CustomerDashboard> with TickerProviderStateMixin {
   int _selectedIndex = 0;
 
   void switchTab(int index) {
@@ -37,6 +38,135 @@ class CustomerDashboardState extends State<CustomerDashboard> {
 
   bool _isNavBarVisible = true;
 
+  final GlobalKey _cartBadgeKey = GlobalKey();
+  late AnimationController _cartPulseController;
+  late Animation<double> _cartScaleAnimation;
+
+  @override
+  void initState() {
+    super.initState();
+    _cartPulseController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _cartScaleAnimation = TweenSequence<double>([
+      TweenSequenceItem(tween: Tween<double>(begin: 1.0, end: 1.25), weight: 50),
+      TweenSequenceItem(tween: Tween<double>(begin: 1.25, end: 1.0), weight: 50),
+    ]).animate(CurvedAnimation(
+      parent: _cartPulseController,
+      curve: Curves.easeInOut,
+    ));
+  }
+
+  @override
+  void dispose() {
+    _cartPulseController.dispose();
+    super.dispose();
+  }
+
+  /// Runs POS-style curved fly-to-cart animation landing at top-right cart FAB
+  void runFlyToCartAnimation({
+    required Offset startOffset,
+    String? productImage,
+  }) {
+    final RenderBox? cartBox = _cartBadgeKey.currentContext?.findRenderObject() as RenderBox?;
+    if (cartBox == null) return;
+
+    final Offset endOffset = cartBox.localToGlobal(cartBox.size.center(Offset.zero));
+    final OverlayState? overlayState = Overlay.of(context);
+    if (overlayState == null) return;
+
+    late OverlayEntry overlayEntry;
+    final AnimationController flyController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 850),
+    );
+
+    final Animation<double> progress = CurvedAnimation(
+      parent: flyController,
+      curve: Curves.easeInOutCubic,
+    );
+
+    overlayEntry = OverlayEntry(
+      builder: (context) {
+        return AnimatedBuilder(
+          animation: progress,
+          builder: (context, child) {
+            final t = progress.value;
+
+            // Curved arc upwards
+            final controlPoint = Offset(
+              (startOffset.dx + endOffset.dx) / 2,
+              startOffset.dy - 120,
+            );
+
+            final currentX = (1 - t) * (1 - t) * startOffset.dx +
+                2 * (1 - t) * t * controlPoint.dx +
+                t * t * endOffset.dx;
+            final currentY = (1 - t) * (1 - t) * startOffset.dy +
+                2 * (1 - t) * t * controlPoint.dy +
+                t * t * endOffset.dy;
+
+            final scale = (1.0 - (t * 0.4));
+            final opacity = (t > 0.85) ? (1.0 - (t - 0.85) / 0.15) : 1.0;
+
+            return Positioned(
+              left: currentX - 22,
+              top: currentY - 22,
+              child: IgnorePointer(
+                child: Opacity(
+                  opacity: opacity.clamp(0.0, 1.0),
+                  child: Transform.scale(
+                    scale: scale,
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryOrange,
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(
+                            color: AppColors.primaryOrange.withValues(alpha: 0.4),
+                            blurRadius: 10,
+                            spreadRadius: 2,
+                          ),
+                        ],
+                      ),
+                      child: Center(
+                        child: productImage != null && productImage.isNotEmpty
+                            ? ClipRRect(
+                                borderRadius: BorderRadius.circular(22),
+                                child: ProductImage(
+                                  image: productImage,
+                                  width: 40,
+                                  height: 40,
+                                ),
+                              )
+                            : const Icon(
+                                Icons.shopping_bag_rounded,
+                                color: Colors.white,
+                                size: 22,
+                              ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    overlayState.insert(overlayEntry);
+
+    flyController.forward().then((_) {
+      overlayEntry.remove();
+      flyController.dispose();
+      _cartPulseController.forward(from: 0.0);
+    });
+  }
+
   // Pages are now handled in a standard list inside build or initState
   // to avoid any stale state during Hot Reload.
   List<Widget> get _pages => [
@@ -48,13 +178,6 @@ class CustomerDashboardState extends State<CustomerDashboard> {
     CustomerPurchasesPage(orderController: _orderController),
     const CustomerProfilePage(),
   ];
-
-  @override
-  void dispose() {
-    // Controllers that are singletons should usually NOT be disposed here
-    // unless you want them to reset every time the dashboard is closed.
-    super.dispose();
-  }
 
   static const Duration _navBarAnimationDuration = Duration(milliseconds: 260);
 
@@ -114,30 +237,34 @@ class CustomerDashboardState extends State<CustomerDashboard> {
                       opacity: isVisible ? 1 : 0,
                       child: Padding(
                         padding: const EdgeInsets.fromLTRB(0, 26, 20, 0),
-                        child: Stack(
-                          clipBehavior: Clip.none,
-                          children: [
-                            FloatingActionButton(
-                              mini: true,
-                              onPressed: () {
-                                if (isHome) {
-                                  Navigator.push(
-                                    context,
-                                    MaterialPageRoute(
-                                      builder: (context) => CustomerCartPage(
-                                        cartController: _cartController,
-                                        orderController: _orderController,
-                                      ),
-                                    ),
-                                  );
-                                }
-                              },
-                              backgroundColor: AppColors.primaryOrange,
-                              elevation: 4,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(10),
-                              ),
-                              child: const Icon(
+                        child: ScaleTransition(
+                          scale: _cartScaleAnimation,
+                          child: KeyedSubtree(
+                            key: _cartBadgeKey,
+                            child: Stack(
+                              clipBehavior: Clip.none,
+                              children: [
+                                FloatingActionButton(
+                                  mini: true,
+                                  onPressed: () {
+                                    if (isHome) {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => CustomerCartPage(
+                                            cartController: _cartController,
+                                            orderController: _orderController,
+                                          ),
+                                        ),
+                                      );
+                                    }
+                                  },
+                                  backgroundColor: AppColors.primaryOrange,
+                                  elevation: 4,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: const Icon(
                                 Icons.shopping_cart_outlined,
                                 color: Colors.white,
                                 size: 20,
@@ -155,9 +282,11 @@ class CustomerDashboardState extends State<CustomerDashboard> {
                         ),
                       ),
                     ),
-                  );
-                },
-              ),
+                  ),
+                ),
+              );
+            },
+          ),
             ),
           ),
           // Floating Bottom Navigation Bar

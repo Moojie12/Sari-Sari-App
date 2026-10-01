@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:sari_sari/core/theme/app_colors.dart';
 import 'package:sari_sari/shared/utils/top_notification.dart';
 import 'package:sari_sari/shared/widgets/product_image.dart';
+import 'package:sari_sari/users/customer_db/customer_dashboard.dart';
 import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
 import 'package:sari_sari/users/employee_db/inventory/employee_product_model.dart';
 import 'package:sari_sari/users/customer_db/customer_cart_controller.dart';
@@ -156,10 +157,29 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     );
   }
 
-  void _addToCart(CustomerProduct product) {
+  void _addToCart(CustomerProduct product, [Offset? startPosition]) {
     final added = widget.cartController.addToCart(product);
     if (!added) return;
-    TopNotification.show(context, 'Added to cart');
+    final pos = startPosition ?? Offset(MediaQuery.of(context).size.width / 2, MediaQuery.of(context).size.height / 2);
+    CustomerDashboard.dashboardKey.currentState?.runFlyToCartAnimation(
+      startOffset: pos,
+      productImage: product.image,
+    );
+  }
+
+  void _addSaleDealToCart(SaleDealModel deal, [Offset? startPosition]) {
+    final employeeProducts = EmployeeInventoryController.instance.products;
+    final allCustomerProducts = employeeProducts.map((ep) => _mapToCustomerProduct(ep)).toList();
+    final success = widget.cartController.addSaleDeal(deal, allCustomerProducts);
+    if (success) {
+      final pos = startPosition ?? Offset(MediaQuery.of(context).size.width / 2, MediaQuery.of(context).size.height / 2);
+      CustomerDashboard.dashboardKey.currentState?.runFlyToCartAnimation(
+        startOffset: pos,
+        productImage: deal.effectiveImage,
+      );
+    } else {
+      TopNotification.show(context, 'Sorry, some items in this promo are out of stock.', isError: true);
+    }
   }
 
   @override
@@ -231,6 +251,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                           product: product,
                           onTap: () => _openProductDetails(product),
                           onAddToCart: () => _addToCart(product),
+                          onAddToCartWithPosition: (pos) => _addToCart(product, pos),
                         );
                       },
                       childCount: pagedProducts.length,
@@ -573,15 +594,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     return employeeProducts.map((ep) => _mapToCustomerProduct(ep)).toList();
   }
 
-  void _addSaleDealToCart(SaleDealModel deal) {
-    final success = widget.cartController.addSaleDeal(deal, _allCustomerProducts);
-    if (success) {
-      TopNotification.show(context, 'Added "${deal.title}" promo to your cart!');
-    } else {
-      TopNotification.show(context, 'Sorry, some items in this promo are out of stock.', isError: true);
-    }
-  }
-
   void _buyNowSaleDeal(SaleDealModel deal) {
     widget.cartController.clearCart();
     final success = widget.cartController.addSaleDeal(deal, _allCustomerProducts);
@@ -666,6 +678,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                       deal: deal,
                       onTap: () => _showSaleDealDetailsModal(context, deal),
                       onAddToCart: () => _addSaleDealToCart(deal),
+                      onAddToCartWithPosition: (pos) => _addSaleDealToCart(deal, pos),
                       onBuyNow: () => _buyNowSaleDeal(deal),
                     ),
                   );
@@ -681,6 +694,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                         product: product,
                         onTap: () => _openProductDetails(product),
                         onAddToCart: () => _addToCart(product),
+                        onAddToCartWithPosition: (pos) => _addToCart(product, pos),
                       ),
                     ),
                   );
@@ -805,12 +819,14 @@ class _SaleDealCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onAddToCart;
   final VoidCallback onBuyNow;
+  final Function(Offset position)? onAddToCartWithPosition;
 
   const _SaleDealCard({
     required this.deal,
     required this.onTap,
     required this.onAddToCart,
     required this.onBuyNow,
+    this.onAddToCartWithPosition,
   });
 
   @override
@@ -994,17 +1010,31 @@ class _SaleDealCard extends StatelessWidget {
                           const SizedBox(width: 6),
                           SizedBox(
                             width: 34,
-                            child: OutlinedButton(
-                              style: OutlinedButton.styleFrom(
-                                padding: EdgeInsets.zero,
-                                foregroundColor: AppColors.primaryOrange,
-                                side: const BorderSide(color: AppColors.primaryOrange),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                              ),
-                              onPressed: onAddToCart,
-                              child: const Icon(Icons.add_shopping_cart, size: 16),
+                            child: Builder(
+                              builder: (btnContext) {
+                                return OutlinedButton(
+                                  style: OutlinedButton.styleFrom(
+                                    padding: EdgeInsets.zero,
+                                    foregroundColor: AppColors.primaryOrange,
+                                    side: const BorderSide(color: AppColors.primaryOrange),
+                                    shape: RoundedRectangleBorder(
+                                      borderRadius: BorderRadius.circular(8),
+                                    ),
+                                  ),
+                                  onPressed: () {
+                                    final box = btnContext.findRenderObject() as RenderBox?;
+                                    final pos = box != null
+                                        ? box.localToGlobal(box.size.center(Offset.zero))
+                                        : const Offset(200, 400);
+                                    if (onAddToCartWithPosition != null) {
+                                      onAddToCartWithPosition!(pos);
+                                    } else {
+                                      onAddToCart();
+                                    }
+                                  },
+                                  child: const Icon(Icons.add_shopping_cart, size: 16),
+                                );
+                              },
                             ),
                           ),
                         ],

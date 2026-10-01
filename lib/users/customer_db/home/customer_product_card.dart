@@ -12,11 +12,13 @@ class CustomerProductCard extends StatelessWidget {
     required this.product,
     required this.onTap,
     required this.onAddToCart,
+    this.onAddToCartWithPosition,
   });
 
   final CustomerProduct product;
   final VoidCallback onTap;
   final VoidCallback onAddToCart;
+  final Function(Offset position)? onAddToCartWithPosition;
 
   @override
   Widget build(BuildContext context) {
@@ -127,22 +129,36 @@ class CustomerProductCard extends StatelessWidget {
                             const SizedBox(width: 6),
                             SizedBox(
                               width: 34,
-                              child: OutlinedButton(
-                                onPressed: onAddToCart,
-                                style: OutlinedButton.styleFrom(
-                                  padding: EdgeInsets.zero,
-                                  foregroundColor: AppColors.primaryOrange,
-                                  side: const BorderSide(
-                                    color: AppColors.primaryOrange,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(8),
-                                  ),
-                                ),
-                                child: const Icon(
-                                  Icons.add_shopping_cart,
-                                  size: 16,
-                                ),
+                              child: Builder(
+                                builder: (btnContext) {
+                                  return OutlinedButton(
+                                    onPressed: () {
+                                      final box = btnContext.findRenderObject() as RenderBox?;
+                                      final pos = box != null
+                                          ? box.localToGlobal(box.size.center(Offset.zero))
+                                          : const Offset(200, 400);
+                                      if (onAddToCartWithPosition != null) {
+                                        onAddToCartWithPosition!(pos);
+                                      } else {
+                                        onAddToCart();
+                                      }
+                                    },
+                                    style: OutlinedButton.styleFrom(
+                                      padding: EdgeInsets.zero,
+                                      foregroundColor: AppColors.primaryOrange,
+                                      side: const BorderSide(
+                                        color: AppColors.primaryOrange,
+                                      ),
+                                      shape: RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                    ),
+                                    child: const Icon(
+                                      Icons.add_shopping_cart,
+                                      size: 16,
+                                    ),
+                                  );
+                                },
                               ),
                             ),
                           ],

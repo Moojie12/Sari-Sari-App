@@ -18,13 +18,25 @@ class CustomerAddressController extends ChangeNotifier {
     const CustomerAddress(
       id: '1',
       type: 'Home',
-      address: '123 Sampaguita Street, Brgy. 456, Manila City, Metro Manila',
+      province: 'Laguna',
+      city: 'City of Calamba',
+      cityCode: '043405000',
+      barangay: 'Real',
+      barangayCode: '043405041',
+      streetDetails: '123 Sampaguita Street',
+      address: '123 Sampaguita Street, Brgy. Real, City of Calamba, Laguna, Philippines',
       isDefault: true,
     ),
     const CustomerAddress(
       id: '2',
       type: 'Office',
-      address: '456 Narra Avenue, Makati Business District, Makati City',
+      province: 'Laguna',
+      city: 'City of Santa Rosa',
+      cityCode: '043428000',
+      barangay: 'Balibago',
+      barangayCode: '043428002',
+      streetDetails: '456 Narra Avenue, Greenfield District',
+      address: '456 Narra Avenue, Greenfield District, Brgy. Balibago, City of Santa Rosa, Laguna, Philippines',
     ),
   ];
 
