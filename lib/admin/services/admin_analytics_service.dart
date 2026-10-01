@@ -49,11 +49,9 @@ class AdminAnalyticsService extends ChangeNotifier {
     notifyListeners();
 
     try {
-      // Load products and sales in parallel
-      await Future.wait([
-        _loadProducts(),
-        _loadSales(),
-      ]);
+      // Load products first, then sales so product names can be mapped to sales items
+      await _loadProducts();
+      await _loadSales();
     } catch (e) {
       _error = e.toString();
     } finally {
@@ -75,7 +73,7 @@ class AdminAnalyticsService extends ChangeNotifier {
 
   Future<void> _loadSales() async {
     try {
-      final supabaseSales = await _supabaseService.getAllOrders();
+      final supabaseSales = await _supabaseService.getAllOrdersWithItems();
       _sales = supabaseSales.map(_fromSupabaseSale).toList();
     } catch (e) {
       _error = 'Failed to load sales: $e';
@@ -84,6 +82,7 @@ class AdminAnalyticsService extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    _isInitialized = false;
     await initialize();
   }
 
@@ -169,7 +168,7 @@ class AdminAnalyticsService extends ChangeNotifier {
     return result;
   }
 
-  List<ProductSalesStat> topSellingProducts({int limit = 5}) {
+  List<ProductSalesStat> topSellingProducts({int limit = 6}) {
     final units = <String, double>{};
     final revenue = <String, double>{};
     final names = <String, String>{};
@@ -293,7 +292,6 @@ class AdminAnalyticsService extends ChangeNotifier {
   // ==================== DATA TRANSFORMATION ====================
 
   AdminProduct _fromSupabaseProduct(Map<String, dynamic> data) {
-    // 1. Calculate total quantity and earliest expiry from the related batches
     double totalQuantity = 0;
     DateTime? earliestExpiry;
     
@@ -311,8 +309,6 @@ class AdminAnalyticsService extends ChangeNotifier {
       }
     }
 
-    // 2. Map snake_case database fields to the AdminProduct model
-    // Your SQL schema uses 'category' (text) and 'capital' (numeric)
     return AdminProduct(
       id: data['id']?.toString() ?? '',
       name: data['name']?.toString() ?? 'Unnamed Product',
@@ -334,13 +330,28 @@ class AdminAnalyticsService extends ChangeNotifier {
   }
 
   AdminSale _fromSupabaseSale(Map<String, dynamic> data) {
-    // Convert order items to SaleItem list
     final List<SaleItem> items = [];
     if (data['order_items'] != null && data['order_items'] is List) {
       for (var itemData in data['order_items']) {
+        String pId = itemData['product_id']?.toString() ?? '';
+        String pName = itemData['product_name']?.toString() ?? '';
+        if (pName.isEmpty || pName == 'Unknown Product') {
+          final matchingProduct = _products.cast<AdminProduct?>().firstWhere(
+            (p) => p?.id == pId,
+            orElse: () => null,
+          );
+          if (matchingProduct != null) {
+            pName = matchingProduct.name;
+          } else {
+            pName = pId.isNotEmpty
+                ? 'Product #${pId.substring(0, pId.length > 8 ? 8 : pId.length)}'
+                : 'Item';
+          }
+        }
+
         items.add(SaleItem(
-          productId: itemData['product_id']?.toString() ?? '',
-          productName: itemData['product_name']?.toString() ?? 'Unknown Product',
+          productId: pId,
+          productName: pName,
           unit: itemData['unit']?.toString() ?? 'piece',
           unitPrice: (itemData['unit_price'] as num? ?? 0).toDouble(),
           unitCost: (itemData['unit_cost'] as num? ?? 0).toDouble(),
@@ -353,12 +364,12 @@ class AdminAnalyticsService extends ChangeNotifier {
       id: data['id']?.toString() ?? '',
       receiptNumber: data['order_number']?.toString() ?? '',
       cashierId: data['user_id']?.toString() ?? '',
-      cashierName: data['cashier_name']?.toString() ?? 'Unknown Cashier',
+      cashierName: data['cashier_name']?.toString() ?? 'Cashier',
       customerName: data['customer_name']?.toString() ?? 'Walk-in',
       items: items,
       discount: (data['discount'] as num?)?.toDouble() ?? 0,
       paymentMethod: _parsePaymentMethod(data['payment_method']?.toString()),
-      amountPaid: (data['total_amount'] as num? ?? 0).toDouble(), // total_amount in your schema
+      amountPaid: (data['total_amount'] as num? ?? 0).toDouble(),
       timestamp: data['placed_at'] != null 
           ? DateTime.tryParse(data['placed_at'] as String) ?? DateTime.now()
           : DateTime.now(),
@@ -387,6 +398,7 @@ class AdminAnalyticsService extends ChangeNotifier {
   SaleStatus _parseSaleStatus(String? status) {
     switch (status?.toLowerCase()) {
       case 'voided':
+      case 'cancelled':
         return SaleStatus.voided;
       case 'refunded':
         return SaleStatus.refunded;
@@ -395,7 +407,6 @@ class AdminAnalyticsService extends ChangeNotifier {
     }
   }
 
-  // Constants for formatting
   static const List<String> _kMonths = [
     'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
     'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
