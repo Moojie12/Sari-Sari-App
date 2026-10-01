@@ -352,8 +352,8 @@ class CustomerOrder {
     final items = itemsList != null ? List<CustomerOrderItem>.from(itemsList) : <CustomerOrderItem>[];
     if (items.isEmpty && map['order_items'] != null && map['order_items'] is List) {
       for (var itemMap in map['order_items']) {
-        if (itemMap is Map<String, dynamic>) {
-          items.add(CustomerOrderItem.fromSupabase(itemMap));
+        if (itemMap is Map) {
+          items.add(CustomerOrderItem.fromSupabase(Map<String, dynamic>.from(itemMap)));
         }
       }
     }

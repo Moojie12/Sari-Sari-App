@@ -601,6 +601,26 @@ class _OrderCard extends StatelessWidget {
             )),
             if (order.items.length > 2)
               Text('+${order.items.length - 2} more items', style: const TextStyle(fontSize: 11, color: AppColors.secondaryText, fontStyle: FontStyle.italic)),
+            if (order.status == OrderStatus.cancelled &&
+                order.cancellationReason != null &&
+                order.cancellationReason!.isNotEmpty) ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: Colors.red.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.red.shade200),
+                ),
+                child: Text(
+                  'Reason: ${order.cancellationReason}',
+                  style: TextStyle(fontSize: 12, color: Colors.red.shade900, fontWeight: FontWeight.w500),
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
             const Divider(height: 24),
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,

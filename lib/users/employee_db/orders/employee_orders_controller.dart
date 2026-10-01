@@ -90,7 +90,15 @@ class EmployeeOrderController extends ChangeNotifier {
   void _mergeOrder(CustomerOrder order) {
     final existingIndex = _orders.indexWhere((o) => o.orderId == order.orderId);
     if (existingIndex >= 0) {
-      _orders[existingIndex] = order;
+      final existing = _orders[existingIndex];
+      final mergedItems = order.items.isNotEmpty ? order.items : existing.items;
+      final mergedReason = (order.cancellationReason != null && order.cancellationReason!.isNotEmpty)
+          ? order.cancellationReason
+          : existing.cancellationReason;
+      _orders[existingIndex] = order.copyWith(
+        items: mergedItems,
+        cancellationReason: mergedReason,
+      );
     } else {
       _orders.add(order);
     }
@@ -430,6 +438,7 @@ class EmployeeOrderController extends ChangeNotifier {
         orderId,
         newStatus.name,
         (newStatus == OrderStatus.completed ? PaymentStatus.paid : oldOrder.paymentStatus).name,
+        finalReason,
       ).then((success) {
         if (success) {
           debugPrint('Order status updated successfully in Supabase database.');
