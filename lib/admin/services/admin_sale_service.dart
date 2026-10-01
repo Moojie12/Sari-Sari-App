@@ -158,9 +158,9 @@ class AdminSaleService extends ChangeNotifier {
 
   // ==================== ANALYTICS METHODS ====================
 
-  List<DaySales> salesByDay(int days) {
-    final now = DateTime.now();
-    final start = DateTime(now.year, now.month, now.day)
+  List<DaySales> salesByDay(int days, {DateTime? referenceDate}) {
+    final ref = referenceDate ?? DateTime.now();
+    final start = DateTime(ref.year, ref.month, ref.day)
         .subtract(Duration(days: days - 1));
     final result = <DaySales>[];
 
@@ -178,11 +178,11 @@ class AdminSaleService extends ChangeNotifier {
     return result;
   }
 
-  List<WeekSales> salesByWeek(int weeks) {
-    final now = DateTime.now();
-    final todayMidnight = DateTime(now.year, now.month, now.day);
+  List<WeekSales> salesByWeek(int weeks, {DateTime? referenceDate}) {
+    final ref = referenceDate ?? DateTime.now();
+    final refMidnight = DateTime(ref.year, ref.month, ref.day);
     final currentWeekStart =
-    todayMidnight.subtract(Duration(days: todayMidnight.weekday - 1));
+    refMidnight.subtract(Duration(days: refMidnight.weekday - 1));
 
     final result = <WeekSales>[];
     for (var i = weeks - 1; i >= 0; i--) {
@@ -202,11 +202,11 @@ class AdminSaleService extends ChangeNotifier {
     return result;
   }
 
-  List<MonthSales> salesByMonth(int months) {
-    final now = DateTime.now();
+  List<MonthSales> salesByMonth(int months, {DateTime? referenceDate}) {
+    final ref = referenceDate ?? DateTime.now();
     final result = <MonthSales>[];
     for (var i = months - 1; i >= 0; i--) {
-      final monthIndex = now.year * 12 + (now.month - 1) - i;
+      final monthIndex = ref.year * 12 + (ref.month - 1) - i;
       final year = monthIndex ~/ 12;
       final month = monthIndex % 12 + 1;
       final ofMonth = completedSales

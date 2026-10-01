@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../core/services/sale_deal_controller.dart';
+import '../../../models/sale_deal_model.dart';
 import '../../models/admin_models.dart';
 import '../../services/admin_product_service.dart';
 import '../../services/admin_user_service.dart';
@@ -9,7 +11,7 @@ import '../../services/admin_audit_service.dart';
 import '../../services/admin_analytics_service.dart';
 import '../widgets/dashboard_shared.dart';
 
-class OverviewSection extends StatelessWidget {
+class OverviewSection extends StatefulWidget {
   final AdminProductService productService;
   final AdminUserService userService;
   final AdminCategoryService categoryService;
@@ -32,30 +34,42 @@ class OverviewSection extends StatelessWidget {
   });
 
   @override
+  State<OverviewSection> createState() => _OverviewSectionState();
+}
+
+class _OverviewSectionState extends State<OverviewSection> {
+  DateTime _selectedDailyDate = DateTime.now();
+  DateTime _selectedWeeklyDate = DateTime.now();
+  DateTime _selectedMonthlyDate = DateTime.now();
+
+  @override
   Widget build(BuildContext context) {
+    final dealController = SaleDealController.instance;
+
     return ListenableBuilder(
       listenable: Listenable.merge([
-        productService,
-        userService,
-        categoryService,
-        saleService,
-        auditService,
-        analyticsService,
+        widget.productService,
+        widget.userService,
+        widget.categoryService,
+        widget.saleService,
+        widget.auditService,
+        widget.analyticsService,
+        dealController,
       ]),
       builder: (context, _) {
-        final anyLoading = productService.isLoading ||
-            userService.isLoading ||
-            categoryService.isLoading ||
-            saleService.isLoading ||
-            auditService.isLoading ||
-            analyticsService.isLoading;
+        final anyLoading = widget.productService.isLoading ||
+            widget.userService.isLoading ||
+            widget.categoryService.isLoading ||
+            widget.saleService.isLoading ||
+            widget.auditService.isLoading ||
+            widget.analyticsService.isLoading;
 
-        final allInitialized = productService.isInitialized &&
-            userService.isInitialized &&
-            categoryService.isInitialized &&
-            saleService.isInitialized &&
-            auditService.isInitialized &&
-            analyticsService.isInitialized;
+        final allInitialized = widget.productService.isInitialized &&
+            widget.userService.isInitialized &&
+            widget.categoryService.isInitialized &&
+            widget.saleService.isInitialized &&
+            widget.auditService.isInitialized &&
+            widget.analyticsService.isInitialized;
 
         if (!allInitialized && anyLoading) {
           return const Center(
@@ -68,25 +82,21 @@ class OverviewSection extends StatelessWidget {
         return Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // HERO CARD: Best Sellers (Replacing old Sales this week chart)
-            _buildTopSellersCard(),
+            // TOP HERO ROW: 2 Columns Side-by-Side (Best Sellers Top 3 on Left, On-Sale Promos on Right)
+            _twoColumn(
+              _buildTopSellersCard(),
+              _buildOnSaleDealsCard(context),
+              flexA: 1,
+              flexB: 1,
+            ),
             const SizedBox(height: 20),
 
-            // SALES BREAKDOWN CARDS (Daily, Weekly, Monthlyconnected to Database)
+            // SALES BREAKDOWN CARDS (Daily, Weekly, Monthly with Owner-style Date Navigation Bars)
             _threeColumn([
               _buildDailySalesCard(),
               _buildWeeklySalesCard(),
               _buildMonthlySalesCard(),
             ]),
-            const SizedBox(height: 20),
-
-            // INVENTORY RESTOCK & RECENT ACTIVITY
-            _twoColumn(
-              _buildLowStockCard(),
-              _buildRecentActivityCard(),
-              flexA: 3,
-              flexB: 2,
-            ),
           ],
         );
       },
@@ -134,86 +144,153 @@ class OverviewSection extends StatelessWidget {
     );
   }
 
+  // --- BEST SELLERS CARD (TOP 3 ONLY ON CARD) ---
   Widget _buildTopSellersCard() {
-    final stats = analyticsService.topSellingProducts(limit: 6);
+    final stats = widget.analyticsService.topSellingProducts(limit: 3);
     final topRevenue = stats.isEmpty ? 0.0 : stats.first.revenue;
 
     return card(
       title: 'Best Sellers',
-      subtitle: 'Top products ranked by revenue and total units sold',
-      trailing: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-        decoration: BoxDecoration(
-          color: AppColors.primaryOrange.withValues(alpha: 0.12),
-          borderRadius: BorderRadius.circular(20),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: const [
-            Icon(Icons.emoji_events_rounded, size: 14, color: AppColors.primaryOrange),
-            SizedBox(width: 4),
-            Text(
-              'LIVE RANKINGS',
-              style: TextStyle(
-                fontSize: 10.5,
-                fontWeight: FontWeight.bold,
-                color: AppColors.primaryOrange,
-                letterSpacing: 0.8,
-              ),
-            ),
-          ],
-        ),
+      subtitle: 'Top 3 products ranked by total sales revenue',
+      trailing: TextButton.icon(
+        onPressed: () => _openAllTopSellersModal(context),
+        icon: const Icon(Icons.leaderboard_rounded, size: 16, color: AppColors.primaryOrange),
+        label: const Text('See All', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryOrange)),
       ),
       child: stats.isEmpty
           ? _inlineEmpty('No sales recorded yet in database.')
-          : LayoutBuilder(
-              builder: (context, constraints) {
-                final isWide = constraints.maxWidth > 800;
-                if (isWide) {
-                  // Grid of 2 columns on wide screens
-                  final halfLength = (stats.length / 2).ceil();
-                  final col1 = stats.take(halfLength).toList();
-                  final col2 = stats.skip(halfLength).toList();
+          : Column(
+              children: [
+                for (var i = 0; i < stats.length; i++) ...[
+                  _buildBestSellerRow(stats[i], i + 1, topRevenue),
+                  if (i < stats.length - 1) const SizedBox(height: 12),
+                ],
+                const SizedBox(height: 12),
+                InkWell(
+                  onTap: () => _openAllTopSellersModal(context),
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.symmetric(vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primaryOrange.withValues(alpha: 0.08),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.2)),
+                    ),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: const [
+                        Icon(Icons.format_list_bulleted_rounded, size: 15, color: AppColors.primaryOrange),
+                        SizedBox(width: 6),
+                        Text(
+                          'View All Product Rankings',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.primaryOrange,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+    );
+  }
 
-                  return Row(
+  // --- WEB MODAL: ALL BEST SELLERS RANKINGS ---
+  void _openAllTopSellersModal(BuildContext context) {
+    final allStats = widget.analyticsService.topSellingProducts(limit: 100);
+    final topRevenue = allStats.isEmpty ? 0.0 : allStats.first.revenue;
+    final searchController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            final query = searchController.text.trim().toLowerCase();
+            final filteredStats = query.isEmpty
+                ? allStats
+                : allStats.where((s) => s.productName.toLowerCase().contains(query)).toList();
+
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 640, maxHeight: 720),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Expanded(
-                        child: Column(
-                          children: [
-                            for (var i = 0; i < col1.length; i++) ...[
-                              _buildBestSellerRow(col1[i], i + 1, topRevenue),
-                              if (i < col1.length - 1) const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: const [
+                              Icon(Icons.emoji_events_rounded, color: AppColors.primaryOrange, size: 22),
+                              SizedBox(width: 8),
+                              Text(
+                                'Best Sellers Rankings',
+                                style: TextStyle(
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                  color: AppColors.darkText,
+                                ),
+                              ),
                             ],
-                          ],
-                        ),
+                          ),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () => Navigator.pop(dialogCtx),
+                          ),
+                        ],
                       ),
-                      const SizedBox(width: 24),
-                      Expanded(
-                        child: Column(
-                          children: [
-                            for (var i = 0; i < col2.length; i++) ...[
-                              _buildBestSellerRow(col2[i], halfLength + i + 1, topRevenue),
-                              if (i < col2.length - 1) const SizedBox(height: 16),
-                            ],
-                          ],
-                        ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'Full ranking of all products based on completed sales revenue',
+                        style: TextStyle(fontSize: 12, color: AppColors.secondaryText),
                       ),
-                    ],
-                  );
-                }
+                      const SizedBox(height: 16),
 
-                // Single column on narrow screens
-                return Column(
-                  children: [
-                    for (var i = 0; i < stats.length; i++) ...[
-                      _buildBestSellerRow(stats[i], i + 1, topRevenue),
-                      if (i < stats.length - 1) const SizedBox(height: 16),
+                      // Search bar
+                      TextField(
+                        controller: searchController,
+                        onChanged: (_) => setModalState(() {}),
+                        decoration: InputDecoration(
+                          hintText: 'Search product name...',
+                          prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.primaryOrange),
+                          filled: true,
+                          fillColor: AppColors.lightPeach,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        ),
+                      ),
+                      const Divider(height: 24),
+
+                      Expanded(
+                        child: filteredStats.isEmpty
+                            ? _inlineEmpty('No matching top selling products found.')
+                            : ListView.separated(
+                                itemCount: filteredStats.length,
+                                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                                itemBuilder: (context, idx) {
+                                  final stat = filteredStats[idx];
+                                  final actualRank = allStats.indexOf(stat) + 1;
+                                  return _buildBestSellerRow(stat, actualRank, topRevenue);
+                                },
+                              ),
+                      ),
                     ],
-                  ],
-                );
-              },
-            ),
+                  ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
@@ -248,7 +325,6 @@ class OverviewSection extends StatelessWidget {
         children: [
           Row(
             children: [
-              // Rank Badge
               Container(
                 width: 32,
                 height: 32,
@@ -296,7 +372,7 @@ class OverviewSection extends StatelessWidget {
               ),
               const SizedBox(width: 12),
               Text(
-                analyticsService.formatPeso(stat.revenue),
+                widget.analyticsService.formatPeso(stat.revenue),
                 style: const TextStyle(
                   fontSize: 14,
                   fontWeight: FontWeight.w800,
@@ -305,7 +381,7 @@ class OverviewSection extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 8),
           ClipRRect(
             borderRadius: BorderRadius.circular(4),
             child: LinearProgressIndicator(
@@ -320,310 +396,956 @@ class OverviewSection extends StatelessWidget {
     );
   }
 
-  Widget _buildDailySalesCard() {
-    final days = analyticsService.salesByDay(7);
-    final now = DateTime.now();
-    return _periodListCard(
-      title: 'Daily sales',
-      subtitle: 'Last 7 days',
-      rows: [
-        for (final d in days.reversed)
-          _PeriodRow(
-            label: formatShortDate(d.day),
-            isCurrent: isSameDay(d.day, now),
-            total: d.total,
-            orders: d.orders,
-          ),
-      ],
-    );
-  }
-
-  Widget _buildWeeklySalesCard() {
-    final weeks = analyticsService.salesByWeek(6);
-    final now = DateTime.now();
-    final nowMidnight = DateTime(now.year, now.month, now.day);
-    return _periodListCard(
-      title: 'Weekly sales',
-      subtitle: 'Last 6 weeks',
-      rows: [
-        for (final w in weeks.reversed)
-          _PeriodRow(
-            label: formatWeekRange(w.weekStart, w.weekEnd),
-            isCurrent: !nowMidnight.isBefore(w.weekStart) &&
-                !nowMidnight.isAfter(w.weekEnd),
-            total: w.total,
-            orders: w.orders,
-          ),
-      ],
-    );
-  }
-
-  Widget _buildMonthlySalesCard() {
-    final months = analyticsService.salesByMonth(6);
-    final now = DateTime.now();
-    return _periodListCard(
-      title: 'Monthly sales',
-      subtitle: 'Last 6 months',
-      rows: [
-        for (final m in months.reversed)
-          _PeriodRow(
-            label: formatMonthYear(m.year, m.month),
-            isCurrent: m.year == now.year && m.month == now.month,
-            total: m.total,
-            orders: m.orders,
-          ),
-      ],
-    );
-  }
-
-  Widget _periodListCard({
-    required String title,
-    required String subtitle,
-    required List<_PeriodRow> rows,
-  }) {
-    final total = rows.fold<double>(0, (sum, r) => sum + r.total);
-    final totalOrders = rows.fold<int>(0, (sum, r) => sum + r.orders);
-    final hasAnySales = rows.any((r) => r.total > 0);
+  // --- ON-SALE PROMOS & DEALS CARD ---
+  Widget _buildOnSaleDealsCard(BuildContext context) {
+    final dealController = SaleDealController.instance;
+    final deals = dealController.deals;
 
     return card(
-      title: title,
-      subtitle: subtitle,
-      child: !hasAnySales
-          ? _inlineEmpty('No sales recorded yet in database.')
+      title: 'On-Sale Promos & Deals',
+      subtitle: 'Manage custom promo deals and discounts for customers',
+      trailing: ElevatedButton.icon(
+        onPressed: () => _openAddEditDealModal(context),
+        icon: const Icon(Icons.add_rounded, size: 16),
+        label: const Text('New Promo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+        style: ElevatedButton.styleFrom(
+          backgroundColor: AppColors.primaryOrange,
+          foregroundColor: Colors.white,
+          elevation: 0,
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        ),
+      ),
+      child: deals.isEmpty
+          ? _inlineEmpty('No on-sale promos created yet. Click "+ New Promo" to create one!')
           : Column(
               children: [
-                for (final row in rows)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 10),
-                    child: Row(
+                for (var i = 0; i < deals.length; i++) ...[
+                  _buildOnSaleDealRow(context, deals[i]),
+                  if (i < deals.length - 1) const SizedBox(height: 12),
+                ],
+              ],
+            ),
+    );
+  }
+
+  Widget _buildOnSaleDealRow(BuildContext context, SaleDealModel deal) {
+    final dealController = SaleDealController.instance;
+
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: deal.isActive
+            ? AppColors.lightBackground.withValues(alpha: 0.5)
+            : Colors.grey.withValues(alpha: 0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: deal.isActive
+              ? AppColors.primaryOrange.withValues(alpha: 0.12)
+              : AppColors.borderColor,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 36,
+                height: 36,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: deal.isActive
+                      ? AppColors.primaryOrange.withValues(alpha: 0.15)
+                      : Colors.grey.withValues(alpha: 0.2),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  Icons.local_offer_rounded,
+                  size: 18,
+                  color: deal.isActive ? AppColors.primaryOrange : Colors.grey,
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
                       children: [
-                        Container(
-                          width: 6,
-                          height: 6,
-                          margin: const EdgeInsets.only(right: 10),
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: row.isCurrent
-                                ? AppColors.primaryOrange
-                                : Colors.transparent,
-                          ),
-                        ),
                         Expanded(
                           child: Text(
-                            row.label,
+                            deal.title,
                             overflow: TextOverflow.ellipsis,
                             style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight:
-                                  row.isCurrent ? FontWeight.w700 : FontWeight.w500,
-                              color: row.isCurrent
-                                  ? AppColors.darkText
-                                  : AppColors.secondaryText,
+                              fontSize: 14,
+                              fontWeight: FontWeight.bold,
+                              color: deal.isActive ? AppColors.darkText : Colors.grey[700],
                             ),
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                          decoration: BoxDecoration(
-                            color: AppColors.lightPeach,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            '${row.orders} orders',
-                            style: const TextStyle(
-                              fontSize: 10.5,
-                              fontWeight: FontWeight.w600,
-                              color: AppColors.primaryOrange,
+                        if (deal.discountPercentage > 0) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '${deal.discountPercentage}% OFF',
+                              style: const TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                              ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 10),
-                        SizedBox(
-                          width: 85,
-                          child: Text(
-                            analyticsService.formatPeso(row.total),
-                            textAlign: TextAlign.right,
-                            style: TextStyle(
-                              fontSize: 12.5,
-                              fontWeight: FontWeight.w700,
-                              color: row.total == 0
-                                  ? AppColors.placeholderColor
-                                  : AppColors.darkText,
-                            ),
-                          ),
-                        ),
+                        ],
                       ],
                     ),
-                  ),
-                const Divider(height: 18),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
+                    const SizedBox(height: 2),
                     Text(
-                      'Total ($totalOrders orders)',
+                      '${deal.totalItemQuantity} items · Regular: ${widget.analyticsService.formatPeso(deal.originalTotalPrice)}',
                       style: const TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w700,
+                        fontSize: 11.5,
                         color: AppColors.secondaryText,
-                      ),
-                    ),
-                    Text(
-                      analyticsService.formatPeso(total),
-                      style: const TextStyle(
-                        fontSize: 13.5,
-                        fontWeight: FontWeight.w800,
-                        color: AppColors.primaryOrange,
                       ),
                     ),
                   ],
                 ),
-              ],
-            ),
-    );
-  }
-
-  Widget _buildLowStockCard() {
-    final items = analyticsService.lowStockProducts.take(6).toList();
-
-    return card(
-      title: 'Restock list',
-      subtitle: 'Products at or below their reorder level',
-      trailing: items.isEmpty
-          ? null
-          : TextButton(
-              onPressed: () => onGoTo(AdminSection.products),
-              child: const Text('See all'),
-            ),
-      child: items.isEmpty
-          ? _inlineEmpty('Everything is well stocked.')
-          : Column(
-              children: [
-                for (final product in items)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 12),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                product.name,
-                                overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
-                                  fontSize: 13.5,
-                                  fontWeight: FontWeight.w600,
-                                  color: AppColors.darkText,
-                                ),
-                              ),
-                              Text(
-                                product.categoryName,
-                                style: const TextStyle(
-                                  fontSize: 11.5,
-                                  color: AppColors.placeholderColor,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        statusPill(
-                          product.isOutOfStock
-                              ? 'Out of stock'
-                              : formatQuantity(product.quantity, product.unit),
-                          product.isOutOfStock ? Colors.red : Colors.orange,
-                        ),
-                        const SizedBox(width: 8),
-                        IconButton(
-                          tooltip: 'Adjust stock',
-                          icon: const Icon(Icons.add_circle_outline, size: 20),
-                          color: AppColors.primaryOrange,
-                          onPressed: () => onAdjustStock(product),
-                        ),
-                      ],
+              ),
+              const SizedBox(width: 12),
+              Text(
+                widget.analyticsService.formatPeso(deal.salePrice),
+                style: TextStyle(
+                  fontSize: 14,
+                  fontWeight: FontWeight.w800,
+                  color: deal.isActive ? AppColors.primaryOrange : Colors.grey[600],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 10),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                decoration: BoxDecoration(
+                  color: deal.isActive
+                      ? Colors.green.withValues(alpha: 0.12)
+                      : Colors.grey.withValues(alpha: 0.18),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  deal.isActive ? 'Active' : 'Disabled',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    color: deal.isActive ? Colors.green[800] : Colors.grey[700],
+                  ),
+                ),
+              ),
+              Row(
+                children: [
+                  IconButton(
+                    tooltip: 'View Details',
+                    icon: const Icon(Icons.visibility_outlined, size: 18),
+                    color: AppColors.darkText,
+                    onPressed: () => _openViewDealModal(context, deal),
+                  ),
+                  IconButton(
+                    tooltip: 'Edit / Customize Promo',
+                    icon: const Icon(Icons.edit_outlined, size: 18),
+                    color: AppColors.primaryOrange,
+                    onPressed: () => _openAddEditDealModal(context, deal),
+                  ),
+                  Transform.scale(
+                    scale: 0.75,
+                    child: Switch(
+                      value: deal.isActive,
+                      activeColor: AppColors.primaryOrange,
+                      onChanged: (val) {
+                        dealController.toggleDealStatus(deal.id, val);
+                      },
                     ),
                   ),
-              ],
-            ),
-    );
-  }
-
-  Widget _buildRecentActivityCard() {
-    final logs = auditService.allAuditLogs.take(6).toList();
-
-    return card(
-      title: 'Recent changes',
-      subtitle: 'The latest edits to your records',
-      trailing: TextButton(
-        onPressed: () => onGoTo(AdminSection.activity),
-        child: const Text('See all'),
+                  IconButton(
+                    tooltip: 'Delete Promo',
+                    icon: const Icon(Icons.delete_outline_rounded, size: 18),
+                    color: Colors.red,
+                    onPressed: () => _confirmDeleteDeal(context, deal),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ],
       ),
-      child: logs.isEmpty
-          ? _inlineEmpty('Nothing has changed yet.')
-          : Column(
-              children: [
-                for (final log in logs)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 14),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Container(
-                          margin: const EdgeInsets.only(top: 4),
-                          width: 8,
-                          height: 8,
-                          decoration: BoxDecoration(
-                            color: _actionColor(log.action),
-                            shape: BoxShape.circle,
-                          ),
-                        ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
+    );
+  }
+
+  // --- WEB MODAL: CREATE OR EDIT DEAL ---
+  void _openAddEditDealModal(BuildContext context, [SaleDealModel? existingDeal]) {
+    final titleController = TextEditingController(text: existingDeal?.title ?? '');
+    final descController = TextEditingController(text: existingDeal?.description ?? '');
+    final priceController = TextEditingController(
+      text: existingDeal != null ? existingDeal.salePrice.toStringAsFixed(2) : '',
+    );
+
+    final Map<String, int> selectedItems = {};
+    if (existingDeal != null) {
+      for (final item in existingDeal.items) {
+        selectedItems[item.productId] = item.quantity;
+      }
+    }
+
+    final products = widget.productService.activeProducts;
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return StatefulBuilder(
+          builder: (context, setModalState) {
+            double calculateOriginalTotal() {
+              double total = 0;
+              selectedItems.forEach((pId, qty) {
+                final product = products.cast<AdminProduct?>().firstWhere(
+                      (p) => p?.id == pId,
+                      orElse: () => null,
+                    );
+                if (product != null) {
+                  total += product.price * qty;
+                }
+              });
+              return total;
+            }
+
+            return Dialog(
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 620, maxHeight: 720),
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
                             children: [
+                              const Icon(Icons.local_offer_rounded, color: AppColors.primaryOrange, size: 22),
+                              const SizedBox(width: 8),
                               Text(
-                                '${log.action.label} ${log.entityType.toLowerCase()} "${log.entityName}"',
+                                existingDeal == null ? 'Create On-Sale Promo' : 'Customize On-Sale Promo',
                                 style: const TextStyle(
-                                  fontSize: 13,
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
                                   color: AppColors.darkText,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              Text(
-                                '${log.performedBy} · ${formatRelative(log.timestamp)}',
-                                style: const TextStyle(
-                                  fontSize: 11.5,
-                                  color: AppColors.placeholderColor,
                                 ),
                               ),
                             ],
                           ),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded),
+                            onPressed: () => Navigator.pop(dialogCtx),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 24),
+                      Expanded(
+                        child: SingleChildScrollView(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Text('Promo Title', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.darkText)),
+                              const SizedBox(height: 6),
+                              TextField(
+                                controller: titleController,
+                                decoration: InputDecoration(
+                                  hintText: 'e.g. Merienda Bundle, Rice Special Promo',
+                                  filled: true,
+                                  fillColor: AppColors.lightPeach,
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              const Text('Description (Optional)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.darkText)),
+                              const SizedBox(height: 6),
+                              TextField(
+                                controller: descController,
+                                decoration: InputDecoration(
+                                  hintText: 'e.g. Save big on your daily merienda favorites!',
+                                  filled: true,
+                                  fillColor: AppColors.lightPeach,
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                ),
+                              ),
+                              const SizedBox(height: 16),
+
+                              const Text('Promo Sale Price (₱)', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.darkText)),
+                              const SizedBox(height: 6),
+                              TextField(
+                                controller: priceController,
+                                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                                decoration: InputDecoration(
+                                  hintText: '0.00',
+                                  prefixText: '₱ ',
+                                  filled: true,
+                                  fillColor: AppColors.lightPeach,
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                ),
+                              ),
+                              const SizedBox(height: 20),
+
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text('Select Included Products', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.darkText)),
+                                  Text(
+                                    'Regular Total: ${widget.analyticsService.formatPeso(calculateOriginalTotal())}',
+                                    style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: AppColors.primaryOrange),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              Container(
+                                height: 220,
+                                decoration: BoxDecoration(
+                                  color: AppColors.lightBackground,
+                                  borderRadius: BorderRadius.circular(12),
+                                  border: Border.all(color: AppColors.borderColor),
+                                ),
+                                child: products.isEmpty
+                                    ? _inlineEmpty('No products available.')
+                                    : ListView.separated(
+                                        padding: const EdgeInsets.all(8),
+                                        itemCount: products.length,
+                                        separatorBuilder: (_, __) => const Divider(height: 10),
+                                        itemBuilder: (context, idx) {
+                                          final product = products[idx];
+                                          final isSelected = selectedItems.containsKey(product.id);
+                                          final qty = selectedItems[product.id] ?? 1;
+
+                                          return Row(
+                                            children: [
+                                              Checkbox(
+                                                value: isSelected,
+                                                activeColor: AppColors.primaryOrange,
+                                                onChanged: (val) {
+                                                  setModalState(() {
+                                                    if (val == true) {
+                                                      selectedItems[product.id] = 1;
+                                                    } else {
+                                                      selectedItems.remove(product.id);
+                                                    }
+                                                  });
+                                                },
+                                              ),
+                                              Expanded(
+                                                child: Column(
+                                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                                  children: [
+                                                    Text(product.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.darkText)),
+                                                    Text(widget.analyticsService.formatPeso(product.price), style: const TextStyle(fontSize: 11, color: AppColors.secondaryText)),
+                                                  ],
+                                                ),
+                                              ),
+                                              if (isSelected) ...[
+                                                IconButton(
+                                                  icon: const Icon(Icons.remove_circle_outline, size: 20, color: AppColors.primaryOrange),
+                                                  onPressed: () {
+                                                    setModalState(() {
+                                                      if (qty > 1) {
+                                                        selectedItems[product.id] = qty - 1;
+                                                      }
+                                                    });
+                                                  },
+                                                ),
+                                                Text('$qty', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold)),
+                                                IconButton(
+                                                  icon: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.primaryOrange),
+                                                  onPressed: () {
+                                                    setModalState(() {
+                                                      selectedItems[product.id] = qty + 1;
+                                                    });
+                                                  },
+                                                ),
+                                              ],
+                                            ],
+                                          );
+                                        },
+                                      ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ],
-                    ),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          TextButton(
+                            onPressed: () => Navigator.pop(dialogCtx),
+                            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton(
+                            onPressed: () async {
+                              final title = titleController.text.trim();
+                              final desc = descController.text.trim();
+                              final salePrice = double.tryParse(priceController.text.trim()) ?? 0.0;
+
+                              if (title.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please enter a promo title.')),
+                                );
+                                return;
+                              }
+                              if (salePrice <= 0) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please enter a valid sale price.')),
+                                );
+                                return;
+                              }
+                              if (selectedItems.isEmpty) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Please select at least one product for the promo.')),
+                                );
+                                return;
+                              }
+
+                              final List<SaleDealItem> items = [];
+                              selectedItems.forEach((pId, qty) {
+                                final p = products.firstWhere((prod) => prod.id == pId);
+                                items.add(SaleDealItem(
+                                  productId: p.id,
+                                  productName: p.name,
+                                  quantity: qty,
+                                  originalPrice: p.price,
+                                  image: p.image,
+                                  unit: p.unit,
+                                ));
+                              });
+
+                              final deal = SaleDealModel(
+                                id: existingDeal?.id ?? 'deal-${DateTime.now().millisecondsSinceEpoch}',
+                                title: title,
+                                description: desc,
+                                salePrice: salePrice,
+                                items: items,
+                                isActive: existingDeal?.isActive ?? true,
+                                createdAt: existingDeal?.createdAt ?? DateTime.now(),
+                                updatedAt: DateTime.now(),
+                              );
+
+                              await SaleDealController.instance.saveDeal(deal);
+                              if (context.mounted) {
+                                Navigator.pop(dialogCtx);
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(content: Text('Promo "${deal.title}" saved successfully!')),
+                                );
+                              }
+                            },
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryOrange,
+                              foregroundColor: Colors.white,
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                            ),
+                            child: const Text('Save Promo', style: TextStyle(fontWeight: FontWeight.bold)),
+                          ),
+                        ],
+                      ),
+                    ],
                   ),
-              ],
-            ),
+                ),
+              ),
+            );
+          },
+        );
+      },
     );
   }
 
-  Color _actionColor(AuditAction action) {
-    switch (action) {
-      case AuditAction.create:
-        return Colors.green;
-      case AuditAction.update:
-        return Colors.blue;
-      case AuditAction.archive:
-        return Colors.orange;
-      case AuditAction.restore:
-        return Colors.teal;
-      case AuditAction.permanentDelete:
-        return Colors.red;
-      case AuditAction.voidSale:
-        return Colors.red[900]!;
-    }
+  // --- WEB MODAL: VIEW DEAL DETAILS ---
+  void _openViewDealModal(BuildContext context, SaleDealModel deal) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 500),
+            child: Padding(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          deal.title,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.close_rounded),
+                        onPressed: () => Navigator.pop(dialogCtx),
+                      ),
+                    ],
+                  ),
+                  if (deal.description.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(deal.description, style: const TextStyle(fontSize: 12, color: AppColors.secondaryText)),
+                  ],
+                  const Divider(height: 24),
+                  const Text('Included Products', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.darkText)),
+                  const SizedBox(height: 8),
+                  for (final item in deal.items)
+                    Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 4),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Text('${item.quantity}x ${item.productName}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
+                          Text(widget.analyticsService.formatPeso(item.totalOriginalPrice), style: const TextStyle(fontSize: 13, color: AppColors.secondaryText)),
+                        ],
+                      ),
+                    ),
+                  const Divider(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Regular Total:', style: TextStyle(fontSize: 13, color: AppColors.secondaryText)),
+                      Text(widget.analyticsService.formatPeso(deal.originalTotalPrice), style: const TextStyle(fontSize: 13, decoration: TextDecoration.lineThrough, color: Colors.grey)),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Promo Sale Price:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.darkText)),
+                      Text(widget.analyticsService.formatPeso(deal.salePrice), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.primaryOrange)),
+                    ],
+                  ),
+                  if (deal.discountSavings > 0) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Total Savings:', style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold)),
+                        Text('Save ${widget.analyticsService.formatPeso(deal.discountSavings)} (${deal.discountPercentage}% OFF)', style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  // --- CONFIRM DELETE DEAL ---
+  void _confirmDeleteDeal(BuildContext context, SaleDealModel deal) {
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return AlertDialog(
+          title: const Text('Delete On-Sale Promo'),
+          content: Text('Are you sure you want to delete promo "${deal.title}"? This cannot be undone.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () async {
+                await SaleDealController.instance.deleteDeal(deal.id);
+                if (context.mounted) {
+                  Navigator.pop(dialogCtx);
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Promo "${deal.title}" deleted.')),
+                  );
+                }
+              },
+              style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
+              child: const Text('Delete'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  // --- DAILY SALES CARD ---
+  Widget _buildDailySalesCard() {
+    final days = widget.analyticsService.salesByDay(7, referenceDate: _selectedDailyDate);
+    final isTodaySelected = isSameDay(_selectedDailyDate, DateTime.now());
+
+    return card(
+      title: 'Daily sales',
+      subtitle: '7 days ending on ${formatShortDate(_selectedDailyDate)}',
+      trailing: _buildDateNavigationBar(
+        label: '${_selectedDailyDate.day} ${_kMonths[_selectedDailyDate.month - 1]} ${_selectedDailyDate.year}',
+        onPrevious: () => setState(() {
+          _selectedDailyDate = _selectedDailyDate.subtract(const Duration(days: 1));
+        }),
+        onNext: () => setState(() {
+          _selectedDailyDate = _selectedDailyDate.add(const Duration(days: 1));
+        }),
+        onSelectDate: () async {
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: _selectedDailyDate,
+            firstDate: DateTime(2020),
+            lastDate: DateTime.now().add(const Duration(days: 365)),
+            builder: (context, child) {
+              return Theme(
+                data: Theme.of(context).copyWith(
+                  colorScheme: ColorScheme.light(
+                    primary: AppColors.primaryOrange,
+                    onPrimary: Colors.white,
+                    onSurface: AppColors.darkText,
+                  ),
+                ),
+                child: child!,
+              );
+            },
+          );
+          if (picked != null) {
+            setState(() => _selectedDailyDate = picked);
+          }
+        },
+        isCurrentPeriod: isTodaySelected,
+        currentLabel: 'Today',
+        onResetToday: () => setState(() => _selectedDailyDate = DateTime.now()),
+      ),
+      child: _buildSalesRowsList(
+        rows: [
+          for (final d in days.reversed)
+            _PeriodRow(
+              label: formatShortDate(d.day),
+              isCurrent: isSameDay(d.day, _selectedDailyDate),
+              total: d.total,
+              orders: d.orders,
+            ),
+        ],
+      ),
+    );
+  }
+
+  // --- WEEKLY SALES CARD ---
+  Widget _buildWeeklySalesCard() {
+    final weeks = widget.analyticsService.salesByWeek(6, referenceDate: _selectedWeeklyDate);
+    final now = DateTime.now();
+    final nowMidnight = DateTime(now.year, now.month, now.day);
+    final isCurrentWeekSelected = !nowMidnight.isBefore(weeks.last.weekStart) && !nowMidnight.isAfter(weeks.last.weekEnd);
+    final selectedWeekStart = weeks.last.weekStart;
+    final selectedWeekEnd = weeks.last.weekEnd;
+
+    return card(
+      title: 'Weekly sales',
+      subtitle: '6 weeks ending on ${formatShortDate(_selectedWeeklyDate)}',
+      trailing: _buildDateNavigationBar(
+        label: formatWeekRange(selectedWeekStart, selectedWeekEnd),
+        onPrevious: () => setState(() {
+          _selectedWeeklyDate = _selectedWeeklyDate.subtract(const Duration(days: 7));
+        }),
+        onNext: () => setState(() {
+          _selectedWeeklyDate = _selectedWeeklyDate.add(const Duration(days: 7));
+        }),
+        onSelectDate: () async {
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: _selectedWeeklyDate,
+            firstDate: DateTime(2020),
+            lastDate: DateTime.now().add(const Duration(days: 365)),
+            builder: (context, child) {
+              return Theme(
+                data: Theme.of(context).copyWith(
+                  colorScheme: ColorScheme.light(
+                    primary: AppColors.primaryOrange,
+                    onPrimary: Colors.white,
+                    onSurface: AppColors.darkText,
+                  ),
+                ),
+                child: child!,
+              );
+            },
+          );
+          if (picked != null) {
+            setState(() => _selectedWeeklyDate = picked);
+          }
+        },
+        isCurrentPeriod: isCurrentWeekSelected,
+        currentLabel: 'This Week',
+        onResetToday: () => setState(() => _selectedWeeklyDate = DateTime.now()),
+      ),
+      child: _buildSalesRowsList(
+        rows: [
+          for (final w in weeks.reversed)
+            _PeriodRow(
+              label: formatWeekRange(w.weekStart, w.weekEnd),
+              isCurrent: !DateTime(_selectedWeeklyDate.year, _selectedWeeklyDate.month, _selectedWeeklyDate.day).isBefore(w.weekStart) &&
+                  !DateTime(_selectedWeeklyDate.year, _selectedWeeklyDate.month, _selectedWeeklyDate.day).isAfter(w.weekEnd),
+              total: w.total,
+              orders: w.orders,
+            ),
+        ],
+      ),
+    );
+  }
+
+  // --- MONTHLY SALES CARD ---
+  Widget _buildMonthlySalesCard() {
+    final months = widget.analyticsService.salesByMonth(6, referenceDate: _selectedMonthlyDate);
+    final now = DateTime.now();
+    final isCurrentMonthSelected = _selectedMonthlyDate.year == now.year && _selectedMonthlyDate.month == now.month;
+
+    return card(
+      title: 'Monthly sales',
+      subtitle: '6 months ending on ${formatMonthYear(_selectedMonthlyDate.year, _selectedMonthlyDate.month)}',
+      trailing: _buildDateNavigationBar(
+        label: formatMonthYear(_selectedMonthlyDate.year, _selectedMonthlyDate.month),
+        onPrevious: () => setState(() {
+          _selectedMonthlyDate = DateTime(_selectedMonthlyDate.year, _selectedMonthlyDate.month - 1, 1);
+        }),
+        onNext: () => setState(() {
+          _selectedMonthlyDate = DateTime(_selectedMonthlyDate.year, _selectedMonthlyDate.month + 1, 1);
+        }),
+        onSelectDate: () async {
+          final picked = await showDatePicker(
+            context: context,
+            initialDate: _selectedMonthlyDate,
+            firstDate: DateTime(2020),
+            lastDate: DateTime.now().add(const Duration(days: 365)),
+            initialDatePickerMode: DatePickerMode.year,
+            builder: (context, child) {
+              return Theme(
+                data: Theme.of(context).copyWith(
+                  colorScheme: ColorScheme.light(
+                    primary: AppColors.primaryOrange,
+                    onPrimary: Colors.white,
+                    onSurface: AppColors.darkText,
+                  ),
+                ),
+                child: child!,
+              );
+            },
+          );
+          if (picked != null) {
+            setState(() => _selectedMonthlyDate = picked);
+          }
+        },
+        isCurrentPeriod: isCurrentMonthSelected,
+        currentLabel: 'This Month',
+        onResetToday: () => setState(() => _selectedMonthlyDate = DateTime.now()),
+      ),
+      child: _buildSalesRowsList(
+        rows: [
+          for (final m in months.reversed)
+            _PeriodRow(
+              label: formatMonthYear(m.year, m.month),
+              isCurrent: m.year == _selectedMonthlyDate.year && m.month == _selectedMonthlyDate.month,
+              total: m.total,
+              orders: m.orders,
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildDateNavigationBar({
+    required String label,
+    required VoidCallback onPrevious,
+    required VoidCallback onNext,
+    required VoidCallback onSelectDate,
+    required bool isCurrentPeriod,
+    required String currentLabel,
+    required VoidCallback onResetToday,
+  }) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+      decoration: BoxDecoration(
+        color: AppColors.lightBackground,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: AppColors.borderColor.withValues(alpha: 0.6)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+            icon: const Icon(Icons.chevron_left, size: 20, color: AppColors.darkText),
+            onPressed: onPrevious,
+            tooltip: 'Previous',
+          ),
+          InkWell(
+            onTap: onSelectDate,
+            borderRadius: BorderRadius.circular(8),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.calendar_month_rounded, size: 15, color: AppColors.primaryOrange),
+                  const SizedBox(width: 6),
+                  Text(
+                    label,
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.darkText,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          IconButton(
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 26, minHeight: 26),
+            icon: const Icon(Icons.chevron_right, size: 20, color: AppColors.darkText),
+            onPressed: onNext,
+            tooltip: 'Next',
+          ),
+          if (!isCurrentPeriod) ...[
+            const SizedBox(width: 4),
+            GestureDetector(
+              onTap: onResetToday,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 3),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: Text(
+                  currentLabel,
+                  style: const TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.bold,
+                    color: AppColors.primaryOrange,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSalesRowsList({required List<_PeriodRow> rows}) {
+    final total = rows.fold<double>(0, (sum, r) => sum + r.total);
+    final totalOrders = rows.fold<int>(0, (sum, r) => sum + r.orders);
+    final hasAnySales = rows.any((r) => r.total > 0);
+
+    return !hasAnySales
+        ? _inlineEmpty('No sales recorded yet in database.')
+        : Column(
+            children: [
+              for (final row in rows)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 10),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 6,
+                        height: 6,
+                        margin: const EdgeInsets.only(right: 10),
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: row.isCurrent
+                              ? AppColors.primaryOrange
+                              : Colors.transparent,
+                        ),
+                      ),
+                      Expanded(
+                        child: Text(
+                          row.label,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight:
+                                row.isCurrent ? FontWeight.w700 : FontWeight.w500,
+                            color: row.isCurrent
+                                ? AppColors.darkText
+                                : AppColors.secondaryText,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppColors.lightPeach,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Text(
+                          '${row.orders} orders',
+                          style: const TextStyle(
+                            fontSize: 10.5,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primaryOrange,
+                          ),
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      SizedBox(
+                        width: 85,
+                        child: Text(
+                          widget.analyticsService.formatPeso(row.total),
+                          textAlign: TextAlign.right,
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            fontWeight: FontWeight.w700,
+                            color: row.total == 0
+                                ? AppColors.placeholderColor
+                                : AppColors.darkText,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              const Divider(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Total ($totalOrders orders)',
+                    style: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: AppColors.secondaryText,
+                    ),
+                  ),
+                  Text(
+                    widget.analyticsService.formatPeso(total),
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w800,
+                      color: AppColors.primaryOrange,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          );
   }
 
   Widget _inlineEmpty(String message) {
@@ -657,15 +1379,6 @@ class OverviewSection extends StatelessWidget {
       return '${start.day}–${end.day} ${_kMonths[start.month - 1]}';
     }
     return '${start.day} ${_kMonths[start.month - 1]} – ${end.day} ${_kMonths[end.month - 1]}';
-  }
-
-  String formatRelative(DateTime dt) {
-    final diff = DateTime.now().difference(dt);
-    if (diff.inMinutes < 1) return 'just now';
-    if (diff.inMinutes < 60) return '${diff.inMinutes} min ago';
-    if (diff.inHours < 24) return '${diff.inHours} hr ago';
-    if (diff.inDays < 7) return '${diff.inDays} d ago';
-    return '${dt.day} ${_kMonths[dt.month - 1]} ${dt.year}';
   }
 
   bool isSameDay(DateTime a, DateTime b) =>
