@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:latlong2/latlong.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/delivery_tracking_service.dart';
 import '../../../core/services/rate_limiter_service.dart';
 import '../../../core/services/stock_reservation_service.dart';
 import '../customer_cart_controller.dart';
@@ -146,6 +148,11 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       items: reservedItems,
     );
 
+    LatLng? destCoords;
+    if (_orderType == OrderType.delivery && _selectedAddress?.address != null) {
+      destCoords = await DeliveryTrackingService.instance.geocodeAddress(_selectedAddress!.address);
+    }
+
     final order = CustomerOrder(
       customerName: CustomerProfileController.instance.profile.fullName.isEmpty ? 'Customer' : CustomerProfileController.instance.profile.fullName,
       orderId: orderId,
@@ -160,6 +167,8 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       totalAmount: _total,
       status: OrderStatus.pending,
       userId: userId, // Set the user ID
+      deliveryLatitude: destCoords?.latitude,
+      deliveryLongitude: destCoords?.longitude,
     );
 
     widget.orderController.placeOrder(order);

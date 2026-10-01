@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart';
+import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/delivery_tracking_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
 import '../employee_inventory_controller.dart';
@@ -314,11 +316,11 @@ class EmployeeOrderController extends ChangeNotifier {
       return false;
     }
 
-    updateOrderStatus(orderId, OrderStatus.cancelled);
+    updateOrderStatus(orderId, OrderStatus.cancelled, cancellationReason: reason);
     return true;
   }
 
-  void updateOrderStatus(String orderId, OrderStatus newStatus) {
+  void updateOrderStatus(String orderId, OrderStatus newStatus, {String? cancellationReason}) {
     final index = _orders.indexWhere((o) => o.orderId == orderId);
     if (index != -1) {
       final oldOrder = _orders[index];
@@ -332,20 +334,19 @@ class EmployeeOrderController extends ChangeNotifier {
         }
       }
 
-      _orders[index] = CustomerOrder(
-        orderId: oldOrder.orderId,
-        customerName: oldOrder.customerName,
-        orderDate: oldOrder.orderDate,
-        items: oldOrder.items,
-        orderType: oldOrder.orderType,
-        paymentMethod: oldOrder.paymentMethod,
-        paymentStatus: newStatus == OrderStatus.completed ? PaymentStatus.paid : oldOrder.paymentStatus,
-        deliveryAddress: oldOrder.deliveryAddress,
-        subtotal: oldOrder.subtotal,
-        deliveryFee: oldOrder.deliveryFee,
-        totalAmount: oldOrder.totalAmount,
+      // Stop tracking if order is delivered, completed, or cancelled
+      if (newStatus == OrderStatus.delivered || 
+          newStatus == OrderStatus.completed || 
+          newStatus == OrderStatus.cancelled) {
+        DeliveryTrackingService.instance.stopTracking(orderId);
+      }
+
+      final finalReason = cancellationReason ?? oldOrder.cancellationReason;
+
+      _orders[index] = oldOrder.copyWith(
         status: newStatus,
-        userId: oldOrder.userId, // Preserve the user ID
+        cancellationReason: finalReason,
+        paymentStatus: newStatus == OrderStatus.completed ? PaymentStatus.paid : oldOrder.paymentStatus,
       );
 
       final isCancelled = newStatus == OrderStatus.cancelled;
@@ -355,7 +356,9 @@ class EmployeeOrderController extends ChangeNotifier {
         type: EmployeeNotificationType.assignedTask,
         title: isCancelled ? 'Order Cancelled' : 'Order Status Updated',
         message: isCancelled
-            ? 'Order #${oldOrder.orderId} was cancelled.'
+            ? (finalReason != null && finalReason.isNotEmpty
+                ? 'Order #${oldOrder.orderId} was cancelled. Reason: $finalReason'
+                : 'Order #${oldOrder.orderId} was cancelled.')
             : 'Order #${oldOrder.orderId} status changed to ${newStatus.label}.',
       );
 
@@ -393,7 +396,9 @@ class EmployeeOrderController extends ChangeNotifier {
           break;
         case OrderStatus.cancelled:
           customerTitle = 'Order Cancelled';
-          customerMessage = 'Your order #${oldOrder.orderId} has been cancelled.';
+          customerMessage = finalReason != null && finalReason.isNotEmpty
+              ? 'Your order #${oldOrder.orderId} has been cancelled. Reason: $finalReason'
+              : 'Your order #${oldOrder.orderId} has been cancelled.';
           break;
         case OrderStatus.pending:
           customerTitle = 'Order Pending';
@@ -415,11 +420,16 @@ class EmployeeOrderController extends ChangeNotifier {
 
       notifyListeners();
 
+      // Save cancellation reason to Supabase if cancelled
+      if (isCancelled && finalReason != null && finalReason.isNotEmpty) {
+        _saveCancellationReasonToSupabase(_orders[index]);
+      }
+
       // Update in Supabase database
       _supabaseService.updateOrderStatusInDb(
         orderId,
         newStatus.name,
-        (newStatus == OrderStatus.completed ? PaymentStatus.paid : oldOrder.paymentStatus).name
+        (newStatus == OrderStatus.completed ? PaymentStatus.paid : oldOrder.paymentStatus).name,
       ).then((success) {
         if (success) {
           debugPrint('Order status updated successfully in Supabase database.');
@@ -431,7 +441,104 @@ class EmployeeOrderController extends ChangeNotifier {
       });
 
       // Update in Firebase Realtime Database
-      _updateOrderStatusInFirebase(orderId, newStatus);
+      _updateOrderStatusInFirebase(orderId, newStatus, _orders[index]);
+    }
+  }
+
+  /// Assign a delivery person and set status to Out for Delivery
+  Future<void> assignDeliveryPersonAndSetOutForDelivery({
+    required String orderId,
+    required DeliveryPerson deliveryPerson,
+    LatLng? destinationCoords,
+  }) async {
+    final index = _orders.indexWhere((o) => o.orderId == orderId);
+    if (index == -1) return;
+
+    final oldOrder = _orders[index];
+
+    // Resolve destination coordinates
+    final dest = destinationCoords ??
+        (oldOrder.deliveryLatitude != null && oldOrder.deliveryLongitude != null
+            ? LatLng(oldOrder.deliveryLatitude!, oldOrder.deliveryLongitude!)
+            : await DeliveryTrackingService.instance.geocodeAddress(oldOrder.deliveryAddress));
+
+    final updatedOrder = oldOrder.copyWith(
+      status: OrderStatus.outForDelivery,
+      deliveryPersonId: deliveryPerson.id,
+      deliveryPersonName: deliveryPerson.name,
+      deliveryPersonRole: deliveryPerson.role,
+      deliveryLatitude: dest.latitude,
+      deliveryLongitude: dest.longitude,
+    );
+
+    _orders[index] = updatedOrder;
+    notifyListeners();
+
+    // Start tracking in DeliveryTrackingService
+    await DeliveryTrackingService.instance.startTrackingForOrder(
+      order: updatedOrder,
+      deliveryPerson: deliveryPerson,
+      destinationCoords: dest,
+    );
+
+    // Notifications
+    EmployeeNotificationsController.instance.addNotification(
+      type: EmployeeNotificationType.assignedTask,
+      title: 'Order Out for Delivery',
+      message: 'Order #${updatedOrder.orderId} assigned to ${deliveryPerson.name} (${deliveryPerson.role}) is now out for delivery.',
+    );
+
+    CustomerNotificationsController.instance.addNotification(
+      type: CustomerNotificationType.orderUpdate,
+      title: 'Out for Delivery',
+      message: '${deliveryPerson.name} (${deliveryPerson.role}) is on the way with your order #${updatedOrder.orderId}.',
+      userId: updatedOrder.userId,
+    );
+
+    // Persist to Supabase
+    _supabaseService.updateOrderStatusInDb(
+      orderId,
+      OrderStatus.outForDelivery.name,
+      updatedOrder.paymentStatus.name,
+    ).then((_) {
+      _saveDeliveryMetadataToSupabase(updatedOrder);
+    }).catchError((e) {
+      debugPrint('Error updating Supabase on outForDelivery: $e');
+    });
+
+    // Persist to Firebase Realtime Database
+    _updateOrderStatusInFirebase(orderId, OrderStatus.outForDelivery, updatedOrder);
+  }
+
+  Future<void> _saveDeliveryMetadataToSupabase(CustomerOrder order) async {
+    try {
+      final supaClient = _supabaseService.client;
+      final existing = await supaClient
+          .from('orders')
+          .select('order_notes')
+          .eq('order_number', order.orderId)
+          .maybeSingle();
+
+      String notes = existing?['order_notes']?.toString() ?? '';
+      
+      // Remove old tags if any
+      notes = notes.replaceAll(RegExp(r'\[delivery_person:[^\]]+\]'), '').trim();
+      notes = notes.replaceAll(RegExp(r'\[coords:[^\]]+\]'), '').trim();
+
+      final riderTag = '[delivery_person: ${order.deliveryPersonId ?? ''}|${order.deliveryPersonName ?? ''}|${order.deliveryPersonRole ?? ''}]';
+      final coordsTag = order.deliveryLatitude != null && order.deliveryLongitude != null
+          ? ' [coords: ${order.deliveryLatitude},${order.deliveryLongitude}]'
+          : '';
+
+      final updatedNotes = notes.isEmpty ? '$riderTag$coordsTag' : '$notes $riderTag$coordsTag';
+
+      await supaClient.from('orders').update({
+        'order_notes': updatedNotes,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('order_number', order.orderId);
+      debugPrint('Delivery metadata synced to Supabase for #${order.orderId}');
+    } catch (e) {
+      debugPrint('Error syncing delivery metadata to Supabase: $e');
     }
   }
 
@@ -448,13 +555,67 @@ class EmployeeOrderController extends ChangeNotifier {
     }
   }
 
-  Future<void> _updateOrderStatusInFirebase(String orderId, OrderStatus newStatus) async {
+  Future<void> _saveCancellationReasonToSupabase(CustomerOrder order) async {
+    if (order.cancellationReason == null || order.cancellationReason!.isEmpty) return;
+    try {
+      final supaClient = _supabaseService.client;
+      final existing = await supaClient
+          .from('orders')
+          .select('order_notes')
+          .eq('order_number', order.orderId)
+          .maybeSingle();
+
+      String notes = existing?['order_notes']?.toString() ?? '';
+      notes = notes.replaceAll(RegExp(r'\[cancellation_reason:[^\]]+\]'), '').trim();
+
+      final reasonTag = '[cancellation_reason: ${order.cancellationReason}]';
+      final updatedNotes = notes.isEmpty ? reasonTag : '$notes $reasonTag';
+
+      await supaClient.from('orders').update({
+        'cancellation_reason': order.cancellationReason,
+        'order_notes': updatedNotes,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('order_number', order.orderId);
+      debugPrint('Cancellation reason synced to Supabase for #${order.orderId}');
+    } catch (e) {
+      try {
+        final supaClient = _supabaseService.client;
+        final existing = await supaClient
+            .from('orders')
+            .select('order_notes')
+            .eq('order_number', order.orderId)
+            .maybeSingle();
+
+        String notes = existing?['order_notes']?.toString() ?? '';
+        notes = notes.replaceAll(RegExp(r'\[cancellation_reason:[^\]]+\]'), '').trim();
+
+        final reasonTag = '[cancellation_reason: ${order.cancellationReason}]';
+        final updatedNotes = notes.isEmpty ? reasonTag : '$notes $reasonTag';
+
+        await supaClient.from('orders').update({
+          'order_notes': updatedNotes,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('order_number', order.orderId);
+      } catch (_) {}
+    }
+  }
+
+  Future<void> _updateOrderStatusInFirebase(String orderId, OrderStatus newStatus, [CustomerOrder? order]) async {
     try {
       final db = AuthService().database;
-      await db.ref().child('orders/$orderId').update({
+      final updateData = <String, dynamic>{
         'status': newStatus.name,
         'updatedAt': DateTime.now().toIso8601String(),
-      });
+      };
+      if (order != null) {
+        if (order.cancellationReason != null) updateData['cancellationReason'] = order.cancellationReason;
+        if (order.deliveryPersonId != null) updateData['deliveryPersonId'] = order.deliveryPersonId;
+        if (order.deliveryPersonName != null) updateData['deliveryPersonName'] = order.deliveryPersonName;
+        if (order.deliveryPersonRole != null) updateData['deliveryPersonRole'] = order.deliveryPersonRole;
+        if (order.deliveryLatitude != null) updateData['deliveryLatitude'] = order.deliveryLatitude;
+        if (order.deliveryLongitude != null) updateData['deliveryLongitude'] = order.deliveryLongitude;
+      }
+      await db.ref().child('orders/$orderId').update(updateData);
       debugPrint('Order #$orderId status updated in Firebase RTDB to ${newStatus.name}');
     } catch (e) {
       debugPrint('Firebase RTDB order status update error: $e');
