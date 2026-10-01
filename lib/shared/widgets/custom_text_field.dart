@@ -5,10 +5,6 @@ import '../../core/theme/app_colors.dart';
 /// A styled text field used across the app's forms.
 /// Set [isPassword] to true to get an obscure/reveal toggle for free —
 /// the widget manages that state internally so screens don't have to.
-///
-/// Lives in `shared/` because both the login and sign up features use it.
-/// If a future feature needs a field only it will ever use, put that one
-/// inside that feature's own `widgets/` folder instead.
 class CustomTextField extends StatefulWidget {
   const CustomTextField({
     super.key,
@@ -23,6 +19,9 @@ class CustomTextField extends StatefulWidget {
     this.inputFormatters,
     this.maxLength,
     this.onChanged,
+    this.onSubmitted,
+    this.textInputAction,
+    this.focusNode,
     this.textCapitalization = TextCapitalization.none,
   });
 
@@ -41,6 +40,9 @@ class CustomTextField extends StatefulWidget {
   final List<TextInputFormatter>? inputFormatters;
   final int? maxLength;
   final ValueChanged<String>? onChanged;
+  final ValueChanged<String>? onSubmitted;
+  final TextInputAction? textInputAction;
+  final FocusNode? focusNode;
   final TextCapitalization textCapitalization;
 
   @override
@@ -54,6 +56,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
   Widget build(BuildContext context) {
     return TextField(
       controller: widget.controller,
+      focusNode: widget.focusNode,
       obscureText: widget.isPassword ? _obscureText : false,
       keyboardType: widget.keyboardType,
       textAlign: widget.textAlign,
@@ -61,6 +64,8 @@ class _CustomTextFieldState extends State<CustomTextField> {
       inputFormatters: widget.inputFormatters,
       maxLength: widget.maxLength,
       onChanged: widget.onChanged,
+      onSubmitted: widget.onSubmitted,
+      textInputAction: widget.textInputAction,
       decoration: InputDecoration(
         counterText: widget.maxLength != null ? '' : null,
         hintText: widget.hint,
@@ -83,15 +88,15 @@ class _CustomTextFieldState extends State<CustomTextField> {
             : null,
         suffixIcon: widget.isPassword
             ? IconButton(
-          onPressed: () => setState(() => _obscureText = !_obscureText),
-          icon: Icon(
-            _obscureText
-                ? Icons.visibility_off_outlined
-                : Icons.visibility_outlined,
-            size: 18,
-            color: widget.errorText != null ? Colors.redAccent : AppColors.placeholderColor,
-          ),
-        )
+                onPressed: () => setState(() => _obscureText = !_obscureText),
+                icon: Icon(
+                  _obscureText
+                      ? Icons.visibility_off_outlined
+                      : Icons.visibility_outlined,
+                  size: 18,
+                  color: widget.errorText != null ? Colors.redAccent : AppColors.placeholderColor,
+                ),
+              )
             : widget.trailing,
         filled: true,
         fillColor: AppColors.lightPeach,

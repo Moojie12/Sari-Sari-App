@@ -84,28 +84,15 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 
   void _startTimer() {
     _timer?.cancel();
-    setState(() {
-      _remainingSeconds = 180;
-    });
+    _remainingSeconds = 180;
     _timer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      if (!mounted) {
-        timer.cancel();
-        return;
-      }
+      if (!mounted) return;
       if (_remainingSeconds > 0) {
-        setState(() {
-          _remainingSeconds--;
-        });
+        setState(() => _remainingSeconds--);
       } else {
         _timer?.cancel();
       }
     });
-  }
-
-  String get _formattedTime {
-    final minutes = (_remainingSeconds ~/ 60).toString().padLeft(2, '0');
-    final seconds = (_remainingSeconds % 60).toString().padLeft(2, '0');
-    return '$minutes:$seconds';
   }
 
   @override
@@ -114,39 +101,30 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
     for (var controller in _controllers) {
       controller.dispose();
     }
-    for (var focusNode in _focusNodes) {
-      focusNode.dispose();
+    for (var node in _focusNodes) {
+      node.dispose();
     }
     super.dispose();
   }
 
-  void _nextField(String value, int index) {
-    // Handle pasting multiple digits into box
-    if (value.length > 1) {
-      final digits = value.replaceAll(RegExp(r'\D'), '');
-      for (int i = 0; i < _otpLength && i < digits.length; i++) {
-        _controllers[i].text = digits[i];
-      }
-      if (digits.length >= _otpLength) {
-        _focusNodes[_otpLength - 1].unfocus();
-      } else if (digits.isNotEmpty) {
-        _focusNodes[min(digits.length, _otpLength - 1)].requestFocus();
-      }
-      _checkAndAutoSubmit();
-      return;
-    }
+  String get _formattedTime {
+    final minutes = (_remainingSeconds ~/ 60).toString().padLeft(2, '0');
+    final seconds = (_remainingSeconds % 60).toString().padLeft(2, '0');
+    return '$minutes:$seconds';
+  }
 
-    if (value.length == 1 && index < _otpLength - 1) {
-      _focusNodes[index + 1].requestFocus();
-    }
-    if (value.isEmpty && index > 0) {
+  void _nextField(String value, int index) {
+    if (value.length == 1) {
+      if (index < _otpLength - 1) {
+        _focusNodes[index + 1].requestFocus();
+      } else {
+        _focusNodes[index].unfocus();
+        _verifyOtp();
+      }
+    } else if (value.isEmpty && index > 0) {
       _focusNodes[index - 1].requestFocus();
     }
 
-    _checkAndAutoSubmit();
-  }
-
-  void _checkAndAutoSubmit() {
     final otp = _controllers.map((c) => c.text).join();
     if (otp.length == _otpLength && !_isVerifying) {
       _verifyOtp();
@@ -156,7 +134,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   Future<void> _verifyOtp() async {
     if (_isVerifying) return;
 
-    // 1. Check if OTP expired (3mins limit)
     if (_remainingSeconds <= 0) {
       TopNotification.show(
         context,
@@ -166,7 +143,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       return;
     }
 
-    // 2. Check if complete
     final otp = _controllers.map((c) => c.text).join();
     if (otp.length < _otpLength && otp.length < 4) {
       TopNotification.show(context, 'Please enter the complete verification code.', isError: true);
@@ -185,7 +161,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
       return;
     }
 
-    // Verification successful! Complete Sign-up & Auto-Login
     if (widget.isSignUpFlow) {
       final displayName = '${widget.firstName ?? ''} ${widget.middleInitial != null && widget.middleInitial!.isNotEmpty ? '${widget.middleInitial}. ' : ''}${widget.surname ?? ''}'
           .replaceAll('  ', ' ')
@@ -209,7 +184,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         return;
       }
 
-      // Sync user profile details across Firebase RTDB and Supabase
       final currentUser = AuthService().currentUser;
       if (currentUser != null) {
         String inferredRole = 'customer';
@@ -244,7 +218,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         }
       }
 
-      // Check user role for Auto Login navigation
       final bool isOwner = await AuthService().hasRole('owner');
       final bool isEmployee = await AuthService().hasRole('employee');
 
@@ -266,7 +239,6 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
         );
       }
     } else {
-      // Forgot Password flow: OTP verified! Navigate directly to CreateNewPasswordPage
       if (mounted) {
         setState(() => _isVerifying = false);
         TopNotification.show(context, 'OTP verified! Set your new password.');
@@ -281,7 +253,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
   }
 
   Future<void> _handleResendCode() async {
-    if (_remainingSeconds > 0) return; // Bawal mag resend habang di pa expired ang 3 mins
+    if (_remainingSeconds > 0) return;
 
     _currentOtp = (100000 + Random().nextInt(900000)).toString();
 
@@ -299,100 +271,219 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      body: Stack(
+        children: [
+          Positioned.fill(
+            child: Image.asset(
+              'assets/images/bg_image.jpg',
+              fit: BoxFit.cover,
+            ),
+          ),
+          Positioned.fill(
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.78),
+                    Colors.black.withValues(alpha: 0.52),
+                    AppColors.primaryOrange.withValues(alpha: 0.38),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          SafeArea(
+            child: Center(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 32),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    final screenWidth = constraints.maxWidth;
+                    final isDesktop = screenWidth >= 1024;
+                    final isTablet = screenWidth >= 768 && screenWidth < 1024;
+
+                    return Center(
+                      child: isDesktop || isTablet
+                          ? Row(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.center,
+                              children: [
+                                Flexible(
+                                  flex: isDesktop ? 5 : 6,
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: isDesktop ? 460 : 410,
+                                    ),
+                                    child: _buildOtpCard(isCompact: isTablet),
+                                  ),
+                                ),
+                                SizedBox(width: isDesktop ? 60 : 36),
+                                Flexible(
+                                  flex: isDesktop ? 6 : 5,
+                                  child: ConstrainedBox(
+                                    constraints: BoxConstraints(
+                                      maxWidth: isDesktop ? 480 : 380,
+                                    ),
+                                    child: _buildBrandingSection(isCompact: isTablet),
+                                  ),
+                                ),
+                              ],
+                            )
+                          : Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                _buildCompactBrandingSection(),
+                                const SizedBox(height: 24),
+                                ConstrainedBox(
+                                  constraints: const BoxConstraints(maxWidth: 440),
+                                  child: _buildOtpCard(isCompact: true),
+                                ),
+                              ],
+                            ),
+                    );
+                  },
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOtpCard({bool isCompact = false}) {
     final bool isTimerActive = _remainingSeconds > 0;
 
-    return Scaffold(
-      backgroundColor: Colors.white,
-      appBar: AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        leading: IconButton(
-          icon: const Icon(Icons.arrow_back, color: AppColors.darkText),
-          onPressed: () => Navigator.pop(context),
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.enter): _verifyOtp,
+      },
+      child: Container(
+        padding: EdgeInsets.all(isCompact ? 24 : 34),
+        decoration: BoxDecoration(
+          color: Colors.white,
+          borderRadius: BorderRadius.circular(24),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.28),
+              blurRadius: 32,
+              offset: const Offset(0, 12),
+            ),
+          ],
         ),
-      ),
-      body: SafeArea(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              const SizedBox(height: 10),
-              const Text(
-                'OTP Verification',
-                style: TextStyle(
-                  color: AppColors.darkText,
-                  fontSize: 26,
-                  fontWeight: FontWeight.bold,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+            decoration: BoxDecoration(
+              color: AppColors.primaryOrange.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: const [
+                Icon(
+                  Icons.verified_user_rounded,
+                  size: 15,
+                  color: AppColors.primaryOrange,
                 ),
+                SizedBox(width: 6),
+                Text(
+                  'OTP VERIFICATION',
+                  style: TextStyle(
+                    color: AppColors.primaryOrange,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.1,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          SizedBox(height: isCompact ? 12 : 16),
+          Text(
+            'Verification Code',
+            style: TextStyle(
+              fontSize: isCompact ? 22 : 26,
+              fontWeight: FontWeight.bold,
+              color: AppColors.darkText,
+            ),
+          ),
+          const SizedBox(height: 6),
+          RichText(
+            text: TextSpan(
+              style: TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: isCompact ? 12 : 13,
+                height: 1.35,
               ),
-              const SizedBox(height: 8),
-              RichText(
-                text: TextSpan(
+              children: [
+                const TextSpan(text: 'Enter code sent to '),
+                TextSpan(
+                  text: widget.email,
                   style: const TextStyle(
-                    color: AppColors.secondaryText,
-                    fontSize: 14,
-                    height: 1.4,
+                    color: AppColors.darkText,
+                    fontWeight: FontWeight.bold,
                   ),
-                  children: [
-                    const TextSpan(text: 'We have sent a verification code to your email '),
-                    TextSpan(
-                      text: widget.email,
-                      style: const TextStyle(
-                        color: AppColors.darkText,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                    const TextSpan(text: '. Please check your inbox.'),
-                  ],
                 ),
-              ),
-              const SizedBox(height: 24),
+              ],
+            ),
+          ),
+          SizedBox(height: isCompact ? 16 : 20),
 
-              // Countdown Timer Banner
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: isTimerActive
-                      ? AppColors.primaryOrange.withValues(alpha: 0.08)
-                      : Colors.red.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isTimerActive
-                        ? AppColors.primaryOrange.withValues(alpha: 0.3)
-                        : Colors.red.withValues(alpha: 0.3),
-                  ),
+          // Countdown Timer Banner
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+            decoration: BoxDecoration(
+              color: isTimerActive
+                  ? AppColors.primaryOrange.withValues(alpha: 0.08)
+                  : Colors.red.withValues(alpha: 0.08),
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: isTimerActive
+                    ? AppColors.primaryOrange.withValues(alpha: 0.3)
+                    : Colors.red.withValues(alpha: 0.3),
+              ),
+            ),
+            child: Row(
+              children: [
+                Icon(
+                  isTimerActive ? Icons.timer_outlined : Icons.error_outline,
+                  color: isTimerActive ? AppColors.primaryOrange : Colors.red,
+                  size: 18,
                 ),
-                child: Row(
-                  children: [
-                    Icon(
-                      isTimerActive ? Icons.timer_outlined : Icons.error_outline,
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    isTimerActive
+                        ? 'Expires in $_formattedTime'
+                        : 'OTP code has expired! Please request a new code.',
+                    style: TextStyle(
                       color: isTimerActive ? AppColors.primaryOrange : Colors.red,
-                      size: 20,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 12,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        isTimerActive
-                            ? 'Code expires in $_formattedTime'
-                            : 'OTP code has expired! Please request a new code.',
-                        style: TextStyle(
-                          color: isTimerActive ? AppColors.primaryOrange : Colors.red,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
+                  ),
                 ),
-              ),
-              const SizedBox(height: 28),
+              ],
+            ),
+          ),
+          SizedBox(height: isCompact ? 20 : 24),
 
-              // 6 OTP Boxes
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                children: List.generate(_otpLength, (index) {
-                  return SizedBox(
+          // OTP Boxes
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: List.generate(_otpLength, (index) {
+                return Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 4),
+                  child: SizedBox(
                     width: 44,
                     height: 52,
                     child: TextField(
@@ -429,68 +520,220 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                         ),
                       ),
                     ),
-                  );
-                }),
-              ),
+                  ),
+                );
+              }),
+            ),
+          ),
+          SizedBox(height: isCompact ? 20 : 28),
 
-              const SizedBox(height: 32),
-              PrimaryButton(
-                label: _isVerifying ? 'Verifying...' : 'Verify Code',
-                isLoading: _isVerifying,
-                onPressed: _verifyOtp,
-              ),
-              const SizedBox(height: 24),
+          PrimaryButton(
+            label: _isVerifying ? 'Verifying...' : 'Verify Code',
+            isLoading: _isVerifying,
+            onPressed: _verifyOtp,
+            height: isCompact ? 44 : 48,
+          ),
+          const SizedBox(height: 16),
 
-              // Resend code section
-              Center(
-                child: Column(
+          Center(
+            child: Column(
+              children: [
+                Row(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        const Text(
-                          "Didn't receive the code? ",
-                          style: TextStyle(
-                            color: AppColors.secondaryText,
-                            fontSize: 14,
-                          ),
-                        ),
-                        TextButton(
-                          onPressed: isTimerActive ? null : _handleResendCode,
-                          style: TextButton.styleFrom(
-                            padding: EdgeInsets.zero,
-                            minimumSize: const Size(0, 30),
-                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                          ),
-                          child: Text(
-                            isTimerActive ? 'Resend Code in $_formattedTime' : 'Resend Code',
-                            style: TextStyle(
-                              color: isTimerActive ? AppColors.secondaryText : AppColors.primaryOrange,
-                              fontSize: 14,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                        ),
-                      ],
+                    const Text(
+                      "Didn't receive code? ",
+                      style: TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 12,
+                      ),
                     ),
-                    if (isTimerActive) ...[
-                      const SizedBox(height: 6),
-                      const Text(
-                        'Resend button will be enabled after the timer expires.',
+                    TextButton(
+                      onPressed: isTimerActive ? null : _handleResendCode,
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        minimumSize: const Size(0, 30),
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
+                      child: Text(
+                        isTimerActive ? 'Resend in $_formattedTime' : 'Resend Code',
                         style: TextStyle(
-                          color: AppColors.secondaryText,
-                          fontSize: 11,
-                          fontStyle: FontStyle.italic,
+                          color: isTimerActive ? AppColors.secondaryText : AppColors.primaryOrange,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                    ],
+                    ),
                   ],
+                ),
+                TextButton.icon(
+                  onPressed: () => Navigator.pop(context),
+                  icon: const Icon(Icons.arrow_back_rounded, size: 15, color: AppColors.primaryOrange),
+                  label: const Text(
+                    'Back',
+                    style: TextStyle(color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+
+          const Center(
+            child: Text(
+              '© 2026 Tindahan ni Eca App System',
+              style: TextStyle(
+                color: AppColors.secondaryText,
+                fontSize: 11,
+              ),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+  }
+
+  Widget _buildBrandingSection({bool isCompact = false}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          width: isCompact ? 80 : 96,
+          height: isCompact ? 80 : 96,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(24),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.25),
+                blurRadius: 20,
+                offset: const Offset(0, 8),
+              ),
+              BoxShadow(
+                color: AppColors.primaryOrange.withValues(alpha: 0.35),
+                blurRadius: 28,
+                spreadRadius: 2,
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(24),
+            child: Image.asset(
+              'assets/images/logo.png',
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        SizedBox(height: isCompact ? 16 : 22),
+        Text(
+          'Tindahan ni Eca',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: isCompact ? 32 : 40,
+            fontWeight: FontWeight.w900,
+            letterSpacing: -0.5,
+            shadows: const [
+              Shadow(
+                color: Colors.black87,
+                offset: Offset(0, 4),
+                blurRadius: 16,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 8),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 7),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.45),
+            borderRadius: BorderRadius.circular(30),
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.2),
+              width: 1,
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: const [
+              Icon(Icons.storefront_rounded, size: 16, color: AppColors.primaryOrange),
+              SizedBox(width: 8),
+              Text(
+                'Management Portal & Retail Suite',
+                style: TextStyle(
+                  color: Colors.white,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  letterSpacing: 0.4,
                 ),
               ),
             ],
           ),
         ),
-      ),
+      ],
+    );
+  }
+
+  Widget _buildCompactBrandingSection() {
+    return Column(
+      children: [
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(18),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: 0.2),
+                blurRadius: 16,
+                offset: const Offset(0, 6),
+              ),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(18),
+            child: Image.asset(
+              'assets/images/logo.png',
+              fit: BoxFit.cover,
+            ),
+          ),
+        ),
+        const SizedBox(height: 12),
+        const Text(
+          'Tindahan ni Eca',
+          style: TextStyle(
+            color: Colors.white,
+            fontSize: 26,
+            fontWeight: FontWeight.w900,
+            shadows: [
+              Shadow(
+                color: Colors.black87,
+                offset: Offset(0, 3),
+                blurRadius: 12,
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          decoration: BoxDecoration(
+            color: Colors.black.withValues(alpha: 0.4),
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: const Text(
+            'Security Verification',
+            style: TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+              letterSpacing: 0.8,
+            ),
+          ),
+        ),
+      ],
     );
   }
 }
