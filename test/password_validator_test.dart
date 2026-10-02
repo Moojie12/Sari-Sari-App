@@ -38,5 +38,32 @@ void main() {
       expect(PasswordValidator.validateConfirmPassword('Pass1234', 'Pass1234!'), equals('Passwords do not match.'));
       expect(PasswordValidator.validateConfirmPassword('Pass1234!', 'Pass1234!'), isNull);
     });
+
+    test('random password generator complies 100% with PasswordValidator', () {
+      final random = DateTime.now().microsecondsSinceEpoch;
+      for (int i = 0; i < 100; i++) {
+        const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+        const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+        const numbers = '0123456789';
+        const specials = '!@#\$%^&*(),.?":{}|<>_-+=/\\';
+        
+        final r = (random + i * 997);
+        List<String> chars = [
+          uppercase[r % uppercase.length],
+          lowercase[(r ~/ 3) % lowercase.length],
+          numbers[(r ~/ 7) % numbers.length],
+          specials[(r ~/ 11) % specials.length],
+        ];
+        
+        const allChars = uppercase + lowercase + numbers + specials;
+        for (int j = 0; j < 8; j++) {
+          chars.add(allChars[(r + j * 13) % allChars.length]);
+        }
+        chars.shuffle();
+        final password = chars.join();
+
+        expect(PasswordValidator.validate(password), isNull, reason: 'Failed for password: $password');
+      }
+    });
   });
 }

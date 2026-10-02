@@ -19,10 +19,9 @@ import '../services/admin_sale_service.dart';
 import '../services/admin_audit_service.dart';
 import '../services/admin_analytics_service.dart';
 import '../../core/services/auth_service.dart';
+import '../../core/services/emailjs_service.dart';
 import '../../shared/utils/text_formatters.dart';
 import '../../shared/utils/top_notification.dart';
-import '../../shared/utils/password_validator.dart';
-import '../../shared/widgets/password_requirements_widget.dart';
 import './widgets/dashboard_shared.dart';
 import './sections/overview_section.dart';
 import './sections/settings_section.dart';
@@ -108,6 +107,28 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   // ==================== USER METHODS ====================
 
+  String _generateRandomPassword() {
+    const uppercase = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+    const lowercase = 'abcdefghijklmnopqrstuvwxyz';
+    const numbers = '0123456789';
+    const specials = '!@#\$%^&*(),.?":{}|<>_-+=/\\';
+    
+    final random = Random.secure();
+    List<String> chars = [
+      uppercase[random.nextInt(uppercase.length)],
+      lowercase[random.nextInt(lowercase.length)],
+      numbers[random.nextInt(numbers.length)],
+      specials[random.nextInt(specials.length)],
+    ];
+    
+    const allChars = uppercase + lowercase + numbers + specials;
+    for (int i = 0; i < 8; i++) {
+      chars.add(allChars[random.nextInt(allChars.length)]);
+    }
+    chars.shuffle(random);
+    return chars.join();
+  }
+
   Future<void> _showUserForm(BuildContext context, [AdminUser? user]) async {
     if (!mounted) return;
 
@@ -118,13 +139,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
     final surnameController = TextEditingController(text: user?.surname ?? '');
     final emailController = TextEditingController(text: user?.email ?? '');
     final phoneController = TextEditingController(text: user?.phone ?? '');
-    final passwordController = TextEditingController();
-    final confirmPasswordController = TextEditingController();
+    
+    final tempPassword = isEdit ? '' : _generateRandomPassword();
+    bool showTempPassword = false;
 
     AdminRole selectedRole = user?.role ?? AdminRole.customer;
     bool isSubmitting = false;
-    bool showPasswordText = false;
-    bool showConfirmPasswordText = false;
 
     String? validateFirstName(String val) {
       final v = val.trim();
@@ -175,16 +195,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
         return 'Cannot contain 4 consecutive same digits';
       }
       return null;
-    }
-
-    String? validatePassword(String val) {
-      if (isEdit) return null;
-      return PasswordValidator.validate(val);
-    }
-
-    String? validateConfirmPassword(String val) {
-      if (isEdit) return null;
-      return PasswordValidator.validateConfirmPassword(val, passwordController.text);
     }
 
     InputDecoration liveInputDecoration({
@@ -279,16 +289,12 @@ class _AdminDashboardState extends State<AdminDashboard> {
           final snVal = surnameController.text;
           final emVal = emailController.text;
           final phVal = phoneController.text;
-          final pwVal = passwordController.text;
-          final cpwVal = confirmPasswordController.text;
 
           final fnError = validateFirstName(fnVal);
           final miError = validateMiddleInitial(miVal);
           final snError = validateSurname(snVal);
           final emError = validateEmail(emVal);
           final phError = validatePhone(phVal);
-          final pwError = validatePassword(pwVal);
-          final cpwError = validateConfirmPassword(cpwVal);
 
           return Dialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
@@ -478,93 +484,59 @@ class _AdminDashboardState extends State<AdminDashboard> {
                               ],
                             ),
 
-                            // Password & Confirm Password (For new user creation)
+                            // Auto-generated password info card (For new user creation)
                             if (!isEdit) ...[
                               const SizedBox(height: 14),
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                              Container(
+                                padding: const EdgeInsets.all(14),
+                                decoration: BoxDecoration(
+                                  color: AppColors.primaryOrange.withValues(alpha: 0.08),
+                                  borderRadius: BorderRadius.circular(10),
+                                  border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.3)),
+                                ),
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
                                       children: [
-                                        fieldLabel('Password *'),
-                                        TextFormField(
-                                          controller: passwordController,
-                                          onChanged: (_) => setModalState(() {}),
-                                          obscureText: !showPasswordText,
-                                          decoration: liveInputDecoration(
-                                            icon: Icons.lock_outline_rounded,
-                                            hint: 'Min 8 chars, A-Z, 0-9, special',
-                                            value: pwVal,
-                                            errorText: pwError,
-                                            customSuffix: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                if (pwVal.isNotEmpty && pwError == null)
-                                                  const Icon(Icons.check_circle_rounded, size: 18, color: Colors.green),
-                                                IconButton(
-                                                  icon: Icon(
-                                                    showPasswordText
-                                                        ? Icons.visibility_outlined
-                                                        : Icons.visibility_off_outlined,
-                                                    size: 18,
-                                                    color: AppColors.placeholderColor,
-                                                  ),
-                                                  onPressed: () => setModalState(() => showPasswordText = !showPasswordText),
-                                                ),
-                                              ],
-                                            ),
+                                        const Icon(Icons.lock_person_outlined, color: AppColors.primaryOrange, size: 20),
+                                        const SizedBox(width: 8),
+                                        const Text(
+                                          'Auto-Generated Temporary Password',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: AppColors.darkText),
+                                        ),
+                                        const Spacer(),
+                                        IconButton(
+                                          icon: Icon(
+                                            showTempPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                            size: 18,
+                                            color: AppColors.placeholderColor,
                                           ),
-                                          validator: (_) => pwError,
+                                          onPressed: () => setModalState(() => showTempPassword = !showTempPassword),
+                                          tooltip: showTempPassword ? 'Hide password' : 'Show password',
+                                        ),
+                                        IconButton(
+                                          icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.primaryOrange),
+                                          onPressed: () {
+                                            Clipboard.setData(ClipboardData(text: tempPassword));
+                                            TopNotification.show(context, 'Temporary password copied to clipboard');
+                                          },
+                                          tooltip: 'Copy password',
                                         ),
                                       ],
                                     ),
-                                  ),
-                                  const SizedBox(width: 12),
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        fieldLabel('Confirm Password *'),
-                                        TextFormField(
-                                          controller: confirmPasswordController,
-                                          onChanged: (_) => setModalState(() {}),
-                                          obscureText: !showConfirmPasswordText,
-                                          decoration: liveInputDecoration(
-                                            icon: Icons.lock_reset_rounded,
-                                            hint: 'Repeat password',
-                                            value: cpwVal,
-                                            errorText: cpwError,
-                                            customSuffix: Row(
-                                              mainAxisSize: MainAxisSize.min,
-                                              children: [
-                                                if (cpwVal.isNotEmpty && cpwError == null)
-                                                  const Icon(Icons.check_circle_rounded, size: 18, color: Colors.green),
-                                                IconButton(
-                                                  icon: Icon(
-                                                    showConfirmPasswordText
-                                                        ? Icons.visibility_outlined
-                                                        : Icons.visibility_off_outlined,
-                                                    size: 18,
-                                                    color: AppColors.placeholderColor,
-                                                  ),
-                                                  onPressed: () => setModalState(() => showConfirmPasswordText = !showConfirmPasswordText),
-                                                ),
-                                              ],
-                                            ),
-                                          ),
-                                          validator: (_) => cpwError,
-                                        ),
-                                      ],
+                                    const SizedBox(height: 6),
+                                    Text(
+                                      showTempPassword ? tempPassword : '•' * tempPassword.length,
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, letterSpacing: 1.2, color: AppColors.darkText),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              const SizedBox(height: 12),
-                              PasswordRequirementsWidget(
-                                password: pwVal,
-                                confirmPassword: cpwVal,
+                                    const SizedBox(height: 6),
+                                    const Text(
+                                      'This secure password meets all validation rules (min 8 chars, uppercase, lowercase, number, special char) and will be sent automatically to the user\'s email via EmailJS.',
+                                      style: TextStyle(fontSize: 12, color: AppColors.secondaryText, height: 1.3),
+                                    ),
+                                  ],
+                                ),
                               ),
                             ],
                             const SizedBox(height: 14),
@@ -650,9 +622,19 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                       phone: phone,
                                       role: selectedRole,
                                       status: 'Enabled',
-                                      password: passwordController.text,
-                                      confirmPassword: confirmPasswordController.text,
+                                      password: tempPassword,
+                                      confirmPassword: tempPassword,
                                     );
+
+                                    if (result == null) {
+                                      // Maximize EmailJS to send account credentials
+                                      await EmailJsService.instance.sendAccountCredentialsEmail(
+                                        recipientEmail: email,
+                                        temporaryPassword: tempPassword,
+                                        recipientName: '$firstName ${mi.isNotEmpty ? '$mi. ' : ''}$surname'.trim(),
+                                        roleName: selectedRole.label,
+                                      );
+                                    }
                                   }
 
                                   if (mounted && context.mounted) {
@@ -660,7 +642,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                     if (result == null) {
                                       TopNotification.show(
                                         context,
-                                        isEdit ? 'User details updated successfully' : 'User account created successfully',
+                                        isEdit ? 'User details updated successfully' : 'User account created & credentials emailed!',
                                       );
                                       Navigator.pop(context, true);
                                     } else {

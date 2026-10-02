@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/top_notification.dart';
 import '../../../core/services/sale_deal_controller.dart';
 import '../../../models/sale_deal_model.dart';
 import '../../models/admin_models.dart';
@@ -804,21 +805,15 @@ class _OverviewSectionState extends State<OverviewSection> {
                               final salePrice = double.tryParse(priceController.text.trim()) ?? 0.0;
 
                               if (title.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Please enter a promo title.')),
-                                );
+                                TopNotification.show(context, 'Please enter a promo title.', isError: true);
                                 return;
                               }
                               if (salePrice <= 0) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Please enter a valid sale price.')),
-                                );
+                                TopNotification.show(context, 'Please enter a valid sale price.', isError: true);
                                 return;
                               }
                               if (selectedItems.isEmpty) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  const SnackBar(content: Text('Please select at least one product for the promo.')),
-                                );
+                                TopNotification.show(context, 'Please select at least one product for the promo.', isError: true);
                                 return;
                               }
 
@@ -849,8 +844,9 @@ class _OverviewSectionState extends State<OverviewSection> {
                               await SaleDealController.instance.saveDeal(deal);
                               if (context.mounted) {
                                 Navigator.pop(dialogCtx);
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Promo "${deal.title}" saved successfully!')),
+                                TopNotification.show(
+                                  context,
+                                  'Promo "${deal.title}" saved successfully!',
                                 );
                               }
                             },
@@ -976,9 +972,7 @@ class _OverviewSectionState extends State<OverviewSection> {
                 await SaleDealController.instance.deleteDeal(deal.id);
                 if (context.mounted) {
                   Navigator.pop(dialogCtx);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Promo "${deal.title}" deleted.')),
-                  );
+                  TopNotification.show(context, 'Promo "${deal.title}" deleted.');
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),

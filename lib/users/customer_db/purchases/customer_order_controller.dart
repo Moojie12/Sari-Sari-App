@@ -21,13 +21,15 @@ class CustomerOrderController extends ChangeNotifier {
 
   /// Returns customer-specific orders if logged in, or all orders for guest/test mode
   List<CustomerOrder> get orders {
-    final currentUserId = AuthService().currentUser?.uid;
+    final currentUser = AuthService().currentUser;
+    final currentUserId = currentUser?.uid;
+
     if (currentUserId != null && currentUserId.isNotEmpty) {
-      final userOrders = _sharedController.orders.where((o) => o.userId == currentUserId).toList();
-      if (userOrders.isNotEmpty) {
-        return userOrders;
-      }
+      // When logged in, STRICTLY return only orders belonging to this user
+      return _sharedController.orders.where((o) => o.userId == currentUserId).toList();
     }
+
+    // Unauthenticated / Guest / Test mode
     return _sharedController.orders;
   }
 
@@ -36,8 +38,9 @@ class CustomerOrderController extends ChangeNotifier {
   }
 
   CustomerOrder? getOrderById(String orderId) {
-    final index = _sharedController.orders.indexWhere((o) => o.orderId == orderId);
-    return index != -1 ? _sharedController.orders[index] : null;
+    final userOrders = orders;
+    final index = userOrders.indexWhere((o) => o.orderId == orderId);
+    return index != -1 ? userOrders[index] : null;
   }
 
   Future<void> refresh() async {

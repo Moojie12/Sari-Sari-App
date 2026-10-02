@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/top_notification.dart';
 import '../../models/admin_models.dart';
 import '../../services/admin_user_service.dart';
 import '../widgets/dashboard_shared.dart';
@@ -355,12 +356,7 @@ class _UsersSectionState extends State<UsersSection> {
                         onChanged: (bool enabled) async {
                           final err = await widget.userService.toggleUserStatus(user.id, enabled);
                           if (err != null && context.mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text(err),
-                                backgroundColor: Colors.red,
-                              ),
-                            );
+                            TopNotification.show(context, err, isError: true);
                           }
                         },
                       ),
