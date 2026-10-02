@@ -3,6 +3,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/delivery_tracking_service.dart';
+import '../../../core/services/local_database_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../admin/services/admin_audit_service.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
@@ -71,12 +72,28 @@ class EmployeeOrderController extends ChangeNotifier {
     _isLoading = true;
     notifyListeners();
 
+    // 1. Cache-first: Load SQLite cached orders
+    try {
+      final localRows = await LocalDatabaseService.instance.queryAll('orders', orderBy: 'updated_at DESC');
+      if (localRows.isNotEmpty) {
+        for (final row in localRows) {
+          final parsed = CustomerOrder.fromMap(row);
+          _mergeOrder(parsed, saveToLocal: false);
+        }
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error loading cached orders from SQLite: $e');
+    }
+
+    // 2. Fetch from Supabase cloud database
     try {
       await _loadOrdersFromSupabase();
     } catch (e) {
       debugPrint('Error loading orders from Supabase: $e');
     }
 
+    // 3. Fetch from Firebase RTDB
     try {
       await _loadOrdersFromFirebase();
     } catch (e) {
@@ -88,20 +105,26 @@ class EmployeeOrderController extends ChangeNotifier {
     notifyListeners();
   }
 
-  void _mergeOrder(CustomerOrder order) {
+  void _mergeOrder(CustomerOrder order, {bool saveToLocal = true}) {
     final existingIndex = _orders.indexWhere((o) => o.orderId == order.orderId);
+    CustomerOrder merged = order;
     if (existingIndex >= 0) {
       final existing = _orders[existingIndex];
       final mergedItems = order.items.isNotEmpty ? order.items : existing.items;
       final mergedReason = (order.cancellationReason != null && order.cancellationReason!.isNotEmpty)
           ? order.cancellationReason
           : existing.cancellationReason;
-      _orders[existingIndex] = order.copyWith(
+      merged = order.copyWith(
         items: mergedItems,
         cancellationReason: mergedReason,
       );
+      _orders[existingIndex] = merged;
     } else {
       _orders.add(order);
+    }
+
+    if (saveToLocal && order.userId != null && order.userId!.isNotEmpty) {
+      LocalDatabaseService.instance.insert('orders', merged.toMap());
     }
   }
 

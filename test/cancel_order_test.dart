@@ -1,10 +1,16 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 import 'package:sari_sari/users/employee_db/orders/employee_orders_controller.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+
+  setUpAll(() {
+    sqfliteFfiInit();
+    databaseFactory = databaseFactoryFfi;
+  });
 
   group('Customer Cancel Order Functionality Tests', () {
     late EmployeeOrderController sharedController;

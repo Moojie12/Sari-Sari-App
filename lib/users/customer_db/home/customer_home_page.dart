@@ -41,7 +41,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   String _selectedCategory = 'All';
   bool _isLoading = true;
 
-  static const int _itemsPerPage = 12;
+  static const int _itemsPerPage = 20;
   int _currentPage = 1;
 
   @override

@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:firebase_core/firebase_core.dart';
@@ -6,7 +7,10 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import '../../firebase_options.dart';
+import 'connectivity_service.dart';
+import 'local_database_service.dart';
 import 'supabase_service.dart';
+import 'sync_service.dart';
 
 /// Authentication service using Firebase Auth with Realtime Database integration
 class AuthService {
@@ -304,9 +308,62 @@ class AuthService {
     }
   }
 
-  /// Sign out the current user
+  /// Sign out the current user, syncing pending actions first and purging local user data
   Future<void> signOut() async {
+    final userId = currentUser?.uid;
+    if (userId != null && userId.isNotEmpty) {
+      try {
+        await SyncService.instance.flushQueue();
+      } catch (e) {
+        debugPrint('[AuthService] Error flushing sync queue on logout: $e');
+      }
+
+      try {
+        await LocalDatabaseService.instance.clearUserTables(userId);
+      } catch (e) {
+        debugPrint('[AuthService] Error clearing local tables on logout: $e');
+      }
+    }
     await _auth.signOut();
+  }
+
+  /// Shows confirmation dialog if offline and unsynced changes remain:
+  /// "You have unsynced changes. Log out anyway?" (Cancel | Logout)
+  static Future<bool> confirmLogoutWithUnsyncedCheck(BuildContext context, {String? userId}) async {
+    final activeUserId = userId ?? (AuthService().currentUser?.uid);
+    if (activeUserId == null || activeUserId.isEmpty) return true;
+
+    final pending = await LocalDatabaseService.instance.getPendingSyncActions(activeUserId);
+    final isOffline = !ConnectivityService.instance.isOnline;
+
+    if (pending.isNotEmpty && isOffline && context.mounted) {
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (dialogCtx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('Unsynced Changes Warning'),
+          content: const Text(
+            'You have unsynced changes that will be cleared if you log out while offline. Log out anyway?',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false), // Cancel
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(dialogCtx, true), // Logout
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Logout'),
+            ),
+          ],
+        ),
+      );
+      return confirm == true;
+    }
+    return true;
   }
 
   /// Checks if an email is already registered in Firebase Auth, Supabase, or RTDB

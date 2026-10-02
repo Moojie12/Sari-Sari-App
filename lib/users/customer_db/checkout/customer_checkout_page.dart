@@ -8,6 +8,7 @@ import '../../../core/services/stock_reservation_service.dart';
 import '../customer_cart_controller.dart';
 import '../purchases/customer_order_controller.dart';
 import '../purchases/customer_order_model.dart';
+import '../../employee_db/employee_inventory_controller.dart';
 import '../profile/customer_address_model.dart';
 import '../profile/customer_address_controller.dart';
 import '../profile/customer_add_edit_address_page.dart';
@@ -94,6 +95,26 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
         );
       }
       return;
+    }
+
+    // Price & Stock Re-validation against live inventory
+    final liveProducts = EmployeeInventoryController.instance.products;
+    for (final cartItem in widget.cartController.items) {
+      if (!cartItem.isDeal) {
+        try {
+          final liveProd = liveProducts.firstWhere((p) => p.id == cartItem.product.id);
+          if (liveProd.price != cartItem.unitPrice) {
+            if (mounted) {
+              TopNotification.show(
+                context,
+                'Price updated for "${cartItem.displayName}". Please review your cart.',
+                isError: true,
+              );
+            }
+            return;
+          }
+        } catch (_) {}
+      }
     }
 
     final orderId = widget.orderController.generateOrderNumber();

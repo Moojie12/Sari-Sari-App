@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../core/services/local_database_service.dart';
 import '../../core/services/stock_reservation_service.dart';
 import '../../core/services/supabase_service.dart';
 import '../../admin/services/admin_audit_service.dart';
@@ -211,16 +212,61 @@ class EmployeeInventoryController extends ChangeNotifier {
     }
   }
 
-  /// Loads products and their batches from Supabase
+  /// Loads products and their batches from SQLite cache first, then Supabase
   Future<void> _loadProducts() async {
     _productsLoading = true;
     notifyListeners();
+
+    // 1. Cache-first: Load local products from SQLite
+    try {
+      final cachedRows = await LocalDatabaseService.instance.queryAll('products');
+      if (cachedRows.isNotEmpty && _products.isEmpty) {
+        for (final row in cachedRows) {
+          final prod = EmployeeProduct(
+            id: row['id']?.toString() ?? '',
+            name: row['name']?.toString() ?? '',
+            category: row['category_id']?.toString() ?? '',
+            price: (row['price'] as num?)?.toDouble() ?? 0.0,
+            capital: (row['cost'] as num?)?.toDouble() ?? 0.0,
+            unit: row['unit']?.toString() ?? 'pcs',
+            barcode: row['barcode']?.toString() ?? '',
+            image: row['image']?.toString(),
+            batches: const [],
+            lowStockThreshold: (row['low_stock_threshold'] as num?)?.toDouble() ?? 10.0,
+          );
+          _products.add(prod);
+        }
+        notifyListeners();
+      }
+    } catch (e) {
+      debugPrint('Error loading cached products from SQLite: $e');
+    }
+
+    // 2. Fetch from Supabase and upsert to SQLite
     try {
       final supabaseProducts = await _supabaseService.getProductsWithInventory();
-      _products.clear();
-      for (final p in supabaseProducts) {
-        if (p['is_archived'] == true) continue;
-        _products.add(_fromSupabaseProduct(p));
+      if (supabaseProducts.isNotEmpty) {
+        _products.clear();
+        for (final p in supabaseProducts) {
+          if (p['is_archived'] == true) continue;
+          final prod = _fromSupabaseProduct(p);
+          _products.add(prod);
+
+          LocalDatabaseService.instance.insert('products', {
+            'id': prod.id,
+            'name': prod.name,
+            'category_id': prod.category,
+            'price': prod.price,
+            'cost': prod.capital,
+            'quantity': prod.quantity,
+            'unit': prod.unit,
+            'barcode': prod.barcode,
+            'image': prod.image,
+            'low_stock_threshold': prod.lowStockThreshold,
+            'is_active': 1,
+            'updated_at': DateTime.now().toIso8601String(),
+          });
+        }
       }
     } catch (e) {
       debugPrint('Error loading products from Supabase: $e');

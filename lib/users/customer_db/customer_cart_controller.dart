@@ -1,4 +1,6 @@
 import 'package:flutter/foundation.dart';
+import '../../core/services/auth_service.dart';
+import '../../core/services/local_database_service.dart';
 import '../../models/sale_deal_model.dart';
 import 'home/customer_product_model.dart';
 
@@ -167,10 +169,32 @@ class CustomerCartController extends ChangeNotifier {
   void removeFromCart(String id) {
     _items.removeWhere((item) => item.id == id || item.product.id == id);
     notifyListeners();
+    _saveCartToLocalAndQueueSync();
   }
 
   void clearCart() {
     _items.clear();
     notifyListeners();
+    _saveCartToLocalAndQueueSync();
+  }
+
+  void _saveCartToLocalAndQueueSync() {
+    final userId = AuthService().currentUser?.uid ?? 'guest';
+    final payload = {
+      'items': _items.map((i) => {
+        'id': i.id,
+        'productName': i.displayName,
+        'unitPrice': i.unitPrice,
+        'quantity': i.quantity,
+        'subtotal': i.subtotal,
+      }).toList(),
+      'updated_at': DateTime.now().toIso8601String(),
+    };
+
+    LocalDatabaseService.instance.queueOfflineAction(
+      userId: userId,
+      action: 'UPDATE_CART',
+      payload: payload,
+    );
   }
 }

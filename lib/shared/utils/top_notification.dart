@@ -1,24 +1,48 @@
 import 'package:flutter/material.dart';
 import 'package:sari_sari/core/theme/app_colors.dart';
 
+enum TopNotificationType {
+  success,
+  error,
+  warning,
+  offline,
+}
+
 class TopNotification {
-  /// Displays a floating top pop-up notification banner
+  static String? _lastMessage;
+  static DateTime? _lastTime;
+
+  /// Displays a floating top pop-up notification banner.
+  /// Suppresses duplicate identical messages shown within a 2-second window.
   static void show(
     BuildContext context,
     String message, {
     bool isError = false,
+    TopNotificationType? type,
     String? title,
   }) {
+    final now = DateTime.now();
+    if (_lastMessage == message &&
+        _lastTime != null &&
+        now.difference(_lastTime!) < const Duration(seconds: 2)) {
+      return; // Duplicate message suppressor
+    }
+
+    _lastMessage = message;
+    _lastTime = now;
+
     final overlay = Overlay.maybeOf(context);
     if (overlay == null) return;
+
+    final resolvedType = type ?? (isError ? TopNotificationType.error : TopNotificationType.success);
 
     late OverlayEntry overlayEntry;
 
     overlayEntry = OverlayEntry(
       builder: (context) => _TopNotificationWidget(
         message: message,
-        title: title ?? (isError ? 'Error' : null),
-        isError: isError,
+        title: title ?? _defaultTitle(resolvedType),
+        type: resolvedType,
         onDismiss: () {
           if (overlayEntry.mounted) {
             overlayEntry.remove();
@@ -28,6 +52,35 @@ class TopNotification {
     );
 
     overlay.insert(overlayEntry);
+  }
+
+  static void showOffline(BuildContext context, {String? message}) {
+    show(
+      context,
+      message ?? 'You are currently offline. Connect to the internet to complete action.',
+      type: TopNotificationType.offline,
+    );
+  }
+
+  static void showWarning(BuildContext context, String message) {
+    show(
+      context,
+      message,
+      type: TopNotificationType.warning,
+    );
+  }
+
+  static String? _defaultTitle(TopNotificationType type) {
+    switch (type) {
+      case TopNotificationType.error:
+        return 'Error';
+      case TopNotificationType.warning:
+        return 'Warning';
+      case TopNotificationType.offline:
+        return 'Offline Notice';
+      case TopNotificationType.success:
+        return null;
+    }
   }
 
   /// Displays a centered modal pop-up error dialog
@@ -182,13 +235,13 @@ class TopNotification {
 class _TopNotificationWidget extends StatefulWidget {
   final String message;
   final String? title;
-  final bool isError;
+  final TopNotificationType type;
   final VoidCallback onDismiss;
 
   const _TopNotificationWidget({
     required this.message,
     this.title,
-    required this.isError,
+    required this.type,
     required this.onDismiss,
   });
 
@@ -251,10 +304,29 @@ class _TopNotificationWidgetState extends State<_TopNotificationWidget>
 
   @override
   Widget build(BuildContext context) {
-    final accentColor = widget.isError ? Colors.redAccent : AppColors.primaryOrange;
-    final iconBgColor = widget.isError
-        ? Colors.red.withValues(alpha: 0.12)
-        : AppColors.primaryOrange.withValues(alpha: 0.12);
+    Color accentColor;
+    IconData iconData;
+
+    switch (widget.type) {
+      case TopNotificationType.error:
+        accentColor = Colors.redAccent;
+        iconData = Icons.error_outline_rounded;
+        break;
+      case TopNotificationType.warning:
+        accentColor = Colors.amber.shade800;
+        iconData = Icons.warning_amber_rounded;
+        break;
+      case TopNotificationType.offline:
+        accentColor = Colors.deepOrange;
+        iconData = Icons.wifi_off_rounded;
+        break;
+      case TopNotificationType.success:
+        accentColor = AppColors.primaryOrange;
+        iconData = Icons.check_circle_outline_rounded;
+        break;
+    }
+
+    final iconBgColor = accentColor.withValues(alpha: 0.12);
 
     return SafeArea(
       child: Align(
@@ -295,7 +367,7 @@ class _TopNotificationWidgetState extends State<_TopNotificationWidget>
                           shape: BoxShape.circle,
                         ),
                         child: Icon(
-                          widget.isError ? Icons.error_outline_rounded : Icons.check_circle_outline_rounded,
+                          iconData,
                           color: accentColor,
                           size: 24,
                         ),
