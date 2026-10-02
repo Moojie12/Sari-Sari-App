@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
+import '../../../shared/widgets/skeleton.dart';
 import '../../models/admin_models.dart';
 import '../../services/admin_user_service.dart';
 import '../widgets/dashboard_shared.dart';
@@ -134,9 +135,10 @@ class _UsersSectionState extends State<UsersSection> {
       listenable: widget.userService,
       builder: (context, _) {
         if (!widget.userService.isInitialized || widget.userService.isLoading) {
-          return const Center(
-            child: CircularProgressIndicator(
-              color: AppColors.primaryOrange,
+          return Column(
+            children: List.generate(
+              5,
+              (index) => const TableRowSkeleton(),
             ),
           );
         }

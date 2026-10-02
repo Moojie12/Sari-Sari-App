@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/terms_and_conditions_page.dart';
 import '../../services/admin_product_service.dart';
 
 class SettingsSection extends StatelessWidget {
@@ -71,11 +72,32 @@ class SettingsSection extends StatelessWidget {
             ),
             const SizedBox(height: 8),
             const Text(
-              'This section is currently cleared and ready for pending settings.',
+              'Manage store configuration, terms, policies, and device permissions.',
               textAlign: TextAlign.center,
               style: TextStyle(
                 fontSize: 13,
                 color: AppColors.secondaryText,
+              ),
+            ),
+            const SizedBox(height: 24),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const TermsAndConditionsPage(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.gavel_rounded, size: 18),
+              label: const Text('View Terms & Conditions & App Permissions'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(10),
+                ),
               ),
             ),
           ],

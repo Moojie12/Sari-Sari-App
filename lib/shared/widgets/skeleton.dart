@@ -334,3 +334,160 @@ class BatchCardSkeleton extends StatelessWidget {
     );
   }
 }
+
+class InventoryItemSkeleton extends StatelessWidget {
+  const InventoryItemSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: AppColors.borderColor.withValues(alpha: 0.5),
+          width: 1,
+        ),
+      ),
+      child: const Row(
+        children: [
+          Skeleton(height: 60, width: 60, borderRadius: 12),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Skeleton(height: 15, width: 140),
+                SizedBox(height: 6),
+                Skeleton(height: 12, width: 90),
+                SizedBox(height: 6),
+                Skeleton(height: 14, width: 70),
+              ],
+            ),
+          ),
+          SizedBox(width: 8),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Skeleton(height: 22, width: 65, borderRadius: 8),
+              SizedBox(height: 8),
+              Skeleton(height: 12, width: 50),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class StaffItemSkeleton extends StatelessWidget {
+  const StaffItemSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: AppColors.borderColor.withValues(alpha: 0.5),
+          width: 1,
+        ),
+      ),
+      child: const Row(
+        children: [
+          Skeleton(height: 40, width: 40, borderRadius: 20),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Skeleton(height: 14, width: 120),
+                SizedBox(height: 6),
+                Row(
+                  children: [
+                    Skeleton(height: 18, width: 55, borderRadius: 6),
+                    SizedBox(width: 8),
+                    Skeleton(height: 12, width: 80),
+                  ],
+                ),
+              ],
+            ),
+          ),
+          Skeleton(height: 20, width: 20, borderRadius: 10),
+        ],
+      ),
+    );
+  }
+}
+
+class CartItemSkeleton extends StatelessWidget {
+  const CartItemSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(16),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: const Row(
+        children: [
+          Skeleton(height: 70, width: 70, borderRadius: 12),
+          SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Skeleton(height: 15, width: 130),
+                SizedBox(height: 6),
+                Skeleton(height: 14, width: 60),
+                SizedBox(height: 10),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Skeleton(height: 28, width: 90, borderRadius: 8),
+                    Skeleton(height: 20, width: 20, borderRadius: 4),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class TableRowSkeleton extends StatelessWidget {
+  const TableRowSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 16),
+      child: Row(
+        children: const [
+          Skeleton(height: 16, width: 100),
+          Spacer(),
+          Skeleton(height: 16, width: 80),
+          Spacer(),
+          Skeleton(height: 16, width: 60),
+          Spacer(),
+          Skeleton(height: 24, width: 70, borderRadius: 12),
+        ],
+      ),
+    );
+  }
+}
+

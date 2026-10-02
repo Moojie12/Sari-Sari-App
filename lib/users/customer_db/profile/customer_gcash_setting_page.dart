@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
+import '../../../shared/widgets/skeleton.dart';
 import '../notifications/customer_notification_model.dart';
 import '../notifications/customer_notifications_controller.dart';
 
@@ -164,7 +165,10 @@ class _CustomerGcashSettingPageState extends State<CustomerGcashSettingPage> {
         centerTitle: true,
       ),
       body: _isLoading
-          ? const Center(child: CircularProgressIndicator())
+          ? const Padding(
+              padding: EdgeInsets.all(24),
+              child: OrderCardSkeleton(),
+            )
           : SingleChildScrollView(
               padding: const EdgeInsets.all(24),
               child: Column(

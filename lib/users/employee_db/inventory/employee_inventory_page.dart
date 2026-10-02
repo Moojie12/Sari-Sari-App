@@ -11,6 +11,7 @@ import 'employee_archive_stock_dialog.dart';
 import 'employee_consume_stock_dialog.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../../../shared/widgets/product_image.dart';
+import '../../../shared/widgets/skeleton.dart';
 
 /// Employee "Inventory" tab: view current stock and adjust it manually
 /// (Inventory and Stock Management feature).
@@ -164,7 +165,16 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
                 SliverToBoxAdapter(child: _buildSearchBar()),
                 SliverToBoxAdapter(child: _buildFilters()),
                 const SliverToBoxAdapter(child: SizedBox(height: 8)),
-                if (products.isEmpty)
+                if (widget.inventory.isProductsLoading)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                    sliver: SliverList.separated(
+                      itemCount: 5,
+                      separatorBuilder: (context, index) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) => const InventoryItemSkeleton(),
+                    ),
+                  )
+                else if (products.isEmpty)
                   SliverToBoxAdapter(child: _buildEmptyState())
                 else
                   SliverPadding(

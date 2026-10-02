@@ -11,6 +11,7 @@ import 'customer_gcash_setting_page.dart';
 import '../chat/customer_chat_page.dart';
 import '../customer_dashboard.dart';
 import '../../../shared/widgets/skeleton.dart';
+import '../../../shared/widgets/terms_and_conditions_page.dart';
 
 /// Customer "Profile" tab: a menu into customer profile features,
 /// mirroring the employee dashboard layout but simplified.
@@ -163,6 +164,16 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const CustomerGcashSettingPage()),
+                    );
+                  },
+                ),
+                _MenuTile(
+                  icon: Icons.gavel_outlined,
+                  label: 'Terms & Conditions & Permissions',
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (context) => const TermsAndConditionsPage()),
                     );
                   },
                 ),

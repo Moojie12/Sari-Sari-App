@@ -5,6 +5,7 @@ import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/custom_text_field.dart';
 import '../../shared/widgets/password_requirements_widget.dart';
 import '../../shared/widgets/primary_button.dart';
+import '../../shared/widgets/terms_and_conditions_page.dart';
 import '../../shared/utils/top_notification.dart';
 import '../../shared/utils/password_validator.dart';
 import '../../core/services/auth_service.dart';
@@ -34,6 +35,8 @@ class _SignUpPageState extends State<SignUpPage> {
   String? _phoneError;
   String? _passwordError;
   String? _confirmPasswordError;
+  bool _termsAccepted = false;
+  String? _termsError;
   bool _isLoading = false;
 
   @override
@@ -147,6 +150,9 @@ class _SignUpPageState extends State<SignUpPage> {
       _phoneError = _validatePhone(phone);
       _passwordError = _validatePassword(password);
       _confirmPasswordError = _validateConfirmPassword(confirmPassword);
+      _termsError = _termsAccepted
+          ? null
+          : 'Please accept Terms & Conditions and App Permissions';
     });
 
     if (_firstNameError != null ||
@@ -154,7 +160,15 @@ class _SignUpPageState extends State<SignUpPage> {
         _emailError != null ||
         _phoneError != null ||
         _passwordError != null ||
-        _confirmPasswordError != null) {
+        _confirmPasswordError != null ||
+        !_termsAccepted) {
+      if (!_termsAccepted) {
+        TopNotification.show(
+          context,
+          'Please agree to the Terms & Conditions and App Permissions to proceed.',
+          isError: true,
+        );
+      }
       return;
     }
 
@@ -232,8 +246,27 @@ class _SignUpPageState extends State<SignUpPage> {
                     phoneError: _phoneError,
                     passwordError: _passwordError,
                     confirmPasswordError: _confirmPasswordError,
+                    termsAccepted: _termsAccepted,
+                    termsError: _termsError,
                     isLoading: _isLoading,
                     handleSignUp: _handleSignUp,
+                    onTermsAcceptedChanged: (val) {
+                      setState(() {
+                        _termsAccepted = val;
+                        if (val) _termsError = null;
+                      });
+                    },
+                    onOpenTerms: () {
+                      TermsAndConditionsPage.showModal(
+                        context,
+                        onAccept: () {
+                          setState(() {
+                            _termsAccepted = true;
+                            _termsError = null;
+                          });
+                        },
+                      );
+                    },
                     onFirstNameChanged: (val) {
                       setState(() {
                         _firstNameError = _validateFirstName(val);
@@ -389,8 +422,12 @@ class _SignUpCard extends StatelessWidget {
     required this.phoneError,
     required this.passwordError,
     required this.confirmPasswordError,
+    required this.termsAccepted,
+    this.termsError,
     required this.isLoading,
     required this.handleSignUp,
+    this.onTermsAcceptedChanged,
+    this.onOpenTerms,
     this.onFirstNameChanged,
     this.onSurnameChanged,
     this.onEmailChanged,
@@ -412,8 +449,12 @@ class _SignUpCard extends StatelessWidget {
   final String? phoneError;
   final String? passwordError;
   final String? confirmPasswordError;
+  final bool termsAccepted;
+  final String? termsError;
   final bool isLoading;
   final Future<void> Function() handleSignUp;
+  final ValueChanged<bool>? onTermsAcceptedChanged;
+  final VoidCallback? onOpenTerms;
   final ValueChanged<String>? onFirstNameChanged;
   final ValueChanged<String>? onSurnameChanged;
   final ValueChanged<String>? onEmailChanged;
@@ -634,7 +675,69 @@ class _SignUpCard extends StatelessWidget {
               password: passwordController.text,
               confirmPassword: confirmPasswordController.text,
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 16),
+
+            // Terms & Conditions and App Permissions Checkbox Row
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                SizedBox(
+                  width: 22,
+                  height: 22,
+                  child: Checkbox(
+                    value: termsAccepted,
+                    activeColor: AppColors.primaryOrange,
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                    onChanged: (val) => onTermsAcceptedChanged?.call(val ?? false),
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: GestureDetector(
+                    onTap: () => onTermsAcceptedChanged?.call(!termsAccepted),
+                    child: Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      children: [
+                        const Text(
+                          'I agree to the ',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: AppColors.darkText,
+                          ),
+                        ),
+                        InkWell(
+                          onTap: onOpenTerms,
+                          child: const Text(
+                            'Terms & Conditions & App Permissions',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: AppColors.primaryOrange,
+                              fontWeight: FontWeight.bold,
+                              decoration: TextDecoration.underline,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            if (termsError != null) ...[
+              const SizedBox(height: 6),
+              Padding(
+                padding: const EdgeInsets.only(left: 30),
+                child: Text(
+                  termsError!,
+                  style: const TextStyle(
+                    color: Colors.red,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ),
+            ],
+            const SizedBox(height: 20),
 
             PrimaryButton(
               label: isLoading ? 'Creating Account...' : 'Sign Up',

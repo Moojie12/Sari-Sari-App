@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/skeleton.dart';
 import '../../models/admin_models.dart';
 import '../../services/admin_category_service.dart';
 import '../../services/admin_product_service.dart';
@@ -69,9 +70,10 @@ class _CategoriesSectionState extends State<CategoriesSection> {
         final allInitialized = widget.categoryService.isInitialized && widget.productService.isInitialized;
 
         if (!allInitialized && anyLoading) {
-          return const Center(
-            child: CircularProgressIndicator(
-              color: AppColors.primaryOrange,
+          return Column(
+            children: List.generate(
+              5,
+              (index) => const TableRowSkeleton(),
             ),
           );
         }

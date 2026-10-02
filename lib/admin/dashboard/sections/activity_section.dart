@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/skeleton.dart';
 import '../../models/admin_models.dart';
 import '../../services/admin_audit_service.dart';
 import '../widgets/dashboard_shared.dart';
@@ -242,9 +243,10 @@ class _ActivitySectionState extends State<ActivitySection> {
       listenable: widget.auditService,
       builder: (context, _) {
         if (!widget.auditService.isInitialized && widget.auditService.isLoading) {
-          return const Center(
-            child: CircularProgressIndicator(
-              color: AppColors.primaryOrange,
+          return Column(
+            children: List.generate(
+              5,
+              (index) => const TableRowSkeleton(),
             ),
           );
         }

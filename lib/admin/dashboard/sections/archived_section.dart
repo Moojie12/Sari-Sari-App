@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/product_image.dart';
+import '../../../shared/widgets/skeleton.dart';
 import '../../models/admin_models.dart';
 import '../../services/admin_product_service.dart';
 import '../../services/admin_user_service.dart';
@@ -147,9 +148,10 @@ class _ArchivedSectionState extends State<ArchivedSection> {
             widget.userService.isInitialized;
 
         if (!allInitialized && anyLoading) {
-          return const Center(
-            child: CircularProgressIndicator(
-              color: AppColors.primaryOrange,
+          return Column(
+            children: List.generate(
+              5,
+              (index) => const TableRowSkeleton(),
             ),
           );
         }

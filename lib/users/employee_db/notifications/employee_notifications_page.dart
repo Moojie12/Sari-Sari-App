@@ -9,6 +9,7 @@ import '../orders/employee_orders_controller.dart';
 import 'employee_notification_details_page.dart';
 import 'employee_notification_model.dart';
 import 'employee_notifications_controller.dart';
+import '../../../shared/widgets/skeleton.dart';
 
 EmployeeProduct? findProductForNotification(
   EmployeeNotification notification,
@@ -142,6 +143,15 @@ class EmployeeNotificationsPage extends StatelessWidget {
       body: ListenableBuilder(
         listenable: controller,
         builder: (context, _) {
+          if (controller.isLoading) {
+            return ListView.separated(
+              padding: const EdgeInsets.all(16),
+              itemCount: 6,
+              separatorBuilder: (context, index) => const SizedBox(height: 12),
+              itemBuilder: (context, index) => const NotificationSkeleton(),
+            );
+          }
+
           final notifications = controller.notifications;
 
           if (notifications.isEmpty) {

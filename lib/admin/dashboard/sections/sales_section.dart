@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
+import '../../../shared/widgets/skeleton.dart';
 import '../../models/admin_models.dart';
 import '../../services/admin_sale_service.dart';
 import '../../utils/csv_downloader.dart';
@@ -134,12 +135,10 @@ class _SalesSectionState extends State<SalesSection> {
       listenable: widget.saleService,
       builder: (context, _) {
         if (!widget.saleService.isInitialized && widget.saleService.isLoading) {
-          return const Center(
-            child: Padding(
-              padding: EdgeInsets.all(48.0),
-              child: CircularProgressIndicator(
-                color: AppColors.primaryOrange,
-              ),
+          return Column(
+            children: List.generate(
+              6,
+              (index) => const TableRowSkeleton(),
             ),
           );
         }

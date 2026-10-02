@@ -3,6 +3,7 @@ import '../../../core/services/delivery_tracking_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
 import 'employee_orders_controller.dart';
+import '../../../shared/widgets/skeleton.dart';
 
 class AssignDeliveryPersonSheet extends StatefulWidget {
   const AssignDeliveryPersonSheet({
@@ -110,6 +111,9 @@ class _AssignDeliveryPersonSheetState extends State<AssignDeliveryPersonSheet> {
   @override
   Widget build(BuildContext context) {
     return Container(
+      constraints: BoxConstraints(
+        maxHeight: MediaQuery.of(context).size.height * 0.88,
+      ),
       decoration: const BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
@@ -117,8 +121,8 @@ class _AssignDeliveryPersonSheetState extends State<AssignDeliveryPersonSheet> {
       padding: EdgeInsets.only(
         left: 24,
         right: 24,
-        top: 24,
-        bottom: MediaQuery.of(context).viewInsets.bottom + 24,
+        top: 20,
+        bottom: MediaQuery.of(context).viewInsets.bottom + 16,
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -135,7 +139,7 @@ class _AssignDeliveryPersonSheetState extends State<AssignDeliveryPersonSheet> {
               ),
             ),
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 14),
 
           // Header
           Row(
@@ -172,198 +176,213 @@ class _AssignDeliveryPersonSheetState extends State<AssignDeliveryPersonSheet> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          const SizedBox(height: 12),
 
-          // Notice requirement
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-            decoration: BoxDecoration(
-              color: Colors.amber.shade50,
-              borderRadius: BorderRadius.circular(10),
-              border: Border.all(color: Colors.amber.shade200),
-            ),
-            child: const Row(
-              children: [
-                Icon(Icons.info_outline, size: 18, color: Colors.amber),
-                SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Select who will deliver this order. Live OpenStreetMap GPS tracking will begin once assigned.',
-                    style: TextStyle(fontSize: 12, color: Color(0xFF7A5400)),
-                  ),
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 16),
-
-          // Destination summary
-          if (widget.order.deliveryAddress != null)
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: AppColors.lightBackground,
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: Row(
+          // Scrollable middle section
+          Flexible(
+            child: SingleChildScrollView(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  const Icon(Icons.location_on, color: Colors.red, size: 20),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                  // Notice requirement
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.amber.shade200),
+                    ),
+                    child: const Row(
                       children: [
-                        const Text(
-                          'Delivery Destination:',
-                          style: TextStyle(fontSize: 11, color: AppColors.secondaryText, fontWeight: FontWeight.w600),
-                        ),
-                        Text(
-                          widget.order.deliveryAddress!,
-                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.darkText),
-                          maxLines: 2,
-                          overflow: TextOverflow.ellipsis,
+                        Icon(Icons.info_outline, size: 18, color: Colors.amber),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Select who will deliver this order. Live OpenStreetMap GPS tracking will begin once assigned.',
+                            style: TextStyle(fontSize: 12, color: Color(0xFF7A5400)),
+                          ),
                         ),
                       ],
                     ),
                   ),
-                ],
-              ),
-            ),
-          const SizedBox(height: 16),
+                  const SizedBox(height: 14),
 
-          const Text(
-            'Available Staff (Owner / Employees)',
-            style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.darkText),
-          ),
-          const SizedBox(height: 10),
-
-          // Staff selection list
-          if (_isLoading)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 32),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else if (_staffList.isEmpty)
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 24),
-              child: Center(
-                child: Text(
-                  'No Owner or Employee accounts found.',
-                  style: TextStyle(color: AppColors.secondaryText),
-                ),
-              ),
-            )
-          else
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxHeight: 280),
-              child: ListView.separated(
-                shrinkWrap: true,
-                itemCount: _staffList.length,
-                separatorBuilder: (context, index) => const SizedBox(height: 8),
-                itemBuilder: (context, index) {
-                  final staff = _staffList[index];
-                  final isSelected = _selectedPerson?.id == staff.id;
-                  final isOwner = staff.role.toLowerCase() == 'owner';
-
-                  return InkWell(
-                    onTap: () {
-                      setState(() => _selectedPerson = staff);
-                    },
-                    borderRadius: BorderRadius.circular(12),
-                    child: AnimatedContainer(
-                      duration: const Duration(milliseconds: 150),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  // Destination summary
+                  if (widget.order.deliveryAddress != null) ...[
+                    Container(
+                      padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(
-                        color: isSelected ? AppColors.primaryOrange.withValues(alpha: 0.08) : Colors.white,
+                        color: AppColors.lightBackground,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(
-                          color: isSelected ? AppColors.primaryOrange : AppColors.borderColor,
-                          width: isSelected ? 1.8 : 1.0,
-                        ),
                       ),
                       child: Row(
                         children: [
-                          // Avatar
-                          CircleAvatar(
-                            radius: 20,
-                            backgroundColor: isOwner ? Colors.amber.shade100 : Colors.blue.shade100,
-                            child: Icon(
-                              isOwner ? Icons.storefront : Icons.badge,
-                              color: isOwner ? Colors.orange.shade800 : Colors.blue.shade800,
-                              size: 20,
-                            ),
-                          ),
-                          const SizedBox(width: 12),
-
-                          // Name and Role
+                          const Icon(Icons.location_on, color: Colors.red, size: 20),
+                          const SizedBox(width: 8),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  staff.name,
+                                const Text(
+                                  'Delivery Destination:',
                                   style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                                    color: AppColors.darkText,
-                                  ),
+                                      fontSize: 11, color: AppColors.secondaryText, fontWeight: FontWeight.w600),
                                 ),
-                                const SizedBox(height: 3),
-                                Row(
-                                  children: [
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                                      decoration: BoxDecoration(
-                                        color: isOwner
-                                            ? Colors.amber.withValues(alpha: 0.2)
-                                            : Colors.blue.withValues(alpha: 0.15),
-                                        borderRadius: BorderRadius.circular(6),
-                                      ),
-                                      child: Text(
-                                        staff.role,
-                                        style: TextStyle(
-                                          fontSize: 10,
-                                          fontWeight: FontWeight.bold,
-                                          color: isOwner ? Colors.orange.shade900 : Colors.blue.shade800,
-                                        ),
-                                      ),
-                                    ),
-                                    if (staff.phone != null && staff.phone!.isNotEmpty) ...[
-                                      const SizedBox(width: 8),
-                                      Text(
-                                        staff.phone!,
-                                        style: const TextStyle(fontSize: 11, color: AppColors.secondaryText),
-                                      ),
-                                    ],
-                                  ],
+                                Text(
+                                  widget.order.deliveryAddress!,
+                                  style: const TextStyle(
+                                      fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.darkText),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
                           ),
-
-                          // Radio indicator
-                          Radio<String>(
-                            value: staff.id,
-                            groupValue: _selectedPerson?.id,
-                            activeColor: AppColors.primaryOrange,
-                            onChanged: (val) {
-                              setState(() => _selectedPerson = staff);
-                            },
-                          ),
                         ],
                       ),
                     ),
-                  );
-                },
+                    const SizedBox(height: 14),
+                  ],
+
+                  const Text(
+                    'Available Staff (Owner / Employees)',
+                    style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.darkText),
+                  ),
+                  const SizedBox(height: 10),
+
+                  // Staff selection list
+                  if (_isLoading)
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: 3,
+                      separatorBuilder: (context, index) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) => const StaffItemSkeleton(),
+                    )
+                  else if (_staffList.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 24),
+                      child: Center(
+                        child: Text(
+                          'No Owner or Employee accounts found.',
+                          style: TextStyle(color: AppColors.secondaryText),
+                        ),
+                      ),
+                    )
+                  else
+                    ListView.separated(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: _staffList.length,
+                      separatorBuilder: (context, index) => const SizedBox(height: 8),
+                      itemBuilder: (context, index) {
+                        final staff = _staffList[index];
+                        final isSelected = _selectedPerson?.id == staff.id;
+                        final isOwner = staff.role.toLowerCase() == 'owner';
+
+                        return InkWell(
+                          onTap: () {
+                            setState(() => _selectedPerson = staff);
+                          },
+                          borderRadius: BorderRadius.circular(12),
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 150),
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            decoration: BoxDecoration(
+                              color: isSelected ? AppColors.primaryOrange.withValues(alpha: 0.08) : Colors.white,
+                              borderRadius: BorderRadius.circular(12),
+                              border: Border.all(
+                                color: isSelected ? AppColors.primaryOrange : AppColors.borderColor,
+                                width: isSelected ? 1.8 : 1.0,
+                              ),
+                            ),
+                            child: Row(
+                              children: [
+                                // Avatar
+                                CircleAvatar(
+                                  radius: 20,
+                                  backgroundColor: isOwner ? Colors.amber.shade100 : Colors.blue.shade100,
+                                  child: Icon(
+                                    isOwner ? Icons.storefront : Icons.badge,
+                                    color: isOwner ? Colors.orange.shade800 : Colors.blue.shade800,
+                                    size: 20,
+                                  ),
+                                ),
+                                const SizedBox(width: 12),
+
+                                // Name and Role
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        staff.name,
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                          color: AppColors.darkText,
+                                        ),
+                                      ),
+                                      const SizedBox(height: 3),
+                                      Row(
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                            decoration: BoxDecoration(
+                                              color: isOwner
+                                                  ? Colors.amber.withValues(alpha: 0.2)
+                                                  : Colors.blue.withValues(alpha: 0.15),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Text(
+                                              staff.role,
+                                              style: TextStyle(
+                                                fontSize: 10,
+                                                fontWeight: FontWeight.bold,
+                                                color: isOwner ? Colors.orange.shade900 : Colors.blue.shade800,
+                                              ),
+                                            ),
+                                          ),
+                                          if (staff.phone != null && staff.phone!.isNotEmpty) ...[
+                                            const SizedBox(width: 8),
+                                            Text(
+                                              staff.phone!,
+                                              style:
+                                                  const TextStyle(fontSize: 11, color: AppColors.secondaryText),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ],
+                                  ),
+                                ),
+
+                                // Radio indicator
+                                Radio<String>(
+                                  value: staff.id,
+                                  groupValue: _selectedPerson?.id,
+                                  activeColor: AppColors.primaryOrange,
+                                  onChanged: (val) {
+                                    setState(() => _selectedPerson = staff);
+                                  },
+                                ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                ],
               ),
             ),
+          ),
 
-          const SizedBox(height: 20),
+          const SizedBox(height: 16),
 
           // Confirm button
           SizedBox(
             width: double.infinity,
-            height: 50,
+            height: 48,
             child: ElevatedButton(
               onPressed: (_isSubmitting || _selectedPerson == null) ? null : _confirmAssignment,
               style: ElevatedButton.styleFrom(
@@ -384,7 +403,7 @@ class _AssignDeliveryPersonSheetState extends State<AssignDeliveryPersonSheet> {
                     ),
             ),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 6),
           Center(
             child: TextButton(
               onPressed: () => Navigator.pop(context, false),

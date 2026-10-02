@@ -4,6 +4,7 @@ import '../../customer_db/purchases/customer_order_model.dart';
 import 'assign_delivery_person_sheet.dart';
 import 'employee_order_details_page.dart';
 import 'employee_orders_controller.dart';
+import '../../../shared/widgets/skeleton.dart';
 
 class EmployeeOrdersPage extends StatefulWidget {
   const EmployeeOrdersPage({super.key, required this.controller});
@@ -437,6 +438,15 @@ class _OrderList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    if (controller.isLoading) {
+      return ListView.separated(
+        padding: const EdgeInsets.all(24),
+        itemCount: 3,
+        separatorBuilder: (context, index) => const SizedBox(height: 16),
+        itemBuilder: (context, index) => const OrderCardSkeleton(),
+      );
+    }
+
     if (orders.isEmpty) {
       return const Center(
         child: Text(
