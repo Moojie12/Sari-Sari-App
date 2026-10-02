@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/product_image.dart';
 import '../employee_inventory_controller.dart';
 import 'employee_batch_detail_sheet.dart';
 import 'employee_expiry_badge.dart';
@@ -201,16 +202,11 @@ class _EmployeeExpiringProductsPageState extends State<EmployeeExpiringProductsP
                               ),
                               child: Row(
                                 children: [
-                                  Container(
+                                  ProductImage(
+                                    image: product.image,
                                     width: 48,
                                     height: 48,
-                                    decoration: BoxDecoration(
-                                      color: AppColors.lightBackground,
-                                      borderRadius: BorderRadius.circular(12),
-                                    ),
-                                    child: product.image != null
-                                        ? const Icon(Icons.image, color: AppColors.primaryOrange)
-                                        : const Icon(Icons.inventory_2_outlined, color: AppColors.placeholderColor),
+                                    borderRadius: 12,
                                   ),
                                   const SizedBox(width: 16),
                                   Expanded(

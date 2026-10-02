@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/product_image.dart';
+import '../../employee_db/employee_inventory_controller.dart';
 import 'customer_order_model.dart';
 import 'customer_order_controller.dart';
 import 'customer_delivery_tracking_widget.dart';
@@ -195,37 +197,69 @@ class _OrderItemsList extends StatelessWidget {
   const _OrderItemsList({required this.items});
   final List<CustomerOrderItem> items;
 
+  String? _getProductImage(CustomerOrderItem item) {
+    final inventory = EmployeeInventoryController.instance;
+    // 1. Search by product ID
+    final productById = inventory.findById(item.productId);
+    if (productById != null && productById.image != null && productById.image!.isNotEmpty) {
+      return productById.image;
+    }
+    // 2. Search by barcode
+    final productByBarcode = inventory.findByBarcode(item.productId);
+    if (productByBarcode != null && productByBarcode.image != null && productByBarcode.image!.isNotEmpty) {
+      return productByBarcode.image;
+    }
+    // 3. Search by product name (case-insensitive)
+    final trimmedName = item.productName.trim().toLowerCase();
+    for (final prod in inventory.products) {
+      if (prod.name.trim().toLowerCase() == trimmedName) {
+        if (prod.image != null && prod.image!.isNotEmpty) {
+          return prod.image;
+        }
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
-      child: Column(
-        children: items.map((item) => Padding(
-          padding: const EdgeInsets.only(bottom: 12),
-          child: Row(
-            children: [
-              Container(
-                width: 50,
-                height: 50,
-                decoration: BoxDecoration(color: AppColors.lightBackground, borderRadius: BorderRadius.circular(8)),
-                child: const Icon(Icons.image_outlined, size: 24, color: AppColors.placeholderColor),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+    return ListenableBuilder(
+      listenable: EmployeeInventoryController.instance,
+      builder: (context, _) {
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
+          child: Column(
+            children: items.map((item) {
+              final imageUrl = _getProductImage(item);
+              return Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: Row(
                   children: [
-                    Text(item.productName, style: const TextStyle(fontWeight: FontWeight.bold)),
-                    Text('${item.quantity} x ₱${item.price.toStringAsFixed(2)}', style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                    ProductImage(
+                      image: imageUrl,
+                      width: 50,
+                      height: 50,
+                      borderRadius: 8,
+                    ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(item.productName, style: const TextStyle(fontWeight: FontWeight.bold)),
+                          Text('${item.quantity} x ₱${item.price.toStringAsFixed(2)}', style: const TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                        ],
+                      ),
+                    ),
+                    Text('₱${item.subtotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
                   ],
                 ),
-              ),
-              Text('₱${item.subtotal.toStringAsFixed(2)}', style: const TextStyle(fontWeight: FontWeight.bold)),
-            ],
+              );
+            }).toList(),
           ),
-        )).toList(),
-      ),
+        );
+      },
     );
   }
 }

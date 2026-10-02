@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/product_image.dart';
 import '../../models/admin_models.dart';
 import '../../services/admin_product_service.dart';
 import '../../services/admin_user_service.dart';
@@ -323,10 +324,23 @@ class _ArchivedSectionState extends State<ArchivedSection> {
       rows: [
         for (final product in paged.items)
           [
-            cell(Text(
-              product.name,
-              overflow: TextOverflow.ellipsis,
-              style: const TextStyle(fontWeight: FontWeight.w600),
+            cell(Row(
+              children: [
+                ProductImage(
+                  image: product.image,
+                  width: 36,
+                  height: 36,
+                  borderRadius: 8,
+                ),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: Text(
+                    product.name,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
             )),
             cell(Text(
               product.categoryName,

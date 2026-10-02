@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import 'package:sari_sari/users/customer_db/tutorial/customer_tutorial_keys.dart';
 
 /// Configuration for a single destination in [CustomerFloatingNavBar].
 class _CustomerNavDestination {
@@ -87,8 +88,25 @@ class CustomerFloatingNavBar extends StatelessWidget {
                 final showBadge =
                     index == _notificationsIndex && notificationBadgeCount > 0;
 
+                Key? itemKey;
+                switch (index) {
+                  case 0:
+                    itemKey = CustomerTutorialKeys.homeTabKey;
+                    break;
+                  case 1:
+                    itemKey = CustomerTutorialKeys.notificationsTabKey;
+                    break;
+                  case 2:
+                    itemKey = CustomerTutorialKeys.ordersTabKey;
+                    break;
+                  case 3:
+                    itemKey = CustomerTutorialKeys.profileTabKey;
+                    break;
+                }
+
                 return Expanded(
                   child: _CustomerNavItem(
+                    key: itemKey,
                     destination: destination,
                     isSelected: isSelected,
                     badgeCount: showBadge ? notificationBadgeCount : null,
@@ -106,6 +124,7 @@ class CustomerFloatingNavBar extends StatelessWidget {
 
 class _CustomerNavItem extends StatelessWidget {
   const _CustomerNavItem({
+    super.key,
     required this.destination,
     required this.isSelected,
     required this.onTap,

@@ -360,24 +360,35 @@ class AdminAnalyticsService extends ChangeNotifier {
       }
     }
 
+    final orderTypeStr = data['order_type']?.toString().toLowerCase().trim() ?? '';
+    final deliveryAddress = data['delivery_address']?.toString().trim() ?? '';
+    final isDelivery = orderTypeStr == 'delivery' || deliveryAddress.isNotEmpty;
+    final transactionType = isDelivery
+        ? AdminTransactionType.delivery
+        : AdminTransactionType.inStore;
+
     return AdminSale(
       id: data['id']?.toString() ?? '',
-      receiptNumber: data['order_number']?.toString() ?? '',
+      receiptNumber: (data['order_number']?.toString().isNotEmpty ?? false)
+          ? data['order_number'].toString()
+          : (data['id']?.toString() ?? ''),
       cashierId: data['user_id']?.toString() ?? '',
-      cashierName: data['cashier_name']?.toString() ?? 'Cashier',
+      cashierName: data['cashier_name']?.toString() ?? (isDelivery ? 'Delivery Courier' : 'Cashier'),
       customerName: data['customer_name']?.toString() ?? 'Walk-in',
       items: items,
       discount: (data['discount'] as num?)?.toDouble() ?? 0,
       paymentMethod: _parsePaymentMethod(data['payment_method']?.toString()),
       amountPaid: (data['total_amount'] as num? ?? 0).toDouble(),
       timestamp: data['placed_at'] != null 
-          ? DateTime.tryParse(data['placed_at'] as String) ?? DateTime.now()
+          ? DateTime.tryParse(data['placed_at'] as String)?.toLocal() ?? DateTime.now()
           : DateTime.now(),
       status: _parseSaleStatus(data['status']?.toString()),
+      transactionType: transactionType,
+      rawStatus: data['status']?.toString(),
       voidReason: data['void_reason']?.toString(),
       voidedBy: data['voided_by']?.toString(),
       voidedAt: data['voided_at'] != null
-          ? DateTime.tryParse(data['voided_at'] as String)
+          ? DateTime.tryParse(data['voided_at'] as String)?.toLocal()
           : null,
     );
   }

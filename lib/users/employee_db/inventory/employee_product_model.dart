@@ -161,6 +161,7 @@ class EmployeeProduct {
     String? image,
     double? lowStockThreshold,
     bool? isWeightBased,
+    bool clearImage = false,
   }) {
     return EmployeeProduct(
       id: id,
@@ -171,7 +172,7 @@ class EmployeeProduct {
       barcode: barcode ?? this.barcode,
       unit: unit ?? this.unit,
       batches: batches ?? this.batches,
-      image: image ?? this.image,
+      image: clearImage ? null : (image ?? this.image),
       lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
       isWeightBased: isWeightBased ?? this.isWeightBased,
     );

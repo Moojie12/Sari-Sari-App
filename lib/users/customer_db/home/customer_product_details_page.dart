@@ -358,15 +358,24 @@ class _CustomerProductDetailsPageState
                           color: AppColors.borderColor.withValues(alpha: 0.5),
                         ),
                       ),
+                      clipBehavior: Clip.antiAlias,
                       alignment: Alignment.center,
-                      child: Opacity(
-                        opacity: _isOutOfStock ? 0.4 : 1,
-                        child: Icon(
-                          Icons.image_outlined,
-                          size: 80,
-                          color: AppColors.primaryOrange.withValues(alpha: 0.3),
-                        ),
-                      ),
+                      child: product.image.trim().isNotEmpty
+                          ? ProductImage(
+                              image: product.image,
+                              width: double.infinity,
+                              height: double.infinity,
+                              fit: BoxFit.cover,
+                              borderRadius: 20,
+                            )
+                          : Opacity(
+                              opacity: _isOutOfStock ? 0.4 : 1,
+                              child: Icon(
+                                Icons.image_outlined,
+                                size: 80,
+                                color: AppColors.primaryOrange.withValues(alpha: 0.3),
+                              ),
+                            ),
                     ),
                   ),
                   if (product.isFeatured && !_isOutOfStock)

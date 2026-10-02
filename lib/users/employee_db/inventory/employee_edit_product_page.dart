@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -293,63 +294,84 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
     if (!mounted) return;
 
     setState(() => _isSaving = true);
-    String? finalImageUrl;
-    if (_imagePath != null && _imagePath!.trim().isNotEmpty) {
-      final trimmedPath = _imagePath!.trim();
-      if (trimmedPath.startsWith('http://') ||
-          trimmedPath.startsWith('https://') ||
-          trimmedPath.startsWith('data:image/')) {
-        finalImageUrl = trimmedPath;
-      } else {
-        try {
-          final uploadedUrl = await SupabaseService().uploadProductImageFromPathOrBytes(
-            productId: widget.product.id,
-            filePath: trimmedPath,
-          );
-          if (uploadedUrl != null &&
-              uploadedUrl.isNotEmpty &&
-              !uploadedUrl.startsWith('/') &&
-              !uploadedUrl.startsWith('file://')) {
-            finalImageUrl = uploadedUrl;
-            debugPrint('Edited product photo uploaded to Supabase: $finalImageUrl');
-          } else {
-            // Absolute safety fallback: convert file bytes directly to Base64 data URI
-            String cleanPath = trimmedPath;
-            if (cleanPath.startsWith('file://')) cleanPath = cleanPath.substring(7);
-            final file = File(cleanPath);
-            if (await file.exists()) {
-              final bytes = await file.readAsBytes();
-              final ext = cleanPath.endsWith('.png') ? 'png' : 'jpg';
-              finalImageUrl = 'data:image/$ext;base64,${base64Encode(bytes)}';
+    try {
+      String? finalImageUrl;
+      if (_imagePath != null && _imagePath!.trim().isNotEmpty) {
+        final trimmedPath = _imagePath!.trim();
+        if (trimmedPath.startsWith('http://') ||
+            trimmedPath.startsWith('https://') ||
+            trimmedPath.startsWith('data:image/')) {
+          finalImageUrl = trimmedPath;
+        } else {
+          try {
+            final uploadedUrl = await SupabaseService().uploadProductImageFromPathOrBytes(
+              productId: widget.product.id,
+              filePath: trimmedPath,
+            );
+            if (uploadedUrl != null &&
+                uploadedUrl.isNotEmpty &&
+                !uploadedUrl.startsWith('/') &&
+                !uploadedUrl.startsWith('file://')) {
+              finalImageUrl = uploadedUrl;
+              debugPrint('Edited product photo uploaded to Supabase: $finalImageUrl');
+            } else {
+              // Absolute safety fallback: convert file bytes directly to Base64 data URI
+              String cleanPath = trimmedPath;
+              if (cleanPath.startsWith('file://')) cleanPath = cleanPath.substring(7);
+              try {
+                final bytes = await XFile(cleanPath).readAsBytes();
+                final ext = cleanPath.endsWith('.png') ? 'png' : 'jpg';
+                finalImageUrl = 'data:image/$ext;base64,${base64Encode(bytes)}';
+              } catch (_) {
+                if (!kIsWeb) {
+                  final file = File(cleanPath);
+                  if (await file.exists()) {
+                    final bytes = await file.readAsBytes();
+                    final ext = cleanPath.endsWith('.png') ? 'png' : 'jpg';
+                    finalImageUrl = 'data:image/$ext;base64,${base64Encode(bytes)}';
+                  }
+                }
+              }
             }
+          } catch (e) {
+            debugPrint('Error uploading edited product photo to Supabase: $e');
           }
-        } catch (e) {
-          debugPrint('Error uploading edited product photo to Supabase: $e');
         }
       }
+
+      if (_isAddingNewCategory) {
+        final currentUserId = AuthService().currentUser?.uid ?? 'system';
+        widget.inventory.addCategory(category, currentUserId);
+      }
+
+      final shouldClearImage = (_imagePath == null || _imagePath!.trim().isEmpty) && widget.product.image != null;
+
+      widget.inventory.updateProduct(
+        productId: widget.product.id,
+        name: name,
+        category: category,
+        price: price!,
+        capital: capital!,
+        barcode: barcode,
+        image: finalImageUrl,
+        lowStockThreshold: threshold,
+        isWeightBased: _isWeightBased,
+        clearImage: shouldClearImage,
+      );
+
+      if (!mounted) return;
+      TopNotification.show(context, 'Product updated successfully');
+      Navigator.pop(context);
+    } catch (e) {
+      debugPrint('Error saving edited product: $e');
+      if (mounted) {
+        TopNotification.show(context, 'Error saving product: $e', isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
-
-    if (_isAddingNewCategory) {
-      final currentUserId = AuthService().currentUser?.uid ?? 'system';
-      widget.inventory.addCategory(category, currentUserId);
-    }
-
-    widget.inventory.updateProduct(
-      productId: widget.product.id,
-      name: name,
-      category: category,
-      price: price!,
-      capital: capital!,
-      barcode: barcode,
-      image: finalImageUrl,
-      lowStockThreshold: threshold,
-      isWeightBased: _isWeightBased,
-    );
-
-    if (!mounted) return;
-    setState(() => _isSaving = false);
-    TopNotification.show(context, 'Product updated successfully');
-    Navigator.pop(context);
   }
 
   @override

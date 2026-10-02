@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/product_image.dart';
 import '../../models/admin_models.dart';
 import '../../services/admin_product_service.dart';
 import '../../services/admin_category_service.dart';
@@ -392,39 +393,52 @@ class _ProductsSectionState extends State<ProductsSection> {
       rows: [
         for (final product in paged.items)
           [
-            cell(Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+            cell(Row(
               children: [
-                Row(
-                  children: [
-                    Flexible(
-                      child: Text(
-                        product.name,
-                        overflow: TextOverflow.ellipsis,
+                ProductImage(
+                  image: product.image,
+                  width: 40,
+                  height: 40,
+                  borderRadius: 10,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Flexible(
+                            child: Text(
+                              product.name,
+                              overflow: TextOverflow.ellipsis,
+                              style: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: AppColors.darkText,
+                                fontSize: 13.5,
+                              ),
+                            ),
+                          ),
+                          if (product.isExpired) ...[
+                            const SizedBox(width: 8),
+                            statusPill('Expired', Colors.red),
+                          ] else if (product.isExpiringSoon) ...[
+                            const SizedBox(width: 8),
+                            statusPill('Expires soon', Colors.deepOrange),
+                          ],
+                        ],
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        product.barcode.isEmpty
+                            ? 'No barcode'
+                            : product.barcode,
                         style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.darkText,
-                          fontSize: 13.5,
+                          fontSize: 11.5,
+                          color: AppColors.placeholderColor,
                         ),
                       ),
-                    ),
-                    if (product.isExpired) ...[
-                      const SizedBox(width: 8),
-                      statusPill('Expired', Colors.red),
-                    ] else if (product.isExpiringSoon) ...[
-                      const SizedBox(width: 8),
-                      statusPill('Expires soon', Colors.deepOrange),
                     ],
-                  ],
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  product.barcode.isEmpty
-                      ? 'No barcode'
-                      : product.barcode,
-                  style: const TextStyle(
-                    fontSize: 11.5,
-                    color: AppColors.placeholderColor,
                   ),
                 ),
               ],

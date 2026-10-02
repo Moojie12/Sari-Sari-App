@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth_service.dart';
 import '../../users/customer_db/purchases/customer_order_model.dart';
@@ -1483,13 +1484,20 @@ class SupabaseService {
         if (ext == 'png' || ext == 'webp') validExt = ext;
 
         if (imageBytes == null || imageBytes.isEmpty) {
-          if (!kIsWeb) {
-            final file = File(cleanPath);
-            if (!await file.exists()) {
-              debugPrint('Product image file does not exist at $cleanPath');
-              return null;
+          try {
+            imageBytes = await XFile(cleanPath).readAsBytes();
+          } catch (xfileErr) {
+            debugPrint('XFile readAsBytes failed: $xfileErr');
+            if (!kIsWeb) {
+              try {
+                final file = File(cleanPath);
+                if (await file.exists()) {
+                  imageBytes = await file.readAsBytes();
+                }
+              } catch (fileErr) {
+                debugPrint('File readAsBytes failed: $fileErr');
+              }
             }
-            imageBytes = await file.readAsBytes();
           }
         }
       }
@@ -1516,7 +1524,7 @@ class SupabaseService {
             contentType: 'image/$validExt',
             upsert: true,
           ),
-        );
+        ).timeout(const Duration(seconds: 4));
         final publicUrl = _client.storage.from('products').getPublicUrl(storagePath);
         if (publicUrl.isNotEmpty) {
           debugPrint('Successfully uploaded product image to Supabase storage: $publicUrl');
@@ -1532,8 +1540,8 @@ class SupabaseService {
         await ref.putData(
           imageBytes,
           SettableMetadata(contentType: 'image/$validExt'),
-        );
-        final downloadUrl = await ref.getDownloadURL();
+        ).timeout(const Duration(seconds: 4));
+        final downloadUrl = await ref.getDownloadURL().timeout(const Duration(seconds: 4));
         if (downloadUrl.isNotEmpty) {
           debugPrint('Successfully uploaded product image to Firebase storage: $downloadUrl');
           return downloadUrl;

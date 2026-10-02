@@ -1,8 +1,14 @@
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/services/supabase_service.dart';
+import '../../shared/widgets/product_image.dart';
+import '../../shared/widgets/product_image_crop_dialog.dart';
 import '../../authentication/login/login_page.dart';
 import '../../authentication/admin_login/admin_login_page.dart';
 import '../models/admin_models.dart';
@@ -54,6 +60,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
   final Map<String, int> _pages = {};
   String _searchQuery = '';
+  String _storeName = 'Tindahan ni Eca';
+  int _rowsPerPage = 10;
+  bool _showCostColumn = false;
+  bool _confirmBeforeArchive = true;
 
   void _onPageChange(String key, int page) {
     setState(() {
@@ -938,6 +948,107 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     DateTime? expiryDate = product?.expirationDate;
     String selectedCategoryId = product?.categoryId ?? '';
+    String? imagePath = product?.image;
+    bool isImageChanged = false;
+    final imagePicker = ImagePicker();
+
+    Future<void> processImagePick(ImageSource source, StateSetter setDialogState, BuildContext dialogCtx) async {
+      try {
+        final picked = await imagePicker.pickImage(
+          source: source,
+          maxWidth: 1200,
+          imageQuality: 85,
+        );
+        if (picked != null && dialogCtx.mounted) {
+          final confirmedPath = await showProductImageCropDialog(
+            context: dialogCtx,
+            xfile: picked,
+          );
+          if (confirmedPath != null) {
+            setDialogState(() {
+              imagePath = confirmedPath;
+              isImageChanged = true;
+            });
+          }
+        }
+      } catch (e) {
+        debugPrint('Error picking image in admin: $e');
+        if (dialogCtx.mounted) {
+          TopNotification.show(dialogCtx, "Couldn't access image. Please check app permissions.", isError: true);
+        }
+      }
+    }
+
+    void showImageSourceSheet(StateSetter setDialogState, BuildContext dialogCtx) {
+      showModalBottomSheet(
+        context: dialogCtx,
+        backgroundColor: Colors.white,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        builder: (sheetContext) => SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.borderColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 14),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Product Photo',
+                    style: TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.bold,
+                      color: AppColors.darkText,
+                    ),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined, color: AppColors.primaryOrange),
+                title: const Text('Take Photo'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  processImagePick(ImageSource.camera, setDialogState, dialogCtx);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined, color: AppColors.primaryOrange),
+                title: const Text('Choose from Gallery'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  processImagePick(ImageSource.gallery, setDialogState, dialogCtx);
+                },
+              ),
+              if (imagePath != null && imagePath!.isNotEmpty)
+                ListTile(
+                  leading: const Icon(Icons.delete_outline, color: Colors.red),
+                  title: const Text('Remove Photo', style: TextStyle(color: Colors.red)),
+                  onTap: () {
+                    Navigator.pop(sheetContext);
+                    setDialogState(() {
+                      imagePath = null;
+                      isImageChanged = true;
+                    });
+                  },
+                ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        ),
+      );
+    }
 
     // Ensure categories are loaded
     if (_categories.isEmpty && !_categoriesLoading) {
@@ -1041,6 +1152,75 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
+                            // Product Photo
+                            Center(
+                              child: GestureDetector(
+                                onTap: () => showImageSourceSheet(setDialogState, dialogContext),
+                                child: Container(
+                                  width: 100,
+                                  height: 100,
+                                  decoration: BoxDecoration(
+                                    color: AppColors.lightPeach,
+                                    borderRadius: BorderRadius.circular(16),
+                                    border: Border.all(color: AppColors.borderColor),
+                                  ),
+                                  child: (imagePath == null || imagePath!.trim().isEmpty)
+                                      ? const Column(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.add_a_photo_outlined, color: AppColors.primaryOrange, size: 28),
+                                            SizedBox(height: 6),
+                                            Text(
+                                              'Add Photo',
+                                              style: TextStyle(
+                                                color: AppColors.primaryOrange,
+                                                fontSize: 11,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                            ),
+                                          ],
+                                        )
+                                      : ClipRRect(
+                                          borderRadius: BorderRadius.circular(16),
+                                          child: Stack(
+                                            fit: StackFit.expand,
+                                            children: [
+                                              ProductImage(
+                                                image: imagePath,
+                                                width: 100,
+                                                height: 100,
+                                                borderRadius: 16,
+                                              ),
+                                              Positioned(
+                                                right: 6,
+                                                bottom: 6,
+                                                child: Container(
+                                                  padding: const EdgeInsets.all(5),
+                                                  decoration: const BoxDecoration(
+                                                    color: Colors.white,
+                                                    shape: BoxShape.circle,
+                                                    boxShadow: [
+                                                      BoxShadow(
+                                                        color: Colors.black26,
+                                                        blurRadius: 4,
+                                                      ),
+                                                    ],
+                                                  ),
+                                                  child: const Icon(
+                                                    Icons.edit,
+                                                    size: 14,
+                                                    color: AppColors.primaryOrange,
+                                                  ),
+                                                ),
+                                              ),
+                                            ],
+                                          ),
+                                        ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+
                             // Product Type Selector (Retail Pcs vs De-Kilo Kg)
                             const Text(
                               'PRODUCT TYPE',
@@ -1567,6 +1747,55 @@ class _AdminDashboardState extends State<AdminDashboard> {
                             final threshold = (double.tryParse(thresholdController.text.trim()) ?? 5.0).clamp(0.0, 99.0);
 
                             try {
+                              String? finalImageUrl = imagePath;
+                              if (isImageChanged) {
+                                if (imagePath != null && imagePath!.trim().isNotEmpty) {
+                                  final trimmedPath = imagePath!.trim();
+                                  if (trimmedPath.startsWith('http://') ||
+                                      trimmedPath.startsWith('https://') ||
+                                      trimmedPath.startsWith('data:image/')) {
+                                    finalImageUrl = trimmedPath;
+                                  } else {
+                                    try {
+                                      final uploadedUrl = await SupabaseService().uploadProductImageFromPathOrBytes(
+                                        productId: isEdit ? product.id : (nameController.text.trim().isNotEmpty ? nameController.text.trim() : 'prod'),
+                                        filePath: trimmedPath,
+                                      );
+                                      if (uploadedUrl != null &&
+                                          uploadedUrl.isNotEmpty &&
+                                          !uploadedUrl.startsWith('/') &&
+                                          !uploadedUrl.startsWith('file://')) {
+                                        finalImageUrl = uploadedUrl;
+                                        debugPrint('Product photo uploaded by admin: $finalImageUrl');
+                                      } else {
+                                        String cleanPath = trimmedPath;
+                                        if (cleanPath.startsWith('file://')) cleanPath = cleanPath.substring(7);
+                                        try {
+                                          final bytes = await XFile(cleanPath).readAsBytes();
+                                          final ext = cleanPath.endsWith('.png') ? 'png' : 'jpg';
+                                          finalImageUrl = 'data:image/$ext;base64,${base64Encode(bytes)}';
+                                        } catch (_) {
+                                          if (!kIsWeb) {
+                                            final file = File(cleanPath);
+                                            if (await file.exists()) {
+                                              final bytes = await file.readAsBytes();
+                                              final ext = cleanPath.endsWith('.png') ? 'png' : 'jpg';
+                                              finalImageUrl = 'data:image/$ext;base64,${base64Encode(bytes)}';
+                                            }
+                                          }
+                                        }
+                                      }
+                                    } catch (e) {
+                                      debugPrint('Error uploading product photo in admin: $e');
+                                    }
+                                  }
+                                } else {
+                                  finalImageUrl = null;
+                                }
+                              }
+
+                              final shouldClearImage = isImageChanged && (finalImageUrl == null || finalImageUrl.trim().isEmpty);
+
                               String? error;
                               if (isEdit) {
                                 error = await _productService.updateProduct(
@@ -1581,6 +1810,8 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                   categoryId: selectedCategoryId,
                                   expirationDate: expiryDate,
                                   lowStockThreshold: threshold,
+                                  image: finalImageUrl,
+                                  clearImage: shouldClearImage,
                                 );
                               } else {
                                 error = await _productService.createProduct(
@@ -1594,6 +1825,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                   categoryId: selectedCategoryId,
                                   expirationDate: expiryDate,
                                   lowStockThreshold: threshold,
+                                  image: finalImageUrl,
                                 );
                               }
 
@@ -1604,6 +1836,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                     'Product ${isEdit ? 'updated' : 'added'} successfully',
                                   );
                                   Navigator.pop(dialogContext, true);
+                                  await EmployeeInventoryController.instance.reloadProducts();
                                   setState(() {});
                                 } else {
                                   TopNotification.show(context, error, isError: true);
@@ -1812,7 +2045,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     if (confirm == true && mounted) {
       final result = await _productService.permanentlyDeleteProduct(product.id);
-      if (mounted) {
+      if (mounted && context.mounted) {
         if (result == null) {
           TopNotification.show(context, 'Product deleted successfully');
           // Refresh the products section
@@ -1993,7 +2226,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
     if (confirm == true && mounted) {
       final result = await _categoryService.permanentlyDeleteCategory(category.id);
       await _productService.permanentlyDeleteCategory(category.id);
-      if (mounted) {
+      if (mounted && context.mounted) {
         if (result == null) {
           TopNotification.show(context, 'Category deleted successfully');
           setState(() {});
@@ -2032,7 +2265,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     if (confirm == true && mounted) {
       final result = await _productService.restoreProduct(product.id);
-      if (mounted) {
+      if (mounted && context.mounted) {
         if (result == null) {
           TopNotification.show(context, 'Product restored successfully');
           // Refresh the archived section
@@ -2070,7 +2303,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     if (confirm == true && mounted) {
       final result = await _userService.restoreUser(user.id);
-      if (mounted) {
+      if (mounted && context.mounted) {
         if (result == null) {
           TopNotification.show(context, 'User restored successfully');
           // Refresh the archived section
@@ -2108,7 +2341,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     if (confirm == true && mounted) {
       final result = await _productService.permanentlyDeleteProduct(product.id);
-      if (mounted) {
+      if (mounted && context.mounted) {
         if (result == null) {
           TopNotification.show(context, 'Product deleted successfully');
           // Refresh the archived section
@@ -2146,7 +2379,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
     if (confirm == true && mounted) {
       final result = await _userService.permanentlyDeleteUser(user.id);
-      if (mounted) {
+      if (mounted && context.mounted) {
         if (result == null) {
           TopNotification.show(context, 'User deleted successfully');
           // Refresh the archived section
@@ -2235,6 +2468,43 @@ class _AdminDashboardState extends State<AdminDashboard> {
                 child: _buildBody(),
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showLogoutConfirmation(BuildContext context) {
+    showDialog(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Logout'),
+        content: const Text('Are you sure you want to logout?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          TextButton(
+            onPressed: () async {
+              final navigator = Navigator.of(context, rootNavigator: true);
+              Navigator.pop(dialogContext);
+              await AuthService().signOut();
+
+              // Navigate to appropriate login page based on platform
+              if (kIsWeb) {
+                navigator.pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const AdminLoginPage()),
+                  (route) => false,
+                );
+              } else {
+                navigator.pushAndRemoveUntil(
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                  (route) => false,
+                );
+              }
+            },
+            child: const Text('Logout', style: TextStyle(color: Colors.red)),
           ),
         ],
       ),
@@ -2357,25 +2627,87 @@ class _AdminDashboardState extends State<AdminDashboard> {
             icon: Icons.logout,
             label: 'Logout',
             isSelected: false,
-            onTap: () async {
-              final navigator = Navigator.of(context, rootNavigator: true);
-              await AuthService().signOut();
-
-              // Navigate to appropriate login page based on platform
-              if (kIsWeb) {
-                navigator.pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const AdminLoginPage()),
-                  (route) => false,
-                );
-              } else {
-                navigator.pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
-                  (route) => false,
-                );
-              }
-            },
+            onTap: () => _showLogoutConfirmation(context),
           ),
           const SizedBox(height: 32),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showAuditDetail(BuildContext context, AdminAuditLog log) async {
+    if (!mounted) return;
+
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Row(
+          children: [
+            const Icon(Icons.history_edu_rounded, color: AppColors.primaryOrange),
+            const SizedBox(width: 8),
+            const Text(
+              'Audit Log Details',
+              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            ),
+            const Spacer(),
+            IconButton(
+              icon: const Icon(Icons.close, size: 20),
+              onPressed: () => Navigator.pop(dialogContext),
+              splashRadius: 18,
+            ),
+          ],
+        ),
+        content: SizedBox(
+          width: 440,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              _userDetailRow(Icons.bolt_outlined, 'Action', log.action.label),
+              const SizedBox(height: 12),
+              _userDetailRow(Icons.category_outlined, 'Entity Type', log.entityType),
+              const SizedBox(height: 12),
+              _userDetailRow(Icons.label_outlined, 'Entity Name', log.entityName),
+              const SizedBox(height: 12),
+              _userDetailRow(Icons.person_outline, 'Performed By', log.performedBy),
+              const SizedBox(height: 12),
+              _userDetailRow(Icons.schedule_outlined, 'Timestamp', formatDateTime(log.timestamp)),
+              if (log.previousStatus.isNotEmpty || log.newStatus.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _userDetailRow(Icons.swap_horiz_outlined, 'Status Change', '${log.previousStatus} → ${log.newStatus}'),
+              ],
+              if (log.note != null && log.note!.isNotEmpty) ...[
+                const SizedBox(height: 16),
+                const Divider(),
+                const SizedBox(height: 8),
+                const Text('Notes / Reason:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.darkText)),
+                const SizedBox(height: 6),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.lightPeach,
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  child: Text(
+                    log.note!,
+                    style: const TextStyle(fontSize: 12, color: AppColors.darkText),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        actions: [
+          ElevatedButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Close'),
+          ),
         ],
       ),
     );
@@ -2392,13 +2724,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
           auditService: _auditService,
           analyticsService: _analyticsService,
           onGoTo: (section) => setState(() => _selectedSection = section),
-          onAdjustStock: (product) => {}, // TODO: Implement stock adjustment
+          onAdjustStock: (product) => _adjustStock(context, product),
         );
       case AdminSection.users:
         return UsersSection(
           userService: _userService,
           searchQuery: _searchQuery,
-          rowsPerPage: 10,
+          rowsPerPage: _rowsPerPage,
           pages: _pages,
           onPageChange: _onPageChange,
           onShowUserForm: (user) => _showUserForm(context, user),
@@ -2413,23 +2745,23 @@ class _AdminDashboardState extends State<AdminDashboard> {
       case AdminSection.settings:
         return SettingsSection(
           productService: _productService,
-          initialStoreName: 'Tindahan ni Eca',
-          initialRowsPerPage: 10,
-          initialShowCostColumn: false,
-          initialConfirmBeforeArchive: true,
-          onStoreNameChanged: (name) {}, // TODO: Implement store name change
-          onRowsPerPageChanged: (rows) {}, // TODO: Implement rows per page change
-          onShowCostColumnChanged: (show) {}, // TODO: Implement show cost column change
-          onConfirmBeforeArchiveChanged: (confirm) {}, // TODO: Implement confirm before archive change
+          initialStoreName: _storeName,
+          initialRowsPerPage: _rowsPerPage,
+          initialShowCostColumn: _showCostColumn,
+          initialConfirmBeforeArchive: _confirmBeforeArchive,
+          onStoreNameChanged: (name) => setState(() => _storeName = name),
+          onRowsPerPageChanged: (rows) => setState(() => _rowsPerPage = rows),
+          onShowCostColumnChanged: (show) => setState(() => _showCostColumn = show),
+          onConfirmBeforeArchiveChanged: (confirm) => setState(() => _confirmBeforeArchive = confirm),
         );
       case AdminSection.products:
         return ProductsSection(
           productService: _productService,
           categoryService: _categoryService,
           searchQuery: _searchQuery,
-          rowsPerPage: 10,
+          rowsPerPage: _rowsPerPage,
           pages: _pages,
-          showCostColumn: false,
+          showCostColumn: _showCostColumn,
           onPageChange: _onPageChange,
           onShowProductForm: (product) => _showProductForm(context, product),
           onAdjustStock: (product) => _adjustStock(context, product),
@@ -2446,7 +2778,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           categoryService: _categoryService,
           productService: _productService,
           searchQuery: _searchQuery,
-          rowsPerPage: 10,
+          rowsPerPage: _rowsPerPage,
           pages: _pages,
           onPageChange: _onPageChange,
           onShowCategoryForm: (category) => _showCategoryForm(context, category),
@@ -2456,13 +2788,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
         return SalesSection(
           saleService: _saleService,
           searchQuery: _searchQuery,
-          rowsPerPage: 10,
+          rowsPerPage: _rowsPerPage,
           pages: _pages,
-          storeName: 'Tindahan ni Eca',
+          storeName: _storeName,
           onPageChange: _onPageChange,
-          onShowReceipt: (sale) => {}, // TODO: Implement show receipt
-          onVoidSale: (sale) => {}, // TODO: Implement void sale
-          onCopyText: (_, _) {}, // TODO: Implement copy text
+          onShowReceipt: (_) {},
+          onVoidSale: (_) {},
+          onCopyText: (_, _) {},
           onClearFilters: () => setState(() {
             _searchQuery = '';
             _pages['sales'] = 1;
@@ -2472,17 +2804,17 @@ class _AdminDashboardState extends State<AdminDashboard> {
         return ActivitySection(
           auditService: _auditService,
           searchQuery: _searchQuery,
-          rowsPerPage: 10,
+          rowsPerPage: _rowsPerPage,
           pages: _pages,
           onPageChange: _onPageChange,
-          onShowAuditDetail: (log) => {}, // TODO: Implement audit log detail
+          onShowAuditDetail: (log) => _showAuditDetail(context, log),
         );
       case AdminSection.archived:
         return ArchivedSection(
           productService: _productService,
           userService: _userService,
           searchQuery: _searchQuery,
-          rowsPerPage: 10,
+          rowsPerPage: _rowsPerPage,
           pages: _pages,
           onPageChange: _onPageChange,
           onRestoreProduct: (product) => _restoreProduct(context, product),

@@ -17,6 +17,7 @@ import 'package:sari_sari/users/customer_db/home/customer_product_model.dart';
 import 'package:sari_sari/shared/widgets/skeleton.dart';
 import '../../../models/sale_deal_model.dart';
 import '../../../core/services/sale_deal_controller.dart';
+import 'package:sari_sari/users/customer_db/tutorial/customer_tutorial_keys.dart';
 
 /// Customer "Home" tab: product browsing.
 class CustomerHomePage extends StatefulWidget {
@@ -247,7 +248,14 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
                         final product = pagedProducts[index];
+                        final activeDeals = SaleDealController.instance.activeDeals;
+                        final onSale = _onSaleProducts;
+                        final firstInStock = pagedProducts.indexWhere((p) => !p.isOutOfStock);
+                        final targetIdx = firstInStock != -1 ? firstInStock : 0;
+                        final shouldAttachKey = activeDeals.isEmpty && onSale.isEmpty && index == targetIdx;
                         return CustomerProductCard(
+                          key: index == 0 ? CustomerTutorialKeys.firstProductCardKey : null,
+                          addToCartKey: shouldAttachKey ? CustomerTutorialKeys.addToCartKey : null,
                           product: product,
                           onTap: () => _openProductDetails(product),
                           onAddToCart: () => _addToCart(product),
@@ -521,6 +529,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
       child: TextField(
+        key: CustomerTutorialKeys.searchBarKey,
         controller: _searchController,
         onChanged: _onSearchChanged,
         style: const TextStyle(fontSize: 14),
@@ -672,9 +681,11 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
               children: [
                 // 1. Customized On-Sale Deals created by Owner
                 ...activeDeals.map((deal) {
+                  final isFirstDeal = activeDeals.isNotEmpty && deal.id == activeDeals.first.id;
                   return Padding(
                     padding: const EdgeInsets.only(right: 12),
                     child: _SaleDealCard(
+                      addToCartKey: isFirstDeal ? CustomerTutorialKeys.addToCartKey : null,
                       deal: deal,
                       onTap: () => _showSaleDealDetailsModal(context, deal),
                       onAddToCart: () => _addSaleDealToCart(deal),
@@ -685,12 +696,18 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                 }),
 
                 // 2. Individual expiring-soon on-sale items
-                ...onSale.map((product) {
+                ...onSale.asMap().entries.map((entry) {
+                  final index = entry.key;
+                  final product = entry.value;
+                  final firstOnSaleInStock = onSale.indexWhere((p) => !p.isOutOfStock);
+                  final targetOnSaleIdx = firstOnSaleInStock != -1 ? firstOnSaleInStock : 0;
+                  final shouldAttach = activeDeals.isEmpty && index == targetOnSaleIdx;
                   return Padding(
                     padding: const EdgeInsets.only(right: 12),
                     child: SizedBox(
                       width: 160,
                       child: CustomerProductCard(
+                        addToCartKey: shouldAttach ? CustomerTutorialKeys.addToCartKey : null,
                         product: product,
                         onTap: () => _openProductDetails(product),
                         onAddToCart: () => _addToCart(product),
@@ -820,6 +837,7 @@ class _SaleDealCard extends StatelessWidget {
   final VoidCallback onAddToCart;
   final VoidCallback onBuyNow;
   final Function(Offset position)? onAddToCartWithPosition;
+  final Key? addToCartKey;
 
   const _SaleDealCard({
     required this.deal,
@@ -827,6 +845,7 @@ class _SaleDealCard extends StatelessWidget {
     required this.onAddToCart,
     required this.onBuyNow,
     this.onAddToCartWithPosition,
+    this.addToCartKey,
   });
 
   @override
@@ -1013,6 +1032,7 @@ class _SaleDealCard extends StatelessWidget {
                             child: Builder(
                               builder: (btnContext) {
                                 return OutlinedButton(
+                                  key: addToCartKey,
                                   style: OutlinedButton.styleFrom(
                                     padding: EdgeInsets.zero,
                                     foregroundColor: AppColors.primaryOrange,

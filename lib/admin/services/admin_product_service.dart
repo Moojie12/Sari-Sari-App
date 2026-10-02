@@ -168,6 +168,7 @@ class AdminProductService extends ChangeNotifier {
     required String barcode,
     DateTime? expirationDate,
     double lowStockThreshold = kDefaultLowStockThreshold,
+    String? image,
   }) async {
     try {
       // Validate inputs
@@ -192,6 +193,7 @@ class AdminProductService extends ChangeNotifier {
         'unit': unit, // Added missing unit field
         'low_stock_threshold': lowStockThreshold,
         'is_archived': false,
+        if (image != null && image.trim().isNotEmpty) 'image': image.trim(),
       };
 
       // 1. Create the product record
@@ -253,6 +255,8 @@ class AdminProductService extends ChangeNotifier {
     DateTime? expirationDate,
     bool clearExpiration = false,
     double? lowStockThreshold,
+    String? image,
+    bool clearImage = false,
   }) async {
     try {
       final index = _products.indexWhere((p) => p.id == id);
@@ -269,7 +273,7 @@ class AdminProductService extends ChangeNotifier {
       if (category.isArchived) return 'That category is archived.';
 
       // Prepare product update data (mapped to your schema)
-      final updateData = {
+      final updateData = <String, dynamic>{
         'name': name.trim(),
         'category': category.name,
         'description': description.trim(),
@@ -280,6 +284,12 @@ class AdminProductService extends ChangeNotifier {
         'low_stock_threshold': lowStockThreshold,
         'updated_at': DateTime.now().toIso8601String(),
       };
+
+      if (image != null && image.trim().isNotEmpty) {
+        updateData['image'] = image.trim();
+      } else if (clearImage) {
+        updateData['image'] = null;
+      }
 
       // 1. Update the product table
       await _supabaseService.updateProduct(id, updateData);

@@ -13,12 +13,14 @@ class CustomerProductCard extends StatelessWidget {
     required this.onTap,
     required this.onAddToCart,
     this.onAddToCartWithPosition,
+    this.addToCartKey,
   });
 
   final CustomerProduct product;
   final VoidCallback onTap;
   final VoidCallback onAddToCart;
   final Function(Offset position)? onAddToCartWithPosition;
+  final Key? addToCartKey;
 
   @override
   Widget build(BuildContext context) {
@@ -132,6 +134,7 @@ class CustomerProductCard extends StatelessWidget {
                               child: Builder(
                                 builder: (btnContext) {
                                   return OutlinedButton(
+                                    key: addToCartKey,
                                     onPressed: () {
                                       final box = btnContext.findRenderObject() as RenderBox?;
                                       final pos = box != null

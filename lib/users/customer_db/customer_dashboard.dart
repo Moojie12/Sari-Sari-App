@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
@@ -12,6 +13,9 @@ import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.
 import 'package:sari_sari/users/customer_db/purchases/customer_purchases_page.dart';
 import 'package:sari_sari/users/customer_db/profile/customer_profile_page.dart';
 import 'package:sari_sari/users/customer_db/notifications/customer_notifications_controller.dart';
+import 'package:sari_sari/users/customer_db/tutorial/customer_tutorial_keys.dart';
+import 'package:sari_sari/users/customer_db/tutorial/customer_tutorial_overlay.dart';
+import 'package:sari_sari/users/customer_db/tutorial/customer_tutorial_service.dart';
 
 /// Main shell for the customer-facing side of the app.
 class CustomerDashboard extends StatefulWidget {
@@ -37,7 +41,25 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
   final _notificationsController = CustomerNotificationsController();
 
   bool _isNavBarVisible = true;
+  bool _isTutorialActive = false;
 
+  void startTutorial() {
+    if (_selectedIndex != 0) {
+      switchTab(0);
+    }
+    setState(() {
+      _isNavBarVisible = true;
+      _isTutorialActive = true;
+    });
+  }
+
+  void dismissTutorial() {
+    setState(() {
+      _isTutorialActive = false;
+    });
+  }
+
+  Timer? _tutorialStartupTimer;
   final GlobalKey _cartBadgeKey = GlobalKey();
   late AnimationController _cartPulseController;
   late Animation<double> _cartScaleAnimation;
@@ -56,10 +78,22 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
       parent: _cartPulseController,
       curve: Curves.easeInOut,
     ));
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final seen = await CustomerTutorialService.hasSeenTutorial();
+      if (!seen && mounted) {
+        _tutorialStartupTimer = Timer(const Duration(milliseconds: 600), () {
+          if (mounted && !_isTutorialActive) {
+            startTutorial();
+          }
+        });
+      }
+    });
   }
 
   @override
   void dispose() {
+    _tutorialStartupTimer?.cancel();
     _cartPulseController.dispose();
     super.dispose();
   }
@@ -227,8 +261,8 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
                   final isHome = _selectedIndex == 0;
                   final hasItems = _cartController.itemCount > 0;
                   
-                  // For Home: visible if nav bar is shown OR cart has items.
-                  final isVisible = isHome && (_isNavBarVisible || hasItems);
+                  // For Home: visible if nav bar is shown OR cart has items, OR if tutorial is active.
+                  final isVisible = (isHome && (_isNavBarVisible || hasItems)) || _isTutorialActive;
 
                   return IgnorePointer(
                     ignoring: !isVisible,
@@ -245,6 +279,7 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
                               clipBehavior: Clip.none,
                               children: [
                                 FloatingActionButton(
+                                  key: CustomerTutorialKeys.cartButtonKey,
                                   mini: true,
                                   onPressed: () {
                                     if (isHome) {
@@ -317,6 +352,13 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
               ),
             ),
           ),
+          // Customer Interactive Onboarding Tutorial Overlay
+          if (_isTutorialActive)
+            Positioned.fill(
+              child: CustomerTutorialOverlay(
+                onDismiss: dismissTutorial,
+              ),
+            ),
         ],
       ),
     );

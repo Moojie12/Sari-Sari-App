@@ -9,6 +9,7 @@ import 'customer_change_password_page.dart';
 import 'customer_address_page.dart';
 import 'customer_gcash_setting_page.dart';
 import '../chat/customer_chat_page.dart';
+import '../customer_dashboard.dart';
 import '../../../shared/widgets/skeleton.dart';
 
 /// Customer "Profile" tab: a menu into customer profile features,
@@ -158,12 +159,19 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                 _MenuTile(
                   icon: Icons.account_balance_wallet_outlined,
                   label: 'Gcash Payment Method',
-                  isLast: true,
                   onTap: () {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const CustomerGcashSettingPage()),
                     );
+                  },
+                ),
+                _MenuTile(
+                  icon: Icons.help_outline_rounded,
+                  label: 'View Tutorial',
+                  isLast: true,
+                  onTap: () {
+                    CustomerDashboard.dashboardKey.currentState?.startTutorial();
                   },
                 ),
               ],

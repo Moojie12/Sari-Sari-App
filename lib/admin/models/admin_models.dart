@@ -290,6 +290,7 @@ class AdminProduct {
     String? archivedBy,
     bool clearExpiration = false,
     bool clearArchiveMeta = false,
+    bool clearImage = false,
   }) {
     return AdminProduct(
       id: id,
@@ -304,7 +305,7 @@ class AdminProduct {
       barcode: barcode ?? this.barcode,
       expirationDate: clearExpiration ? null : (expirationDate ?? this.expirationDate),
       lowStockThreshold: lowStockThreshold ?? this.lowStockThreshold,
-      image: image ?? this.image,
+      image: clearImage ? null : (image ?? this.image),
       createdAt: createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
       isArchived: isArchived ?? this.isArchived,
@@ -383,6 +384,28 @@ extension SaleStatusLabel on SaleStatus {
   }
 }
 
+enum AdminTransactionType { inStore, delivery }
+
+extension AdminTransactionTypeLabel on AdminTransactionType {
+  String get label {
+    switch (this) {
+      case AdminTransactionType.inStore:
+        return 'In-Store Transaction';
+      case AdminTransactionType.delivery:
+        return 'Delivery Transaction';
+    }
+  }
+
+  String get shortLabel {
+    switch (this) {
+      case AdminTransactionType.inStore:
+        return 'In-Store';
+      case AdminTransactionType.delivery:
+        return 'Delivery';
+    }
+  }
+}
+
 @immutable
 class SaleItem {
   const SaleItem({
@@ -419,9 +442,12 @@ class AdminSale {
     required this.amountPaid,
     required this.timestamp,
     this.status = SaleStatus.completed,
+    this.transactionType = AdminTransactionType.inStore,
+    this.rawStatus,
     this.voidReason,
     this.voidedBy,
     this.voidedAt,
+    this.handlerRole,
   });
 
   final String id;
@@ -435,14 +461,36 @@ class AdminSale {
   final double amountPaid;
   final DateTime timestamp;
   final SaleStatus status;
+  final AdminTransactionType transactionType;
+  final String? rawStatus;
   final String? voidReason;
   final String? voidedBy;
   final DateTime? voidedAt;
+  final String? handlerRole;
+
+  bool get isDelivery => transactionType == AdminTransactionType.delivery;
+  bool get isInStore => transactionType == AdminTransactionType.inStore;
+
+  String get handledByDisplay {
+    final name = cashierName.trim();
+    final role = handlerRole?.trim();
+    if (role != null && role.isNotEmpty) {
+      if (name.toLowerCase().contains('(${role.toLowerCase()})')) {
+        return name;
+      }
+      if (name.isNotEmpty && name.toLowerCase() != role.toLowerCase()) {
+        return '$name ($role)';
+      }
+      return role;
+    }
+    return name.isNotEmpty ? name : 'Staff';
+  }
 
   double get subtotal => items.fold<double>(0, (sum, item) => sum + item.lineTotal);
   double get total {
+    if (items.isEmpty && amountPaid > 0) return amountPaid;
     final net = subtotal - discount;
-    return net < 0 ? 0 : net;
+    return net <= 0 ? (amountPaid > 0 ? amountPaid : 0) : net;
   }
   double get change {
     final diff = amountPaid - total;
@@ -455,9 +503,13 @@ class AdminSale {
 
   AdminSale copyWith({
     SaleStatus? status,
+    AdminTransactionType? transactionType,
+    String? rawStatus,
     String? voidReason,
     String? voidedBy,
     DateTime? voidedAt,
+    String? handlerRole,
+    bool clearVoidInfo = false,
   }) {
     return AdminSale(
       id: id,
@@ -471,9 +523,12 @@ class AdminSale {
       amountPaid: amountPaid,
       timestamp: timestamp,
       status: status ?? this.status,
-      voidReason: voidReason ?? this.voidReason,
-      voidedBy: voidedBy ?? this.voidedBy,
-      voidedAt: voidedAt ?? this.voidedAt,
+      transactionType: transactionType ?? this.transactionType,
+      rawStatus: rawStatus ?? this.rawStatus,
+      voidReason: clearVoidInfo ? null : (voidReason ?? this.voidReason),
+      voidedBy: clearVoidInfo ? null : (voidedBy ?? this.voidedBy),
+      voidedAt: clearVoidInfo ? null : (voidedAt ?? this.voidedAt),
+      handlerRole: handlerRole ?? this.handlerRole,
     );
   }
 }
@@ -491,12 +546,12 @@ String buildReceiptText(AdminSale sale, {String storeName = 'Sari-Sari Hub'}) {
     return gap <= 0 ? '$left $right' : left + ' ' * gap + right;
   }
   buffer.writeln(center(storeName.toUpperCase()));
-  buffer.writeln(center('Bacoor, Cavite'));
+  buffer.writeln(center('Pagsanjan, Laguna'));
   buffer.writeln(center('Thank you for shopping!'));
   buffer.writeln('-' * width);
   buffer.writeln(spread('Receipt', sale.receiptNumber));
   buffer.writeln(spread('Date', formatDateTime(sale.timestamp)));
-  buffer.writeln(spread('Cashier', sale.cashierName));
+  buffer.writeln(spread('Handled by', sale.handledByDisplay));
   buffer.writeln(spread('Customer', sale.customerName));
   buffer.writeln('-' * width);
   for (final item in sale.items) {

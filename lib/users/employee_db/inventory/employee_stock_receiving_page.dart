@@ -1,7 +1,12 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/barcode_generator.dart';
 import '../../../shared/utils/barcode_validator.dart';
@@ -1164,13 +1169,55 @@ class _NewProductSheetState extends State<_NewProductSheet> {
       widget.inventory.addCategory(category, currentUserId);
     }
 
+    String? finalImageUrl;
+    if (_imagePath != null && _imagePath!.trim().isNotEmpty) {
+      final trimmedPath = _imagePath!.trim();
+      if (trimmedPath.startsWith('http://') ||
+          trimmedPath.startsWith('https://') ||
+          trimmedPath.startsWith('data:image/')) {
+        finalImageUrl = trimmedPath;
+      } else {
+        try {
+          final uploadedUrl = await SupabaseService().uploadProductImageFromPathOrBytes(
+            productId: name.isNotEmpty ? name : 'prod',
+            filePath: trimmedPath,
+          );
+          if (uploadedUrl != null &&
+              uploadedUrl.isNotEmpty &&
+              !uploadedUrl.startsWith('/') &&
+              !uploadedUrl.startsWith('file://')) {
+            finalImageUrl = uploadedUrl;
+          } else {
+            String cleanPath = trimmedPath;
+            if (cleanPath.startsWith('file://')) cleanPath = cleanPath.substring(7);
+            try {
+              final bytes = await XFile(cleanPath).readAsBytes();
+              final ext = cleanPath.endsWith('.png') ? 'png' : 'jpg';
+              finalImageUrl = 'data:image/$ext;base64,${base64Encode(bytes)}';
+            } catch (_) {
+              if (!kIsWeb) {
+                final file = File(cleanPath);
+                if (await file.exists()) {
+                  final bytes = await file.readAsBytes();
+                  final ext = cleanPath.endsWith('.png') ? 'png' : 'jpg';
+                  finalImageUrl = 'data:image/$ext;base64,${base64Encode(bytes)}';
+                }
+              }
+            }
+          }
+        } catch (e) {
+          debugPrint('Error uploading product photo in stock receiving: $e');
+        }
+      }
+    }
+
     final product = widget.inventory.createProduct(
       name: name,
       category: category,
       price: price!,
       capital: price,
       barcode: barcode,
-      image: _imagePath,
+      image: finalImageUrl,
     );
 
     if (product == null) {

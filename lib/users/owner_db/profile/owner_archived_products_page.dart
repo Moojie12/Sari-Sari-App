@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
+import '../../../shared/widgets/product_image.dart';
 import '../../employee_db/employee_inventory_controller.dart';
 import '../../employee_db/inventory/employee_product_model.dart';
 
@@ -134,14 +135,11 @@ class _ArchivedStockCard extends StatelessWidget {
       ),
       child: Row(
         children: [
-          Container(
+          ProductImage(
+            image: item.image,
             width: 50,
             height: 50,
-            decoration:
-            BoxDecoration(color: AppColors.lightBackground, borderRadius: BorderRadius.circular(12)),
-            child: item.image != null
-                ? const Icon(Icons.image, color: AppColors.primaryOrange, size: 24)
-                : const Icon(Icons.image_outlined, color: AppColors.placeholderColor, size: 24),
+            borderRadius: 12,
           ),
           const SizedBox(width: 14),
           Expanded(

@@ -772,54 +772,59 @@ Widget paginationBar(
       spacing: 16,
       runSpacing: 10,
       children: [
-        Row(
-          mainAxisSize: MainAxisSize.min,
+        Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 12,
+          runSpacing: 6,
           children: [
-            if (onRowsPerPageChange != null) ...[
-              const Text(
-                'Rows per page:',
-                style: TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 12.5,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Container(
-                height: 32,
-                padding: const EdgeInsets.symmetric(horizontal: 8),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.9),
-                  borderRadius: BorderRadius.circular(8),
-                  border: Border.all(color: AppColors.borderColor),
-                ),
-                child: DropdownButtonHideUnderline(
-                  child: DropdownButton<int>(
-                    value: [5, 10, 20, 50, 100].contains(currentRowsPerPage)
-                        ? currentRowsPerPage
-                        : 10,
-                    isDense: true,
-                    style: const TextStyle(
+            if (onRowsPerPageChange != null)
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Text(
+                    'Rows per page:',
+                    style: TextStyle(
+                      color: AppColors.secondaryText,
                       fontSize: 12.5,
-                      fontWeight: FontWeight.w700,
-                      color: AppColors.darkText,
+                      fontWeight: FontWeight.w600,
                     ),
-                    icon: const Icon(Icons.arrow_drop_down, size: 18, color: AppColors.secondaryText),
-                    items: const [
-                      DropdownMenuItem(value: 5, child: Text('5')),
-                      DropdownMenuItem(value: 10, child: Text('10')),
-                      DropdownMenuItem(value: 20, child: Text('20')),
-                      DropdownMenuItem(value: 50, child: Text('50')),
-                      DropdownMenuItem(value: 100, child: Text('100')),
-                    ],
-                    onChanged: (val) {
-                      if (val != null) onRowsPerPageChange(val);
-                    },
                   ),
-                ),
+                  const SizedBox(width: 8),
+                  Container(
+                    height: 32,
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.white.withValues(alpha: 0.9),
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: AppColors.borderColor),
+                    ),
+                    child: DropdownButtonHideUnderline(
+                      child: DropdownButton<int>(
+                        value: [5, 10, 20, 50, 100].contains(currentRowsPerPage)
+                            ? currentRowsPerPage
+                            : 10,
+                        isDense: true,
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          fontWeight: FontWeight.w700,
+                          color: AppColors.darkText,
+                        ),
+                        icon: const Icon(Icons.arrow_drop_down, size: 18, color: AppColors.secondaryText),
+                        items: const [
+                          DropdownMenuItem(value: 5, child: Text('5')),
+                          DropdownMenuItem(value: 10, child: Text('10')),
+                          DropdownMenuItem(value: 20, child: Text('20')),
+                          DropdownMenuItem(value: 50, child: Text('50')),
+                          DropdownMenuItem(value: 100, child: Text('100')),
+                        ],
+                        onChanged: (val) {
+                          if (val != null) onRowsPerPageChange(val);
+                        },
+                      ),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 14),
-            ],
             Text(
               showing,
               style: const TextStyle(

@@ -442,25 +442,43 @@ class _OwnerBatchDetailSheet extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            product.name,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText),
-          ),
-          const SizedBox(height: 4),
           Row(
             children: [
-              const Text('Barcode: ', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-              Text(
-                barcodeStr,
-                style: TextStyle(
-                  color: barcodeStr == 'No barcode' ? Colors.red.shade400 : AppColors.darkText,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
+              ProductImage(
+                image: product.image,
+                width: 48,
+                height: 48,
+                borderRadius: 12,
               ),
-              Text(
-                ' · Total on hand: ${product.quantity.toInt()} ${product.unit}',
-                style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      product.name,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Text('Barcode: ', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                        Text(
+                          barcodeStr,
+                          style: TextStyle(
+                            color: barcodeStr == 'No barcode' ? Colors.red.shade400 : AppColors.darkText,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          ' · Total on hand: ${product.quantity.toInt()} ${product.unit}',
+                          style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

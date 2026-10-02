@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/widgets/product_image.dart';
 import '../employee_inventory_controller.dart';
 import 'employee_batch_model.dart';
 import 'employee_expiry_badge.dart';
@@ -64,25 +65,43 @@ class _EmployeeBatchDetailSheetState extends State<EmployeeBatchDetailSheet> {
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            widget.product.name,
-            style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText),
-          ),
-          const SizedBox(height: 4),
           Row(
             children: [
-              const Text('Barcode: ', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-              Text(
-                barcodeStr,
-                style: TextStyle(
-                  color: barcodeStr == 'No barcode' ? Colors.red.shade400 : AppColors.darkText,
-                  fontSize: 12,
-                  fontWeight: FontWeight.bold,
-                ),
+              ProductImage(
+                image: widget.product.image,
+                width: 48,
+                height: 48,
+                borderRadius: 12,
               ),
-              Text(
-                ' · Total on hand: ${widget.product.quantity.toInt()} ${widget.product.unit}',
-                style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      widget.product.name,
+                      style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        const Text('Barcode: ', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
+                        Text(
+                          barcodeStr,
+                          style: TextStyle(
+                            color: barcodeStr == 'No barcode' ? Colors.red.shade400 : AppColors.darkText,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        Text(
+                          ' · Total on hand: ${widget.product.quantity.toInt()} ${widget.product.unit}',
+                          style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
+                        ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ],
           ),

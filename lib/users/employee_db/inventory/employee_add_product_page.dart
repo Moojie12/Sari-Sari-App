@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -1575,82 +1576,100 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
     if (!mounted) return;
 
     setState(() => _isSaving = true);
-    String? finalImageUrl;
-    if (_imagePath != null && _imagePath!.trim().isNotEmpty) {
-      final trimmedPath = _imagePath!.trim();
-      if (trimmedPath.startsWith('http://') ||
-          trimmedPath.startsWith('https://') ||
-          trimmedPath.startsWith('data:image/')) {
-        finalImageUrl = trimmedPath;
-      } else {
-        try {
-          final uploadedUrl = await SupabaseService().uploadProductImageFromPathOrBytes(
-            productId: name.isNotEmpty ? name : 'prod',
-            filePath: trimmedPath,
-          );
-          if (uploadedUrl != null &&
-              uploadedUrl.isNotEmpty &&
-              !uploadedUrl.startsWith('/') &&
-              !uploadedUrl.startsWith('file://')) {
-            finalImageUrl = uploadedUrl;
-            debugPrint('Product photo uploaded to Supabase: $finalImageUrl');
-          } else {
-            // Absolute safety fallback: convert file bytes directly to Base64 data URI
-            String cleanPath = trimmedPath;
-            if (cleanPath.startsWith('file://')) cleanPath = cleanPath.substring(7);
-            final file = File(cleanPath);
-            if (await file.exists()) {
-              final bytes = await file.readAsBytes();
-              final ext = cleanPath.endsWith('.png') ? 'png' : 'jpg';
-              finalImageUrl = 'data:image/$ext;base64,${base64Encode(bytes)}';
+    try {
+      String? finalImageUrl;
+      if (_imagePath != null && _imagePath!.trim().isNotEmpty) {
+        final trimmedPath = _imagePath!.trim();
+        if (trimmedPath.startsWith('http://') ||
+            trimmedPath.startsWith('https://') ||
+            trimmedPath.startsWith('data:image/')) {
+          finalImageUrl = trimmedPath;
+        } else {
+          try {
+            final uploadedUrl = await SupabaseService().uploadProductImageFromPathOrBytes(
+              productId: name.isNotEmpty ? name : 'prod',
+              filePath: trimmedPath,
+            );
+            if (uploadedUrl != null &&
+                uploadedUrl.isNotEmpty &&
+                !uploadedUrl.startsWith('/') &&
+                !uploadedUrl.startsWith('file://')) {
+              finalImageUrl = uploadedUrl;
+              debugPrint('Product photo uploaded to Supabase: $finalImageUrl');
+            } else {
+              // Absolute safety fallback: convert file bytes directly to Base64 data URI
+              String cleanPath = trimmedPath;
+              if (cleanPath.startsWith('file://')) cleanPath = cleanPath.substring(7);
+              try {
+                final bytes = await XFile(cleanPath).readAsBytes();
+                final ext = cleanPath.endsWith('.png') ? 'png' : 'jpg';
+                finalImageUrl = 'data:image/$ext;base64,${base64Encode(bytes)}';
+              } catch (_) {
+                if (!kIsWeb) {
+                  final file = File(cleanPath);
+                  if (await file.exists()) {
+                    final bytes = await file.readAsBytes();
+                    final ext = cleanPath.endsWith('.png') ? 'png' : 'jpg';
+                    finalImageUrl = 'data:image/$ext;base64,${base64Encode(bytes)}';
+                  }
+                }
+              }
             }
+          } catch (e) {
+            debugPrint('Error uploading product photo to Supabase: $e');
           }
-        } catch (e) {
-          debugPrint('Error uploading product photo to Supabase: $e');
         }
       }
+
+      if (_isAddingNewCategory) {
+        final currentUserId = AuthService().currentUser?.uid ?? 'system';
+        widget.inventory.addCategory(category, currentUserId);
+      }
+
+      final product = widget.inventory.createProduct(
+        name: name,
+        category: category,
+        price: price!,
+        capital: capital!,
+        unit: _isWeightBased ? 'kg' : 'pcs',
+        barcode: finalBarcode,
+        image: finalImageUrl,
+        isWeightBased: _isWeightBased,
+      );
+
+      if (product == null) {
+        setState(() {
+          _isSaving = false;
+          _barcodeError = 'This barcode is already used by another product.';
+        });
+        return;
+      }
+
+      final bulkNotes = (_isBulkMode && !_isWeightBased)
+          ? 'Bulk entry: ₱${_bulkPriceController.text.trim()} ÷ ${_pcsPerBulkController.text.trim()} pcs/bulk × '
+          '${_numberOfBulkController.text.trim()} bulk(s) → Capital/pc ₱${capital.toStringAsFixed(2)}'
+          : null;
+
+      widget.inventory.receiveStock(
+        productId: product.id,
+        quantity: quantity!,
+        expiryDate: _expiryDate,
+        notes: bulkNotes,
+      );
+
+      if (!mounted) return;
+      TopNotification.show(context, 'New product "$name" created.');
+      Navigator.pop(context, product);
+    } catch (e) {
+      debugPrint('Error saving new product: $e');
+      if (mounted) {
+        TopNotification.show(context, 'Error creating product: $e', isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
     }
-
-    if (_isAddingNewCategory) {
-      final currentUserId = AuthService().currentUser?.uid ?? 'system';
-      widget.inventory.addCategory(category, currentUserId);
-    }
-
-    final product = widget.inventory.createProduct(
-      name: name,
-      category: category,
-      price: price!,
-      capital: capital!,
-      unit: _isWeightBased ? 'kg' : 'pcs',
-      barcode: finalBarcode,
-      image: finalImageUrl,
-      isWeightBased: _isWeightBased,
-    );
-
-    if (product == null) {
-      setState(() {
-        _isSaving = false;
-        _barcodeError = 'This barcode is already used by another product.';
-      });
-      return;
-    }
-
-    final bulkNotes = (_isBulkMode && !_isWeightBased)
-        ? 'Bulk entry: ₱${_bulkPriceController.text.trim()} ÷ ${_pcsPerBulkController.text.trim()} pcs/bulk × '
-        '${_numberOfBulkController.text.trim()} bulk(s) → Capital/pc ₱${capital.toStringAsFixed(2)}'
-        : null;
-
-    widget.inventory.receiveStock(
-      productId: product.id,
-      quantity: quantity!,
-      expiryDate: _expiryDate,
-      notes: bulkNotes,
-    );
-
-    if (!mounted) return;
-    setState(() => _isSaving = false);
-    TopNotification.show(context, 'New product "$name" created.');
-    Navigator.pop(context, product);
   }
 
   final ImagePicker _picker = ImagePicker();

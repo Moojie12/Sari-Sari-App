@@ -341,6 +341,7 @@ class EmployeeInventoryController extends ChangeNotifier {
           'is_archived': false,
         };
         await _supabaseService.addProduct(productData);
+        await _loadProducts();
       } catch (e) {
         debugPrint('Error saving product to Supabase: $e');
       } finally {
@@ -362,6 +363,7 @@ class EmployeeInventoryController extends ChangeNotifier {
     String? image,
     double? lowStockThreshold,
     bool? isWeightBased,
+    bool clearImage = false,
   }) {
     final index = _products.indexWhere((p) => p.id == productId);
     if (index < 0) return;
@@ -376,6 +378,7 @@ class EmployeeInventoryController extends ChangeNotifier {
       image: image,
       lowStockThreshold: lowStockThreshold,
       isWeightBased: isWeightBased,
+      clearImage: clearImage,
     );
     notifyListeners();
 
@@ -390,6 +393,7 @@ class EmployeeInventoryController extends ChangeNotifier {
       image: image,
       lowStockThreshold: lowStockThreshold,
       isWeightBased: isWeightBased,
+      clearImage: clearImage,
     );
   }
 
@@ -404,6 +408,7 @@ class EmployeeInventoryController extends ChangeNotifier {
     String? image,
     double? lowStockThreshold,
     bool? isWeightBased,
+    bool clearImage = false,
   }) async {
     try {
       final updates = <String, dynamic>{};
@@ -413,12 +418,17 @@ class EmployeeInventoryController extends ChangeNotifier {
       if (capital != null) updates['capital'] = capital;
       if (unit != null) updates['unit'] = unit;
       if (barcode != null) updates['barcode'] = barcode.trim().isEmpty ? null : barcode.trim();
-      if (image != null) updates['image'] = image;
+      if (image != null && image.trim().isNotEmpty) {
+        updates['image'] = image.trim();
+      } else if (clearImage) {
+        updates['image'] = null;
+      }
       if (lowStockThreshold != null) updates['low_stock_threshold'] = lowStockThreshold;
       if (isWeightBased != null) updates['is_weight_based'] = isWeightBased;
       updates['updated_at'] = DateTime.now().toIso8601String();
 
       await _supabaseService.updateProduct(productId, updates);
+      await _loadProducts();
     } catch (e) {
       debugPrint('Error updating product in Supabase: $e');
     }
