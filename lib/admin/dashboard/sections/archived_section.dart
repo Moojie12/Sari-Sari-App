@@ -40,16 +40,14 @@ class ArchivedSection extends StatefulWidget {
 
 class _ArchivedSectionState extends State<ArchivedSection> {
   late TextEditingController _searchController;
-  String _archiveTypeFilter = 'All';
-  String _productSort = 'name';
-  bool _productAsc = true;
-  String _userSort = 'name';
-  bool _userAsc = true;
+  late int _rowsPerPage;
+  int _selectedTab = 0; // 0: Products, 1: Users
 
   @override
   void initState() {
     super.initState();
     _searchController = TextEditingController(text: widget.searchQuery);
+    _rowsPerPage = widget.rowsPerPage;
   }
 
   @override
@@ -58,6 +56,9 @@ class _ArchivedSectionState extends State<ArchivedSection> {
     if (widget.searchQuery != oldWidget.searchQuery &&
         widget.searchQuery != _searchController.text) {
       _searchController.text = widget.searchQuery;
+    }
+    if (widget.rowsPerPage != oldWidget.rowsPerPage) {
+      _rowsPerPage = widget.rowsPerPage;
     }
   }
 
@@ -68,7 +69,6 @@ class _ArchivedSectionState extends State<ArchivedSection> {
   }
 
   List<AdminProduct> _archivedProducts() {
-    // Wait for service to initialize
     if (!widget.productService.isInitialized) {
       return [];
     }
@@ -82,29 +82,11 @@ class _ArchivedSectionState extends State<ArchivedSection> {
       return matchesQuery;
     }).toList();
 
-    int compare(AdminProduct a, AdminProduct b) {
-      switch (_productSort) {
-        case 'price':
-          return a.price.compareTo(b.price);
-        case 'margin':
-          return a.marginPercent.compareTo(b.marginPercent);
-        case 'stock':
-          return a.quantity.compareTo(b.quantity);
-        case 'category':
-          return a.categoryName
-              .toLowerCase()
-              .compareTo(b.categoryName.toLowerCase());
-        default:
-          return a.name.toLowerCase().compareTo(b.name.toLowerCase());
-      }
-    }
-
-    list.sort((a, b) => _productAsc ? compare(a, b) : compare(b, a));
+    list.sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
     return list;
   }
 
   List<AdminUser> _archivedUsers() {
-    // Wait for service to initialize
     if (!widget.userService.isInitialized) {
       return [];
     }
@@ -118,44 +100,38 @@ class _ArchivedSectionState extends State<ArchivedSection> {
       return matchesQuery;
     }).toList();
 
-    int compare(AdminUser a, AdminUser b) {
-      switch (_userSort) {
-        case 'joined':
-          final ad = a.createdAt ?? DateTime(1970);
-          final bd = b.createdAt ?? DateTime(1970);
-          return ad.compareTo(bd);
-        default:
-          return a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase());
-      }
-    }
-
-    list.sort((a, b) => _userAsc ? compare(a, b) : compare(b, a));
+    list.sort((a, b) => a.fullName.toLowerCase().compareTo(b.fullName.toLowerCase()));
     return list;
   }
 
-  void _onProductSort(String key) {
-    setState(() {
-      if (_productSort == key) {
-        _productAsc = !_productAsc;
-      } else {
-        _productSort = key;
-        _productAsc = true;
-      }
-    });
-  }
-
-  void _onUserSort(String key) {
-    setState(() {
-      if (_userSort == key) {
-        _userAsc = !_userAsc;
-      } else {
-        _userSort = key;
-        _userAsc = true;
-      }
-    });
-  }
-
   bool get _hasFilters => _searchController.text.isNotEmpty || widget.searchQuery.isNotEmpty;
+
+  Widget _tabPill({
+    required String label,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 150),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primaryOrange : Colors.transparent,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          label,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+            color: isSelected ? Colors.white : AppColors.secondaryText,
+          ),
+        ),
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -178,130 +154,96 @@ class _ArchivedSectionState extends State<ArchivedSection> {
           );
         }
 
-        return LayoutBuilder(
-          builder: (context, constraints) {
-            if (constraints.maxWidth <= 0) {
-              return const SizedBox.shrink();
-            }
+        final products = _archivedProducts();
+        final users = _archivedUsers();
 
-            return DefaultTabController(
-              length: 2,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  toolbar(
-                    filters: [
-                      searchFilter(
-                        controller: _searchController,
-                        hintText: 'Search archived items...',
-                        onChanged: (value) => setState(() {
-                          widget.onPageChange('archived', 1);
-                        }),
-                        onClear: () => setState(() {
-                          widget.onPageChange('archived', 1);
-                        }),
-                      ),
-                      dropdownFilter(
-                        label: 'Type',
-                        value: _archiveTypeFilter,
-                        options: const ['All', 'Products', 'Users'],
-                        onChanged: (value) => setState(() {
-                          _archiveTypeFilter = value;
-                        }),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            toolbar(
+              filters: [
+                searchFilter(
+                  controller: _searchController,
+                  hintText: 'Search archived items...',
+                  onChanged: (value) => setState(() {
+                    widget.onPageChange(_selectedTab == 0 ? 'archived_products' : 'archived_users', 1);
+                  }),
+                  onClear: () => setState(() {
+                    widget.onPageChange(_selectedTab == 0 ? 'archived_products' : 'archived_users', 1);
+                  }),
+                ),
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.85),
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.white.withValues(alpha: 0.9), width: 1.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.03),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
                       ),
                     ],
-                    action: primaryButton(
-                      icon: Icons.restore_from_trash,
-                      label: 'Restore All',
-                      onPressed: () {
-                        // TODO: Implement restore all functionality
-                      },
-                    ),
                   ),
-                  const SizedBox(height: 10),
-                  TabBar(
-                    labelColor: AppColors.primaryOrange,
-                    unselectedLabelColor: AppColors.secondaryText,
-                    indicatorColor: AppColors.primaryOrange,
-                    tabs: const [
-                      Tab(text: 'Products'),
-                      Tab(text: 'Users'),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      _tabPill(
+                        label: 'Products (${widget.productService.archivedProducts.length})',
+                        isSelected: _selectedTab == 0,
+                        onTap: () => setState(() => _selectedTab = 0),
+                      ),
+                      const SizedBox(width: 4),
+                      _tabPill(
+                        label: 'Users (${widget.userService.archivedUsers.length})',
+                        isSelected: _selectedTab == 1,
+                        onTap: () => setState(() => _selectedTab = 1),
+                      ),
                     ],
                   ),
-                  const SizedBox(height: 20),
-                  SizedBox(
-                    height: 600,
-                    child: TabBarView(
-                      children: [
-                        SingleChildScrollView(child: _buildArchivedProductsTab()),
-                        SingleChildScrollView(child: _buildArchivedUsersTab()),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            );
-          },
+                ),
+              ],
+              action: const SizedBox.shrink(),
+            ),
+            const SizedBox(height: 20),
+            if (_selectedTab == 0)
+              _buildArchivedProductsTab(products)
+            else
+              _buildArchivedUsersTab(users),
+          ],
         );
       },
     );
   }
 
-  Widget _buildArchivedProductsTab() {
-    final products = _archivedProducts();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        toolbar(
-          filters: [
-            dropdownFilter(
-              label: 'Sort',
-              value: _productSort,
-              options: const ['name', 'price', 'margin', 'stock', 'category'],
-              onChanged: (value) => setState(() {
-                _productSort = value;
-              }),
-            ),
-          ],
-          action: primaryButton(
-            icon: Icons.restore_from_trash,
-            label: 'Restore Selected',
-            onPressed: () {
-              // TODO: Implement restore selected products
-            },
-          ),
-        ),
-        const SizedBox(height: 20),
-        if (products.isEmpty)
-          emptyState(
-            icon: Icons.inventory_2_outlined,
-            title: _hasFilters
-                ? 'No archived products match those filters'
-                : 'No archived products yet',
-            message: _hasFilters
-                ? 'Try a different search term.'
-                : 'Archived products will appear here when you archive them.',
-            actionLabel: _hasFilters ? 'Reset Filters' : 'Restore Selected',
-            onAction: _hasFilters
-                ? () {
-                  setState(() {
-                    _searchController.clear();
-                  });
-                  widget.onClearFilters();
-                }
-                : () {
-                  // TODO: Implement restore selected
-                },
-          )
-        else
-          _buildArchivedProductsTable(products),
-      ],
-    );
+  Widget _buildArchivedProductsTab(List<AdminProduct> products) {
+    if (products.isEmpty) {
+      return emptyState(
+        icon: Icons.inventory_2_outlined,
+        title: _hasFilters
+            ? 'No archived products match those filters'
+            : 'No archived products yet',
+        message: _hasFilters
+            ? 'Try a different search term.'
+            : 'Archived products will appear here when you archive them.',
+        actionLabel: _hasFilters ? 'Reset Filters' : null,
+        onAction: _hasFilters
+            ? () {
+                setState(() {
+                  _searchController.clear();
+                });
+                widget.onClearFilters();
+              }
+            : null,
+      );
+    }
+    return _buildArchivedProductsTable(products);
   }
 
   Widget _buildArchivedProductsTable(List<AdminProduct> products) {
-    final paged = paginate(products, 'archived_products', 10, {});
+    final paged = paginate(products, 'archived_products', _rowsPerPage, widget.pages);
 
     return tableShell(
       minWidth: 800,
@@ -314,7 +256,7 @@ class _ArchivedSectionState extends State<ArchivedSection> {
         5: FixedColumnWidth(150),
       },
       header: [
-        sortableHeader('Product', 'name', _productSort, _productAsc, _onProductSort),
+        header('Product'),
         header('Category'),
         header('Price'),
         header('Cost'),
@@ -364,75 +306,59 @@ class _ArchivedSectionState extends State<ArchivedSection> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   iconAction(Icons.restore_from_trash, 'Restore', Colors.green,
-                          () => widget.onRestoreProduct(product)),
+                      () => widget.onRestoreProduct(product)),
                   const SizedBox(width: 8),
                   iconAction(Icons.delete_outline_rounded, 'Delete', Colors.red,
-                          () => widget.onDeleteProduct(product)),
+                      () => widget.onDeleteProduct(product)),
                 ],
               ),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             ),
           ],
       ],
-      footer: paginationBar(paged, 'archived_products', 'products', {}, widget.onPageChange),
+      footer: paginationBar(
+        paged,
+        'archived_products',
+        'products',
+        widget.pages,
+        widget.onPageChange,
+        currentRowsPerPage: _rowsPerPage,
+        onRowsPerPageChange: (newRows) {
+          setState(() {
+            _rowsPerPage = newRows;
+          });
+          widget.onPageChange('archived_products', 1);
+        },
+      ),
     );
   }
 
-  Widget _buildArchivedUsersTab() {
-    final users = _archivedUsers();
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        toolbar(
-          filters: [
-            dropdownFilter(
-              label: 'Sort',
-              value: _userSort,
-              options: const ['name', 'joined'],
-              onChanged: (value) => setState(() {
-                _userSort = value;
-              }),
-            ),
-          ],
-          action: primaryButton(
-            icon: Icons.restore_from_trash,
-            label: 'Restore Selected',
-            onPressed: () {
-              // TODO: Implement restore selected users
-            },
-          ),
-        ),
-        const SizedBox(height: 20),
-        if (users.isEmpty)
-          emptyState(
-            icon: Icons.person_search_outlined,
-            title: _hasFilters
-                ? 'No archived users match those filters'
-                : 'No archived users yet',
-            message: _hasFilters
-                ? 'Try a different search term.'
-                : 'Archived users will appear here when you archive them.',
-            actionLabel: _hasFilters ? 'Reset Filters' : 'Restore Selected',
-            onAction: _hasFilters
-                ? () {
-                  setState(() {
-                    _searchController.clear();
-                  });
-                  widget.onClearFilters();
-                }
-                : () {
-                  // TODO: Implement restore selected
-                },
-          )
-        else
-          _buildArchivedUsersTable(users),
-      ],
-    );
+  Widget _buildArchivedUsersTab(List<AdminUser> users) {
+    if (users.isEmpty) {
+      return emptyState(
+        icon: Icons.person_search_outlined,
+        title: _hasFilters
+            ? 'No archived users match those filters'
+            : 'No archived users yet',
+        message: _hasFilters
+            ? 'Try a different search term.'
+            : 'Archived users will appear here when you archive them.',
+        actionLabel: _hasFilters ? 'Reset Filters' : null,
+        onAction: _hasFilters
+            ? () {
+                setState(() {
+                  _searchController.clear();
+                });
+                widget.onClearFilters();
+              }
+            : null,
+      );
+    }
+    return _buildArchivedUsersTable(users);
   }
 
   Widget _buildArchivedUsersTable(List<AdminUser> users) {
-    final paged = paginate(users, 'archived_users', 10, {});
+    final paged = paginate(users, 'archived_users', _rowsPerPage, widget.pages);
 
     return tableShell(
       minWidth: 900,
@@ -445,40 +371,37 @@ class _ArchivedSectionState extends State<ArchivedSection> {
         5: FixedColumnWidth(150),
       },
       header: [
-        sortableHeader('Name', 'name', _userSort, _userAsc, _onUserSort),
+        header('Name'),
         header('Contact'),
-        sortableHeader('Role', 'role', _userSort, _userAsc, _onUserSort),
+        header('Role'),
         header('Status'),
-        sortableHeader('Joined', 'joined', _userSort, _userAsc, _onUserSort),
+        header('Joined'),
         header('Actions'),
       ],
       rows: [
         for (final user in paged.items)
           [
             cell(
-              InkWell(
-                onTap: () => {}, // TODO: Implement view user detail
-                child: Row(
-                  children: [
-                    AdminUserAvatar(
-                      photoUrl: user.photoUrl,
-                      initials: user.initials,
-                      radius: 17,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        user.fullName,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontWeight: FontWeight.w600,
-                          color: AppColors.darkText,
-                          fontSize: 13.5,
-                        ),
+              Row(
+                children: [
+                  AdminUserAvatar(
+                    photoUrl: user.photoUrl,
+                    initials: user.initials,
+                    radius: 17,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      user.fullName,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.darkText,
+                        fontSize: 13.5,
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
             ),
             cell(Column(
@@ -519,17 +442,30 @@ class _ArchivedSectionState extends State<ArchivedSection> {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   iconAction(Icons.restore_from_trash, 'Restore', Colors.green,
-                          () => widget.onRestoreUser(user)),
+                      () => widget.onRestoreUser(user)),
                   const SizedBox(width: 8),
                   iconAction(Icons.delete_outline_rounded, 'Delete', Colors.red,
-                          () => widget.onDeleteUser(user)),
+                      () => widget.onDeleteUser(user)),
                 ],
               ),
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             ),
           ],
       ],
-      footer: paginationBar(paged, 'archived_users', 'users', {}, widget.onPageChange),
+      footer: paginationBar(
+        paged,
+        'archived_users',
+        'users',
+        widget.pages,
+        widget.onPageChange,
+        currentRowsPerPage: _rowsPerPage,
+        onRowsPerPageChange: (newRows) {
+          setState(() {
+            _rowsPerPage = newRows;
+          });
+          widget.onPageChange('archived_users', 1);
+        },
+      ),
     );
   }
 
