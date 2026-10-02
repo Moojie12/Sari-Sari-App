@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/services/stock_reservation_service.dart';
 import '../../core/services/supabase_service.dart';
+import '../../admin/services/admin_audit_service.dart';
 
 import '../../core/expiry/expiry_checker.dart';
 import 'inventory/employee_batch_model.dart';
@@ -317,6 +318,7 @@ class EmployeeInventoryController extends ChangeNotifier {
       isWeightBased: isWeightBased,
     );
     _products.add(product);
+    AdminAuditService().logCreate('Product', product.id, product.name, null, 'Added via Employee Inventory');
     notifyListeners();
 
     _saveProductToSupabase(product);
@@ -379,6 +381,15 @@ class EmployeeInventoryController extends ChangeNotifier {
       lowStockThreshold: lowStockThreshold,
       isWeightBased: isWeightBased,
       clearImage: clearImage,
+    );
+    AdminAuditService().logUpdate(
+      'Product',
+      productId,
+      _products[index].name,
+      null,
+      'Active',
+      'Active',
+      'Updated via Employee Inventory',
     );
     notifyListeners();
 
@@ -500,6 +511,14 @@ class EmployeeInventoryController extends ChangeNotifier {
       consumedBy: consumedBy,
     ));
 
+    AdminAuditService().logArchive(
+      'Stock',
+      productId,
+      '${product.name} (Qty: $actualQuantity)',
+      null,
+      'Reason: ${reason.label}${consumedBy != null ? ' by $consumedBy' : ''}',
+    );
+
     notifyListeners();
 
     _updateBatchInSupabase(batchId, newBatchQty <= 0 ? 0.0 : newBatchQty);
@@ -609,7 +628,18 @@ class EmployeeInventoryController extends ChangeNotifier {
   }
 
   void deleteProduct(String productId) {
+    final matches = _products.where((p) => p.id == productId);
+    final prodName = matches.isNotEmpty ? matches.first.name : 'Product';
     _products.removeWhere((p) => p.id == productId);
+
+    AdminAuditService().logDelete(
+      'Product',
+      productId,
+      prodName,
+      null,
+      'Deleted via Employee Inventory',
+    );
+
     notifyListeners();
 
     _supabaseService.updateProduct(productId, {
@@ -754,6 +784,15 @@ class EmployeeInventoryController extends ChangeNotifier {
 
     final updatedProduct = product.copyWith(batches: batches);
     _products[productIndex] = updatedProduct;
+    AdminAuditService().logUpdate(
+      'Stock',
+      productId,
+      product.name,
+      null,
+      'Stock: ${product.quantity}',
+      'Stock: ${updatedProduct.quantity}',
+      'Received +$quantity ${product.unit}',
+    );
     notifyListeners();
 
     return StockReceivingResult(
@@ -869,6 +908,15 @@ class EmployeeInventoryController extends ChangeNotifier {
       });
 
       _products[productIndex] = product.copyWith(batches: batches);
+      AdminAuditService().logUpdate(
+        'Stock',
+        productId,
+        product.name,
+        null,
+        'Stock: ${product.quantity}',
+        'Stock: ${product.quantity + delta}',
+        'Adjusted stock by ${delta > 0 ? '+$delta' : delta}',
+      );
       notifyListeners();
       return;
     }
@@ -895,6 +943,15 @@ class EmployeeInventoryController extends ChangeNotifier {
       remaining -= take;
     }
     _products[productIndex] = product.copyWith(batches: batches);
+    AdminAuditService().logUpdate(
+      'Stock',
+      productId,
+      product.name,
+      null,
+      'Stock: ${product.quantity}',
+      'Stock: ${product.quantity + delta}',
+      'Adjusted stock by ${delta > 0 ? '+$delta' : delta}',
+    );
     notifyListeners();
   }
 

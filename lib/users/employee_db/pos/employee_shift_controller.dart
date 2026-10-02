@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import '../../../admin/services/admin_audit_service.dart';
+import '../../../admin/models/admin_models.dart';
 import 'employee_pos_controller.dart' show EmployeePaymentMethod;
 
 /// Cash Float & Shift Reconciliation.
@@ -339,6 +341,15 @@ class EmployeeShiftController extends ChangeNotifier {
       openedBy: openedBy,
     );
     _shiftCounter++;
+
+    AdminAuditService().logCreate(
+      'Shift',
+      _currentShift!.id,
+      'Shift #${_currentShift!.id}',
+      openedBy,
+      'Opened shift with starting float: ₱${startingFloat.toStringAsFixed(2)}',
+    );
+
     notifyListeners();
     _saveActiveShiftToPrefs();
   }
@@ -379,6 +390,15 @@ class EmployeeShiftController extends ChangeNotifier {
       timestamp: DateTime.now(),
     ));
     _adjustmentCounter++;
+
+    AdminAuditService().logAction(
+      action: AuditAction.update,
+      entityType: 'Shift Cash',
+      entityId: shift.id,
+      entityName: type.label,
+      note: '₱${amount.toStringAsFixed(2)} - Reason: $trimmedReason',
+    );
+
     notifyListeners();
     _saveActiveShiftToPrefs();
     return true;
@@ -408,6 +428,17 @@ class EmployeeShiftController extends ChangeNotifier {
 
     _history.add(report);
     _currentShift = null;
+
+    AdminAuditService().logUpdate(
+      'Shift',
+      shift.id,
+      'Shift #${shift.id}',
+      closedBy,
+      'Open',
+      report.discrepancyLabel,
+      'Closed shift. Expected: ₱${report.expectedCash.toStringAsFixed(2)}, Actual: ₱${report.actualCash.toStringAsFixed(2)} (${report.discrepancyLabel})',
+    );
+
     notifyListeners();
     _saveHistoryToPrefs(null);
     _saveActiveShiftToPrefs();

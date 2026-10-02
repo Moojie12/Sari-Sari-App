@@ -8,6 +8,7 @@ import '../orders/employee_orders_controller.dart';
 import '../profile/employee_profile_controller.dart';
 import '../../owner_db/profile/owner_profile_controller.dart';
 import '../../../core/services/auth_service.dart';
+import '../../../admin/services/admin_audit_service.dart';
 
 enum EmployeePaymentMethod { cash, gCash }
 
@@ -284,6 +285,14 @@ class EmployeePosController extends ChangeNotifier {
       processedBy: sellerLabel,
     );
     EmployeeOrderController.instance.placeOrder(posOrder);
+
+    AdminAuditService().logCreate(
+      'Sale',
+      receipt.receiptNumber,
+      'Walk-in Customer',
+      sellerLabel,
+      'POS Sale Total: ₱${receipt.totalAmount.toStringAsFixed(2)}',
+    );
 
     _receiptCounter++;
     _cart.clear();

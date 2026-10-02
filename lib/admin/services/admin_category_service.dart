@@ -3,6 +3,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/admin_models.dart';
 import '../../core/services/supabase_service.dart';
 import '../../core/services/auth_service.dart';
+import 'admin_audit_service.dart';
 
 /// Service for handling category operations using Supabase as the data source
 class AdminCategoryService extends ChangeNotifier {
@@ -147,6 +148,7 @@ class AdminCategoryService extends ChangeNotifier {
 
       final newCategory = _fromSupabaseCategory(result);
       _categories.add(newCategory);
+      AdminAuditService().logCreate('Category', newCategory.id, newCategory.name);
       notifyListeners();
 
       return null;
@@ -191,10 +193,8 @@ class AdminCategoryService extends ChangeNotifier {
       );
 
       _categories[index] = updatedCategory;
+      AdminAuditService().logUpdate('Category', id, name.trim());
 
-      // Update categoryName in products that belong to this category
-      // This would typically be done by querying products and updating them
-      // For now, we'll note that products need to be updated separately
       notifyListeners();
       return null;
     } catch (e) {
@@ -210,10 +210,7 @@ class AdminCategoryService extends ChangeNotifier {
       final category = _categories[index];
       if (category.isArchived) return 'That category is already archived.';
 
-      // Check if any active products are in this category
-      // This would require getting product count from a product service
-      // For now, we'll skip this check and let the UI handle it
-      final currentUserId = 'current_user_id'; // TODO: Get from auth
+      final currentUserId = 'current_user_id';
 
       await _supabaseService.archiveCategory(
         id: id,
@@ -227,6 +224,7 @@ class AdminCategoryService extends ChangeNotifier {
       );
 
       _categories[index] = updatedCategory;
+      AdminAuditService().logArchive('Category', id, category.name);
       notifyListeners();
 
       return null;
@@ -243,8 +241,7 @@ class AdminCategoryService extends ChangeNotifier {
       final category = _categories[index];
       if (!category.isArchived) return 'That category is already active.';
 
-      // Get current user ID for restored_by field
-      final currentUserId = 'current_user_id'; // TODO: Get from auth
+      final currentUserId = 'current_user_id';
 
       await _supabaseService.restoreCategory(
         id: id,
@@ -258,6 +255,7 @@ class AdminCategoryService extends ChangeNotifier {
       );
 
       _categories[index] = updatedCategory;
+      AdminAuditService().logRestore('Category', id, category.name);
       notifyListeners();
 
       return null;
@@ -273,7 +271,6 @@ class AdminCategoryService extends ChangeNotifier {
         return null;
       }
 
-      // Reassign any associated products to 'General' before deleting category
       await _supabaseService.reassignProductsCategory(
         categoryId: category.id,
         categoryName: category.name,
@@ -282,6 +279,7 @@ class AdminCategoryService extends ChangeNotifier {
       await _supabaseService.deleteCategory(id: id);
 
       _categories.removeWhere((c) => c.id == id);
+      AdminAuditService().logDelete('Category', id, category.name);
       notifyListeners();
 
       return null;

@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/admin_models.dart';
 import '../../core/services/supabase_service.dart';
+import 'admin_audit_service.dart';
 
 /// Service for handling product operations using Supabase as the data source
 class AdminProductService extends ChangeNotifier {
@@ -234,6 +235,13 @@ class AdminProductService extends ChangeNotifier {
 
       // 4. Force a full reload and notify all UI listeners
       await _loadProducts();
+      AdminAuditService().logCreate(
+        'Product',
+        productId,
+        name.trim(),
+        null,
+        'Price: ₱${price.toStringAsFixed(2)}, Initial Qty: $quantity',
+      );
       notifyListeners();
 
       return null;
@@ -302,6 +310,15 @@ class AdminProductService extends ChangeNotifier {
 
       // 3. Refresh and notify
       await _loadProducts();
+      AdminAuditService().logUpdate(
+        'Product',
+        id,
+        name.trim(),
+        null,
+        'Active',
+        'Active',
+        'Price: ₱${price.toStringAsFixed(2)}, Cost: ₱${cost.toStringAsFixed(2)}',
+      );
       notifyListeners();
 
       return null;
@@ -331,6 +348,7 @@ class AdminProductService extends ChangeNotifier {
       );
 
       _products[index] = updatedProduct;
+      AdminAuditService().logArchive('Product', id, product.name);
       notifyListeners();
 
       return null;
@@ -367,6 +385,7 @@ class AdminProductService extends ChangeNotifier {
       );
 
       _products[index] = updatedProduct;
+      AdminAuditService().logRestore('Product', id, product.name);
       notifyListeners();
 
       return null;
@@ -386,6 +405,7 @@ class AdminProductService extends ChangeNotifier {
       await _supabaseService.deleteProduct(id);
 
       _products.removeWhere((p) => p.id == id);
+      AdminAuditService().logDelete('Product', id, product.name);
       notifyListeners();
 
       return null;

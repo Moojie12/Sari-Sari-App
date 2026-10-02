@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/admin_models.dart';
 import '../../core/services/supabase_service.dart';
+import 'admin_audit_service.dart';
 
 /// Service for handling sale operations using Supabase as the data source
 class AdminSaleService extends ChangeNotifier {
@@ -213,6 +214,13 @@ class AdminSaleService extends ChangeNotifier {
 
       _sales.add(newSale);
       _lastSyncTime = DateTime.now();
+      AdminAuditService().logCreate(
+        'Sale',
+        orderId,
+        customerName.trim().isNotEmpty ? customerName.trim() : 'Walk-in Sale',
+        null,
+        'Amount: ₱${newSale.total.toStringAsFixed(2)}',
+      );
       notifyListeners();
 
       return null;
@@ -241,6 +249,12 @@ class AdminSaleService extends ChangeNotifier {
       );
 
       _sales[index] = voidedSale;
+      AdminAuditService().logVoidSale(
+        id,
+        sale.customerName.isNotEmpty ? sale.customerName : sale.receiptNumber,
+        null,
+        reason.trim(),
+      );
       notifyListeners();
 
       return null;
@@ -275,6 +289,7 @@ class AdminSaleService extends ChangeNotifier {
 
       _sales[index] = restoredSale;
       _lastSyncTime = DateTime.now();
+      AdminAuditService().logRestore('Sale', id, sale.receiptNumber, null, 'Restored voided sale');
       notifyListeners();
 
       return null;

@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/delivery_tracking_service.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../admin/services/admin_audit_service.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
 import '../employee_inventory_controller.dart';
 import '../notifications/employee_notifications_controller.dart';
@@ -426,6 +427,16 @@ class EmployeeOrderController extends ChangeNotifier {
       final currentDemandIds = demandItems.map((d) => d.productId).toSet();
       _markedProductIds.retainAll(currentDemandIds);
 
+      AdminAuditService().logUpdate(
+        'Order',
+        orderId,
+        oldOrder.customerName.isNotEmpty ? oldOrder.customerName : oldOrder.orderId,
+        null,
+        oldOrder.status.name,
+        newStatus.name,
+        'Order status updated to ${newStatus.name}',
+      );
+
       notifyListeners();
 
       // Save cancellation reason to Supabase if cancelled
@@ -502,6 +513,16 @@ class EmployeeOrderController extends ChangeNotifier {
       title: 'Out for Delivery',
       message: '${deliveryPerson.name} (${deliveryPerson.role}) is on the way with your order #${updatedOrder.orderId}.',
       userId: updatedOrder.userId,
+    );
+
+    AdminAuditService().logUpdate(
+      'Order',
+      orderId,
+      oldOrder.customerName.isNotEmpty ? oldOrder.customerName : oldOrder.orderId,
+      null,
+      oldOrder.status.name,
+      OrderStatus.outForDelivery.name,
+      'Assigned delivery to ${deliveryPerson.name} (${deliveryPerson.role})',
     );
 
     // Persist to Supabase

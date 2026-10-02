@@ -1927,11 +1927,45 @@ class SupabaseService {
     try {
       final response = await _client
           .from('audit_logs')
-          .select('*')
-          .order('timestamp', ascending: false);
+          .select('*');
+      final list = List<Map<String, dynamic>>.from(response);
+      list.sort((a, b) {
+        final tA = a['timestamp'] ?? a['created_at'] ?? '';
+        final tB = b['timestamp'] ?? b['created_at'] ?? '';
+        return tB.toString().compareTo(tA.toString());
+      });
+      return list;
+    } catch (e) {
+      debugPrint('Failed to fetch audit logs from Supabase: $e');
+      return [];
+    }
+  }
+
+  /// Insert an audit log
+  Future<Map<String, dynamic>?> insertAuditLog(Map<String, dynamic> auditData) async {
+    try {
+      final dataToInsert = Map<String, dynamic>.from(auditData);
+      if (!dataToInsert.containsKey('created_at') && dataToInsert.containsKey('timestamp')) {
+        dataToInsert['created_at'] = dataToInsert['timestamp'];
+      }
+      final response = await _client
+          .from('audit_logs')
+          .insert(dataToInsert)
+          .select()
+          .maybeSingle();
       return response;
     } catch (e) {
-      throw Exception('Failed to fetch audit logs: $e');
+      debugPrint('Failed to insert audit log with select in Supabase: $e');
+      try {
+        final dataToInsert = Map<String, dynamic>.from(auditData);
+        if (!dataToInsert.containsKey('created_at') && dataToInsert.containsKey('timestamp')) {
+          dataToInsert['created_at'] = dataToInsert['timestamp'];
+        }
+        await _client.from('audit_logs').insert(dataToInsert);
+      } catch (e2) {
+        debugPrint('Fallback insertAuditLog also failed: $e2');
+      }
+      return null;
     }
   }
 

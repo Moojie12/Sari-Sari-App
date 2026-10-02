@@ -1120,7 +1120,7 @@ class _NewProductSheetState extends State<_NewProductSheet> {
     }
   }
 
-  void _create() {
+  Future<void> _create() async {
     final name = _nameController.text.trim();
     final price = double.tryParse(_priceController.text.trim());
     var barcode = _barcodeController.text.trim();
@@ -1225,6 +1225,7 @@ class _NewProductSheetState extends State<_NewProductSheet> {
       return;
     }
 
+    if (!mounted) return;
     Navigator.pop(context, product);
   }
 

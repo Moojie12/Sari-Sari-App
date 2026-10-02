@@ -656,4 +656,23 @@ class AdminAuditLog {
   final String previousStatus;
   final String newStatus;
   final String? note;
+
+  String get performerRole {
+    final lower = performedBy.toLowerCase();
+    if (lower.contains('owner')) {
+      return 'Owner';
+    }
+    if (lower.contains('employee') ||
+        lower.contains('cashier') ||
+        lower.contains('staff') ||
+        lower.contains('rider') ||
+        lower.contains('worker')) {
+      return 'Employee';
+    }
+    if (lower.contains('admin')) {
+      return 'Admin';
+    }
+    // If no explicit admin or owner tag, default contextually to Employee for store activities
+    return 'Employee';
+  }
 }

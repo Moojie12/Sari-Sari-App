@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import '../models/admin_models.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/supabase_service.dart';
+import 'admin_audit_service.dart';
 
 /// Service for handling user operations using Firebase Realtime Database as the ONLY data source for user accounts.
 class AdminUserService extends ChangeNotifier {
@@ -306,6 +307,13 @@ class AdminUserService extends ChangeNotifier {
 
       // Reload users from Firebase
       await _loadUsers();
+      AdminAuditService().logCreate(
+        'User',
+        firebaseUser.uid,
+        '$firstName $surname'.trim(),
+        null,
+        'Role: ${role.label}',
+      );
 
       return null;
     } catch (e) {
@@ -370,6 +378,15 @@ class AdminUserService extends ChangeNotifier {
       await _authService.database.ref().child('users/$id').update(userData);
 
       await _loadUsers();
+      AdminAuditService().logUpdate(
+        'User',
+        id,
+        '$firstName $surname'.trim(),
+        null,
+        'Active',
+        'Active',
+        'Role: ${role.label}',
+      );
 
       return null;
     } catch (e) {
@@ -414,6 +431,15 @@ class AdminUserService extends ChangeNotifier {
       } catch (_) {}
 
       await _loadUsers();
+      AdminAuditService().logUpdate(
+        'User',
+        id,
+        user.fullName,
+        null,
+        user.status,
+        newStatus,
+        'Status changed to $newStatus',
+      );
 
       return null;
     } catch (e) {
@@ -446,6 +472,7 @@ class AdminUserService extends ChangeNotifier {
       });
 
       await _loadUsers();
+      AdminAuditService().logArchive('User', id, user.fullName);
 
       return null;
     } catch (e) {
@@ -471,6 +498,7 @@ class AdminUserService extends ChangeNotifier {
       });
 
       await _loadUsers();
+      AdminAuditService().logRestore('User', id, user.fullName);
 
       return null;
     } catch (e) {
@@ -488,6 +516,7 @@ class AdminUserService extends ChangeNotifier {
       await _authService.database.ref().child('users/$id').remove();
 
       await _loadUsers();
+      AdminAuditService().logDelete('User', id, user.fullName);
 
       return null;
     } catch (e) {
