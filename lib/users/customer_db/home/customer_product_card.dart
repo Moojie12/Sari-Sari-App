@@ -206,6 +206,7 @@ class _CustomerProductImagePlaceholder extends StatelessWidget {
         children: [
           if (hasImage)
             ProductImage(
+              key: ValueKey(image),
               image: image,
               width: double.infinity,
               height: double.infinity,

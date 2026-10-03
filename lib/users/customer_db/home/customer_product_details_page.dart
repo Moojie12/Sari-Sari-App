@@ -241,10 +241,6 @@ class _CustomerProductDetailsPageState
   }
 
   void _handleBuyNow() {
-    // Direct purchase: checkout reads from cartController.items, so make
-    // sure only this product (at the chosen quantity) is in the cart
-    // before handing off to checkout.
-    widget.cartController.clearCart();
     final added =
     widget.cartController.addToCart(widget.product, quantity: _quantity);
     if (!added) return;

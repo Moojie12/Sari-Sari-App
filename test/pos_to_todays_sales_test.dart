@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
+import 'package:sari_sari/users/employee_db/home/employee_home_page.dart';
 import 'package:sari_sari/users/employee_db/inventory/employee_batch_model.dart';
 import 'package:sari_sari/users/employee_db/inventory/employee_product_model.dart';
 import 'package:sari_sari/users/employee_db/orders/employee_orders_controller.dart';
@@ -134,6 +135,41 @@ void main() {
       expect(find.text("1"), findsWidgets);
       // Net Profit: 100 - 4*18 (72) = 28.00
       expect(find.text("₱ 28.00"), findsOneWidget);
+    });
+
+    testWidgets('EmployeeHomePage displays Today\'s Sales and tapping it opens OwnerReportDetailScreen', (tester) async {
+      final product = inventory.findById('PROD-TEST-101')!;
+      final batch = product.batches.first;
+
+      // Add item and checkout
+      posController.addBatchToCart(product, batch, quantity: 2.0);
+      posController.checkout(
+        paymentMethod: EmployeePaymentMethod.cash,
+        amountPaid: 100.0,
+      );
+
+      await tester.pumpWidget(
+        MaterialApp(
+          home: EmployeeHomePage(
+            inventory: inventory,
+            posController: posController,
+            onOpenInventory: () {},
+            onOpenPos: () {},
+            onOpenExpiringProducts: () {},
+          ),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      expect(find.text("₱ 50.00"), findsOneWidget);
+
+      // Tap on TODAY'S SALES card
+      await tester.tap(find.text("TODAY'S SALES"));
+      await tester.pumpAndSettle();
+
+      // Verify navigated to OwnerReportDetailScreen (Daily Revenue Summary)
+      expect(find.text('Daily Revenue Summary'), findsOneWidget);
     });
   });
 }

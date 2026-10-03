@@ -125,7 +125,7 @@ class _InStoreTransactionsListState extends State<_InStoreTransactionsList> with
     return Column(
       children: [
         Container(
-          margin: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
           decoration: BoxDecoration(
             color: AppColors.lightBackground,
             borderRadius: BorderRadius.circular(12),
@@ -264,8 +264,8 @@ class _GroupedTransactionsListViewState extends State<_GroupedTransactionsListVi
       children: [
         // --- Date Picker Navigation Bar ---
         Container(
-          margin: const EdgeInsets.fromLTRB(24, 8, 24, 12),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+          margin: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
           decoration: BoxDecoration(
             color: Colors.white,
             borderRadius: BorderRadius.circular(16),
@@ -283,8 +283,8 @@ class _GroupedTransactionsListViewState extends State<_GroupedTransactionsListVi
               // Previous Day button
               IconButton(
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                icon: const Icon(Icons.chevron_left, size: 22, color: AppColors.darkText),
+                constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                icon: const Icon(Icons.chevron_left, size: 20, color: AppColors.darkText),
                 onPressed: () {
                   setState(() {
                     _filterByDate = true;
@@ -293,49 +293,54 @@ class _GroupedTransactionsListViewState extends State<_GroupedTransactionsListVi
                 },
                 tooltip: 'Previous Day',
               ),
-              const Spacer(),
 
               // Date Picker trigger button (< 📅 YYYY-MM-DD ▼ >)
-              InkWell(
-                onTap: () async {
-                  final picked = await showDatePicker(
-                    context: context,
-                    initialDate: _selectedDate,
-                    firstDate: DateTime(2020),
-                    lastDate: DateTime(2030),
-                  );
-                  if (picked != null) {
-                    setState(() {
-                      _filterByDate = true;
-                      _selectedDate = picked;
-                    });
-                  }
-                },
-                borderRadius: BorderRadius.circular(10),
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      const Icon(Icons.calendar_month_outlined, size: 18, color: AppColors.primaryOrange),
-                      const SizedBox(width: 8),
-                      Text(
-                        dateFormatted,
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.darkText),
-                      ),
-                      const SizedBox(width: 4),
-                      const Icon(Icons.arrow_drop_down, size: 18, color: AppColors.secondaryText),
-                    ],
+              Expanded(
+                child: InkWell(
+                  onTap: () async {
+                    final picked = await showDatePicker(
+                      context: context,
+                      initialDate: _selectedDate,
+                      firstDate: DateTime(2020),
+                      lastDate: DateTime(2030),
+                    );
+                    if (picked != null) {
+                      setState(() {
+                        _filterByDate = true;
+                        _selectedDate = picked;
+                      });
+                    }
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 6),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        const Icon(Icons.calendar_month_outlined, size: 16, color: AppColors.primaryOrange),
+                        const SizedBox(width: 4),
+                        Flexible(
+                          child: Text(
+                            dateFormatted,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.darkText),
+                          ),
+                        ),
+                        const SizedBox(width: 2),
+                        const Icon(Icons.arrow_drop_down, size: 16, color: AppColors.secondaryText),
+                      ],
+                    ),
                   ),
                 ),
               ),
-              const Spacer(),
 
               // Next Day button
               IconButton(
                 padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-                icon: const Icon(Icons.chevron_right, size: 22, color: AppColors.darkText),
+                constraints: const BoxConstraints(minWidth: 30, minHeight: 30),
+                icon: const Icon(Icons.chevron_right, size: 20, color: AppColors.darkText),
                 onPressed: () {
                   setState(() {
                     _filterByDate = true;
@@ -355,7 +360,7 @@ class _GroupedTransactionsListViewState extends State<_GroupedTransactionsListVi
                 },
                 borderRadius: BorderRadius.circular(10),
                 child: Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 5),
                   decoration: BoxDecoration(
                     color: !_filterByDate ? AppColors.primaryOrange : AppColors.lightBackground,
                     borderRadius: BorderRadius.circular(8),
@@ -387,31 +392,44 @@ class _GroupedTransactionsListViewState extends State<_GroupedTransactionsListVi
 
   Widget _buildListContent(List<CustomerOrder> filteredOrders, String dateFormatted) {
     if (filteredOrders.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
+      return RefreshIndicator(
+        color: AppColors.primaryOrange,
+        onRefresh: () async {
+          await EmployeeOrderController.instance.refresh();
+        },
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(24),
           children: [
-            Icon(Icons.event_busy_rounded, size: 48, color: AppColors.secondaryText.withValues(alpha: 0.4)),
-            const SizedBox(height: 12),
-            Text(
-              _filterByDate
-                  ? 'No transactions on $dateFormatted'
-                  : widget.emptyMessage,
-              style: const TextStyle(color: AppColors.secondaryText, fontSize: 14),
-            ),
-            if (_filterByDate) ...[
-              const SizedBox(height: 12),
-              TextButton.icon(
-                icon: const Icon(Icons.filter_alt_off_outlined, size: 16),
-                label: const Text('Show All Dates'),
-                style: TextButton.styleFrom(foregroundColor: AppColors.primaryOrange),
-                onPressed: () {
-                  setState(() {
-                    _filterByDate = false;
-                  });
-                },
+            SizedBox(height: MediaQuery.of(context).size.height * 0.15),
+            Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.event_busy_rounded, size: 48, color: AppColors.secondaryText.withValues(alpha: 0.4)),
+                  const SizedBox(height: 12),
+                  Text(
+                    _filterByDate
+                        ? 'No transactions on $dateFormatted'
+                        : widget.emptyMessage,
+                    style: const TextStyle(color: AppColors.secondaryText, fontSize: 14),
+                  ),
+                  if (_filterByDate) ...[
+                    const SizedBox(height: 12),
+                    TextButton.icon(
+                      icon: const Icon(Icons.filter_alt_off_outlined, size: 16),
+                      label: const Text('Show All Dates'),
+                      style: TextButton.styleFrom(foregroundColor: AppColors.primaryOrange),
+                      onPressed: () {
+                        setState(() {
+                          _filterByDate = false;
+                        });
+                      },
+                    ),
+                  ],
+                ],
               ),
-            ],
+            ),
           ],
         ),
       );
@@ -430,10 +448,16 @@ class _GroupedTransactionsListViewState extends State<_GroupedTransactionsListVi
 
     final sortedDates = grouped.keys.toList()..sort((a, b) => b.compareTo(a));
 
-    return ListView.builder(
-      padding: const EdgeInsets.only(bottom: 24),
-      itemCount: sortedDates.length,
-      itemBuilder: (context, dateIndex) {
+    return RefreshIndicator(
+      color: AppColors.primaryOrange,
+      onRefresh: () async {
+        await EmployeeOrderController.instance.refresh();
+      },
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.only(bottom: 24),
+        itemCount: sortedDates.length,
+        itemBuilder: (context, dateIndex) {
         final dateKey = sortedDates[dateIndex];
         final dayOrders = grouped[dateKey]!;
 
@@ -442,7 +466,7 @@ class _GroupedTransactionsListViewState extends State<_GroupedTransactionsListVi
           children: [
             // Date Header per day
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 8, 24, 10),
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 10),
               child: Row(
                 children: [
                   Container(
@@ -454,15 +478,19 @@ class _GroupedTransactionsListViewState extends State<_GroupedTransactionsListVi
                     child: const Icon(Icons.calendar_month_outlined, size: 16, color: AppColors.primaryOrange),
                   ),
                   const SizedBox(width: 10),
-                  Text(
-                    _formatGroupDate(dateKey),
-                    style: const TextStyle(
-                      color: AppColors.darkText,
-                      fontSize: 14,
-                      fontWeight: FontWeight.bold,
+                  Expanded(
+                    child: Text(
+                      _formatGroupDate(dateKey),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.darkText,
+                        fontSize: 14,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
-                  const Spacer(),
+                  const SizedBox(width: 8),
                   Container(
                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 3),
                     decoration: BoxDecoration(
@@ -486,7 +514,7 @@ class _GroupedTransactionsListViewState extends State<_GroupedTransactionsListVi
             ListView.separated(
               shrinkWrap: true,
               physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: 24),
+              padding: const EdgeInsets.symmetric(horizontal: 16),
               itemCount: dayOrders.length,
               separatorBuilder: (_, _) => const SizedBox(height: 12),
               itemBuilder: (context, orderIndex) {
@@ -537,8 +565,9 @@ class _GroupedTransactionsListViewState extends State<_GroupedTransactionsListVi
           ],
         );
       },
-    );
-  }
+    ),
+  );
+}
 
   static String _formatGroupDate(DateTime date) {
     final now = DateTime.now();
@@ -816,30 +845,41 @@ class _HistoryCard extends StatelessWidget {
               const Divider(height: 1, color: AppColors.borderColor),
               const SizedBox(height: 12),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  _buildMiniStat('Capital: ₱${(capital ?? 0).toStringAsFixed(2)}', Colors.blueGrey),
-                  _buildMiniStat('Revenue: ₱${(revenue ?? 0).toStringAsFixed(2)}', AppColors.primaryOrange),
-                  _buildMiniStat('Profit: ₱${(profit ?? 0).toStringAsFixed(2)}', Colors.green),
+                  Expanded(child: _buildMiniStat('Capital: ₱${(capital ?? 0).toStringAsFixed(2)}', Colors.blueGrey)),
+                  Expanded(child: _buildMiniStat('Revenue: ₱${(revenue ?? 0).toStringAsFixed(2)}', AppColors.primaryOrange)),
+                  Expanded(child: _buildMiniStat('Profit: ₱${(profit ?? 0).toStringAsFixed(2)}', Colors.green)),
                 ],
               ),
             ],
             const Divider(height: 24),
             Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text(date,
+                Expanded(
+                  child: Text(
+                    date,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                        color: AppColors.secondaryText.withValues(alpha: 0.5), fontSize: 11)),
-                if (processedBy != null && processedBy!.isNotEmpty)
-                  Text(
-                    'Sold by: $processedBy',
-                    style: const TextStyle(
-                      color: AppColors.primaryOrange,
-                      fontSize: 11,
-                      fontWeight: FontWeight.bold,
+                        color: AppColors.secondaryText.withValues(alpha: 0.5), fontSize: 11),
+                  ),
+                ),
+                if (processedBy != null && processedBy!.isNotEmpty) ...[
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Sold by: $processedBy',
+                      textAlign: TextAlign.end,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.primaryOrange,
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ),
+                ],
               ],
             ),
           ],
@@ -850,18 +890,21 @@ class _HistoryCard extends StatelessWidget {
 
   Widget _buildSubtitle() {
     return Row(
-      mainAxisSize: MainAxisSize.min,
       children: [
         const Text('Customer: ',
             style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-        GestureDetector(
-          onTap: onCustomerTap,
-          child: Text(
-            customerName,
-            style: const TextStyle(
-                color: AppColors.darkText,
-                fontSize: 12,
-                fontWeight: FontWeight.bold),
+        Flexible(
+          child: GestureDetector(
+            onTap: onCustomerTap,
+            child: Text(
+              customerName,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: const TextStyle(
+                  color: AppColors.darkText,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold),
+            ),
           ),
         ),
         Text(' · $itemsCount items',

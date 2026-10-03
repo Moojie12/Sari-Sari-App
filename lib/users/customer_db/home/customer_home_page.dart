@@ -604,7 +604,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   }
 
   void _buyNowSaleDeal(SaleDealModel deal) {
-    widget.cartController.clearCart();
     final success = widget.cartController.addSaleDeal(deal, _allCustomerProducts);
     if (success) {
       Navigator.push(
@@ -884,6 +883,7 @@ class _SaleDealCard extends StatelessWidget {
                     children: [
                       if (image != null && image.isNotEmpty)
                         ProductImage(
+                          key: ValueKey(image),
                           image: image,
                           width: double.infinity,
                           height: double.infinity,
@@ -1124,7 +1124,6 @@ void showSaleDealDetailsModal({
       },
       onBuyNow: () {
         Navigator.pop(modalContext);
-        cartController.clearCart();
         final success = cartController.addSaleDeal(deal, allCustomerProducts);
         if (success) {
           Navigator.push(
@@ -1191,6 +1190,7 @@ class SaleDealDetailsSheet extends StatelessWidget {
                 ClipRRect(
                   borderRadius: BorderRadius.circular(14),
                   child: ProductImage(
+                    key: ValueKey(image),
                     image: image,
                     width: double.infinity,
                     height: 140,
@@ -1271,6 +1271,7 @@ class SaleDealDetailsSheet extends StatelessWidget {
                               width: 44,
                               height: 44,
                               child: ProductImage(
+                                key: ValueKey(item.image),
                                 image: item.image,
                                 width: 44,
                                 height: 44,

@@ -113,29 +113,35 @@ class EmployeeMessagesPage extends StatelessWidget {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                 children: [
-                                  Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        recipient.name,
-                                        style: const TextStyle(
-                                          color: AppColors.darkText,
-                                          fontSize: 15,
-                                          fontWeight: FontWeight.bold,
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          recipient.name,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: const TextStyle(
+                                            color: AppColors.darkText,
+                                            fontSize: 15,
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                         ),
-                                      ),
-                                      Text(
-                                        recipient.role,
-                                        style: TextStyle(
-                                          color: AppColors.secondaryText.withValues(alpha: 0.6),
-                                          fontSize: 11,
+                                        Text(
+                                          recipient.role,
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: TextStyle(
+                                            color: AppColors.secondaryText.withValues(alpha: 0.6),
+                                            fontSize: 11,
+                                          ),
                                         ),
-                                      ),
-                                    ],
+                                      ],
+                                    ),
                                   ),
-                                  if (lastMessage != null)
+                                  if (lastMessage != null) ...[
+                                    const SizedBox(width: 8),
                                     Text(
                                       _formatTimestamp(lastMessage.sentAt),
                                       style: TextStyle(
@@ -143,6 +149,7 @@ class EmployeeMessagesPage extends StatelessWidget {
                                         fontSize: 11,
                                       ),
                                     ),
+                                  ],
                                 ],
                               ),
                               const SizedBox(height: 4),

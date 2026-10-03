@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/delivery_tracking_service.dart';
 import '../../../core/services/rate_limiter_service.dart';
 import '../../../core/services/stock_reservation_service.dart';
+import '../../owner_db/profile/shop_settings_controller.dart';
 import '../customer_cart_controller.dart';
 import '../purchases/customer_order_controller.dart';
 import '../purchases/customer_order_model.dart';
@@ -33,7 +35,7 @@ class CustomerCheckoutPage extends StatefulWidget {
 class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
   OrderType _orderType = OrderType.pickup;
   PaymentMethod _paymentMethod = PaymentMethod.cashOnDelivery;
-  final double _deliveryFee = 20.0;
+  double? _calculatedDistanceMeters;
 
   CustomerAddress? _selectedAddress;
 
@@ -41,6 +43,55 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
   void initState() {
     super.initState();
     _selectedAddress = CustomerAddressController.instance.defaultAddress;
+    _updateDistanceAndFee();
+  }
+
+  Future<void> _updateDistanceAndFee() async {
+    if (_selectedAddress == null) {
+      if (mounted) setState(() => _calculatedDistanceMeters = null);
+      return;
+    }
+    try {
+      final destCoords = await DeliveryTrackingService.instance.geocodeAddress(_selectedAddress!.address);
+      if (destCoords != null) {
+        final storeLoc = DeliveryTrackingService.storeLocation;
+        final distMeters = Geolocator.distanceBetween(
+          storeLoc.latitude,
+          storeLoc.longitude,
+          destCoords.latitude,
+          destCoords.longitude,
+        );
+        if (mounted) {
+          setState(() {
+            _calculatedDistanceMeters = distMeters;
+          });
+        }
+        return;
+      }
+    } catch (_) {}
+    if (mounted) {
+      setState(() {
+        _calculatedDistanceMeters = 500;
+      });
+    }
+  }
+
+  double get _deliveryFee {
+    if (_calculatedDistanceMeters != null) {
+      return ShopSettingsController.instance.calculateDeliveryFee(_calculatedDistanceMeters!);
+    }
+    return ShopSettingsController.instance.calculateDeliveryFee(500);
+  }
+
+  String get _deliveryFeeLabel {
+    if (_calculatedDistanceMeters != null && _calculatedDistanceMeters! > 0) {
+      final km = _calculatedDistanceMeters! / 1000.0;
+      if (km < 1) {
+        return 'Delivery Fee (${_calculatedDistanceMeters!.round()} m)';
+      }
+      return 'Delivery Fee (${km.toStringAsFixed(1)} km)';
+    }
+    return 'Delivery Fee';
   }
 
   double get _total => widget.cartController.totalAmount + (_orderType == OrderType.delivery ? _deliveryFee : 0);
@@ -215,6 +266,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
         selectedAddress: _selectedAddress,
         onAddressSelected: (address) {
           setState(() => _selectedAddress = address);
+          _updateDistanceAndFee();
           Navigator.pop(context);
         },
         onAddNewAddress: () {
@@ -226,6 +278,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
             if (_selectedAddress == null) {
               setState(() => _selectedAddress = CustomerAddressController.instance.defaultAddress);
             }
+            _updateDistanceAndFee();
           });
         },
       ),
@@ -295,10 +348,16 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
 
                 _SectionHeader(title: 'Price Summary'),
                 const SizedBox(height: 12),
-                _PriceSummaryCard(
-                  subtotal: widget.cartController.totalAmount,
-                  deliveryFee: _orderType == OrderType.delivery ? _deliveryFee : 0,
-                  total: _total,
+                ListenableBuilder(
+                  listenable: ShopSettingsController.instance,
+                  builder: (context, _) {
+                    return _PriceSummaryCard(
+                      subtotal: widget.cartController.totalAmount,
+                      deliveryFee: _orderType == OrderType.delivery ? _deliveryFee : 0,
+                      total: _total,
+                      deliveryFeeLabel: _deliveryFeeLabel,
+                    );
+                  },
                 ),
                 const SizedBox(height: 40),
 
@@ -693,10 +752,17 @@ class _AddressSelectionModal extends StatelessWidget {
 }
 
 class _PriceSummaryCard extends StatelessWidget {
-  const _PriceSummaryCard({required this.subtotal, required this.deliveryFee, required this.total});
+  const _PriceSummaryCard({
+    required this.subtotal,
+    required this.deliveryFee,
+    required this.total,
+    this.deliveryFeeLabel = 'Delivery Fee',
+  });
+
   final double subtotal;
   final double deliveryFee;
   final double total;
+  final String deliveryFeeLabel;
 
   @override
   Widget build(BuildContext context) {
@@ -707,7 +773,7 @@ class _PriceSummaryCard extends StatelessWidget {
         children: [
           _PriceRow(label: 'Subtotal', value: subtotal),
           const SizedBox(height: 8),
-          _PriceRow(label: 'Delivery Fee', value: deliveryFee),
+          _PriceRow(label: deliveryFeeLabel, value: deliveryFee),
           const Divider(height: 24),
           _PriceRow(label: 'Total', value: total, isBold: true),
         ],

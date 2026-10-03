@@ -74,25 +74,25 @@ class _EmployeeOrdersPageState extends State<EmployeeOrdersPage> with SingleTick
               child: ListenableBuilder(
                 listenable: widget.controller,
                 builder: (context, _) {
-                  return RefreshIndicator(
-                    color: AppColors.primaryOrange,
-                    onRefresh: widget.controller.refresh,
-                    child: TabBarView(
-                      controller: _tabController,
-                      children: [
-                        _DemandList(
-                          demandItems: widget.controller.demandItems,
-                          controller: widget.controller,
-                        ),
-                        _ActiveOrdersView(
-                          controller: widget.controller,
-                        ),
-                        _OrderList(
-                          orders: widget.controller.completedOrders,
-                          controller: widget.controller,
-                        ),
-                      ],
-                    ),
+                  return TabBarView(
+                    controller: _tabController,
+                    children: [
+                      _DemandList(
+                        demandItems: widget.controller.demandItems,
+                        controller: widget.controller,
+                        onRefresh: widget.controller.refresh,
+                      ),
+                      _ActiveOrdersView(
+                        controller: widget.controller,
+                        onRefresh: widget.controller.refresh,
+                      ),
+                      _OrderList(
+                        orders: widget.controller.completedOrders,
+                        controller: widget.controller,
+                        onRefresh: widget.controller.refresh,
+                        emptyMessage: 'No completed orders found.',
+                      ),
+                    ],
                   );
                 },
               ),
@@ -105,28 +105,41 @@ class _EmployeeOrdersPageState extends State<EmployeeOrdersPage> with SingleTick
 }
 
 class _DemandList extends StatelessWidget {
-  const _DemandList({required this.demandItems, required this.controller});
+  const _DemandList({
+    required this.demandItems,
+    required this.controller,
+    required this.onRefresh,
+  });
   final List<ProductDemand> demandItems;
   final EmployeeOrderController controller;
+  final RefreshCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
     if (demandItems.isEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(32.0),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.inventory_2_outlined, size: 64, color: AppColors.placeholderColor),
-              SizedBox(height: 16),
-              Text(
-                'No pending product demand.',
-                textAlign: TextAlign.center,
-                style: TextStyle(color: AppColors.secondaryText),
+      return RefreshIndicator(
+        color: AppColors.primaryOrange,
+        onRefresh: onRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(32.0),
+          children: [
+            SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+            const Center(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.inventory_2_outlined, size: 64, color: AppColors.placeholderColor),
+                  SizedBox(height: 16),
+                  Text(
+                    'No pending product demand.',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(color: AppColors.secondaryText),
+                  ),
+                ],
               ),
-            ],
-          ),
+            ),
+          ],
         ),
       );
     }
@@ -138,42 +151,47 @@ class _DemandList extends StatelessWidget {
         return a.isMarked ? 1 : -1;
       });
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(24),
-      itemCount: sortedItems.length + 1,
-      itemBuilder: (context, index) {
-        if (index == 0) {
-          return Padding(
-            padding: const EdgeInsets.only(bottom: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  '${demandItems.length} Products to Collect',
-                  style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.secondaryText),
-                ),
-                TextButton.icon(
-                  onPressed: () => _showBulkActionDialog(context),
-                  icon: Icon(
-                    demandItems.every((item) => item.isMarked) ? Icons.refresh : Icons.done_all,
-                    size: 18,
+    return RefreshIndicator(
+      color: AppColors.primaryOrange,
+      onRefresh: onRefresh,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
+        itemCount: sortedItems.length + 1,
+        itemBuilder: (context, index) {
+          if (index == 0) {
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    '${demandItems.length} Products to Collect',
+                    style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.secondaryText),
                   ),
-                  label: Text(
-                    demandItems.every((item) => item.isMarked) ? 'Reset List' : 'Mark All',
-                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  TextButton.icon(
+                    onPressed: () => _showBulkActionDialog(context),
+                    icon: Icon(
+                      demandItems.every((item) => item.isMarked) ? Icons.refresh : Icons.done_all,
+                      size: 18,
+                    ),
+                    label: Text(
+                      demandItems.every((item) => item.isMarked) ? 'Reset List' : 'Mark All',
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                    ),
+                    style: TextButton.styleFrom(
+                      foregroundColor: AppColors.primaryOrange,
+                      padding: const EdgeInsets.symmetric(horizontal: 12),
+                    ),
                   ),
-                  style: TextButton.styleFrom(
-                    foregroundColor: AppColors.primaryOrange,
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-        final demand = sortedItems[index - 1];
-        return _DemandItemCard(demand: demand, controller: controller);
-      },
+                ],
+              ),
+            );
+          }
+          final demand = sortedItems[index - 1];
+          return _DemandItemCard(demand: demand, controller: controller);
+        },
+      ),
     );
   }
 
@@ -364,8 +382,12 @@ class _DemandItemCard extends StatelessWidget {
 }
 
 class _ActiveOrdersView extends StatelessWidget {
-  const _ActiveOrdersView({required this.controller});
+  const _ActiveOrdersView({
+    required this.controller,
+    required this.onRefresh,
+  });
   final EmployeeOrderController controller;
+  final RefreshCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -420,8 +442,18 @@ class _ActiveOrdersView extends StatelessWidget {
           Expanded(
             child: TabBarView(
               children: [
-                _OrderList(orders: pickupOrders, controller: controller),
-                _OrderList(orders: deliveryOrders, controller: controller),
+                _OrderList(
+                  orders: pickupOrders,
+                  controller: controller,
+                  onRefresh: onRefresh,
+                  emptyMessage: 'No active pickup orders.',
+                ),
+                _OrderList(
+                  orders: deliveryOrders,
+                  controller: controller,
+                  onRefresh: onRefresh,
+                  emptyMessage: 'No active delivery orders.',
+                ),
               ],
             ),
           ),
@@ -432,14 +464,22 @@ class _ActiveOrdersView extends StatelessWidget {
 }
 
 class _OrderList extends StatelessWidget {
-  const _OrderList({required this.orders, required this.controller});
+  const _OrderList({
+    required this.orders,
+    required this.controller,
+    required this.onRefresh,
+    this.emptyMessage = 'No orders found.',
+  });
   final List<CustomerOrder> orders;
   final EmployeeOrderController controller;
+  final RefreshCallback onRefresh;
+  final String emptyMessage;
 
   @override
   Widget build(BuildContext context) {
     if (controller.isLoading) {
       return ListView.separated(
+        physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(24),
         itemCount: 3,
         separatorBuilder: (context, index) => const SizedBox(height: 16),
@@ -448,10 +488,28 @@ class _OrderList extends StatelessWidget {
     }
 
     if (orders.isEmpty) {
-      return const Center(
-        child: Text(
-          'No orders found.',
-          style: TextStyle(color: AppColors.secondaryText),
+      return RefreshIndicator(
+        color: AppColors.primaryOrange,
+        onRefresh: onRefresh,
+        child: ListView(
+          physics: const AlwaysScrollableScrollPhysics(),
+          padding: const EdgeInsets.all(24),
+          children: [
+            SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+            Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.shopping_bag_outlined, size: 48, color: AppColors.placeholderColor),
+                  const SizedBox(height: 12),
+                  Text(
+                    emptyMessage,
+                    style: const TextStyle(color: AppColors.secondaryText),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
       );
     }
@@ -460,13 +518,18 @@ class _OrderList extends StatelessWidget {
     final sortedOrders = List<CustomerOrder>.from(orders)
       ..sort((a, b) => a.status.index.compareTo(b.status.index));
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(24),
-      itemCount: sortedOrders.length,
-      itemBuilder: (context, index) {
-        final order = sortedOrders[index];
-        return _OrderCard(order: order, controller: controller);
-      },
+    return RefreshIndicator(
+      color: AppColors.primaryOrange,
+      onRefresh: onRefresh,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(),
+        padding: const EdgeInsets.all(24),
+        itemCount: sortedOrders.length,
+        itemBuilder: (context, index) {
+          final order = sortedOrders[index];
+          return _OrderCard(order: order, controller: controller);
+        },
+      ),
     );
   }
 }

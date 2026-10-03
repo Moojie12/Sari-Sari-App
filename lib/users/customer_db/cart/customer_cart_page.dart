@@ -339,7 +339,10 @@ class _CartItemCard extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          _QuantityBtn(icon: Icons.remove, onPressed: onDecrement),
+                          _QuantityBtn(
+                            icon: Icons.remove,
+                            onPressed: item.quantity > 1 ? onDecrement : null,
+                          ),
                           SizedBox(
                             width: 40,
                             child: Text(

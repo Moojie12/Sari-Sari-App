@@ -148,10 +148,12 @@ class _EditableProfileAvatarState extends State<EditableProfileAvatar> {
       if (path.startsWith('http://') || path.startsWith('https://') || path.startsWith('blob:')) {
         return Image.network(
           path,
+          key: ValueKey(path),
           width: widget.radius * 2,
           height: widget.radius * 2,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildFallbackContent(),
+          gaplessPlayback: true,
+          errorBuilder: (ctx, err, stack) => _buildFallbackContent(),
         );
       }
 
@@ -163,10 +165,12 @@ class _EditableProfileAvatarState extends State<EditableProfileAvatar> {
             final bytes = base64Decode(path.substring(commaIndex + 1));
             return Image.memory(
               bytes,
+              key: ValueKey(path),
               width: widget.radius * 2,
               height: widget.radius * 2,
               fit: BoxFit.cover,
-              errorBuilder: (_, __, ___) => _buildFallbackContent(),
+              gaplessPlayback: true,
+              errorBuilder: (ctx, err, stack) => _buildFallbackContent(),
             );
           } catch (_) {}
         }
@@ -176,10 +180,12 @@ class _EditableProfileAvatarState extends State<EditableProfileAvatar> {
       if (kIsWeb) {
         return Image.network(
           path,
+          key: ValueKey(path),
           width: widget.radius * 2,
           height: widget.radius * 2,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildFallbackContent(),
+          gaplessPlayback: true,
+          errorBuilder: (ctx, err, stack) => _buildFallbackContent(),
         );
       }
 
@@ -187,10 +193,12 @@ class _EditableProfileAvatarState extends State<EditableProfileAvatar> {
       if (path.startsWith('assets/')) {
         return Image.asset(
           path,
+          key: ValueKey(path),
           width: widget.radius * 2,
           height: widget.radius * 2,
           fit: BoxFit.cover,
-          errorBuilder: (_, __, ___) => _buildFallbackContent(),
+          gaplessPlayback: true,
+          errorBuilder: (ctx, err, stack) => _buildFallbackContent(),
         );
       }
 
@@ -200,10 +208,12 @@ class _EditableProfileAvatarState extends State<EditableProfileAvatar> {
         if (file.existsSync()) {
           return Image.file(
             file,
+            key: ValueKey(path),
             width: widget.radius * 2,
             height: widget.radius * 2,
             fit: BoxFit.cover,
-            errorBuilder: (_, __, ___) => _buildFallbackContent(),
+            gaplessPlayback: true,
+            errorBuilder: (context, error, stackTrace) => _buildFallbackContent(),
           );
         }
       } catch (_) {}

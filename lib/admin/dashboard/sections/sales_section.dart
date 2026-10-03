@@ -746,7 +746,7 @@ class _SalesSectionState extends State<SalesSection> {
           ),
           const SizedBox(width: 4),
           _buildTabButton(
-            label: 'Voided Receipts',
+            label: 'Voided',
             count: voidedCount,
             isSelected: _viewMode == 'voided',
             icon: Icons.block_flipped,

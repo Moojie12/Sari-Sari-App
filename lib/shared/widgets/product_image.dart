@@ -1,6 +1,5 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +26,52 @@ class ProductImage extends StatelessWidget {
   final BoxFit fit;
   final IconData fallbackIcon;
 
+  // In-memory static caches to prevent re-decoding base64 data URIs and
+  // repeated synchronous file system checks on every scroll frame / rebuild.
+  static final Map<String, Uint8List> _base64Cache = <String, Uint8List>{};
+  static final Map<String, bool> _fileExistsCache = <String, bool>{};
+
+  /// Clears the static image caches (e.g. after uploading or editing a product image).
+  static void clearCache() {
+    _base64Cache.clear();
+    _fileExistsCache.clear();
+  }
+
+  static Uint8List? _getDecodedBase64(String img) {
+    if (_base64Cache.containsKey(img)) {
+      return _base64Cache[img];
+    }
+    try {
+      final commaIdx = img.indexOf(',');
+      if (commaIdx != -1) {
+        final base64Data = img.substring(commaIdx + 1);
+        final bytes = base64Decode(base64Data);
+        if (_base64Cache.length > 300) {
+          _base64Cache.remove(_base64Cache.keys.first);
+        }
+        _base64Cache[img] = bytes;
+        return bytes;
+      }
+    } catch (_) {}
+    return null;
+  }
+
+  static bool _checkFileExists(String path) {
+    if (_fileExistsCache.containsKey(path)) {
+      return _fileExistsCache[path]!;
+    }
+    try {
+      final exists = File(path).existsSync();
+      if (_fileExistsCache.length > 300) {
+        _fileExistsCache.remove(_fileExistsCache.keys.first);
+      }
+      _fileExistsCache[path] = exists;
+      return exists;
+    } catch (_) {
+      return false;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final img = image?.trim();
@@ -52,31 +97,30 @@ class ProductImage extends StatelessWidget {
 
     // 1. Base64 Data URI
     if (img.startsWith('data:image/')) {
-      try {
-        final commaIdx = img.indexOf(',');
-        if (commaIdx != -1) {
-          final base64Data = img.substring(commaIdx + 1);
-          final Uint8List bytes = base64Decode(base64Data);
-          return Image.memory(
-            bytes,
-            width: width,
-            height: height,
-            fit: fit,
-            errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
-          );
-        }
-      } catch (_) {
-        return _buildPlaceholder();
+      final bytes = _getDecodedBase64(img);
+      if (bytes != null) {
+        return Image.memory(
+          bytes,
+          key: ValueKey(img),
+          width: width,
+          height: height,
+          fit: fit,
+          gaplessPlayback: true,
+          errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
+        );
       }
+      return _buildPlaceholder();
     }
 
     // 2. Network / Web Blob URL (Supabase, Firebase, CDN, or Web Blob)
     if (img.startsWith('http://') || img.startsWith('https://') || img.startsWith('blob:')) {
       return Image.network(
         img,
+        key: ValueKey(img),
         width: width,
         height: height,
         fit: fit,
+        gaplessPlayback: true,
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;
           return const Center(
@@ -98,9 +142,11 @@ class ProductImage extends StatelessWidget {
     if (kIsWeb) {
       return Image.network(
         img,
+        key: ValueKey(img),
         width: width,
         height: height,
         fit: fit,
+        gaplessPlayback: true,
         errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
       );
     }
@@ -109,9 +155,11 @@ class ProductImage extends StatelessWidget {
     if (img.startsWith('assets/')) {
       return Image.asset(
         img,
+        key: ValueKey(img),
         width: width,
         height: height,
         fit: fit,
+        gaplessPlayback: true,
         errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
       );
     }
@@ -122,13 +170,14 @@ class ProductImage extends StatelessWidget {
       if (cleanPath.startsWith('file://')) {
         cleanPath = cleanPath.substring(7);
       }
-      final file = File(cleanPath);
-      if (file.existsSync()) {
+      if (_checkFileExists(cleanPath)) {
         return Image.file(
-          file,
+          File(cleanPath),
+          key: ValueKey(cleanPath),
           width: width,
           height: height,
           fit: fit,
+          gaplessPlayback: true,
           errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
         );
       }

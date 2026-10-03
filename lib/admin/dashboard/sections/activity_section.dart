@@ -101,33 +101,6 @@ class _ActivitySectionState extends State<ActivitySection> {
     }).toList();
   }
 
-  Widget _tabPill({
-    required String label,
-    required bool isSelected,
-    required VoidCallback onTap,
-  }) {
-    return InkWell(
-      onTap: onTap,
-      borderRadius: BorderRadius.circular(8),
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 150),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        decoration: BoxDecoration(
-          color: isSelected ? AppColors.primaryOrange : Colors.transparent,
-          borderRadius: BorderRadius.circular(8),
-        ),
-        child: Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-            color: isSelected ? Colors.white : AppColors.secondaryText,
-          ),
-        ),
-      ),
-    );
-  }
-
   Widget _actionPill(AuditAction action) {
     Color color;
     IconData icon;
@@ -251,11 +224,6 @@ class _ActivitySectionState extends State<ActivitySection> {
           );
         }
 
-        final allLogs = widget.auditService.allAuditLogs;
-        final ownerCount = allLogs.where((l) => l.performerRole == 'Owner').length;
-        final employeeCount = allLogs.where((l) => l.performerRole == 'Employee').length;
-        final adminCount = allLogs.where((l) => l.performerRole == 'Admin').length;
-
         final filtered = _filteredLogs();
 
         return Column(
@@ -273,9 +241,9 @@ class _ActivitySectionState extends State<ActivitySection> {
                     widget.onPageChange('activity', 1);
                   }),
                 ),
-                // Role Filter Tabs
+                // Role Filter Dropdown
                 Container(
-                  padding: const EdgeInsets.all(4),
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.85),
                     borderRadius: BorderRadius.circular(12),
@@ -288,45 +256,42 @@ class _ActivitySectionState extends State<ActivitySection> {
                       ),
                     ],
                   ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      _tabPill(
-                        label: 'All (${allLogs.length})',
-                        isSelected: _selectedTab == 0,
-                        onTap: () => setState(() {
-                          _selectedTab = 0;
-                          widget.onPageChange('activity', 1);
-                        }),
+                  child: DropdownButtonHideUnderline(
+                    child: DropdownButton<int>(
+                      value: _selectedTab,
+                      isDense: true,
+                      style: const TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: AppColors.darkText,
                       ),
-                      const SizedBox(width: 2),
-                      _tabPill(
-                        label: 'Owner ($ownerCount)',
-                        isSelected: _selectedTab == 1,
-                        onTap: () => setState(() {
-                          _selectedTab = 1;
-                          widget.onPageChange('activity', 1);
-                        }),
-                      ),
-                      const SizedBox(width: 2),
-                      _tabPill(
-                        label: 'Employee ($employeeCount)',
-                        isSelected: _selectedTab == 2,
-                        onTap: () => setState(() {
-                          _selectedTab = 2;
-                          widget.onPageChange('activity', 1);
-                        }),
-                      ),
-                      const SizedBox(width: 2),
-                      _tabPill(
-                        label: 'Admin ($adminCount)',
-                        isSelected: _selectedTab == 3,
-                        onTap: () => setState(() {
-                          _selectedTab = 3;
-                          widget.onPageChange('activity', 1);
-                        }),
-                      ),
-                    ],
+                      items: const [
+                        DropdownMenuItem(
+                          value: 0,
+                          child: Text('All'),
+                        ),
+                        DropdownMenuItem(
+                          value: 1,
+                          child: Text('Owner'),
+                        ),
+                        DropdownMenuItem(
+                          value: 2,
+                          child: Text('Employee'),
+                        ),
+                        DropdownMenuItem(
+                          value: 3,
+                          child: Text('Admin'),
+                        ),
+                      ],
+                      onChanged: (val) {
+                        if (val != null) {
+                          setState(() {
+                            _selectedTab = val;
+                            widget.onPageChange('activity', 1);
+                          });
+                        }
+                      },
+                    ),
                   ),
                 ),
                 // Action Filter Dropdown
