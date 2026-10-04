@@ -95,8 +95,18 @@ class ProductImage extends StatelessWidget {
       return _buildPlaceholder();
     }
 
-    final targetCacheWidth = (width * 2.5).round().clamp(80, 1080);
-    final targetCacheHeight = (height * 2.5).round().clamp(80, 1080);
+    final double? imageWidth = (width.isFinite && width > 0) ? width : null;
+    final double? imageHeight = (height.isFinite && height > 0) ? height : null;
+
+    int? targetCacheWidth;
+    int? targetCacheHeight;
+
+    if (imageWidth != null) {
+      targetCacheWidth = (imageWidth * 2.5).round().clamp(80, 1080);
+    }
+    if (imageHeight != null) {
+      targetCacheHeight = (imageHeight * 2.5).round().clamp(80, 1080);
+    }
 
     // 1. Base64 Data URI
     if (img.startsWith('data:image/')) {
@@ -105,8 +115,8 @@ class ProductImage extends StatelessWidget {
         return Image.memory(
           bytes,
           key: ValueKey(img),
-          width: width,
-          height: height,
+          width: imageWidth,
+          height: imageHeight,
           fit: fit,
           cacheWidth: targetCacheWidth,
           cacheHeight: targetCacheHeight,
@@ -122,8 +132,8 @@ class ProductImage extends StatelessWidget {
       return Image.network(
         img,
         key: ValueKey(img),
-        width: width,
-        height: height,
+        width: imageWidth,
+        height: imageHeight,
         fit: fit,
         cacheWidth: kIsWeb ? null : targetCacheWidth,
         cacheHeight: kIsWeb ? null : targetCacheHeight,
@@ -150,8 +160,8 @@ class ProductImage extends StatelessWidget {
       return Image.network(
         img,
         key: ValueKey(img),
-        width: width,
-        height: height,
+        width: imageWidth,
+        height: imageHeight,
         fit: fit,
         gaplessPlayback: true,
         errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
@@ -163,8 +173,8 @@ class ProductImage extends StatelessWidget {
       return Image.asset(
         img,
         key: ValueKey(img),
-        width: width,
-        height: height,
+        width: imageWidth,
+        height: imageHeight,
         fit: fit,
         cacheWidth: targetCacheWidth,
         cacheHeight: targetCacheHeight,
@@ -183,8 +193,8 @@ class ProductImage extends StatelessWidget {
         return Image.file(
           File(cleanPath),
           key: ValueKey(cleanPath),
-          width: width,
-          height: height,
+          width: imageWidth,
+          height: imageHeight,
           fit: fit,
           cacheWidth: targetCacheWidth,
           cacheHeight: targetCacheHeight,
@@ -198,11 +208,12 @@ class ProductImage extends StatelessWidget {
   }
 
   Widget _buildPlaceholder() {
+    final effectiveWidth = (width.isFinite && width > 0) ? width : 56.0;
     return Center(
       child: Icon(
         fallbackIcon,
         color: AppColors.secondaryText.withValues(alpha: 0.5),
-        size: (width * 0.45).clamp(16.0, 48.0),
+        size: (effectiveWidth * 0.45).clamp(16.0, 48.0),
       ),
     );
   }
