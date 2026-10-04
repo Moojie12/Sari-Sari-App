@@ -62,6 +62,7 @@ class _LoginPageState extends State<LoginPage> {
                   child: Image.asset(
                     'assets/images/bg_image.jpg',
                     fit: BoxFit.cover,
+                    cacheWidth: kIsWeb ? null : 1080,
                   ),
                 ),
                 Positioned.fill(

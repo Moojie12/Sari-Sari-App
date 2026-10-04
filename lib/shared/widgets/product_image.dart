@@ -95,6 +95,9 @@ class ProductImage extends StatelessWidget {
       return _buildPlaceholder();
     }
 
+    final targetCacheWidth = (width * 2.5).round().clamp(80, 1080);
+    final targetCacheHeight = (height * 2.5).round().clamp(80, 1080);
+
     // 1. Base64 Data URI
     if (img.startsWith('data:image/')) {
       final bytes = _getDecodedBase64(img);
@@ -105,6 +108,8 @@ class ProductImage extends StatelessWidget {
           width: width,
           height: height,
           fit: fit,
+          cacheWidth: targetCacheWidth,
+          cacheHeight: targetCacheHeight,
           gaplessPlayback: true,
           errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
         );
@@ -120,6 +125,8 @@ class ProductImage extends StatelessWidget {
         width: width,
         height: height,
         fit: fit,
+        cacheWidth: kIsWeb ? null : targetCacheWidth,
+        cacheHeight: kIsWeb ? null : targetCacheHeight,
         gaplessPlayback: true,
         loadingBuilder: (context, child, progress) {
           if (progress == null) return child;
@@ -159,6 +166,8 @@ class ProductImage extends StatelessWidget {
         width: width,
         height: height,
         fit: fit,
+        cacheWidth: targetCacheWidth,
+        cacheHeight: targetCacheHeight,
         gaplessPlayback: true,
         errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
       );
@@ -177,6 +186,8 @@ class ProductImage extends StatelessWidget {
           width: width,
           height: height,
           fit: fit,
+          cacheWidth: targetCacheWidth,
+          cacheHeight: targetCacheHeight,
           gaplessPlayback: true,
           errorBuilder: (context, error, stackTrace) => _buildPlaceholder(),
         );
