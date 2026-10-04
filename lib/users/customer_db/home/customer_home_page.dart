@@ -8,7 +8,7 @@ import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
 import 'package:sari_sari/users/employee_db/inventory/employee_product_model.dart';
 import 'package:sari_sari/users/customer_db/customer_cart_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
-import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
+import '../purchases/customer_order_model.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_details_page.dart';
 import 'package:sari_sari/users/customer_db/checkout/customer_checkout_page.dart';
 import 'package:sari_sari/users/customer_db/home/customer_product_card.dart';

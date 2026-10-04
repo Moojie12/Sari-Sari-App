@@ -2,7 +2,7 @@ import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:sari_sari/core/theme/app_colors.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
-import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
+import '../purchases/customer_order_model.dart';
 import 'package:sari_sari/users/customer_db/tutorial/customer_tutorial_service.dart';
 import 'package:sari_sari/users/customer_db/tutorial/customer_tutorial_step.dart';
 

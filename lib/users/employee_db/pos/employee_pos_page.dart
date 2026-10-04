@@ -4,6 +4,9 @@ import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
+import '../../../shared/widgets/ocr_camera_scanner_screen.dart';
+import '../../../shared/utils/gcash_ocr_helper.dart';
+import '../../../core/services/ocr_service.dart';
 import '../employee_inventory_controller.dart';
 import '../inventory/employee_product_model.dart';
 import '../profile/employee_profile_controller.dart';
@@ -1183,6 +1186,7 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
   EmployeePaymentMethod _method = EmployeePaymentMethod.cash;
   final _amountController = TextEditingController();
   String? _amountErrorText;
+  String? _scannedRefNumber;
 
   @override
   void initState() {
@@ -1332,8 +1336,11 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
 
     if (proceed != true) return;
 
-    final receipt =
-        widget.posController.checkout(paymentMethod: _method, amountPaid: amountPaid);
+    final receipt = widget.posController.checkout(
+      paymentMethod: _method,
+      amountPaid: amountPaid,
+      paymentReferenceNumber: _method == EmployeePaymentMethod.gCash ? _scannedRefNumber : null,
+    );
     if (receipt != null) {
       EmployeeShiftController.instance.recordSale(
         paymentMethod: receipt.paymentMethod,
@@ -1423,11 +1430,17 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
               ),
               if (_method == EmployeePaymentMethod.gCash) ...[
                 const SizedBox(height: 20),
-                const Text('GCash QR Code',
+                const Text('GCash QR Code & Receipt OCR',
                     style: TextStyle(
                         color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
                 const SizedBox(height: 8),
-                _GcashQrView(posController: widget.posController),
+                _GcashQrView(
+                  posController: widget.posController,
+                  scannedRefNumber: _scannedRefNumber,
+                  onRefNumberScanned: (ref) {
+                    setState(() => _scannedRefNumber = ref);
+                  },
+                ),
               ],
               const SizedBox(height: 20),
               const Text('Amount Received',
@@ -1623,8 +1636,96 @@ class _PaymentMethodChip extends StatelessWidget {
 }
 
 class _GcashQrView extends StatelessWidget {
-  const _GcashQrView({required this.posController});
+  const _GcashQrView({
+    required this.posController,
+    this.scannedRefNumber,
+    this.onRefNumberScanned,
+  });
+
   final EmployeePosController posController;
+  final String? scannedRefNumber;
+  final ValueChanged<String>? onRefNumberScanned;
+
+  Future<void> _scanReceiptOcr(BuildContext context) async {
+    final results = await Navigator.push<List<OcrTextItem>>(
+      context,
+      MaterialPageRoute(
+        builder: (context) => const OcrCameraScannerScreen(),
+      ),
+    );
+
+    if (results != null && results.isNotEmpty) {
+      final detectedRef = GcashOcrHelper.extractRefNumber(results);
+      if (context.mounted) {
+        _showRefVerificationDialog(context, detectedRef ?? '');
+      }
+    }
+  }
+
+  void _showRefVerificationDialog(BuildContext context, String initialRef) {
+    final controller = TextEditingController(text: initialRef);
+    showDialog(
+      context: context,
+      builder: (dialogCtx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Row(
+          children: [
+            Icon(Icons.document_scanner_rounded, color: AppColors.primaryOrange),
+            SizedBox(width: 8),
+            Text('Verify Reference No.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Confirm or edit the scanned GCash reference number below:',
+              style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: controller,
+              keyboardType: TextInputType.number,
+              autofocus: true,
+              decoration: InputDecoration(
+                labelText: 'GCash Reference Number *',
+                hintText: 'e.g. 10023456789',
+                filled: true,
+                fillColor: AppColors.lightPeach,
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(12),
+                  borderSide: const BorderSide(color: AppColors.primaryOrange, width: 2),
+                ),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogCtx),
+            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              final ref = controller.text.trim();
+              if (ref.isNotEmpty && onRefNumberScanned != null) {
+                onRefNumberScanned!(ref);
+              }
+              Navigator.pop(dialogCtx);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+            ),
+            child: const Text('Confirm Reference #'),
+          ),
+        ],
+      ),
+    );
+  }
 
   void _showFullScreen(BuildContext context, String imageUrl) {
     showDialog(
@@ -1722,7 +1823,6 @@ class _GcashQrView extends StatelessWidget {
 
           return InkWell(
             onTap: () {
-              // Simulate upload
               posController.updateGcashQrCode(
                   'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/QR_code_for_mobile_English_Wikipedia.svg/1200px-QR_code_for_mobile_English_Wikipedia.svg.png'
               );
@@ -1748,50 +1848,104 @@ class _GcashQrView extends StatelessWidget {
           );
         }
 
-        return Row(
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            GestureDetector(
-              onTap: () => _showFullScreen(context, currentQr),
-              child: Hero(
-                tag: 'gcash_qr',
-                child: Container(
-                  height: 100,
-                  width: 100,
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppColors.borderColor),
-                    image: DecorationImage(
-                      image: NetworkImage(currentQr),
-                      fit: BoxFit.cover,
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                GestureDetector(
+                  onTap: () => _showFullScreen(context, currentQr),
+                  child: Hero(
+                    tag: 'gcash_qr',
+                    child: Container(
+                      height: 100,
+                      width: 100,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(color: AppColors.borderColor),
+                        image: DecorationImage(
+                          image: NetworkImage(currentQr),
+                          fit: BoxFit.cover,
+                        ),
+                      ),
                     ),
                   ),
                 ),
-              ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'Tap QR code image to enlarge for customer scanning.',
+                        style: TextStyle(color: AppColors.secondaryText, fontSize: 11),
+                      ),
+                      const SizedBox(height: 10),
+                      ElevatedButton.icon(
+                        onPressed: () => _scanReceiptOcr(context),
+                        icon: const Icon(Icons.qr_code_scanner, size: 18),
+                        label: const Text('Scan Receipt', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primaryOrange,
+                          foregroundColor: Colors.white,
+                          elevation: 0,
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                        ),
+                      ),
+                      if (isOwner) ...[
+                        const SizedBox(height: 6),
+                        TextButton.icon(
+                          onPressed: () => _confirmChange(context),
+                          icon: const Icon(Icons.edit_outlined, size: 14),
+                          label: const Text('Change QR', style: TextStyle(fontSize: 11)),
+                          style: TextButton.styleFrom(
+                            foregroundColor: AppColors.primaryOrange,
+                            padding: EdgeInsets.zero,
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(width: 16),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Tap image to enlarge for customer scanning',
-                      style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
-                  if (isOwner) ...[
-                    const SizedBox(height: 8),
-                    TextButton.icon(
-                      onPressed: () => _confirmChange(context),
-                      icon: const Icon(Icons.edit_outlined, size: 16),
-                      label: const Text('Change QR'),
-                      style: TextButton.styleFrom(
-                        foregroundColor: AppColors.primaryOrange,
-                        padding: EdgeInsets.zero,
-                        minimumSize: Size.zero,
-                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+            if (scannedRefNumber != null && scannedRefNumber!.isNotEmpty) ...[
+              const SizedBox(height: 10),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.shade300),
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.check_circle_rounded, color: Colors.green, size: 18),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Ref #: ${GcashOcrHelper.formatRefNumber(scannedRefNumber!)} (Scanned)',
+                        style: TextStyle(
+                          color: Colors.green.shade900,
+                          fontWeight: FontWeight.bold,
+                          fontSize: 12,
+                        ),
                       ),
                     ),
+                    IconButton(
+                      icon: const Icon(Icons.edit, size: 16, color: Colors.green),
+                      onPressed: () => _showRefVerificationDialog(context, scannedRefNumber!),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                    ),
                   ],
-                ],
+                ),
               ),
-            ),
+            ],
           ],
         );
       },

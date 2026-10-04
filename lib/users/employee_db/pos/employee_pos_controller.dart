@@ -49,6 +49,7 @@ class EmployeeReceipt {
     this.totalCapital = 0.0,
     this.totalProfit = 0.0,
     this.processedBy,
+    this.paymentReferenceNumber,
   });
 
   final String receiptNumber;
@@ -61,6 +62,7 @@ class EmployeeReceipt {
   final double totalCapital;
   final double totalProfit;
   final String? processedBy;
+  final String? paymentReferenceNumber;
 
   double get change => amountPaid - totalAmount;
 }
@@ -203,6 +205,7 @@ class EmployeePosController extends ChangeNotifier {
   EmployeeReceipt? checkout({
     required EmployeePaymentMethod paymentMethod,
     required double amountPaid,
+    String? paymentReferenceNumber,
   }) {
     if (_cart.isEmpty) return null;
 
@@ -260,6 +263,7 @@ class EmployeePosController extends ChangeNotifier {
       totalCapital: totalCapital,
       totalProfit: totalProfit,
       processedBy: sellerLabel,
+      paymentReferenceNumber: paymentReferenceNumber,
     );
 
     final posOrder = CustomerOrder(
@@ -283,6 +287,7 @@ class EmployeePosController extends ChangeNotifier {
       status: OrderStatus.completed,
       userId: userId,
       processedBy: sellerLabel,
+      paymentReferenceNumber: paymentReferenceNumber,
     );
     EmployeeOrderController.instance.placeOrder(posOrder);
 

@@ -97,6 +97,14 @@ class EmployeeReceiptPage extends StatelessWidget {
                               ? 'Cash'
                               : 'GCash',
                         ),
+                        if (receipt.paymentMethod == EmployeePaymentMethod.gCash &&
+                            receipt.paymentReferenceNumber != null &&
+                            receipt.paymentReferenceNumber!.isNotEmpty)
+                          _ReceiptRow(
+                            label: 'GCash Ref #',
+                            value: receipt.paymentReferenceNumber!,
+                            isBold: true,
+                          ),
                         _ReceiptRow(
                             label: 'Amount Received',
                             value: '₱${receipt.amountPaid.toStringAsFixed(2)}'),

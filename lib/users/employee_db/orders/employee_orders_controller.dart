@@ -114,9 +114,30 @@ class EmployeeOrderController extends ChangeNotifier {
       final mergedReason = (order.cancellationReason != null && order.cancellationReason!.isNotEmpty)
           ? order.cancellationReason
           : existing.cancellationReason;
+      final mergedRefundName = (order.gcashRefundName != null && order.gcashRefundName!.isNotEmpty)
+          ? order.gcashRefundName
+          : existing.gcashRefundName;
+      final mergedRefundNumber = (order.gcashRefundNumber != null && order.gcashRefundNumber!.isNotEmpty)
+          ? order.gcashRefundNumber
+          : existing.gcashRefundNumber;
+      final mergedProofUrl = (order.refundProofUrl != null && order.refundProofUrl!.isNotEmpty)
+          ? order.refundProofUrl
+          : existing.refundProofUrl;
+      final mergedRefundStatus = (order.refundStatus != null && order.refundStatus!.isNotEmpty)
+          ? order.refundStatus
+          : existing.refundStatus;
+      final mergedRefNum = (order.paymentReferenceNumber != null && order.paymentReferenceNumber!.isNotEmpty)
+          ? order.paymentReferenceNumber
+          : existing.paymentReferenceNumber;
+
       merged = order.copyWith(
         items: mergedItems,
         cancellationReason: mergedReason,
+        gcashRefundName: mergedRefundName,
+        gcashRefundNumber: mergedRefundNumber,
+        refundProofUrl: mergedProofUrl,
+        refundStatus: mergedRefundStatus,
+        paymentReferenceNumber: mergedRefNum,
       );
       _orders[existingIndex] = merged;
     } else {
@@ -124,7 +145,7 @@ class EmployeeOrderController extends ChangeNotifier {
     }
 
     if (saveToLocal && order.userId != null && order.userId!.isNotEmpty) {
-      LocalDatabaseService.instance.insert('orders', merged.toMap());
+      LocalDatabaseService.instance.insert('orders', merged.toSqliteMap());
     }
   }
 
@@ -330,10 +351,34 @@ class EmployeeOrderController extends ChangeNotifier {
     _saveOrderToFirebase(orderToSave);
   }
 
-  /// Cancel an order requested by the customer.
+  List<CustomerOrder> get pendingRefundOrders => _orders
+      .where((o) =>
+          o.status == OrderStatus.cancelled &&
+          (o.paymentMethod == PaymentMethod.gCash ||
+              o.paymentProofUrl != null ||
+              o.gcashRefundName != null ||
+              o.gcashRefundNumber != null) &&
+          (o.refundStatus == 'pending' || o.refundStatus == null || o.refundStatus == ''))
+      .toList();
+
+  List<CustomerOrder> get completedRefundOrders => _orders
+      .where((o) =>
+          o.status == OrderStatus.cancelled &&
+          (o.paymentMethod == PaymentMethod.gCash ||
+              o.paymentProofUrl != null ||
+              o.gcashRefundName != null ||
+              o.gcashRefundNumber != null) &&
+          o.refundStatus == 'refunded')
+      .toList();
+
+  /// Cancel an order requested by the customer or employee/owner.
   /// Strictly verifies that cancellation is ONLY permitted when the order is in [OrderStatus.pending].
-  /// Once the status has been changed (preparing, confirmed, out for delivery, etc.), cancellation is rejected.
-  Future<bool> cancelOrder(String orderId, {String? reason}) async {
+  Future<bool> cancelOrder(
+    String orderId, {
+    String? reason,
+    String? gcashRefundName,
+    String? gcashRefundNumber,
+  }) async {
     final index = _orders.indexWhere((o) => o.orderId == orderId);
     if (index == -1) {
       debugPrint('Cannot cancel order: #$orderId not found.');
@@ -348,18 +393,113 @@ class EmployeeOrderController extends ChangeNotifier {
       return false;
     }
 
-    updateOrderStatus(orderId, OrderStatus.cancelled, cancellationReason: reason);
+    final isGcash = currentOrder.paymentMethod == PaymentMethod.gCash ||
+        currentOrder.paymentProofUrl != null ||
+        currentOrder.gcashRefundName != null ||
+        currentOrder.gcashRefundNumber != null;
+    final refundStatus = isGcash ? 'pending' : null;
+
+    updateOrderStatus(
+      orderId,
+      OrderStatus.cancelled,
+      cancellationReason: reason,
+      gcashRefundName: gcashRefundName ?? currentOrder.gcashRefundName,
+      gcashRefundNumber: gcashRefundNumber ?? currentOrder.gcashRefundNumber,
+      refundStatus: refundStatus ?? currentOrder.refundStatus,
+    );
     return true;
   }
 
-  void updateOrderStatus(String orderId, OrderStatus newStatus, {String? cancellationReason}) {
+  Future<void> submitGcashRefundDetails(
+    String orderId, {
+    required String name,
+    required String phone,
+  }) async {
+    final index = _orders.indexWhere((o) => o.orderId == orderId);
+    if (index == -1) return;
+
+    final oldOrder = _orders[index];
+    final updatedOrder = oldOrder.copyWith(
+      gcashRefundName: name,
+      gcashRefundNumber: phone,
+      refundStatus: 'pending',
+    );
+
+    _orders[index] = updatedOrder;
+    notifyListeners();
+
+    _saveOrderToFirebase(updatedOrder);
+    _saveGcashRefundDetailsToSupabase(updatedOrder);
+
+    EmployeeNotificationsController.instance.addNotification(
+      type: EmployeeNotificationType.assignedTask,
+      title: 'GCash Refund Details Submitted',
+      message: 'Customer provided GCash details ($name - $phone) for Order #${oldOrder.orderId}.',
+    );
+  }
+
+  Future<void> submitRefundProof(
+    String orderId, {
+    required String proofUrl,
+  }) async {
+    final index = _orders.indexWhere((o) => o.orderId == orderId);
+    if (index == -1) return;
+
+    final oldOrder = _orders[index];
+    final updatedOrder = oldOrder.copyWith(
+      refundProofUrl: proofUrl,
+      refundStatus: 'refunded',
+    );
+
+    _orders[index] = updatedOrder;
+    notifyListeners();
+
+    _saveOrderToFirebase(updatedOrder);
+    _saveRefundProofToSupabase(updatedOrder);
+
+    CustomerNotificationsController.instance.addNotification(
+      type: CustomerNotificationType.orderUpdate,
+      title: 'GCash Refund Processed',
+      message:
+          'Your GCash refund of ₱${oldOrder.totalAmount.toStringAsFixed(2)} for Order #${oldOrder.orderId} has been sent! View screenshot proof in Order Details.',
+      userId: oldOrder.userId,
+    );
+  }
+
+  Future<void> updatePaymentReference(
+    String orderId,
+    String refNumber,
+  ) async {
+    final index = _orders.indexWhere((o) => o.orderId == orderId);
+    if (index == -1) return;
+
+    final oldOrder = _orders[index];
+    final updatedOrder = oldOrder.copyWith(paymentReferenceNumber: refNumber);
+
+    _orders[index] = updatedOrder;
+    notifyListeners();
+
+    _saveOrderToFirebase(updatedOrder);
+    _savePaymentReferenceToSupabase(updatedOrder);
+  }
+
+  void updateOrderStatus(
+    String orderId,
+    OrderStatus newStatus, {
+    String? cancellationReason,
+    String? gcashRefundName,
+    String? gcashRefundNumber,
+    String? refundProofUrl,
+    String? refundStatus,
+    String? paymentReferenceNumber,
+  }) {
     final index = _orders.indexWhere((o) => o.orderId == orderId);
     if (index != -1) {
       final oldOrder = _orders[index];
-      
+
       // Deduct stock if order is completed and it wasn't already completed/cancelled
-      if (newStatus == OrderStatus.completed && 
-          oldOrder.status != OrderStatus.completed && 
+      if (newStatus == OrderStatus.completed &&
+          oldOrder.status != OrderStatus.completed &&
           oldOrder.status != OrderStatus.cancelled) {
         for (var item in oldOrder.items) {
           _inventory.adjustStock(item.productId, -item.quantity.toDouble());
@@ -367,18 +507,36 @@ class EmployeeOrderController extends ChangeNotifier {
       }
 
       // Stop tracking if order is delivered, completed, or cancelled
-      if (newStatus == OrderStatus.delivered || 
-          newStatus == OrderStatus.completed || 
+      if (newStatus == OrderStatus.delivered ||
+          newStatus == OrderStatus.completed ||
           newStatus == OrderStatus.cancelled) {
         DeliveryTrackingService.instance.stopTracking(orderId);
       }
 
       final finalReason = cancellationReason ?? oldOrder.cancellationReason;
+      final finalRefundName = gcashRefundName ?? oldOrder.gcashRefundName;
+      final finalRefundNumber = gcashRefundNumber ?? oldOrder.gcashRefundNumber;
+      final finalProofUrl = refundProofUrl ?? oldOrder.refundProofUrl;
+      final isGcashOrder = oldOrder.paymentMethod == PaymentMethod.gCash ||
+          oldOrder.paymentProofUrl != null ||
+          oldOrder.gcashRefundName != null ||
+          oldOrder.gcashRefundNumber != null;
+
+      final finalRefundStatus = refundStatus ??
+          (newStatus == OrderStatus.cancelled && isGcashOrder
+              ? (oldOrder.refundStatus ?? 'pending')
+              : oldOrder.refundStatus);
+      final finalRefNum = paymentReferenceNumber ?? oldOrder.paymentReferenceNumber;
 
       _orders[index] = oldOrder.copyWith(
         status: newStatus,
         cancellationReason: finalReason,
         paymentStatus: newStatus == OrderStatus.completed ? PaymentStatus.paid : oldOrder.paymentStatus,
+        gcashRefundName: finalRefundName,
+        gcashRefundNumber: finalRefundNumber,
+        refundProofUrl: finalProofUrl,
+        refundStatus: finalRefundStatus,
+        paymentReferenceNumber: finalRefNum,
       );
 
       final isCancelled = newStatus == OrderStatus.cancelled;
@@ -653,6 +811,127 @@ class EmployeeOrderController extends ChangeNotifier {
     }
   }
 
+  Future<void> _saveGcashRefundDetailsToSupabase(CustomerOrder order) async {
+    try {
+      final supaClient = _supabaseService.client;
+      final existing = await supaClient
+          .from('orders')
+          .select('order_notes')
+          .eq('order_number', order.orderId)
+          .maybeSingle();
+
+      String notes = existing?['order_notes']?.toString() ?? '';
+      notes = notes.replaceAll(RegExp(r'\[gcash_refund_name:[^\]]+\]'), '').trim();
+      notes = notes.replaceAll(RegExp(r'\[gcash_refund_number:[^\]]+\]'), '').trim();
+      notes = notes.replaceAll(RegExp(r'\[refund_status:[^\]]+\]'), '').trim();
+
+      final tags = [
+        if (order.gcashRefundName != null) '[gcash_refund_name: ${order.gcashRefundName}]',
+        if (order.gcashRefundNumber != null) '[gcash_refund_number: ${order.gcashRefundNumber}]',
+        if (order.refundStatus != null) '[refund_status: ${order.refundStatus}]',
+      ].join(' ');
+
+      final updatedNotes = notes.isEmpty ? tags : '$notes $tags';
+
+      final updateData = <String, dynamic>{
+        'order_notes': updatedNotes,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+      if (order.gcashRefundName != null) updateData['gcash_refund_name'] = order.gcashRefundName;
+      if (order.gcashRefundNumber != null) updateData['gcash_refund_number'] = order.gcashRefundNumber;
+      if (order.refundStatus != null) updateData['refund_status'] = order.refundStatus;
+
+      try {
+        await supaClient.from('orders').update(updateData).eq('order_number', order.orderId);
+      } catch (_) {
+        await supaClient.from('orders').update({
+          'order_notes': updatedNotes,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('order_number', order.orderId);
+      }
+      debugPrint('GCash refund details synced to Supabase for #${order.orderId}');
+    } catch (e) {
+      debugPrint('Error syncing GCash refund details to Supabase: $e');
+    }
+  }
+
+  Future<void> _saveRefundProofToSupabase(CustomerOrder order) async {
+    try {
+      final supaClient = _supabaseService.client;
+      final existing = await supaClient
+          .from('orders')
+          .select('order_notes')
+          .eq('order_number', order.orderId)
+          .maybeSingle();
+
+      String notes = existing?['order_notes']?.toString() ?? '';
+      notes = notes.replaceAll(RegExp(r'\[refund_proof_url:[^\]]+\]'), '').trim();
+      notes = notes.replaceAll(RegExp(r'\[refund_status:[^\]]+\]'), '').trim();
+
+      final tags = [
+        if (order.refundProofUrl != null) '[refund_proof_url: ${order.refundProofUrl}]',
+        if (order.refundStatus != null) '[refund_status: ${order.refundStatus}]',
+      ].join(' ');
+
+      final updatedNotes = notes.isEmpty ? tags : '$notes $tags';
+
+      final updateData = <String, dynamic>{
+        'order_notes': updatedNotes,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+      if (order.refundProofUrl != null) updateData['refund_proof_url'] = order.refundProofUrl;
+      if (order.refundStatus != null) updateData['refund_status'] = order.refundStatus;
+
+      try {
+        await supaClient.from('orders').update(updateData).eq('order_number', order.orderId);
+      } catch (_) {
+        await supaClient.from('orders').update({
+          'order_notes': updatedNotes,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('order_number', order.orderId);
+      }
+      debugPrint('Refund proof synced to Supabase for #${order.orderId}');
+    } catch (e) {
+      debugPrint('Error syncing refund proof to Supabase: $e');
+    }
+  }
+
+  Future<void> _savePaymentReferenceToSupabase(CustomerOrder order) async {
+    if (order.paymentReferenceNumber == null) return;
+    try {
+      final supaClient = _supabaseService.client;
+      final existing = await supaClient
+          .from('orders')
+          .select('order_notes')
+          .eq('order_number', order.orderId)
+          .maybeSingle();
+
+      String notes = existing?['order_notes']?.toString() ?? '';
+      notes = notes.replaceAll(RegExp(r'\[payment_ref:[^\]]+\]'), '').trim();
+
+      final tag = '[payment_ref: ${order.paymentReferenceNumber}]';
+      final updatedNotes = notes.isEmpty ? tag : '$notes $tag';
+
+      final updateData = <String, dynamic>{
+        'order_notes': updatedNotes,
+        'updated_at': DateTime.now().toIso8601String(),
+      };
+      updateData['payment_reference_number'] = order.paymentReferenceNumber;
+
+      try {
+        await supaClient.from('orders').update(updateData).eq('order_number', order.orderId);
+      } catch (_) {
+        await supaClient.from('orders').update({
+          'order_notes': updatedNotes,
+          'updated_at': DateTime.now().toIso8601String(),
+        }).eq('order_number', order.orderId);
+      }
+      debugPrint('Payment reference synced to Supabase for #${order.orderId}');
+    } catch (e) {
+      debugPrint('Error syncing payment reference to Supabase: $e');
+    }
+  }
+
   Future<void> _updateOrderStatusInFirebase(String orderId, OrderStatus newStatus, [CustomerOrder? order]) async {
     try {
       final db = AuthService().database;
@@ -667,6 +946,11 @@ class EmployeeOrderController extends ChangeNotifier {
         if (order.deliveryPersonRole != null) updateData['deliveryPersonRole'] = order.deliveryPersonRole;
         if (order.deliveryLatitude != null) updateData['deliveryLatitude'] = order.deliveryLatitude;
         if (order.deliveryLongitude != null) updateData['deliveryLongitude'] = order.deliveryLongitude;
+        if (order.gcashRefundName != null) updateData['gcashRefundName'] = order.gcashRefundName;
+        if (order.gcashRefundNumber != null) updateData['gcashRefundNumber'] = order.gcashRefundNumber;
+        if (order.refundProofUrl != null) updateData['refundProofUrl'] = order.refundProofUrl;
+        if (order.refundStatus != null) updateData['refundStatus'] = order.refundStatus;
+        if (order.paymentReferenceNumber != null) updateData['paymentReferenceNumber'] = order.paymentReferenceNumber;
       }
       await db.ref().child('orders/$orderId').update(updateData);
       debugPrint('Order #$orderId status updated in Firebase RTDB to ${newStatus.name}');

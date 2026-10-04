@@ -950,7 +950,7 @@ class _OrderCard extends StatelessWidget {
               if (formKey.currentState!.validate()) {
                 final reason = reasonController.text.trim();
                 Navigator.pop(dialogContext);
-                controller.updateOrderStatus(order.orderId, OrderStatus.cancelled, cancellationReason: reason);
+                controller.cancelOrder(order.orderId, reason: reason);
                 Navigator.pop(bottomSheetContext);
               }
             },

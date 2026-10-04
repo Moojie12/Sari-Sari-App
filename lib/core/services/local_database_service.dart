@@ -43,6 +43,21 @@ class LocalDatabaseService {
       _db = await sqflite.openDatabase(
         path,
         version: 2,
+        onOpen: (db) async {
+          final cols = [
+            'payment_reference_number',
+            'gcash_refund_name',
+            'gcash_refund_number',
+            'refund_proof_url',
+            'refund_status',
+            'order_notes',
+          ];
+          for (final col in cols) {
+            try {
+              await db.execute('ALTER TABLE orders ADD COLUMN $col TEXT;');
+            } catch (_) {}
+          }
+        },
         onUpgrade: (db, oldVersion, newVersion) async {
           if (oldVersion < 2) {
             // Migration v1 -> v2: Add idempotency_key column to sync_queue

@@ -1,22 +1,29 @@
+import 'dart:convert';
+import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import '../../../shared/utils/gcash_ocr_helper.dart';
+import '../../../shared/widgets/product_image.dart';
+import '../../../core/services/ocr_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/delivery_tracking_service.dart';
 import '../../../core/services/rate_limiter_service.dart';
 import '../../../core/services/stock_reservation_service.dart';
 import '../../owner_db/profile/shop_settings_controller.dart';
-import '../customer_cart_controller.dart';
-import '../purchases/customer_order_controller.dart';
-import '../purchases/customer_order_model.dart';
+import 'package:sari_sari/users/customer_db/customer_cart_controller.dart';
+import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
+import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 import '../../employee_db/employee_inventory_controller.dart';
 import '../profile/customer_address_model.dart';
 import '../profile/customer_address_controller.dart';
 import '../profile/customer_add_edit_address_page.dart';
 import '../profile/customer_profile_controller.dart';
 import '../../../shared/utils/top_notification.dart';
-import 'customer_order_confirmation_page.dart';
+import 'package:sari_sari/users/customer_db/checkout/customer_order_confirmation_page.dart';
 
 class CustomerCheckoutPage extends StatefulWidget {
   const CustomerCheckoutPage({
@@ -38,6 +45,105 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
   double? _calculatedDistanceMeters;
 
   CustomerAddress? _selectedAddress;
+  File? _gcashProofFile;
+  String? _gcashProofBase64;
+  bool _isVerifyingOcr = false;
+  final ImagePicker _picker = ImagePicker();
+
+  Future<void> _pickGcashScreenshot() async {
+    final XFile? image = await _picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 85,
+      maxWidth: 1024,
+    );
+
+    if (image == null) return;
+
+    if (mounted) setState(() => _isVerifyingOcr = true);
+
+    try {
+      final bytes = await image.readAsBytes();
+      final fileSizeBytes = bytes.length;
+
+      // 1. File Size Check (5MB Limit)
+      if (fileSizeBytes > GcashOcrHelper.maxFileSizeBytes) {
+        final mb = (fileSizeBytes / (1024 * 1024)).toStringAsFixed(1);
+        if (mounted) {
+          setState(() => _isVerifyingOcr = false);
+          TopNotification.show(
+            context,
+            'Image size ($mb MB) exceeds 5MB limit. Please upload a smaller screenshot.',
+            isError: true,
+          );
+        }
+        return;
+      }
+
+      final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      String? extractedRef;
+
+      // 2. OCR Text Recognition on Mobile Platforms (Non-Web)
+      if (!kIsWeb) {
+        List<OcrTextItem> ocrItems = [];
+        try {
+          final ocrService = MlKitOcrService();
+          ocrItems = await ocrService.processImage(image.path);
+          ocrService.dispose();
+        } catch (e) {
+          debugPrint('[OCR Service Exception]: $e');
+        }
+
+        if (ocrItems.isNotEmpty) {
+          final validation = GcashOcrHelper.validateReceipt(
+            items: ocrItems,
+            fileSizeBytes: fileSizeBytes,
+          );
+
+          if (!validation.isValid) {
+            if (mounted) {
+              setState(() => _isVerifyingOcr = false);
+              TopNotification.show(
+                context,
+                validation.errorMessage ?? 'Uploaded image is not a valid GCash payment receipt.',
+                isError: true,
+              );
+            }
+            return;
+          }
+
+          extractedRef = validation.extractedRefNumber;
+        }
+      }
+
+      if (mounted) {
+        setState(() {
+          _isVerifyingOcr = false;
+          _gcashProofFile = File(image.path);
+          _gcashProofBase64 = base64Image;
+        });
+        TopNotification.show(
+          context,
+          extractedRef != null
+              ? 'GCash Receipt verified! Ref #: ${GcashOcrHelper.formatRefNumber(extractedRef)}'
+              : 'GCash Payment Receipt screenshot attached!',
+        );
+      }
+    } catch (e) {
+      debugPrint('[GCash Screenshot Upload Exception]: $e');
+      if (mounted) {
+        setState(() => _isVerifyingOcr = false);
+        TopNotification.show(
+          context,
+          'Failed to verify receipt image. Please select a clear GCash screenshot.',
+          isError: true,
+        );
+      }
+    } finally {
+      if (mounted && _isVerifyingOcr) {
+        setState(() => _isVerifyingOcr = false);
+      }
+    }
+  }
 
   @override
   void initState() {
@@ -53,21 +159,19 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
     }
     try {
       final destCoords = await DeliveryTrackingService.instance.geocodeAddress(_selectedAddress!.address);
-      if (destCoords != null) {
-        final storeLoc = DeliveryTrackingService.storeLocation;
-        final distMeters = Geolocator.distanceBetween(
-          storeLoc.latitude,
-          storeLoc.longitude,
-          destCoords.latitude,
-          destCoords.longitude,
-        );
-        if (mounted) {
-          setState(() {
-            _calculatedDistanceMeters = distMeters;
-          });
-        }
-        return;
+      final storeLoc = DeliveryTrackingService.storeLocation;
+      final distMeters = Geolocator.distanceBetween(
+        storeLoc.latitude,
+        storeLoc.longitude,
+        destCoords.latitude,
+        destCoords.longitude,
+      );
+      if (mounted) {
+        setState(() {
+          _calculatedDistanceMeters = distMeters;
+        });
       }
+      return;
     } catch (_) {}
     if (mounted) {
       setState(() {
@@ -100,6 +204,29 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
     if (_orderType == OrderType.delivery && _selectedAddress == null) {
       TopNotification.show(context, 'Please select a delivery address', isError: true);
       return;
+    }
+
+    if (_paymentMethod == PaymentMethod.gCash) {
+      final storeQr = ShopSettingsController.instance.gcashQrUrl;
+      final isGcashAvailable = storeQr != null && storeQr.trim().isNotEmpty && !storeQr.contains('wikimedia.org');
+
+      if (!isGcashAvailable) {
+        TopNotification.show(
+          context,
+          'GCash payment is currently unavailable because the store owner has not set a store GCash QR code yet. Please choose Cash on Delivery.',
+          isError: true,
+        );
+        return;
+      }
+
+      if (_gcashProofBase64 == null || _gcashProofBase64!.isEmpty) {
+        TopNotification.show(
+          context,
+          'Please attach your GCash payment receipt screenshot before placing your order.',
+          isError: true,
+        );
+        return;
+      }
     }
 
     final confirmed = await showDialog<bool>(
@@ -241,6 +368,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       userId: userId, // Set the user ID
       deliveryLatitude: destCoords?.latitude,
       deliveryLongitude: destCoords?.longitude,
+      paymentProofUrl: _paymentMethod == PaymentMethod.gCash ? _gcashProofBase64 : null,
     );
 
     widget.orderController.placeOrder(order);
@@ -344,6 +472,16 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
                   selectedMethod: _paymentMethod,
                   onChanged: (method) => setState(() => _paymentMethod = method),
                 ),
+                if (_paymentMethod == PaymentMethod.gCash) ...[
+                  const SizedBox(height: 16),
+                  _GcashPaymentProofUploadCard(
+                    proofFile: _gcashProofFile,
+                    proofBase64: _gcashProofBase64,
+                    onPickScreenshot: _pickGcashScreenshot,
+                    totalAmount: _total,
+                    isVerifyingOcr: _isVerifyingOcr,
+                  ),
+                ],
                 const SizedBox(height: 32),
 
                 _SectionHeader(title: 'Price Summary'),
@@ -804,6 +942,169 @@ class _PriceRow extends StatelessWidget {
           fontSize: isBold ? 18 : 14,
         )),
       ],
+    );
+  }
+}
+
+class _GcashPaymentProofUploadCard extends StatelessWidget {
+  const _GcashPaymentProofUploadCard({
+    required this.proofFile,
+    required this.proofBase64,
+    required this.onPickScreenshot,
+    required this.totalAmount,
+    this.isVerifyingOcr = false,
+  });
+
+  final File? proofFile;
+  final String? proofBase64;
+  final VoidCallback onPickScreenshot;
+  final double totalAmount;
+  final bool isVerifyingOcr;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListenableBuilder(
+      listenable: ShopSettingsController.instance,
+      builder: (context, _) {
+        final storeQr = ShopSettingsController.instance.gcashQrUrl;
+        final isGcashAvailable = storeQr != null && storeQr.trim().isNotEmpty && !storeQr.contains('wikimedia.org');
+
+        if (!isGcashAvailable) {
+          return Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.red.shade50,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(color: Colors.red.shade300),
+            ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Icon(Icons.warning_amber_rounded, color: Colors.red.shade700, size: 22),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'GCash Payment Currently Unavailable',
+                        style: TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: Colors.red.shade900,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'The store owner has not set a store GCash QR code yet. GCash payment is temporarily unavailable. Please choose Cash on Delivery to complete your order.',
+                  style: TextStyle(fontSize: 12, color: Colors.red.shade800, height: 1.4),
+                ),
+              ],
+            ),
+          );
+        }
+
+        final hasProof = (proofBase64 != null && proofBase64!.isNotEmpty) || proofFile != null;
+
+        return Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: AppColors.lightPeach.withValues(alpha: 0.6),
+            borderRadius: BorderRadius.circular(16),
+            border: Border.all(
+              color: hasProof ? Colors.green.shade400 : AppColors.primaryOrange,
+              width: hasProof ? 1.5 : 1.0,
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    hasProof ? Icons.check_circle_rounded : Icons.add_a_photo_outlined,
+                    color: hasProof ? Colors.green : AppColors.primaryOrange,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      hasProof ? 'GCash Receipt Screenshot Verified' : 'Attach GCash Payment Screenshot * (Max 5MB)',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 14,
+                        color: hasProof ? Colors.green.shade900 : AppColors.darkText,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'Please scan the store GCash QR code below using your GCash App to pay ₱${totalAmount.toStringAsFixed(2)}, then attach your payment receipt screenshot before placing your order:',
+                style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
+              ),
+              const SizedBox(height: 12),
+              Center(
+                child: ProductImage(
+                  image: storeQr,
+                  height: 160,
+                  width: 160,
+                  borderRadius: 12,
+                ),
+              ),
+              const SizedBox(height: 6),
+              const Center(
+                child: Text('Scan & Pay via GCash App', style: TextStyle(fontSize: 11, color: AppColors.secondaryText, fontWeight: FontWeight.w500)),
+              ),
+              const SizedBox(height: 14),
+              if (hasProof) ...[
+                if (proofBase64 != null && proofBase64!.isNotEmpty)
+                  ProductImage(
+                    image: proofBase64!,
+                    height: 160,
+                    width: double.infinity,
+                    borderRadius: 12,
+                  ),
+                const SizedBox(height: 10),
+                SizedBox(
+                  width: double.infinity,
+                  child: OutlinedButton.icon(
+                    onPressed: isVerifyingOcr ? null : onPickScreenshot,
+                    icon: isVerifyingOcr
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryOrange))
+                        : const Icon(Icons.refresh, size: 18),
+                    label: Text(isVerifyingOcr ? 'Verifying Receipt (OCR)...' : 'Change Payment Screenshot'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: AppColors.primaryOrange,
+                      side: const BorderSide(color: AppColors.primaryOrange),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ] else ...[
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton.icon(
+                    onPressed: isVerifyingOcr ? null : onPickScreenshot,
+                    icon: isVerifyingOcr
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : const Icon(Icons.upload_file_rounded, size: 18),
+                    label: Text(isVerifyingOcr ? 'Verifying Receipt (OCR)...' : 'Upload Payment Screenshot'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryOrange,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }

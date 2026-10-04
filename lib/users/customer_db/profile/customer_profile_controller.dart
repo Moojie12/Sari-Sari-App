@@ -1,5 +1,4 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/user_profile_sync_service.dart';

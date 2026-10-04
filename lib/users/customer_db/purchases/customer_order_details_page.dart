@@ -2,7 +2,8 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/product_image.dart';
 import '../../employee_db/employee_inventory_controller.dart';
-import 'customer_order_model.dart';
+import '../../employee_db/orders/employee_orders_controller.dart';
+import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 import 'customer_order_controller.dart';
 import 'customer_delivery_tracking_widget.dart';
 
@@ -36,7 +37,7 @@ class CustomerOrderDetailsPage extends StatelessWidget {
               children: [
                 _OrderInfoSection(order: currentOrder),
                 const SizedBox(height: 24),
-                _StatusTimeline(currentStatus: currentOrder.status, orderType: currentOrder.orderType, cancellationReason: currentOrder.cancellationReason),
+                _StatusTimeline(order: currentOrder),
                 if (currentOrder.status == OrderStatus.outForDelivery) ...[
                   const SizedBox(height: 24),
                   CustomerDeliveryTrackingWidget(order: currentOrder),
@@ -109,19 +110,17 @@ class _OrderInfoSection extends StatelessWidget {
 }
 
 class _StatusTimeline extends StatelessWidget {
-  const _StatusTimeline({required this.currentStatus, required this.orderType, this.cancellationReason});
-  final OrderStatus currentStatus;
-  final OrderType orderType;
-  final String? cancellationReason;
+  const _StatusTimeline({required this.order});
+  final CustomerOrder order;
 
   @override
   Widget build(BuildContext context) {
-    if (currentStatus == OrderStatus.cancelled) {
-      return _CancelledOrderBanner(reason: cancellationReason);
+    if (order.status == OrderStatus.cancelled) {
+      return _CancelledOrderBanner(order: order);
     }
 
     final statuses = _getTimelineStatuses();
-    final currentIndex = statuses.indexOf(currentStatus);
+    final currentIndex = statuses.indexOf(order.status);
 
     return Container(
       padding: const EdgeInsets.all(20),
@@ -172,7 +171,7 @@ class _StatusTimeline extends StatelessWidget {
   }
 
   List<OrderStatus> _getTimelineStatuses() {
-    if (orderType == OrderType.pickup) {
+    if (order.orderType == OrderType.pickup) {
       return [
         OrderStatus.pending,
         OrderStatus.confirmed,
@@ -268,8 +267,53 @@ class _OrderDetailsCard extends StatelessWidget {
   const _OrderDetailsCard({required this.order});
   final CustomerOrder order;
 
+  void _showImageDialog(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog.fullscreen(
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.broken_image, color: Colors.white, size: 64),
+                      SizedBox(height: 16),
+                      Text('Failed to load payment proof image', style: TextStyle(color: Colors.white)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: CircleAvatar(
+                  backgroundColor: Colors.black54,
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final hasPaymentProof = order.paymentMethod == PaymentMethod.gCash &&
+        order.paymentProofUrl != null &&
+        order.paymentProofUrl!.isNotEmpty;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
@@ -280,6 +324,21 @@ class _OrderDetailsCard extends StatelessWidget {
           _DetailRow(label: 'Payment Status', value: order.paymentStatus.name.toUpperCase()),
           if (order.deliveryAddress != null)
             _DetailRow(label: 'Delivery Address', value: order.deliveryAddress!),
+          if (hasPaymentProof) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _showImageDialog(context, order.paymentProofUrl!),
+                icon: const Icon(Icons.receipt_long, size: 18, color: AppColors.primaryOrange),
+                label: const Text('View Customer Payment Screenshot', style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold, fontSize: 12)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.primaryOrange),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
+          ],
           const Divider(height: 24),
           _DetailRow(label: 'Subtotal', value: '₱${order.subtotal.toStringAsFixed(2)}'),
           _DetailRow(label: 'Delivery Fee', value: '₱${order.deliveryFee.toStringAsFixed(2)}'),
@@ -325,12 +384,95 @@ class _DetailRow extends StatelessWidget {
 
 
 
-class _CancelledOrderBanner extends StatelessWidget {
-  const _CancelledOrderBanner({this.reason});
-  final String? reason;
+class _CancelledOrderBanner extends StatefulWidget {
+  const _CancelledOrderBanner({required this.order});
+  final CustomerOrder order;
+
+  @override
+  State<_CancelledOrderBanner> createState() => _CancelledOrderBannerState();
+}
+
+class _CancelledOrderBannerState extends State<_CancelledOrderBanner> {
+  final _formKey = GlobalKey<FormState>();
+  final _nameController = TextEditingController();
+  final _phoneController = TextEditingController();
+  bool _isSubmitting = false;
+
+  void _showProofDialog(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog.fullscreen(
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.broken_image, color: Colors.white, size: 64),
+                      SizedBox(height: 16),
+                      Text('Failed to load refund proof image', style: TextStyle(color: Colors.white)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: CircleAvatar(
+                  backgroundColor: Colors.black54,
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _submitGcashDetails() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    setState(() => _isSubmitting = true);
+    final name = _nameController.text.trim();
+    final phone = _phoneController.text.trim();
+
+    await EmployeeOrderController.instance.submitGcashRefundDetails(
+      widget.order.orderId,
+      name: name,
+      phone: phone,
+    );
+
+    if (mounted) {
+      setState(() => _isSubmitting = false);
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('GCash refund details submitted successfully! Owner will process your refund soon.'),
+          backgroundColor: Colors.green,
+        ),
+      );
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
+    final order = widget.order;
+    final isGcash = order.paymentMethod == PaymentMethod.gCash;
+    final hasGcashDetails = order.gcashRefundName != null &&
+        order.gcashRefundName!.isNotEmpty &&
+        order.gcashRefundNumber != null &&
+        order.gcashRefundNumber!.isNotEmpty;
+    final isRefunded = order.refundStatus == 'refunded';
+
     return Container(
       width: double.infinity,
       padding: const EdgeInsets.all(16),
@@ -339,75 +481,229 @@ class _CancelledOrderBanner extends StatelessWidget {
         borderRadius: BorderRadius.circular(16),
         border: Border.all(color: const Color(0xFFFFCDD2)),
       ),
-      child: Row(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: const BoxDecoration(
-              color: Color(0xFFFFCDD2),
-              shape: BoxShape.circle,
-            ),
-            child: const Icon(Icons.cancel_outlined, color: Colors.red, size: 28),
-          ),
-          const SizedBox(width: 16),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Order Cancelled',
-                  style: TextStyle(
-                    fontWeight: FontWeight.bold,
-                    fontSize: 16,
-                    color: Colors.red,
-                  ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: const BoxDecoration(
+                  color: Color(0xFFFFCDD2),
+                  shape: BoxShape.circle,
                 ),
-                const SizedBox(height: 4),
-                const Text(
-                  'This order was cancelled and is no longer being processed.',
-                  style: TextStyle(
-                    fontSize: 13,
-                    color: Color(0xFFC62828),
-                  ),
-                ),
-                if (reason != null && reason!.isNotEmpty) ...[
-                  const SizedBox(height: 8),
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: Colors.white.withValues(alpha: 0.8),
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(color: Colors.red.shade200),
+                child: const Icon(Icons.cancel_outlined, color: Colors.red, size: 28),
+              ),
+              const SizedBox(width: 16),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Order Cancelled',
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        fontSize: 16,
+                        color: Colors.red,
+                      ),
                     ),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text(
-                          'Reason: ',
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            fontSize: 12,
-                            color: Color(0xFFB71C1C),
+                    const SizedBox(height: 4),
+                    const Text(
+                      'This order was cancelled and is no longer being processed.',
+                      style: TextStyle(
+                        fontSize: 13,
+                        color: Color(0xFFC62828),
+                      ),
+                    ),
+                    if (order.cancellationReason != null && order.cancellationReason!.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.8),
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.red.shade200),
+                        ),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'Reason: ',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 12,
+                                color: Color(0xFFB71C1C),
+                              ),
+                            ),
+                            Expanded(
+                              child: Text(
+                                order.cancellationReason!,
+                                style: const TextStyle(
+                                  fontSize: 12,
+                                  color: Color(0xFFB71C1C),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          if (isGcash) ...[
+            const SizedBox(height: 16),
+            const Divider(color: Color(0xFFEF9A9A)),
+            const SizedBox(height: 8),
+            if (!hasGcashDetails) ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: Colors.orange.shade200),
+                ),
+                child: Form(
+                  key: _formKey,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Row(
+                        children: [
+                          Icon(Icons.info_outline, color: Colors.orange, size: 20),
+                          SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'Action Required for GCash Refund',
+                              style: TextStyle(fontWeight: FontWeight.bold, color: Colors.orange, fontSize: 14),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'Please enter your GCash Registered Name and Mobile Number so the store owner can refund your ₱${order.totalAmount.toStringAsFixed(2)}:',
+                        style: const TextStyle(fontSize: 12, color: AppColors.darkText),
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: _nameController,
+                        decoration: InputDecoration(
+                          labelText: 'GCash Registered Name *',
+                          hintText: 'e.g. Juan Dela Cruz',
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        ),
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) return 'Please enter GCash account name';
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 8),
+                      TextFormField(
+                        controller: _phoneController,
+                        keyboardType: TextInputType.phone,
+                        decoration: InputDecoration(
+                          labelText: 'GCash Mobile Number *',
+                          hintText: 'e.g. 09171234567',
+                          filled: true,
+                          fillColor: Colors.white,
+                          border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        ),
+                        validator: (val) {
+                          if (val == null || val.trim().isEmpty) return 'Please enter GCash mobile number';
+                          final clean = val.trim().replaceAll(RegExp(r'\D'), '');
+                          if (clean.length != 11 || !clean.startsWith('09')) {
+                            return 'Enter valid 11-digit mobile number starting with 09';
+                          }
+                          return null;
+                        },
+                      ),
+                      const SizedBox(height: 12),
+                      SizedBox(
+                        width: double.infinity,
+                        child: ElevatedButton.icon(
+                          onPressed: _isSubmitting ? null : _submitGcashDetails,
+                          icon: _isSubmitting
+                              ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                              : const Icon(Icons.send_rounded, size: 18),
+                          label: Text(_isSubmitting ? 'Submitting...' : 'Submit GCash Details for Refund'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryOrange,
+                            foregroundColor: Colors.white,
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
                           ),
                         ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ] else ...[
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: isRefunded ? Colors.green.shade50 : Colors.orange.shade50,
+                  borderRadius: BorderRadius.circular(12),
+                  border: Border.all(color: isRefunded ? Colors.green.shade300 : Colors.orange.shade300),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Icon(
+                          isRefunded ? Icons.check_circle_rounded : Icons.hourglass_bottom_rounded,
+                          color: isRefunded ? Colors.green : Colors.orange,
+                          size: 20,
+                        ),
+                        const SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            reason!,
-                            style: const TextStyle(
-                              fontSize: 12,
-                              color: Color(0xFFB71C1C),
+                            isRefunded ? 'GCash Refund Completed' : 'GCash Refund Pending',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: isRefunded ? Colors.green.shade900 : Colors.orange.shade900,
+                              fontSize: 14,
                             ),
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ],
-              ],
-            ),
-          ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Account Name: ${order.gcashRefundName}\n'
+                      'Mobile Number: ${order.gcashRefundNumber}\n'
+                      'Refund Amount: ₱${order.totalAmount.toStringAsFixed(2)}',
+                      style: TextStyle(fontSize: 12, color: Colors.grey.shade800, height: 1.4),
+                    ),
+                    if (isRefunded && order.refundProofUrl != null && order.refundProofUrl!.isNotEmpty) ...[
+                      const SizedBox(height: 10),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => _showProofDialog(context, order.refundProofUrl!),
+                          icon: const Icon(Icons.receipt_long, size: 18, color: Colors.green),
+                          label: const Text('View Refund Proof Screenshot', style: TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 13)),
+                          style: OutlinedButton.styleFrom(
+                            side: const BorderSide(color: Colors.green),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ],
         ],
       ),
     );
@@ -426,20 +722,106 @@ class _CancelOrderSectionState extends State<_CancelOrderSection> {
   bool _isCancelling = false;
 
   void _showCancelOrderDialog() {
+    final formKey = GlobalKey<FormState>();
+    final reasonController = TextEditingController();
+    final gcashNameController = TextEditingController();
+    final gcashPhoneController = TextEditingController();
+
+    final isGcash = widget.order.paymentMethod == PaymentMethod.gCash;
+
     showDialog(
       context: context,
+      barrierDismissible: false,
       builder: (dialogCtx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
             Icon(Icons.warning_amber_rounded, color: Colors.red, size: 28),
             SizedBox(width: 8),
-            Text('Cancel Order', style: TextStyle(fontWeight: FontWeight.bold)),
+            Expanded(
+              child: Text('Cancel Order', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            ),
           ],
         ),
-        content: Text(
-          'Are you sure you want to cancel Order #${widget.order.displayOrderId}? This action cannot be undone.',
-          style: const TextStyle(color: AppColors.darkText),
+        content: Form(
+          key: formKey,
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Are you sure you want to cancel Order #${widget.order.displayOrderId}? This action cannot be undone.',
+                  style: const TextStyle(color: AppColors.darkText, fontSize: 13),
+                ),
+                const SizedBox(height: 12),
+                TextFormField(
+                  controller: reasonController,
+                  maxLines: 2,
+                  decoration: InputDecoration(
+                    labelText: 'Reason for Cancellation *',
+                    hintText: 'e.g. Changed my mind, Duplicate order',
+                    filled: true,
+                    fillColor: Colors.grey.shade50,
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                  ),
+                  validator: (val) {
+                    if (val == null || val.trim().isEmpty) return 'Please state cancellation reason';
+                    return null;
+                  },
+                ),
+                if (isGcash) ...[
+                  const SizedBox(height: 12),
+                  const Divider(),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'GCash Refund Details',
+                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14, color: AppColors.primaryOrange),
+                  ),
+                  const SizedBox(height: 4),
+                  const Text(
+                    'Provide your GCash details so the store owner can process your refund:',
+                    style: TextStyle(fontSize: 12, color: AppColors.secondaryText),
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: gcashNameController,
+                    decoration: InputDecoration(
+                      labelText: 'GCash Registered Name *',
+                      hintText: 'e.g. Juan Dela Cruz',
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) return 'Please enter GCash account name';
+                      return null;
+                    },
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: gcashPhoneController,
+                    keyboardType: TextInputType.phone,
+                    decoration: InputDecoration(
+                      labelText: 'GCash Mobile Number *',
+                      hintText: 'e.g. 09171234567',
+                      filled: true,
+                      fillColor: Colors.grey.shade50,
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                    ),
+                    validator: (val) {
+                      if (val == null || val.trim().isEmpty) return 'Please enter GCash mobile number';
+                      final clean = val.trim().replaceAll(RegExp(r'\D'), '');
+                      if (clean.length != 11 || !clean.startsWith('09')) {
+                        return 'Enter valid 11-digit mobile number starting with 09';
+                      }
+                      return null;
+                    },
+                  ),
+                ],
+              ],
+            ),
+          ),
         ),
         actions: [
           TextButton(
@@ -448,6 +830,12 @@ class _CancelOrderSectionState extends State<_CancelOrderSection> {
           ),
           ElevatedButton(
             onPressed: () async {
+              if (!formKey.currentState!.validate()) return;
+
+              final reason = reasonController.text.trim();
+              final gcashName = gcashNameController.text.trim();
+              final gcashPhone = gcashPhoneController.text.trim();
+
               Navigator.pop(dialogCtx);
               setState(() => _isCancelling = true);
 
@@ -468,7 +856,13 @@ class _CancelOrderSectionState extends State<_CancelOrderSection> {
                 return;
               }
 
-              final success = await CustomerOrderController.instance.cancelOrder(widget.order.orderId);
+              final success = await EmployeeOrderController.instance.cancelOrder(
+                widget.order.orderId,
+                reason: reason,
+                gcashRefundName: isGcash ? gcashName : null,
+                gcashRefundNumber: isGcash ? gcashPhone : null,
+              );
+
               if (mounted) {
                 setState(() => _isCancelling = false);
                 if (success) {

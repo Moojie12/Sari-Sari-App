@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sari_sari/core/theme/app_colors.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
-import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
+import 'customer_order_model.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_details_page.dart';
 import 'package:sari_sari/shared/widgets/skeleton.dart';
 

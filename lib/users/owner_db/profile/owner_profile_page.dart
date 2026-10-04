@@ -1,4 +1,4 @@
-import 'dart:io';
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -17,9 +17,13 @@ import '../../employee_db/notifications/employee_notifications_page.dart';
 import '../history/owner_history_page.dart';
 import '../reports/owner_reports_page.dart';
 import '../reports/owner_operational_logs_page.dart';
+import '../refunds/owner_refunds_page.dart';
+import '../../employee_db/orders/employee_orders_controller.dart';
 import 'shop_settings_controller.dart';
 import '../promotions/owner_sale_management_page.dart';
 import '../../../shared/widgets/editable_profile_avatar.dart';
+import '../../../shared/widgets/product_image.dart';
+import '../../../shared/utils/gcash_ocr_helper.dart';
 
 class OwnerProfilePage extends StatefulWidget {
   const OwnerProfilePage({super.key});
@@ -155,8 +159,20 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
                 _MenuTile(
                   icon: Icons.receipt_long_rounded,
                   label: 'Operational Logs & Summaries',
-                  isLast: true,
                   onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerOperationalLogsPage())),
+                ),
+                ListenableBuilder(
+                  listenable: EmployeeOrderController.instance,
+                  builder: (context, _) {
+                    final pendingCount = EmployeeOrderController.instance.pendingRefundOrders.length;
+                    return _MenuTile(
+                      icon: Icons.assignment_return_rounded,
+                      label: 'GCash Refund Section',
+                      badgeCount: pendingCount,
+                      isLast: true,
+                      onTap: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const OwnerRefundsPage())),
+                    );
+                  },
                 ),
               ],
             ),
@@ -224,6 +240,8 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
   Future<void> _showGcashQrDialog(BuildContext context) async {
     final picker = ImagePicker();
     XFile? pickedFile;
+    String? pickedBase64;
+    bool isVerifying = false;
 
     showDialog(
       context: context,
@@ -231,6 +249,67 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
         builder: (context, setDialogState) {
           final settings = ShopSettingsController.instance;
           final currentUrl = settings.gcashQrUrl;
+
+          Future<void> pickAndVerifyImage() async {
+            final image = await picker.pickImage(source: ImageSource.gallery, imageQuality: 85);
+            if (image == null) return;
+
+            setDialogState(() => isVerifying = true);
+            TopNotification.show(context, 'Verifying GCash QR Code...');
+
+            try {
+              final bytes = await image.readAsBytes();
+              final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+
+              final validation = await GcashOcrHelper.validateGcashQrImage(
+                imagePath: image.path,
+                bytes: bytes,
+              );
+
+              if (!validation.isValid) {
+                if (context.mounted) {
+                  setDialogState(() {
+                    isVerifying = false;
+                    pickedFile = null;
+                    pickedBase64 = null;
+                  });
+                  TopNotification.show(
+                    context,
+                    validation.errorMessage ?? 'Invalid Image: Only official GCash QR Codes are allowed.',
+                    isError: true,
+                  );
+                }
+                return;
+              }
+
+              if (context.mounted) {
+                setDialogState(() {
+                  isVerifying = false;
+                  pickedFile = image;
+                  pickedBase64 = base64Image;
+                });
+                TopNotification.show(context, 'Valid GCash QR Code verified!');
+              }
+            } catch (e) {
+              debugPrint('[GCash QR Verification Exception]: $e');
+              if (context.mounted) {
+                setDialogState(() {
+                  isVerifying = false;
+                  pickedFile = null;
+                  pickedBase64 = null;
+                });
+                TopNotification.show(
+                  context,
+                  'Invalid Image: Could not verify GCash QR details. Please select an official GCash QR Code screenshot.',
+                  isError: true,
+                );
+              }
+            } finally {
+              if (context.mounted && isVerifying) {
+                setDialogState(() => isVerifying = false);
+              }
+            }
+          }
 
           return AlertDialog(
             title: const Text('GCash QR Code'),
@@ -241,72 +320,105 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
                   const Text('Upload your store\'s GCash QR code for customer payments.'),
                   const SizedBox(height: 20),
                   GestureDetector(
-                    onTap: () async {
-                      final image = await picker.pickImage(source: ImageSource.gallery);
-                      if (image != null) {
-                        setDialogState(() {
-                          pickedFile = image;
-                        });
-                      }
-                    },
+                    onTap: isVerifying ? null : pickAndVerifyImage,
                     child: Container(
                       height: 180,
                       width: 180,
                       decoration: BoxDecoration(
                         color: AppColors.lightPeach,
                         borderRadius: BorderRadius.circular(12),
-                        border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.4), width: 1.5),
+                        border: Border.all(
+                          color: pickedBase64 != null ? Colors.green.shade400 : AppColors.primaryOrange.withValues(alpha: 0.4),
+                          width: 1.5,
+                        ),
                       ),
-                      child: pickedFile != null
-                          ? ClipRRect(
-                              borderRadius: BorderRadius.circular(11),
-                              child: Image.file(
-                                File(pickedFile!.path),
-                                fit: BoxFit.cover,
+                      child: isVerifying
+                          ? const Center(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  CircularProgressIndicator(color: AppColors.primaryOrange),
+                                  SizedBox(height: 12),
+                                  Text('Verifying QR...', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                ],
                               ),
                             )
-                          : (currentUrl != null && currentUrl.isNotEmpty)
-                              ? ClipRRect(
-                                  borderRadius: BorderRadius.circular(11),
-                                  child: Image.network(
-                                    currentUrl,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => const Column(
+                          : (pickedBase64 != null)
+                              ? ProductImage(
+                                  image: pickedBase64,
+                                  width: 180,
+                                  height: 180,
+                                  borderRadius: 11,
+                                )
+                              : (currentUrl != null && currentUrl.isNotEmpty)
+                                  ? ProductImage(
+                                      image: currentUrl,
+                                      width: 180,
+                                      height: 180,
+                                      borderRadius: 11,
+                                    )
+                                  : const Column(
                                       mainAxisAlignment: MainAxisAlignment.center,
                                       children: [
-                                        Icon(Icons.broken_image_outlined, size: 48, color: AppColors.primaryOrange),
+                                        Icon(Icons.add_a_photo_outlined, size: 48, color: AppColors.primaryOrange),
                                         SizedBox(height: 8),
-                                        Text('Image load failed', style: TextStyle(fontSize: 12)),
+                                        Text('Tap to select image', style: TextStyle(fontSize: 12, color: AppColors.secondaryText)),
                                       ],
                                     ),
-                                  ),
-                                )
-                              : const Column(
-                                  mainAxisAlignment: MainAxisAlignment.center,
-                                  children: [
-                                    Icon(Icons.add_a_photo_outlined, size: 48, color: AppColors.primaryOrange),
-                                    SizedBox(height: 8),
-                                    Text('Tap to select image', style: TextStyle(fontSize: 12, color: AppColors.secondaryText)),
-                                  ],
-                                ),
                     ),
                   ),
-                  const SizedBox(height: 12),
-                  OutlinedButton.icon(
-                    onPressed: () async {
-                      final image = await picker.pickImage(source: ImageSource.gallery);
-                      if (image != null) {
-                        setDialogState(() {
-                          pickedFile = image;
-                        });
-                      }
-                    },
-                    icon: const Icon(Icons.upload_file, size: 18),
-                    label: Text(pickedFile != null ? 'Change Selected Image' : 'Select New QR Image'),
-                    style: OutlinedButton.styleFrom(
-                      foregroundColor: AppColors.primaryOrange,
-                      side: const BorderSide(color: AppColors.primaryOrange),
+                  if (pickedBase64 != null) ...[
+                    const SizedBox(height: 8),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.check_circle, color: Colors.green, size: 16),
+                        const SizedBox(width: 4),
+                        Text('GCash QR Verified', style: TextStyle(color: Colors.green.shade800, fontWeight: FontWeight.bold, fontSize: 12)),
+                      ],
                     ),
+                  ],
+                  const SizedBox(height: 12),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: isVerifying ? null : pickAndVerifyImage,
+                        icon: const Icon(Icons.upload_file, size: 16),
+                        label: Text(
+                          pickedBase64 != null ? 'Change Photo' : 'Select QR Image',
+                          style: const TextStyle(fontSize: 12),
+                        ),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: AppColors.primaryOrange,
+                          side: const BorderSide(color: AppColors.primaryOrange),
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                          minimumSize: Size.zero,
+                          tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                        ),
+                      ),
+                      if (currentUrl != null && currentUrl.isNotEmpty)
+                        OutlinedButton.icon(
+                          onPressed: isVerifying
+                              ? null
+                              : () async {
+                                  ShopSettingsController.instance.updateGcashQrUrl(null);
+                                  Navigator.pop(dialogContext);
+                                  TopNotification.show(context, 'Saved QR Code removed.');
+                                },
+                          icon: const Icon(Icons.delete_outline, size: 16, color: Colors.red),
+                          label: const Text('Remove', style: TextStyle(fontSize: 12, color: Colors.red)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: Colors.red,
+                            side: BorderSide(color: Colors.red.shade300),
+                            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                        ),
+                    ],
                   ),
                 ],
               ),
@@ -314,37 +426,41 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
             actions: [
               TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancel')),
               TextButton(
-                onPressed: () async {
-                  if (pickedFile == null && (currentUrl == null || currentUrl.isEmpty)) {
-                    TopNotification.show(context, 'Please select a QR code image to upload', isError: true);
-                    return;
-                  }
+                onPressed: isVerifying
+                    ? null
+                    : () async {
+                        if (pickedBase64 == null && (currentUrl == null || currentUrl.isEmpty)) {
+                          TopNotification.show(context, 'Please select a valid QR code image to upload', isError: true);
+                          return;
+                        }
 
-                  final proceed = await showDialog<bool>(
-                    context: dialogContext,
-                    builder: (ctx) => AlertDialog(
-                      title: const Text('Confirm Changes'),
-                      content: const Text('Do you want to save this new GCash QR code?'),
-                      actions: [
-                        TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
-                        TextButton(
-                          onPressed: () => Navigator.pop(ctx, true),
-                          child: const Text('Yes', style: TextStyle(color: AppColors.primaryOrange)),
-                        ),
-                      ],
-                    ),
-                  );
+                        final proceed = await showDialog<bool>(
+                          context: dialogContext,
+                          builder: (ctx) => AlertDialog(
+                            title: const Text('Confirm Changes'),
+                            content: const Text('Do you want to save this verified GCash QR code?'),
+                            actions: [
+                              TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('No')),
+                              TextButton(
+                                onPressed: () => Navigator.pop(ctx, true),
+                                child: const Text('Yes', style: TextStyle(color: AppColors.primaryOrange)),
+                              ),
+                            ],
+                          ),
+                        );
 
-                  if (proceed == true && dialogContext.mounted) {
-                    Navigator.pop(dialogContext);
-                    if (pickedFile != null) {
-                      await ShopSettingsController.instance.uploadGcashQrImage(File(pickedFile!.path));
-                    }
-                    if (context.mounted) {
-                      _showSuccessDialog(context, 'GCash QR code updated successfully.');
-                    }
-                  }
-                },
+                        if (proceed == true && dialogContext.mounted) {
+                          Navigator.pop(dialogContext);
+                          if (pickedBase64 != null) {
+                            await ShopSettingsController.instance.uploadGcashQrImage(pickedBase64!);
+                          } else if (pickedFile != null) {
+                            await ShopSettingsController.instance.uploadGcashQrImage(pickedFile!.path);
+                          }
+                          if (context.mounted) {
+                            _showSuccessDialog(context, 'GCash QR code verified and updated successfully.');
+                          }
+                        }
+                      },
                 child: const Text('Save'),
               ),
             ],

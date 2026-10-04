@@ -511,6 +511,25 @@ class SupabaseService {
       if (order.cancellationReason != null && order.cancellationReason!.isNotEmpty) {
         notes.add('[cancellation_reason: ${order.cancellationReason}]');
       }
+      notes.add('[payment_method: ${order.paymentMethod.name}]');
+      if (order.paymentProofUrl != null && order.paymentProofUrl!.isNotEmpty) {
+        notes.add('[payment_proof_url: ${order.paymentProofUrl}]');
+      }
+      if (order.gcashRefundName != null && order.gcashRefundName!.isNotEmpty) {
+        notes.add('[gcash_refund_name: ${order.gcashRefundName}]');
+      }
+      if (order.gcashRefundNumber != null && order.gcashRefundNumber!.isNotEmpty) {
+        notes.add('[gcash_refund_number: ${order.gcashRefundNumber}]');
+      }
+      if (order.refundProofUrl != null && order.refundProofUrl!.isNotEmpty) {
+        notes.add('[refund_proof_url: ${order.refundProofUrl}]');
+      }
+      if (order.refundStatus != null && order.refundStatus!.isNotEmpty) {
+        notes.add('[refund_status: ${order.refundStatus}]');
+      }
+      if (order.paymentReferenceNumber != null && order.paymentReferenceNumber!.isNotEmpty) {
+        notes.add('[payment_ref: ${order.paymentReferenceNumber}]');
+      }
       final sellerNote = notes.join(' ');
 
       final orderData = <String, dynamic>{
@@ -518,6 +537,7 @@ class SupabaseService {
         'order_number': order.orderId,
         'status': order.status.name,
         'order_type': order.orderType.name,
+        'payment_method': order.paymentMethod == PaymentMethod.gCash ? 'gcash' : 'cash',
         'customer_name': order.customerName,
         'customer_contact': '', // Using empty string as we don't have phone/email in order model
         'delivery_address': order.deliveryAddress ?? '',

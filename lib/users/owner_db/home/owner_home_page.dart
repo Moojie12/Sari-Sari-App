@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:sari_sari/core/theme/app_colors.dart';
 import 'package:sari_sari/core/services/sale_deal_controller.dart';
-import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
+import '../../customer_db/purchases/customer_order_model.dart';
 import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
 import 'package:sari_sari/users/employee_db/orders/employee_orders_controller.dart';
 import 'package:sari_sari/users/employee_db/pos/employee_pos_controller.dart';

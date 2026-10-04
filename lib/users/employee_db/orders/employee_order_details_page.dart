@@ -4,7 +4,7 @@ import '../../../core/services/delivery_tracking_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/osm_delivery_map.dart';
 import '../../../shared/widgets/product_image.dart';
-import '../../customer_db/purchases/customer_order_model.dart';
+import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 import '../employee_inventory_controller.dart';
 import 'assign_delivery_person_sheet.dart';
 import 'employee_delivery_tracking_page.dart';
@@ -270,7 +270,7 @@ class EmployeeOrderDetailsPage extends StatelessWidget {
               if (formKey.currentState!.validate()) {
                 final reason = reasonController.text.trim();
                 Navigator.pop(dialogContext);
-                controller.updateOrderStatus(order.orderId, OrderStatus.cancelled, cancellationReason: reason);
+                controller.cancelOrder(order.orderId, reason: reason);
                 Navigator.pop(bottomSheetContext);
               }
             },
@@ -545,8 +545,52 @@ class _OrderDetailsCard extends StatelessWidget {
   const _OrderDetailsCard({required this.order});
   final CustomerOrder order;
 
+  void _showImageDialog(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (context) => Dialog.fullscreen(
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) => const Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.broken_image, color: Colors.white, size: 64),
+                      SizedBox(height: 16),
+                      Text('Failed to load payment screenshot', style: TextStyle(color: Colors.white)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: CircleAvatar(
+                  backgroundColor: Colors.black54,
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(context),
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
+    final isGcash = order.paymentMethod == PaymentMethod.gCash;
+    final hasPaymentProof = isGcash && order.paymentProofUrl != null && order.paymentProofUrl!.isNotEmpty;
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(color: Colors.white, borderRadius: BorderRadius.circular(16)),
@@ -554,9 +598,36 @@ class _OrderDetailsCard extends StatelessWidget {
         children: [
           _DetailRow(label: 'Order Type', value: order.orderType == OrderType.pickup ? 'Pickup' : 'Delivery'),
           _DetailRow(label: 'Payment Method', value: order.paymentMethod == PaymentMethod.cashOnDelivery ? 'Cash on Delivery' : 'GCash'),
+          if (isGcash && order.paymentReferenceNumber != null && order.paymentReferenceNumber!.isNotEmpty)
+            _DetailRow(label: 'GCash Ref #', value: order.paymentReferenceNumber!),
           _DetailRow(label: 'Payment Status', value: order.paymentStatus.name.toUpperCase()),
           if (order.deliveryAddress != null)
             _DetailRow(label: 'Customer Details', value: order.deliveryAddress!),
+          if (hasPaymentProof) ...[
+            const SizedBox(height: 10),
+            SizedBox(
+              width: double.infinity,
+              child: OutlinedButton.icon(
+                onPressed: () => _showImageDialog(context, order.paymentProofUrl!),
+                icon: const Icon(Icons.receipt_long, size: 18, color: AppColors.primaryOrange),
+                label: const Text('View Customer Payment Screenshot', style: TextStyle(color: AppColors.primaryOrange, fontWeight: FontWeight.bold, fontSize: 12)),
+                style: OutlinedButton.styleFrom(
+                  side: const BorderSide(color: AppColors.primaryOrange),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+              ),
+            ),
+          ],
+          if (isGcash && order.status == OrderStatus.cancelled) ...[
+            const Divider(height: 24),
+            _DetailRow(label: 'GCash Refund Name', value: order.gcashRefundName ?? 'Not Provided Yet'),
+            _DetailRow(label: 'GCash Refund Phone', value: order.gcashRefundNumber ?? 'Not Provided Yet'),
+            _DetailRow(
+              label: 'Refund Status',
+              value: order.refundStatus == 'refunded' ? 'REFUNDED' : 'PENDING REFUND',
+              isBold: true,
+            ),
+          ],
           const Divider(height: 24),
           _DetailRow(label: 'Subtotal', value: '₱${order.subtotal.toStringAsFixed(2)}'),
           _DetailRow(label: 'Delivery Fee', value: '₱${order.deliveryFee.toStringAsFixed(2)}'),

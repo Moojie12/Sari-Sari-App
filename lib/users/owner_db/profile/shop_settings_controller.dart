@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
@@ -19,7 +20,7 @@ class ShopSettingsController extends ChangeNotifier {
   double _deliveryFeePer500m = 5.0; // Default value
   int _lowStockThreshold = 10;
   int _expiryMonitoringDays = 30;
-  String? _gcashQrUrl = 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/QR_code_for_mobile_English_Wikipedia.svg/1200px-QR_code_for_mobile_English_Wikipedia.svg.png';
+  String? _gcashQrUrl;
   bool _isInitialized = false;
 
   StreamSubscription<DatabaseEvent>? _subscription;
@@ -41,7 +42,12 @@ class ShopSettingsController extends ChangeNotifier {
       _deliveryFeePer500m = (prefs.getDouble('system_deliveryFeePer500m') ?? _deliveryFeePer500m).clamp(0.0, 99.0);
       _lowStockThreshold = (prefs.getInt('system_lowStockThreshold') ?? _lowStockThreshold).clamp(0, 99);
       _expiryMonitoringDays = prefs.getInt('system_expiryMonitoringDays') ?? _expiryMonitoringDays;
-      _gcashQrUrl = prefs.getString('system_gcashQrUrl') ?? _gcashQrUrl;
+      final cachedQr = prefs.getString('system_gcashQrUrl');
+      if (cachedQr != null && cachedQr.trim().isNotEmpty && !cachedQr.contains('wikimedia.org')) {
+        _gcashQrUrl = cachedQr.trim();
+      } else {
+        _gcashQrUrl = null;
+      }
       _isInitialized = true;
       notifyListeners();
     } catch (e) {
@@ -67,7 +73,14 @@ class ShopSettingsController extends ChangeNotifier {
             _expiryMonitoringDays = (data['expiryMonitoringDays'] as num).toInt();
           }
           if (data.containsKey('gcashQrUrl') && data['gcashQrUrl'] != null) {
-            _gcashQrUrl = data['gcashQrUrl'].toString();
+            final qr = data['gcashQrUrl'].toString().trim();
+            if (qr.isNotEmpty && !qr.contains('wikimedia.org')) {
+              _gcashQrUrl = qr;
+            } else {
+              _gcashQrUrl = null;
+            }
+          } else {
+            _gcashQrUrl = null;
           }
           _saveToLocalCache();
           notifyListeners();
@@ -153,19 +166,30 @@ class ShopSettingsController extends ChangeNotifier {
   Future<String?> uploadGcashQrImage(dynamic imageSource) async {
     try {
       String? downloadUrl;
-      if (imageSource is File) {
-        final ext = imageSource.path.split('.').last.toLowerCase();
-        final fileName = 'gcash_qr_${DateTime.now().millisecondsSinceEpoch}.$ext';
-        final storageRef = FirebaseStorage.instance.ref().child('settings/$fileName');
-        await storageRef.putFile(imageSource);
-        downloadUrl = await storageRef.getDownloadURL();
-      } else if (imageSource is Uint8List) {
-        final fileName = 'gcash_qr_${DateTime.now().millisecondsSinceEpoch}.png';
-        final storageRef = FirebaseStorage.instance.ref().child('settings/$fileName');
-        await storageRef.putData(imageSource, SettableMetadata(contentType: 'image/png'));
-        downloadUrl = await storageRef.getDownloadURL();
-      } else if (imageSource is String) {
+      if (imageSource is String) {
         downloadUrl = imageSource;
+      } else if (kIsWeb || imageSource is Uint8List || imageSource is XFile) {
+        Uint8List bytes;
+        if (imageSource is Uint8List) {
+          bytes = imageSource;
+        } else if (imageSource is XFile) {
+          bytes = await imageSource.readAsBytes();
+        } else {
+          final file = imageSource as File;
+          bytes = await file.readAsBytes();
+        }
+        downloadUrl = 'data:image/png;base64,${base64Encode(bytes)}';
+      } else if (imageSource is File) {
+        try {
+          final ext = imageSource.path.split('.').last.toLowerCase();
+          final fileName = 'gcash_qr_${DateTime.now().millisecondsSinceEpoch}.$ext';
+          final storageRef = FirebaseStorage.instance.ref().child('settings/$fileName');
+          await storageRef.putFile(imageSource);
+          downloadUrl = await storageRef.getDownloadURL();
+        } catch (_) {
+          final bytes = await imageSource.readAsBytes();
+          downloadUrl = 'data:image/png;base64,${base64Encode(bytes)}';
+        }
       }
 
       if (downloadUrl != null) {
@@ -174,17 +198,9 @@ class ShopSettingsController extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('[ShopSettingsController] Upload QR error: $e');
-      if (imageSource is File) {
-        try {
-          final bytes = await imageSource.readAsBytes();
-          final base64Str = 'data:image/png;base64,${base64Encode(bytes)}';
-          updateGcashQrUrl(base64Str);
-          return base64Str;
-        } catch (_) {}
-      } else if (imageSource is Uint8List) {
-        final base64Str = 'data:image/png;base64,${base64Encode(imageSource)}';
-        updateGcashQrUrl(base64Str);
-        return base64Str;
+      if (imageSource is String) {
+        updateGcashQrUrl(imageSource);
+        return imageSource;
       }
     }
     return null;

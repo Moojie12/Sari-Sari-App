@@ -151,6 +151,12 @@ class CustomerOrder {
     this.deliveryLatitude,
     this.deliveryLongitude,
     this.cancellationReason,
+    this.paymentReferenceNumber,
+    this.gcashRefundName,
+    this.gcashRefundNumber,
+    this.refundProofUrl,
+    this.refundStatus,
+    this.paymentProofUrl,
   });
 
   final String orderId;
@@ -174,6 +180,12 @@ class CustomerOrder {
   final double? deliveryLatitude;
   final double? deliveryLongitude;
   final String? cancellationReason;
+  final String? paymentReferenceNumber;
+  final String? gcashRefundName;
+  final String? gcashRefundNumber;
+  final String? refundProofUrl;
+  final String? refundStatus;
+  final String? paymentProofUrl;
 
   String get formattedDate => '${orderDate.day}/${orderDate.month}/${orderDate.year}';
 
@@ -231,6 +243,12 @@ class CustomerOrder {
     double? deliveryLatitude,
     double? deliveryLongitude,
     String? cancellationReason,
+    String? paymentReferenceNumber,
+    String? gcashRefundName,
+    String? gcashRefundNumber,
+    String? refundProofUrl,
+    String? refundStatus,
+    String? paymentProofUrl,
   }) {
     return CustomerOrder(
       orderId: orderId ?? this.orderId,
@@ -254,6 +272,12 @@ class CustomerOrder {
       deliveryLatitude: deliveryLatitude ?? this.deliveryLatitude,
       deliveryLongitude: deliveryLongitude ?? this.deliveryLongitude,
       cancellationReason: cancellationReason ?? this.cancellationReason,
+      paymentReferenceNumber: paymentReferenceNumber ?? this.paymentReferenceNumber,
+      gcashRefundName: gcashRefundName ?? this.gcashRefundName,
+      gcashRefundNumber: gcashRefundNumber ?? this.gcashRefundNumber,
+      refundProofUrl: refundProofUrl ?? this.refundProofUrl,
+      refundStatus: refundStatus ?? this.refundStatus,
+      paymentProofUrl: paymentProofUrl ?? this.paymentProofUrl,
     );
   }
 
@@ -281,6 +305,36 @@ class CustomerOrder {
       'deliveryLatitude': deliveryLatitude,
       'deliveryLongitude': deliveryLongitude,
       'cancellationReason': cancellationReason,
+      'paymentReferenceNumber': paymentReferenceNumber,
+      'gcashRefundName': gcashRefundName,
+      'gcashRefundNumber': gcashRefundNumber,
+      'refundProofUrl': refundProofUrl,
+      'refundStatus': refundStatus,
+      'paymentProofUrl': paymentProofUrl,
+    };
+  }
+
+  Map<String, dynamic> toSqliteMap() {
+    return {
+      'order_id': orderId,
+      'user_id': userId ?? '',
+      'customer_name': customerName,
+      'order_date': orderDate.toIso8601String(),
+      'order_type': orderType.name,
+      'payment_method': paymentMethod.name,
+      'payment_status': paymentStatus.name,
+      'subtotal': subtotal,
+      'delivery_fee': deliveryFee,
+      'total_amount': totalAmount,
+      'status': status.name,
+      'delivery_address': deliveryAddress ?? '',
+      'cancellation_reason': cancellationReason ?? '',
+      'payment_reference_number': paymentReferenceNumber ?? '',
+      'gcash_refund_name': gcashRefundName ?? '',
+      'gcash_refund_number': gcashRefundNumber ?? '',
+      'refund_proof_url': refundProofUrl ?? '',
+      'refund_status': refundStatus ?? '',
+      'updated_at': DateTime.now().toIso8601String(),
     };
   }
 
@@ -317,6 +371,8 @@ class CustomerOrder {
       map['order_notes']?.toString(),
     );
 
+    final notes = map['order_notes']?.toString();
+
     return CustomerOrder(
       orderId: map['orderId']?.toString() ?? map['order_number']?.toString() ?? map['id']?.toString() ?? '',
       customerName: map['customerName']?.toString() ?? map['customer_name']?.toString() ?? 'Customer',
@@ -326,16 +382,19 @@ class CustomerOrder {
         map['orderType']?.toString() ?? map['order_type']?.toString(),
         map['deliveryAddress']?.toString() ?? map['delivery_address']?.toString(),
       ),
-      paymentMethod: _parsePaymentMethod(map['paymentMethod']?.toString() ?? map['payment_method']?.toString()),
+      paymentMethod: _parsePaymentMethod(
+        map['paymentMethod']?.toString() ?? map['payment_method']?.toString(),
+        notes,
+      ),
       paymentStatus: _parsePaymentStatus(map['paymentStatus']?.toString() ?? map['payment_status']?.toString()),
       deliveryAddress: map['deliveryAddress']?.toString() ?? map['delivery_address']?.toString(),
       subtotal: (map['subtotal'] as num?)?.toDouble() ?? (map['totalAmount'] as num?)?.toDouble() ?? 0.0,
       deliveryFee: (map['deliveryFee'] as num?)?.toDouble() ?? (map['delivery_fee'] as num?)?.toDouble() ?? 0.0,
       totalAmount: (map['totalAmount'] as num?)?.toDouble() ?? (map['total_amount'] as num?)?.toDouble() ?? 0.0,
-      status: _parseOrderStatus(map['status']?.toString(), map['order_notes']?.toString()),
+      status: _parseOrderStatus(map['status']?.toString(), notes),
       userId: map['userId']?.toString() ?? map['user_id']?.toString(),
       dbId: map['dbId']?.toString() ?? map['id']?.toString(),
-      processedBy: _parseProcessedBy(map['processedBy']?.toString(), map['order_notes']?.toString()),
+      processedBy: _parseProcessedBy(map['processedBy']?.toString(), notes),
       deliveryPersonId: deliveryPerson.id,
       deliveryPersonName: deliveryPerson.name,
       deliveryPersonRole: deliveryPerson.role,
@@ -343,7 +402,31 @@ class CustomerOrder {
       deliveryLongitude: coords.lng,
       cancellationReason: _parseCancellationReason(
         map['cancellationReason']?.toString() ?? map['cancellation_reason']?.toString(),
-        map['order_notes']?.toString(),
+        notes,
+      ),
+      paymentReferenceNumber: _parsePaymentReferenceNumber(
+        map['paymentReferenceNumber']?.toString() ?? map['payment_reference_number']?.toString(),
+        notes,
+      ),
+      gcashRefundName: _parseGcashRefundName(
+        map['gcashRefundName']?.toString() ?? map['gcash_refund_name']?.toString(),
+        notes,
+      ),
+      gcashRefundNumber: _parseGcashRefundNumber(
+        map['gcashRefundNumber']?.toString() ?? map['gcash_refund_number']?.toString(),
+        notes,
+      ),
+      refundProofUrl: _parseRefundProofUrl(
+        map['refundProofUrl']?.toString() ?? map['refund_proof_url']?.toString(),
+        notes,
+      ),
+      refundStatus: _parseRefundStatus(
+        map['refundStatus']?.toString() ?? map['refund_status']?.toString(),
+        notes,
+      ),
+      paymentProofUrl: _parsePaymentProofUrl(
+        map['paymentProofUrl']?.toString() ?? map['payment_proof_url']?.toString(),
+        notes,
       ),
     );
   }
@@ -380,6 +463,8 @@ class CustomerOrder {
       map['order_notes']?.toString(),
     );
 
+    final notes = map['order_notes']?.toString();
+
     return CustomerOrder(
       dbId: map['id']?.toString(),
       orderId: map['order_number']?.toString() ?? map['id']?.toString() ?? '',
@@ -390,15 +475,18 @@ class CustomerOrder {
         map['order_type']?.toString() ?? map['orderType']?.toString(),
         map['delivery_address']?.toString() ?? map['deliveryAddress']?.toString(),
       ),
-      paymentMethod: _parsePaymentMethod(map['payment_method']?.toString()),
+      paymentMethod: _parsePaymentMethod(
+        map['payment_method']?.toString() ?? map['paymentMethod']?.toString(),
+        notes,
+      ),
       paymentStatus: _parsePaymentStatus(map['payment_status']?.toString()),
       deliveryAddress: map['delivery_address']?.toString(),
       subtotal: finalSubtotal,
       deliveryFee: (map['delivery_fee'] as num?)?.toDouble() ?? 0.0,
       totalAmount: totalAmt,
-      status: _parseOrderStatus(map['status']?.toString(), map['order_notes']?.toString()),
+      status: _parseOrderStatus(map['status']?.toString(), notes),
       userId: map['user_id']?.toString(),
-      processedBy: _parseProcessedBy(map['processed_by']?.toString(), map['order_notes']?.toString()),
+      processedBy: _parseProcessedBy(map['processed_by']?.toString(), notes),
       deliveryPersonId: deliveryPerson.id,
       deliveryPersonName: deliveryPerson.name,
       deliveryPersonRole: deliveryPerson.role,
@@ -406,7 +494,31 @@ class CustomerOrder {
       deliveryLongitude: coords.lng,
       cancellationReason: _parseCancellationReason(
         map['cancellation_reason']?.toString() ?? map['cancellationReason']?.toString(),
-        map['order_notes']?.toString(),
+        notes,
+      ),
+      paymentReferenceNumber: _parsePaymentReferenceNumber(
+        map['payment_reference_number']?.toString() ?? map['paymentReferenceNumber']?.toString(),
+        notes,
+      ),
+      gcashRefundName: _parseGcashRefundName(
+        map['gcash_refund_name']?.toString() ?? map['gcashRefundName']?.toString(),
+        notes,
+      ),
+      gcashRefundNumber: _parseGcashRefundNumber(
+        map['gcash_refund_number']?.toString() ?? map['gcashRefundNumber']?.toString(),
+        notes,
+      ),
+      refundProofUrl: _parseRefundProofUrl(
+        map['refund_proof_url']?.toString() ?? map['refundProofUrl']?.toString(),
+        notes,
+      ),
+      refundStatus: _parseRefundStatus(
+        map['refund_status']?.toString() ?? map['refundStatus']?.toString(),
+        notes,
+      ),
+      paymentProofUrl: _parsePaymentProofUrl(
+        map['payment_proof_url']?.toString() ?? map['paymentProofUrl']?.toString(),
+        notes,
       ),
     );
   }
@@ -523,10 +635,19 @@ OrderType _parseOrderType(String? type, [String? deliveryAddress]) {
   return OrderType.pickup;
 }
 
-PaymentMethod _parsePaymentMethod(String? method) {
-  if (method == null) return PaymentMethod.cashOnDelivery;
-  final m = method.toLowerCase();
-  if (m.contains('gcash')) return PaymentMethod.gCash;
+PaymentMethod _parsePaymentMethod(String? method, [String? orderNotes]) {
+  if (method != null && method.trim().isNotEmpty) {
+    final m = method.toLowerCase();
+    if (m.contains('gcash')) return PaymentMethod.gCash;
+    if (m.contains('cash')) return PaymentMethod.cashOnDelivery;
+  }
+  if (orderNotes != null && orderNotes.contains('[payment_method:')) {
+    final match = RegExp(r'\[payment_method:\s*([^\]]+)\]').firstMatch(orderNotes);
+    if (match != null && match.group(1) != null) {
+      final m = match.group(1)!.trim().toLowerCase();
+      if (m.contains('gcash')) return PaymentMethod.gCash;
+    }
+  }
   return PaymentMethod.cashOnDelivery;
 }
 
@@ -550,4 +671,59 @@ String? _parseCancellationReason(String? rawReason, String? orderNotes) {
   }
   return null;
 }
+
+String? _parseGcashRefundName(String? raw, String? orderNotes) {
+  if (raw != null && raw.trim().isNotEmpty) return raw.trim();
+  if (orderNotes != null && orderNotes.contains('[gcash_refund_name:')) {
+    final match = RegExp(r'\[gcash_refund_name:\s*([^\]]+)\]').firstMatch(orderNotes);
+    if (match != null && match.group(1) != null) return match.group(1)!.trim();
+  }
+  return null;
+}
+
+String? _parseGcashRefundNumber(String? raw, String? orderNotes) {
+  if (raw != null && raw.trim().isNotEmpty) return raw.trim();
+  if (orderNotes != null && orderNotes.contains('[gcash_refund_number:')) {
+    final match = RegExp(r'\[gcash_refund_number:\s*([^\]]+)\]').firstMatch(orderNotes);
+    if (match != null && match.group(1) != null) return match.group(1)!.trim();
+  }
+  return null;
+}
+
+String? _parseRefundProofUrl(String? raw, String? orderNotes) {
+  if (raw != null && raw.trim().isNotEmpty) return raw.trim();
+  if (orderNotes != null && orderNotes.contains('[refund_proof_url:')) {
+    final match = RegExp(r'\[refund_proof_url:\s*([^\]]+)\]').firstMatch(orderNotes);
+    if (match != null && match.group(1) != null) return match.group(1)!.trim();
+  }
+  return null;
+}
+
+String? _parseRefundStatus(String? raw, String? orderNotes) {
+  if (raw != null && raw.trim().isNotEmpty) return raw.trim();
+  if (orderNotes != null && orderNotes.contains('[refund_status:')) {
+    final match = RegExp(r'\[refund_status:\s*([^\]]+)\]').firstMatch(orderNotes);
+    if (match != null && match.group(1) != null) return match.group(1)!.trim();
+  }
+  return null;
+}
+
+String? _parsePaymentReferenceNumber(String? raw, String? orderNotes) {
+  if (raw != null && raw.trim().isNotEmpty) return raw.trim();
+  if (orderNotes != null && orderNotes.contains('[payment_ref:')) {
+    final match = RegExp(r'\[payment_ref:\s*([^\]]+)\]').firstMatch(orderNotes);
+    if (match != null && match.group(1) != null) return match.group(1)!.trim();
+  }
+  return null;
+}
+
+String? _parsePaymentProofUrl(String? raw, String? orderNotes) {
+  if (raw != null && raw.trim().isNotEmpty) return raw.trim();
+  if (orderNotes != null && orderNotes.contains('[payment_proof_url:')) {
+    final match = RegExp(r'\[payment_proof_url:\s*([^\]]+)\]').firstMatch(orderNotes);
+    if (match != null && match.group(1) != null) return match.group(1)!.trim();
+  }
+  return null;
+}
+
 
