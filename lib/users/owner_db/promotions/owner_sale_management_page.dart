@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../models/sale_deal_model.dart';
 import '../../../core/services/sale_deal_controller.dart';
+import '../../../shared/utils/top_notification.dart';
 import 'owner_edit_sale_deal_page.dart';
 
 class OwnerSaleManagementPage extends StatelessWidget {
@@ -301,8 +302,16 @@ class OwnerSaleManagementPage extends StatelessWidget {
                     Switch(
                       value: deal.isActive,
                       activeThumbColor: AppColors.primaryOrange,
-                      onChanged: (val) {
-                        controller.toggleDealStatus(deal.id, val);
+                      onChanged: (val) async {
+                        await controller.toggleDealStatus(deal.id, val);
+                        if (context.mounted) {
+                          TopNotification.show(
+                            context,
+                            val
+                                ? 'Sale deal "${deal.title}" activated.'
+                                : 'Sale deal "${deal.title}" deactivated.',
+                          );
+                        }
                       },
                     ),
                     Text(
@@ -368,8 +377,9 @@ class OwnerSaleManagementPage extends StatelessWidget {
     if (confirm == true) {
       await controller.deleteDeal(deal.id);
       if (context.mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Sale deal "${deal.title}" deleted.')),
+        TopNotification.show(
+          context,
+          'Sale deal "${deal.title}" deleted.',
         );
       }
     }

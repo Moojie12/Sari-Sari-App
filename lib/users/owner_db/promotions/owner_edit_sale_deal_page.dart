@@ -1110,15 +1110,17 @@ class _OwnerEditSaleDealPageState extends State<OwnerEditSaleDealPage> {
     if (mounted) {
       if (success) {
         Navigator.pop(context, true);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(widget.initialDeal == null ? 'On-Sale Deal created successfully!' : 'On-Sale Deal updated!'),
-            backgroundColor: Colors.green,
-          ),
+        TopNotification.show(
+          context,
+          widget.initialDeal == null
+              ? 'On-Sale Deal created successfully!'
+              : 'On-Sale Deal updated successfully!',
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Failed to save deal to backend. Please check connection.')),
+        TopNotification.show(
+          context,
+          'Failed to save deal to backend. Please check connection.',
+          isError: true,
         );
       }
     }

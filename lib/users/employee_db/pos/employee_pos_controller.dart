@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 
+import '../../../models/sale_deal_model.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
 import '../employee_inventory_controller.dart';
 import '../inventory/employee_batch_model.dart';
@@ -134,6 +135,95 @@ class EmployeePosController extends ChangeNotifier {
         quantity: quantity,
       ));
     }
+    notifyListeners();
+    return true;
+  }
+
+  /// Adds an On-Sale Deal / Promo bundle set by the Owner directly into the POS cart.
+  /// Validates available batch stock for each product in the deal before adding.
+  bool addSaleDealToCart(SaleDealModel deal, {void Function(String error)? onError}) {
+    if (deal.items.isEmpty) {
+      onError?.call('Promo deal "${deal.title}" has no items.');
+      return false;
+    }
+
+    final itemsToAdd = <_DealItemInfo>[];
+
+    for (final item in deal.items) {
+      final product = inventory.findById(item.productId);
+      if (product == null) {
+        onError?.call('Product "${item.productName}" not found in inventory.');
+        return false;
+      }
+
+      final neededQty = item.quantity.toDouble();
+
+      // Find an unexpired batch with available stock
+      ProductBatch? selectedBatch;
+      for (final batch in product.batches) {
+        if (!batch.isExpired && batch.quantity > 0) {
+          final cartIdx = _cart.indexWhere((c) => c.product.id == product.id && c.batchId == batch.id);
+          final inCartQty = cartIdx >= 0 ? _cart[cartIdx].quantity : 0.0;
+          if (batch.quantity - inCartQty >= neededQty) {
+            selectedBatch = batch;
+            break;
+          }
+        }
+      }
+
+      if (selectedBatch == null) {
+        onError?.call('Insufficient stock for "${item.productName}" in promo.');
+        return false;
+      }
+
+      // Calculate unit sale price in promo
+      double unitPrice = item.originalPrice;
+      if (deal.items.length == 1) {
+        unitPrice = deal.salePrice / neededQty;
+      } else {
+        final totalOriginal = deal.items.fold(0.0, (sum, i) => sum + i.totalOriginalPrice);
+        if (totalOriginal > 0) {
+          final proportionalPart = (item.totalOriginalPrice / totalOriginal) * deal.salePrice;
+          unitPrice = proportionalPart / neededQty;
+        }
+      }
+
+      itemsToAdd.add(_DealItemInfo(
+        product: product,
+        batch: selectedBatch,
+        quantity: neededQty,
+        unitSalePrice: unitPrice,
+      ));
+    }
+
+    for (final info in itemsToAdd) {
+      final index = _cart.indexWhere(
+        (c) => c.product.id == info.product.id && c.batchId == info.batch.id,
+      );
+      if (index >= 0) {
+        _cart[index].quantity += info.quantity;
+        if (info.unitSalePrice < _cart[index].unitPrice) {
+          _cart[index] = EmployeePosCartItem(
+            product: _cart[index].product,
+            batchId: _cart[index].batchId,
+            unitPrice: info.unitSalePrice,
+            capitalPrice: _cart[index].capitalPrice,
+            batchExpiryDate: _cart[index].batchExpiryDate,
+            quantity: _cart[index].quantity,
+          );
+        }
+      } else {
+        _cart.add(EmployeePosCartItem(
+          product: info.product,
+          batchId: info.batch.id,
+          unitPrice: info.unitSalePrice,
+          capitalPrice: info.product.capital,
+          batchExpiryDate: info.batch.expiryDate,
+          quantity: info.quantity,
+        ));
+      }
+    }
+
     notifyListeners();
     return true;
   }
@@ -304,4 +394,18 @@ class EmployeePosController extends ChangeNotifier {
     notifyListeners();
     return receipt;
   }
+}
+
+class _DealItemInfo {
+  final EmployeeProduct product;
+  final ProductBatch batch;
+  final double quantity;
+  final double unitSalePrice;
+
+  _DealItemInfo({
+    required this.product,
+    required this.batch,
+    required this.quantity,
+    required this.unitSalePrice,
+  });
 }

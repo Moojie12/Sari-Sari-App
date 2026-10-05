@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_colors.dart';
+import '../../../models/sale_deal_model.dart';
+import '../../../core/services/sale_deal_controller.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../../../shared/utils/gcash_ocr_helper.dart';
@@ -73,13 +75,40 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
   List<EmployeeProduct> get _filteredProducts {
     final query = _searchQuery.trim().toLowerCase();
     return widget.inventory.products.where((product) {
-      final matchesCategory =
-          _selectedCategory == 'All' || product.category == _selectedCategory;
+      final matchesCategory = _selectedCategory == 'All'
+          ? true
+          : (_selectedCategory == 'On Sale 🔥'
+              ? product.hasExpiringSoonBatch
+              : product.category == _selectedCategory);
       final matchesSearch = query.isEmpty ||
           product.name.toLowerCase().contains(query) ||
           product.barcode.contains(query);
       return matchesCategory && matchesSearch;
     }).toList();
+  }
+
+  void _addSaleDealToCart(SaleDealModel deal, [Offset? startPos]) {
+    String? errorMsg;
+    final success = widget.posController.addSaleDealToCart(
+      deal,
+      onError: (err) => errorMsg = err,
+    );
+
+    if (success) {
+      if (startPos != null) {
+        _runFlyToCartAnimation(startOffset: startPos, productImage: deal.effectiveImage);
+      }
+      TopNotification.show(
+        context,
+        'Promo "${deal.title}" added to sale!',
+      );
+    } else {
+      TopNotification.show(
+        context,
+        errorMsg ?? 'Failed to add promo deal.',
+        isError: true,
+      );
+    }
   }
 
   void _runFlyToCartAnimation({
@@ -263,8 +292,12 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
       backgroundColor: Colors.transparent,
       body: SafeArea(
         child: ListenableBuilder(
-          listenable: Listenable.merge(
-              [widget.inventory, widget.posController, EmployeeShiftController.instance]),
+          listenable: Listenable.merge([
+            widget.inventory,
+            widget.posController,
+            EmployeeShiftController.instance,
+            SaleDealController.instance,
+          ]),
           builder: (context, _) {
             if (!EmployeeShiftController.instance.isShiftOpen) {
               return Column(
@@ -275,7 +308,17 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
               );
             }
 
+            final query = _searchQuery.trim().toLowerCase();
+            final showDeals = _selectedCategory == 'All' || _selectedCategory == 'On Sale 🔥';
+            final activeDeals = showDeals
+                ? SaleDealController.instance.activeDeals.where((d) {
+                    return query.isEmpty || d.title.toLowerCase().contains(query);
+                  }).toList()
+                : <SaleDealModel>[];
+
             final products = _filteredProducts;
+            final totalCount = activeDeals.length + products.length;
+
             return Column(
               children: [
                 _buildHeader(),
@@ -283,26 +326,33 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
                 _buildCategories(),
                 const SizedBox(height: 8),
                 Expanded(
-                  child: products.isEmpty
+                  child: totalCount == 0
                       ? _buildEmptyState()
                       : GridView.builder(
-                    padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
-                    gridDelegate:
-                    const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 2,
-                      mainAxisSpacing: 14,
-                      crossAxisSpacing: 14,
-                      childAspectRatio: 0.85,
-                    ),
-                    itemCount: products.length,
-                    itemBuilder: (context, index) {
-                      final product = products[index];
-                      return _PosProductCard(
-                        product: product,
-                        onTapWithPosition: (pos) => _addToCart(product, pos),
-                      );
-                    },
-                  ),
+                          padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 14,
+                            crossAxisSpacing: 14,
+                            childAspectRatio: 0.85,
+                          ),
+                          itemCount: totalCount,
+                          itemBuilder: (context, index) {
+                            if (index < activeDeals.length) {
+                              final deal = activeDeals[index];
+                              return _PosSaleDealCard(
+                                deal: deal,
+                                onTapWithPosition: (pos) => _addSaleDealToCart(deal, pos),
+                              );
+                            }
+
+                            final product = products[index - activeDeals.length];
+                            return _PosProductCard(
+                              product: product,
+                              onTapWithPosition: (pos) => _addToCart(product, pos),
+                            );
+                          },
+                        ),
                 ),
               ],
             );
@@ -480,7 +530,16 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
   }
 
   Widget _buildCategories() {
-    final categories = widget.inventory.categories;
+    final rawCategories = widget.inventory.categories;
+    final categories = <String>[];
+    if (rawCategories.isNotEmpty) {
+      categories.add(rawCategories.first); // 'All'
+      categories.add('On Sale 🔥');
+      categories.addAll(rawCategories.skip(1));
+    } else {
+      categories.addAll(['All', 'On Sale 🔥']);
+    }
+
     return SizedBox(
       height: 36,
       child: ListView.separated(
@@ -557,6 +616,159 @@ class _HeaderIconButton extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.all(8),
             child: Icon(icon, size: 18, color: AppColors.primaryOrange),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PosSaleDealCard extends StatefulWidget {
+  const _PosSaleDealCard({
+    required this.deal,
+    required this.onTapWithPosition,
+  });
+
+  final SaleDealModel deal;
+  final Function(Offset position) onTapWithPosition;
+
+  @override
+  State<_PosSaleDealCard> createState() => _PosSaleDealCardState();
+}
+
+class _PosSaleDealCardState extends State<_PosSaleDealCard> {
+  Offset? _tapPosition;
+
+  @override
+  Widget build(BuildContext context) {
+    final deal = widget.deal;
+    final totalOriginal = deal.items.fold(0.0, (sum, i) => sum + i.totalOriginalPrice);
+    final itemsSummary = deal.items.map((i) => '${i.quantity}x ${i.productName}').join(', ');
+
+    return Material(
+      color: Colors.white,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+      ),
+      child: GestureDetector(
+        behavior: HitTestBehavior.translucent,
+        onTapDown: (details) {
+          _tapPosition = details.globalPosition;
+        },
+        child: InkWell(
+          onTap: () {
+            final pos = _tapPosition ?? const Offset(200, 400);
+            widget.onTapWithPosition(pos);
+          },
+          child: Stack(
+            children: [
+              Padding(
+                padding: const EdgeInsets.all(12),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Container(
+                        width: double.infinity,
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryOrange.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        alignment: Alignment.center,
+                        child: ProductImage(
+                          image: deal.effectiveImage,
+                          width: double.infinity,
+                          height: double.infinity,
+                          borderRadius: 10,
+                          fallbackIcon: Icons.local_offer,
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text(
+                      deal.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.darkText,
+                        fontSize: 13,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      itemsSummary,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        color: AppColors.secondaryText,
+                        fontSize: 10,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Row(
+                      children: [
+                        Text(
+                          '₱${deal.salePrice.toStringAsFixed(2)}',
+                          style: const TextStyle(
+                            color: AppColors.primaryOrange,
+                            fontSize: 14,
+                            fontWeight: FontWeight.w900,
+                          ),
+                        ),
+                        if (totalOriginal > deal.salePrice) ...[
+                          const SizedBox(width: 6),
+                          Text(
+                            '₱${totalOriginal.toStringAsFixed(2)}',
+                            style: const TextStyle(
+                              color: AppColors.secondaryText,
+                              fontSize: 11,
+                              decoration: TextDecoration.lineThrough,
+                            ),
+                          ),
+                        ],
+                      ],
+                    ),
+                  ],
+                ),
+              ),
+              Positioned(
+                top: 8,
+                left: 8,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryOrange,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 4,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
+                  ),
+                  child: const Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(Icons.local_offer, color: Colors.white, size: 10),
+                      SizedBox(width: 4),
+                      Text(
+                        'PROMO DEAL',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 9,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
           ),
         ),
       ),
