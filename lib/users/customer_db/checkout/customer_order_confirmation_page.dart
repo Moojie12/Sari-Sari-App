@@ -4,6 +4,8 @@ import '../customer_db.dart';
 import '../purchases/customer_order_model.dart';
 import '../customer_dashboard.dart';
 
+import '../../../shared/utils/gcash_ocr_helper.dart';
+
 class CustomerOrderConfirmationPage extends StatelessWidget {
   const CustomerOrderConfirmationPage({super.key, required this.order});
   final CustomerOrder order;
@@ -21,6 +23,10 @@ class CustomerOrderConfirmationPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final hasRefNumber = order.paymentMethod == PaymentMethod.gCash &&
+        order.paymentReferenceNumber != null &&
+        order.paymentReferenceNumber!.isNotEmpty;
+
     return PopScope(
       canPop: false,
       onPopInvokedWithResult: (didPop, result) {
@@ -51,6 +57,11 @@ class CustomerOrderConfirmationPage extends StatelessWidget {
                 _ConfirmationDetail(label: 'Order Number', value: order.displayOrderId),
                 _ConfirmationDetail(label: 'Total', value: '₱${order.totalAmount.toStringAsFixed(2)}'),
                 _ConfirmationDetail(label: 'Payment', value: order.paymentMethod == PaymentMethod.cashOnDelivery ? 'Cash on Delivery' : 'GCash'),
+                if (hasRefNumber)
+                  _ConfirmationDetail(
+                    label: 'GCash Ref No.',
+                    value: GcashOcrHelper.formatRefNumber(order.paymentReferenceNumber!),
+                  ),
                 _ConfirmationDetail(label: 'Order Type', value: order.orderType == OrderType.pickup ? 'Pickup' : 'Delivery'),
                 const SizedBox(height: 60),
                 SizedBox(

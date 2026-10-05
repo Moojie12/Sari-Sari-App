@@ -1,12 +1,15 @@
 import 'dart:convert';
-import 'dart:io';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:sari_sari/core/services/ocr_service.dart';
+import 'package:sari_sari/shared/utils/gcash_ocr_helper.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
+import '../../../shared/widgets/product_image.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 import '../../employee_db/orders/employee_orders_controller.dart';
 
@@ -180,17 +183,13 @@ class _RefundOrderCardState extends State<_RefundOrderCard> {
           children: [
             Center(
               child: InteractiveViewer(
-                child: Image.network(
-                  imageUrl,
+                child: ProductImage(
+                  image: imageUrl,
                   fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.broken_image, color: Colors.white, size: 64),
-                      SizedBox(height: 16),
-                      Text('Failed to load image', style: TextStyle(color: Colors.white)),
-                    ],
-                  ),
+                  width: double.infinity,
+                  height: double.infinity,
+                  borderRadius: 0,
+                  fallbackIcon: Icons.broken_image,
                 ),
               ),
             ),
@@ -308,78 +307,218 @@ class _RefundOrderCardState extends State<_RefundOrderCard> {
   Future<void> _pickAndUploadReceipt() async {
     final XFile? image = await _picker.pickImage(
       source: ImageSource.gallery,
-      imageQuality: 75,
+      imageQuality: 85,
       maxWidth: 1024,
     );
 
     if (image == null) return;
 
-    final file = File(image.path);
-    final bytes = await file.readAsBytes();
-    final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+    try {
+      final bytes = await image.readAsBytes();
+      final fileSizeBytes = bytes.length;
 
-    if (!mounted) return;
+      // File size check (max 5MB)
+      if (fileSizeBytes > GcashOcrHelper.maxFileSizeBytes) {
+        final mb = (fileSizeBytes / (1024 * 1024)).toStringAsFixed(1);
+        if (mounted) {
+          TopNotification.show(
+            context,
+            'The receipt screenshot size ($mb MB) is too large. Please select an image under 5MB.',
+            isError: true,
+          );
+        }
+        return;
+      }
 
-    final confirm = await showDialog<bool>(
-      context: context,
-      builder: (dialogCtx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.verified, color: Colors.green, size: 28),
-            SizedBox(width: 8),
-            Text('Confirm Refund Proof', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Are you sure you want to attach this receipt image and complete the ₱${widget.order.totalAmount.toStringAsFixed(2)} refund for Order #${widget.order.displayOrderId}?',
-              style: const TextStyle(fontSize: 13, color: AppColors.darkText),
+      String? extractedRef;
+
+      // Validate image via Google ML Kit OCR on Mobile/Desktop & Web OCR on Web
+      List<OcrTextItem> ocrItems = [];
+      try {
+        final ocrService = MlKitOcrService();
+        ocrItems = await ocrService.processImageWebOrMobile(
+          imagePath: image.path,
+          bytes: bytes,
+          filterJunk: false,
+        );
+        ocrService.dispose();
+      } catch (e) {
+        debugPrint('[Refund OCR Exception]: $e');
+      }
+
+      final validation = GcashOcrHelper.validateReceipt(
+        items: ocrItems,
+        fileSizeBytes: fileSizeBytes,
+      );
+
+      if (!validation.isValid) {
+        if (mounted) {
+          TopNotification.show(
+            context,
+            validation.errorMessage ?? 'The uploaded picture does not look like a GCash refund receipt screenshot or is too blurry.',
+            isError: true,
+          );
+        }
+        return;
+      }
+
+      extractedRef = validation.extractedRefNumber;
+
+      final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+
+      if (!mounted) return;
+
+      final confirm = await showDialog<bool>(
+        context: context,
+        builder: (dialogCtx) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+          backgroundColor: Colors.white,
+          title: const Row(
+            children: [
+              Icon(Icons.preview_rounded, color: AppColors.primaryOrange, size: 26),
+              SizedBox(width: 8),
+              Text('Preview Refund Proof', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Please review the refund receipt image before completing the ₱${widget.order.totalAmount.toStringAsFixed(2)} refund for Order #${widget.order.displayOrderId}:',
+                  style: const TextStyle(fontSize: 13, color: AppColors.darkText),
+                ),
+                const SizedBox(height: 12),
+                SizedBox(
+                  width: 320,
+                  height: 220,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade100,
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(color: AppColors.borderColor),
+                    ),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: InteractiveViewer(
+                        clipBehavior: Clip.hardEdge,
+                        child: Image.memory(
+                          bytes,
+                          fit: BoxFit.contain,
+                          errorBuilder: (context, error, stackTrace) => const Padding(
+                            padding: EdgeInsets.all(24.0),
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              children: [
+                                Icon(Icons.broken_image, color: Colors.grey, size: 48),
+                                SizedBox(height: 8),
+                                Text('Unable to display image preview', style: TextStyle(fontSize: 12, color: Colors.grey)),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                if (extractedRef != null && extractedRef.isNotEmpty) ...[
+                  Container(
+                    padding: const EdgeInsets.all(10),
+                    decoration: BoxDecoration(
+                      color: Colors.green.shade50,
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.green.shade300),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(Icons.verified, color: Colors.green.shade700, size: 18),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                'Extracted Refund Ref No. (Google OCR)',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.green.shade900,
+                                ),
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                GcashOcrHelper.formatRefNumber(extractedRef),
+                                style: TextStyle(
+                                  fontSize: 14,
+                                  fontWeight: FontWeight.bold,
+                                  letterSpacing: 1.1,
+                                  color: Colors.green.shade900,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                ],
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.zoom_in, size: 14, color: AppColors.secondaryText),
+                    SizedBox(width: 4),
+                    Text('Pinch or scroll to zoom preview', style: TextStyle(fontSize: 11, color: AppColors.secondaryText)),
+                  ],
+                ),
+              ],
             ),
-            const SizedBox(height: 12),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: Image.file(
-                file,
-                height: 160,
-                width: double.infinity,
-                fit: BoxFit.cover,
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogCtx, false),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+            ),
+            ElevatedButton.icon(
+              onPressed: () => Navigator.pop(dialogCtx, true),
+              icon: const Icon(Icons.check_circle_rounded, size: 18),
+              label: const Text('Confirm & Submit Refund'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
               ),
             ),
           ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx, false),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
-          ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogCtx, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Confirm & Submit Refund'),
-          ),
-        ],
-      ),
-    );
-
-    if (confirm == true) {
-      setState(() => _isUploading = true);
-
-      await EmployeeOrderController.instance.submitRefundProof(
-        widget.order.orderId,
-        proofUrl: base64Image,
       );
 
+      if (confirm == true) {
+        setState(() => _isUploading = true);
+
+        await EmployeeOrderController.instance.submitRefundProof(
+          widget.order.orderId,
+          proofUrl: base64Image,
+          refundRefNumber: extractedRef,
+        );
+
+        if (mounted) {
+          setState(() => _isUploading = false);
+          TopNotification.show(context, 'Refund proof uploaded and confirmed for Order #${widget.order.displayOrderId}!');
+        }
+      }
+    } catch (e) {
+      debugPrint('[Upload Refund Proof Exception]: $e');
       if (mounted) {
         setState(() => _isUploading = false);
-        TopNotification.show(context, 'Refund proof uploaded and confirmed for Order #${widget.order.displayOrderId}!');
+        TopNotification.show(
+          context,
+          'Failed to load receipt image. Please select a valid screenshot image file.',
+          isError: true,
+        );
       }
     }
   }
@@ -490,19 +629,20 @@ class _RefundOrderCardState extends State<_RefundOrderCard> {
                         color: hasGcashDetails ? AppColors.darkText : Colors.red.shade900,
                       ),
                     ),
-                    InkWell(
-                      onTap: _showManualGcashDialog,
-                      child: Row(
-                        children: [
-                          Icon(Icons.edit, size: 14, color: AppColors.primaryOrange),
-                          const SizedBox(width: 2),
-                          Text(
-                            hasGcashDetails ? 'Edit' : 'Add Details',
-                            style: const TextStyle(color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.bold),
-                          ),
-                        ],
+                    if (!hasGcashDetails)
+                      InkWell(
+                        onTap: _showManualGcashDialog,
+                        child: const Row(
+                          children: [
+                            Icon(Icons.add, size: 14, color: AppColors.primaryOrange),
+                            SizedBox(width: 2),
+                            Text(
+                              'Add Details',
+                              style: TextStyle(color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.bold),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
                   ],
                 ),
                 const SizedBox(height: 8),
@@ -512,18 +652,7 @@ class _RefundOrderCardState extends State<_RefundOrderCard> {
                     style: TextStyle(fontSize: 12, color: Colors.red),
                   ),
                 ] else ...[
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Text('Name: ${order.gcashRefundName}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
-                      IconButton(
-                        icon: const Icon(Icons.copy, size: 16, color: AppColors.primaryOrange),
-                        onPressed: () => _copyToClipboard(context, order.gcashRefundName!, 'GCash Name'),
-                        padding: EdgeInsets.zero,
-                        constraints: const BoxConstraints(),
-                      ),
-                    ],
-                  ),
+                  Text('Name: ${order.gcashRefundName}', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w500)),
                   const SizedBox(height: 4),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,

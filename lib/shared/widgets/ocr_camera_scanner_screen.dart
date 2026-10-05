@@ -4,7 +4,7 @@ import 'package:camera/camera.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../core/services/ocr_service.dart';
+import 'package:sari_sari/core/services/ocr_service.dart';
 import '../../core/theme/app_colors.dart';
 import '../utils/camera_permission_helper.dart';
 

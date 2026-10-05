@@ -1,4 +1,8 @@
+import 'dart:convert';
+import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
+import 'web_ocr_stub.dart' if (dart.library.js_util) 'web_ocr_impl.dart';
 
 /// Represents a single piece of text extracted by OCR, including metadata
 /// for sorting by font size/prominence.
@@ -24,7 +28,13 @@ class OcrTextItem {
 
 /// Abstract OCR service interface allowing unit testing and mock implementations.
 abstract class OcrService {
-  Future<List<OcrTextItem>> processImage(String imagePath);
+  Future<List<OcrTextItem>> processImage(String imagePath, {bool filterJunk = true});
+  Future<List<OcrTextItem>> processRawImage(String imagePath);
+  Future<List<OcrTextItem>> processImageWebOrMobile({
+    String? imagePath,
+    required Uint8List bytes,
+    bool filterJunk = false,
+  });
 
   /// Filters out noisy packaging text (net weights, dates, pure digits)
   /// and sorts by bounding box height (largest text first).
@@ -40,37 +50,83 @@ abstract class OcrService {
   bool isJunkText(String text);
 }
 
-/// Default implementation using Google ML Kit Text Recognition.
+/// Default implementation using Google ML Kit Text Recognition on Native & Web OCR on Web.
 class MlKitOcrService implements OcrService {
   MlKitOcrService({TextRecognizer? recognizer})
-      : _recognizer =
-            recognizer ?? TextRecognizer(script: TextRecognitionScript.latin);
+      : _recognizer = !kIsWeb
+            ? (recognizer ?? TextRecognizer(script: TextRecognitionScript.latin))
+            : null;
 
-  final TextRecognizer _recognizer;
+  final TextRecognizer? _recognizer;
 
   @override
-  Future<List<OcrTextItem>> processImage(String imagePath) async {
-    final inputImage = InputImage.fromFilePath(imagePath);
-    final RecognizedText recognizedText =
-        await _recognizer.processImage(inputImage);
+  Future<List<OcrTextItem>> processRawImage(String imagePath) async {
+    return processImage(imagePath, filterJunk: false);
+  }
 
-    final List<OcrTextItem> items = [];
+  @override
+  Future<List<OcrTextItem>> processImageWebOrMobile({
+    String? imagePath,
+    required Uint8List bytes,
+    bool filterJunk = false,
+  }) async {
+    if (kIsWeb) {
+      final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
+      final text = await runWebOcr(base64Image);
+      if (text.trim().isEmpty) return [];
 
-    for (final block in recognizedText.blocks) {
-      for (final line in block.lines) {
-        final cleaned = cleanText(line.text);
+      final lines = text.split('\n');
+      final items = <OcrTextItem>[];
+      for (final line in lines) {
+        final cleaned = cleanText(line);
         if (cleaned.isNotEmpty) {
-          final box = line.boundingBox;
-          final height = box.height;
-          items.add(OcrTextItem(
-            text: cleaned,
-            boundingBoxHeight: height,
-          ));
+          items.add(OcrTextItem(text: cleaned, boundingBoxHeight: 20.0));
         }
       }
+      return filterJunk ? filterAndSort(items) : items;
+    } else {
+      if (imagePath != null && imagePath.isNotEmpty) {
+        return processImage(imagePath, filterJunk: filterJunk);
+      }
+      return [];
     }
+  }
 
-    return filterAndSort(items);
+  @override
+  Future<List<OcrTextItem>> processImage(String imagePath, {bool filterJunk = true}) async {
+    if (kIsWeb || _recognizer == null) {
+      return [];
+    }
+    try {
+      final inputImage = InputImage.fromFilePath(imagePath);
+      final RecognizedText recognizedText =
+          await _recognizer.processImage(inputImage);
+
+      final List<OcrTextItem> items = [];
+
+      for (final block in recognizedText.blocks) {
+        for (final line in block.lines) {
+          final cleaned = cleanText(line.text);
+          if (cleaned.isNotEmpty) {
+            final box = line.boundingBox;
+            final height = box.height;
+            items.add(OcrTextItem(
+              text: cleaned,
+              boundingBoxHeight: height,
+            ));
+          }
+        }
+      }
+
+      if (!filterJunk) {
+        return items;
+      }
+
+      return filterAndSort(items);
+    } catch (e) {
+      debugPrint('[MLKit processImage Exception]: $e');
+      return [];
+    }
   }
 
   @override
@@ -160,6 +216,12 @@ class MlKitOcrService implements OcrService {
   }
 
   void dispose() {
-    _recognizer.close();
+    if (!kIsWeb && _recognizer != null) {
+      try {
+        _recognizer.close();
+      } catch (e) {
+        debugPrint('[MLKit Dispose Notice]: $e');
+      }
+    }
   }
 }

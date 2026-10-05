@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 
-import '../../core/services/ocr_service.dart';
+import 'package:sari_sari/core/services/ocr_service.dart';
 import '../widgets/ocr_camera_scanner_screen.dart';
 
 /// Opens the Live Camera Product Name Scanner screen to scan product packaging text.

@@ -20,6 +20,7 @@ import 'orders/employee_orders_page.dart';
 import 'pos/employee_pos_controller.dart';
 import 'pos/employee_pos_page.dart';
 import 'profile/employee_profile_page.dart';
+import 'profile/employee_profile_controller.dart';
 
 /// Main shell for the employee-facing (Cashier / Inventory Staff) side of
 /// the app.
@@ -53,6 +54,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   @override
   void initState() {
     super.initState();
+    EmployeeProfileController.instance.loadProfile();
     DashboardNavigationController.instance.addListener(_handleNavigationRequest);
   }
 

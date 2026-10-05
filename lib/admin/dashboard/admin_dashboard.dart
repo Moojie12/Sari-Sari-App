@@ -298,21 +298,24 @@ class _AdminDashboardState extends State<AdminDashboard> {
 
           return Dialog(
             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-            child: Container(
-              width: 620,
-              constraints: BoxConstraints(
-                maxHeight: MediaQuery.of(context).size.height * 0.88,
-              ),
-              padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  // Modal Header
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            insetPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 16),
+            child: LayoutBuilder(
+              builder: (context, constraints) {
+                final isCompact = constraints.maxWidth < 540;
+
+                return Container(
+                  width: dialogWidth(context, 620),
+                  constraints: BoxConstraints(
+                    maxHeight: MediaQuery.of(context).size.height * 0.90,
+                  ),
+                  padding: EdgeInsets.all(isCompact ? 16 : 22),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
+                      // Modal Header
                       Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Container(
                             padding: const EdgeInsets.all(8),
@@ -327,354 +330,408 @@ class _AdminDashboardState extends State<AdminDashboard> {
                             ),
                           ),
                           const SizedBox(width: 12),
-                          Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                isEdit ? 'Edit User Details' : 'Add New User',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.darkText,
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  isEdit ? 'Edit User Details' : 'Add New User',
+                                  style: const TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.darkText,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                isEdit
-                                    ? 'Update profile information for ${user.fullName}'
-                                    : 'Enter user registration details with live validation',
-                                style: const TextStyle(
-                                  fontSize: 12,
-                                  color: AppColors.secondaryText,
+                                const SizedBox(height: 2),
+                                Text(
+                                  isEdit
+                                      ? 'Update profile information for ${user.fullName}'
+                                      : 'Enter user registration details with live validation',
+                                  style: const TextStyle(
+                                    fontSize: 12,
+                                    color: AppColors.secondaryText,
+                                  ),
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
                                 ),
-                              ),
-                            ],
+                              ],
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(Icons.close_rounded, size: 20, color: AppColors.placeholderColor),
+                            onPressed: () => Navigator.pop(context, false),
+                            padding: EdgeInsets.zero,
+                            constraints: const BoxConstraints(),
                           ),
                         ],
                       ),
-                      IconButton(
-                        icon: const Icon(Icons.close_rounded, size: 20, color: AppColors.placeholderColor),
-                        onPressed: () => Navigator.pop(context, false),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 16),
-                  const Divider(height: 1, color: AppColors.borderColor),
-                  const SizedBox(height: 16),
+                      const SizedBox(height: 14),
+                      const Divider(height: 1, color: AppColors.borderColor),
+                      const SizedBox(height: 14),
 
-                  // Modal Form Fields
-                  Flexible(
-                    child: SingleChildScrollView(
-                      child: Form(
-                        key: formKey,
-                        autovalidateMode: AutovalidateMode.onUserInteraction,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            // First Name and Middle Initial
-                            Row(
+                      // Modal Form Fields
+                      Flexible(
+                        child: SingleChildScrollView(
+                          child: Form(
+                            key: formKey,
+                            autovalidateMode: AutovalidateMode.onUserInteraction,
+                            child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Expanded(
-                                  flex: 4,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      fieldLabel('First Name *'),
-                                      TextFormField(
-                                        controller: firstNameController,
-                                        onChanged: (_) => setModalState(() {}),
-                                        decoration: liveInputDecoration(
-                                          icon: Icons.person_outline_rounded,
-                                          hint: 'e.g. Juan',
-                                          value: fnVal,
-                                          errorText: fnError,
-                                        ),
-                                        validator: (_) => fnError,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  flex: 2,
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      fieldLabel('M.I.'),
-                                      TextFormField(
-                                        controller: middleInitialController,
-                                        onChanged: (_) => setModalState(() {}),
-                                        textCapitalization: TextCapitalization.characters,
-                                        decoration: liveInputDecoration(
-                                          icon: Icons.short_text_rounded,
-                                          hint: 'e.g. D',
-                                          value: miVal,
-                                          errorText: miError,
-                                        ),
-                                        validator: (_) => miError,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-                            const SizedBox(height: 14),
-
-                            // Surname
-                            fieldLabel('Surname / Last Name *'),
-                            TextFormField(
-                              controller: surnameController,
-                              onChanged: (_) => setModalState(() {}),
-                              decoration: liveInputDecoration(
-                                icon: Icons.badge_outlined,
-                                hint: 'e.g. Cruz',
-                                value: snVal,
-                                errorText: snError,
-                              ),
-                              validator: (_) => snError,
-                            ),
-                            const SizedBox(height: 14),
-
-                            // Email & Phone Number
-                            Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      fieldLabel('Email Address *'),
-                                      TextFormField(
-                                        controller: emailController,
-                                        onChanged: (_) => setModalState(() {}),
-                                        keyboardType: TextInputType.emailAddress,
-                                        decoration: liveInputDecoration(
-                                          icon: Icons.email_outlined,
-                                          hint: 'user@example.com',
-                                          value: emVal,
-                                          errorText: emError,
-                                        ),
-                                        validator: (_) => emError,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                                const SizedBox(width: 12),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      fieldLabel('Phone Number *'),
-                                      TextFormField(
-                                        controller: phoneController,
-                                        onChanged: (_) => setModalState(() {}),
-                                        keyboardType: TextInputType.phone,
-                                        decoration: liveInputDecoration(
-                                          icon: Icons.phone_outlined,
-                                          hint: '09123456789',
-                                          value: phVal,
-                                          errorText: phError,
-                                        ),
-                                        validator: (_) => phError,
-                                      ),
-                                    ],
-                                  ),
-                                ),
-                              ],
-                            ),
-
-                            // Auto-generated password info card (For new user creation)
-                            if (!isEdit) ...[
-                              const SizedBox(height: 14),
-                              Container(
-                                padding: const EdgeInsets.all(14),
-                                decoration: BoxDecoration(
-                                  color: AppColors.primaryOrange.withValues(alpha: 0.08),
-                                  borderRadius: BorderRadius.circular(10),
-                                  border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.3)),
-                                ),
-                                child: Column(
+                                // First Name and Middle Initial
+                                Row(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.lock_person_outlined, color: AppColors.primaryOrange, size: 20),
-                                        const SizedBox(width: 8),
-                                        const Text(
-                                          'Auto-Generated Temporary Password',
-                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13.5, color: AppColors.darkText),
-                                        ),
-                                        const Spacer(),
-                                        IconButton(
-                                          icon: Icon(
-                                            showTempPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
-                                            size: 18,
-                                            color: AppColors.placeholderColor,
+                                    Expanded(
+                                      flex: 4,
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          fieldLabel('First Name *'),
+                                          TextFormField(
+                                            controller: firstNameController,
+                                            onChanged: (_) => setModalState(() {}),
+                                            decoration: liveInputDecoration(
+                                              icon: Icons.person_outline_rounded,
+                                              hint: 'e.g. Juan',
+                                              value: fnVal,
+                                              errorText: fnError,
+                                            ),
+                                            validator: (_) => fnError,
                                           ),
-                                          onPressed: () => setModalState(() => showTempPassword = !showTempPassword),
-                                          tooltip: showTempPassword ? 'Hide password' : 'Show password',
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.primaryOrange),
-                                          onPressed: () {
-                                            Clipboard.setData(ClipboardData(text: tempPassword));
-                                            TopNotification.show(context, 'Temporary password copied to clipboard');
-                                          },
-                                          tooltip: 'Copy password',
-                                        ),
-                                      ],
+                                        ],
+                                      ),
                                     ),
-                                    const SizedBox(height: 6),
-                                    Text(
-                                      showTempPassword ? tempPassword : '•' * tempPassword.length,
-                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, letterSpacing: 1.2, color: AppColors.darkText),
-                                    ),
-                                    const SizedBox(height: 6),
-                                    const Text(
-                                      'This secure password meets all validation rules (min 8 chars, uppercase, lowercase, number, special char) and will be sent automatically to the user\'s email via EmailJS.',
-                                      style: TextStyle(fontSize: 12, color: AppColors.secondaryText, height: 1.3),
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      flex: 2,
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          fieldLabel('M.I.'),
+                                          TextFormField(
+                                            controller: middleInitialController,
+                                            onChanged: (_) => setModalState(() {}),
+                                            textCapitalization: TextCapitalization.characters,
+                                            decoration: liveInputDecoration(
+                                              icon: Icons.short_text_rounded,
+                                              hint: 'e.g. D',
+                                              value: miVal,
+                                              errorText: miError,
+                                            ),
+                                            validator: (_) => miError,
+                                          ),
+                                        ],
+                                      ),
                                     ),
                                   ],
                                 ),
-                              ),
-                            ],
-                            const SizedBox(height: 14),
+                                const SizedBox(height: 14),
 
-                            // Role Dropdown
-                            fieldLabel('User Role *'),
-                            DropdownButtonFormField<AdminRole>(
-                              initialValue: selectedRole,
-                              decoration: liveInputDecoration(
-                                icon: Icons.admin_panel_settings_outlined,
-                                value: selectedRole.label,
-                                errorText: null,
-                              ),
-                              items: AdminRole.values.map((role) {
-                                return DropdownMenuItem(
-                                  value: role,
-                                  child: Text(
-                                    role.label,
-                                    style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                                // Surname
+                                fieldLabel('Surname / Last Name *'),
+                                TextFormField(
+                                  controller: surnameController,
+                                  onChanged: (_) => setModalState(() {}),
+                                  decoration: liveInputDecoration(
+                                    icon: Icons.badge_outlined,
+                                    hint: 'e.g. Cruz',
+                                    value: snVal,
+                                    errorText: snError,
                                   ),
-                                );
-                              }).toList(),
-                              onChanged: (val) {
-                                if (val != null) {
-                                  setModalState(() => selectedRole = val);
-                                }
-                              },
+                                  validator: (_) => snError,
+                                ),
+                                const SizedBox(height: 14),
+
+                                // Email & Phone Number
+                                if (isCompact) ...[
+                                  fieldLabel('Email Address *'),
+                                  TextFormField(
+                                    controller: emailController,
+                                    onChanged: (_) => setModalState(() {}),
+                                    keyboardType: TextInputType.emailAddress,
+                                    decoration: liveInputDecoration(
+                                      icon: Icons.email_outlined,
+                                      hint: 'user@example.com',
+                                      value: emVal,
+                                      errorText: emError,
+                                    ),
+                                    validator: (_) => emError,
+                                  ),
+                                  const SizedBox(height: 14),
+                                  fieldLabel('Phone Number *'),
+                                  TextFormField(
+                                    controller: phoneController,
+                                    onChanged: (_) => setModalState(() {}),
+                                    keyboardType: TextInputType.phone,
+                                    decoration: liveInputDecoration(
+                                      icon: Icons.phone_outlined,
+                                      hint: '09123456789',
+                                      value: phVal,
+                                      errorText: phError,
+                                    ),
+                                    validator: (_) => phError,
+                                  ),
+                                ] else ...[
+                                  Row(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            fieldLabel('Email Address *'),
+                                            TextFormField(
+                                              controller: emailController,
+                                              onChanged: (_) => setModalState(() {}),
+                                              keyboardType: TextInputType.emailAddress,
+                                              decoration: liveInputDecoration(
+                                                icon: Icons.email_outlined,
+                                                hint: 'user@example.com',
+                                                value: emVal,
+                                                errorText: emError,
+                                              ),
+                                              validator: (_) => emError,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            fieldLabel('Phone Number *'),
+                                            TextFormField(
+                                              controller: phoneController,
+                                              onChanged: (_) => setModalState(() {}),
+                                              keyboardType: TextInputType.phone,
+                                              decoration: liveInputDecoration(
+                                                icon: Icons.phone_outlined,
+                                                hint: '09123456789',
+                                                value: phVal,
+                                                errorText: phError,
+                                              ),
+                                              validator: (_) => phError,
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ],
+
+                                // Auto-generated password info card
+                                if (!isEdit) ...[
+                                  const SizedBox(height: 14),
+                                  Container(
+                                    padding: const EdgeInsets.all(12),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryOrange.withValues(alpha: 0.08),
+                                      borderRadius: BorderRadius.circular(10),
+                                      border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.3)),
+                                    ),
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Icon(Icons.lock_person_outlined, color: AppColors.primaryOrange, size: 20),
+                                            const SizedBox(width: 8),
+                                            const Expanded(
+                                              child: Text(
+                                                'Auto-Generated Temporary Password',
+                                                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.darkText),
+                                                maxLines: 1,
+                                                overflow: TextOverflow.ellipsis,
+                                              ),
+                                            ),
+                                            IconButton(
+                                              icon: Icon(
+                                                showTempPassword ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+                                                size: 18,
+                                                color: AppColors.placeholderColor,
+                                              ),
+                                              onPressed: () => setModalState(() => showTempPassword = !showTempPassword),
+                                              tooltip: showTempPassword ? 'Hide password' : 'Show password',
+                                            ),
+                                            IconButton(
+                                              icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.primaryOrange),
+                                              onPressed: () {
+                                                Clipboard.setData(ClipboardData(text: tempPassword));
+                                                TopNotification.show(context, 'Temporary password copied to clipboard');
+                                              },
+                                              tooltip: 'Copy password',
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          showTempPassword ? tempPassword : '•' * tempPassword.length,
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, letterSpacing: 1.2, color: AppColors.darkText),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        const Text(
+                                          'This secure password meets all validation rules and will be sent automatically to the user\'s email.',
+                                          style: TextStyle(fontSize: 12, color: AppColors.secondaryText, height: 1.3),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                                const SizedBox(height: 14),
+
+                                // Role Dropdown
+                                fieldLabel('User Role *'),
+                                DropdownButtonFormField<AdminRole>(
+                                  initialValue: selectedRole,
+                                  decoration: liveInputDecoration(
+                                    icon: Icons.admin_panel_settings_outlined,
+                                    value: selectedRole.label,
+                                    errorText: null,
+                                  ),
+                                  items: AdminRole.values.map((role) {
+                                    return DropdownMenuItem(
+                                      value: role,
+                                      child: Text(
+                                        role.label,
+                                        style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13.5),
+                                      ),
+                                    );
+                                  }).toList(),
+                                  onChanged: (val) {
+                                    if (val != null) {
+                                      setModalState(() => selectedRole = val);
+                                    }
+                                  },
+                                ),
+                              ],
                             ),
-                          ],
+                          ),
                         ),
                       ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
+                      const SizedBox(height: 18),
 
-                  // Modal Actions (Cancel & Save)
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.end,
-                    children: [
-                      OutlinedButton(
-                        onPressed: isSubmitting ? null : () => Navigator.pop(context, false),
-                        style: OutlinedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                          side: const BorderSide(color: AppColors.borderColor),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        child: const Text('Cancel', style: TextStyle(color: AppColors.darkText)),
-                      ),
-                      const SizedBox(width: 12),
-                      ElevatedButton.icon(
-                        onPressed: isSubmitting
-                            ? null
-                            : () async {
-                                if (!formKey.currentState!.validate()) return;
+                      // Modal Actions (Cancel & Save)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton(
+                              onPressed: isSubmitting ? null : () => Navigator.pop(context, false),
+                              style: OutlinedButton.styleFrom(
+                                padding: const EdgeInsets.symmetric(vertical: 12),
+                                side: const BorderSide(color: AppColors.borderColor),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              child: const Text(
+                                'Cancel',
+                                style: TextStyle(color: AppColors.darkText),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: ElevatedButton.icon(
+                              onPressed: isSubmitting
+                                  ? null
+                                  : () async {
+                                      if (!formKey.currentState!.validate()) return;
 
-                                setModalState(() => isSubmitting = true);
+                                      setModalState(() => isSubmitting = true);
 
-                                final firstName = firstNameController.text.trim();
-                                final mi = middleInitialController.text.trim();
-                                final surname = surnameController.text.trim();
-                                final email = emailController.text.trim();
-                                final phone = phoneController.text.trim();
+                                      final firstName = firstNameController.text.trim();
+                                      final mi = middleInitialController.text.trim();
+                                      final surname = surnameController.text.trim();
+                                      final email = emailController.text.trim();
+                                      final phone = phoneController.text.trim();
 
-                                try {
-                                  String? result;
-                                  if (isEdit) {
-                                    result = await _userService.updateUser(
-                                      id: user.id,
-                                      firstName: firstName,
-                                      middleInitial: mi,
-                                      surname: surname,
-                                      email: email,
-                                      phone: phone,
-                                      role: selectedRole,
-                                      status: user.status,
-                                    );
-                                  } else {
-                                    result = await _userService.createUser(
-                                      firstName: firstName,
-                                      middleInitial: mi,
-                                      surname: surname,
-                                      email: email,
-                                      phone: phone,
-                                      role: selectedRole,
-                                      status: 'Enabled',
-                                      password: tempPassword,
-                                      confirmPassword: tempPassword,
-                                    );
+                                      try {
+                                        String? result;
+                                        if (isEdit) {
+                                          result = await _userService.updateUser(
+                                            id: user.id,
+                                            firstName: firstName,
+                                            middleInitial: mi,
+                                            surname: surname,
+                                            email: email,
+                                            phone: phone,
+                                            role: selectedRole,
+                                            status: user.status,
+                                          );
+                                        } else {
+                                          result = await _userService.createUser(
+                                            firstName: firstName,
+                                            middleInitial: mi,
+                                            surname: surname,
+                                            email: email,
+                                            phone: phone,
+                                            role: selectedRole,
+                                            status: 'Enabled',
+                                            password: tempPassword,
+                                            confirmPassword: tempPassword,
+                                          );
 
-                                    if (result == null) {
-                                      // Maximize EmailJS to send account credentials
-                                      await EmailJsService.instance.sendAccountCredentialsEmail(
-                                        recipientEmail: email,
-                                        temporaryPassword: tempPassword,
-                                        recipientName: '$firstName ${mi.isNotEmpty ? '$mi. ' : ''}$surname'.trim(),
-                                        roleName: selectedRole.label,
-                                      );
-                                    }
-                                  }
+                                          if (result == null) {
+                                            await EmailJsService.instance.sendAccountCredentialsEmail(
+                                              recipientEmail: email,
+                                              temporaryPassword: tempPassword,
+                                              recipientName: '$firstName ${mi.isNotEmpty ? '$mi. ' : ''}$surname'.trim(),
+                                              roleName: selectedRole.label,
+                                            );
+                                          }
+                                        }
 
-                                  if (mounted && context.mounted) {
-                                    setModalState(() => isSubmitting = false);
-                                    if (result == null) {
-                                      TopNotification.show(
-                                        context,
-                                        isEdit ? 'User details updated successfully' : 'User account created & credentials emailed!',
-                                      );
-                                      Navigator.pop(context, true);
-                                    } else {
-                                      TopNotification.show(context, result, isError: true);
-                                    }
-                                  }
-                                } catch (e) {
-                                  if (mounted && context.mounted) {
-                                    setModalState(() => isSubmitting = false);
-                                    TopNotification.show(context, 'Error: $e', isError: true);
-                                  }
-                                }
-                              },
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: AppColors.primaryOrange,
-                          foregroundColor: Colors.white,
-                          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                        ),
-                        icon: isSubmitting
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                              )
-                            : Icon(isEdit ? Icons.save_outlined : Icons.person_add_rounded, size: 18),
-                        label: Text(isEdit ? 'Save Changes' : 'Add User'),
+                                        if (mounted && context.mounted) {
+                                          setModalState(() => isSubmitting = false);
+                                          if (result == null) {
+                                            TopNotification.show(
+                                              context,
+                                              isEdit ? 'User details updated successfully' : 'User account created & credentials emailed!',
+                                            );
+                                            Navigator.pop(context, true);
+                                          } else {
+                                            TopNotification.show(context, result, isError: true);
+                                          }
+                                        }
+                                      } catch (e) {
+                                        if (mounted && context.mounted) {
+                                          setModalState(() => isSubmitting = false);
+                                          TopNotification.show(context, 'Error: $e', isError: true);
+                                        }
+                                      }
+                                    },
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primaryOrange,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(vertical: 12, horizontal: 8),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                              ),
+                              icon: isSubmitting
+                                  ? const SizedBox(
+                                      width: 16,
+                                      height: 16,
+                                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                    )
+                                  : Icon(isEdit ? Icons.save_rounded : Icons.check_circle_rounded, size: 18),
+                              label: Text(
+                                isEdit ? 'Save Changes' : 'Create Account',
+                                style: const TextStyle(fontWeight: FontWeight.bold),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
                       ),
                     ],
                   ),
-                ],
-              ),
+                );
+              },
             ),
           );
         },
@@ -693,11 +750,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
         contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 24),
         title: Row(
           children: [
-            const Text(
-              'User Profile Details',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+            const Expanded(
+              child: Text(
+                'User Profile Details',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-            const Spacer(),
             IconButton(
               icon: const Icon(Icons.close, size: 20),
               onPressed: () => Navigator.pop(dialogContext),
@@ -706,7 +765,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
           ],
         ),
         content: SizedBox(
-          width: 420,
+          width: dialogWidth(context, 420),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [

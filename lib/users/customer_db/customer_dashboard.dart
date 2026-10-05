@@ -12,6 +12,7 @@ import 'package:sari_sari/users/customer_db/notifications/customer_notifications
 import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_purchases_page.dart';
 import 'package:sari_sari/users/customer_db/profile/customer_profile_page.dart';
+import 'package:sari_sari/users/customer_db/profile/customer_profile_controller.dart';
 import 'package:sari_sari/users/customer_db/notifications/customer_notifications_controller.dart';
 import 'package:sari_sari/users/customer_db/tutorial/customer_tutorial_keys.dart';
 import 'package:sari_sari/users/customer_db/tutorial/customer_tutorial_overlay.dart';
@@ -67,6 +68,7 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
   @override
   void initState() {
     super.initState();
+    CustomerProfileController.instance.loadProfile();
     _cartPulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),

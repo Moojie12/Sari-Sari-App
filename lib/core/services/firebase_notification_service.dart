@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter/material.dart';
 import '../../users/customer_db/notifications/customer_notification_details_page.dart';
@@ -39,12 +40,18 @@ class FirebaseNotificationService {
       );
       debugPrint('FCM Notification permission status: ${settings.authorizationStatus}');
 
-      // 2. Set background message handler
-      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      // 2. Set background message handler (Native Mobile Platforms only)
+      if (!kIsWeb) {
+        FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+      }
 
       // 3. Get FCM token
-      String? token = await _fcm.getToken();
-      debugPrint('FCM Token: $token');
+      try {
+        String? token = await _fcm.getToken();
+        debugPrint('FCM Token: $token');
+      } catch (e) {
+        debugPrint('FCM Token acquisition notice: $e');
+      }
 
       // 4. Handle Foreground Messages
       FirebaseMessaging.onMessage.listen((RemoteMessage message) {
@@ -58,13 +65,15 @@ class FirebaseNotificationService {
         _handleNotificationPress(message);
       });
 
-      // 6. Handle Terminated App Opened via Notification Click
-      RemoteMessage? initialMessage = await _fcm.getInitialMessage();
-      if (initialMessage != null) {
-        debugPrint('App launched from terminated state via notification click');
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          _handleNotificationPress(initialMessage);
-        });
+      // 6. Handle Terminated App Opened via Notification Click (Native Mobile Platforms only)
+      if (!kIsWeb) {
+        RemoteMessage? initialMessage = await _fcm.getInitialMessage();
+        if (initialMessage != null) {
+          debugPrint('App launched from terminated state via notification click');
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            _handleNotificationPress(initialMessage);
+          });
+        }
       }
     } catch (e) {
       debugPrint('Error initializing Firebase Messaging: $e');

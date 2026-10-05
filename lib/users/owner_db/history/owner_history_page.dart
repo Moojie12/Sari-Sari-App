@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/gcash_ocr_helper.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
 import '../../employee_db/orders/employee_orders_controller.dart';
 import '../../employee_db/messages/employee_chat_page.dart';
@@ -693,6 +694,14 @@ class CustomerOrderReceiptPage extends StatelessWidget {
                           label: 'Payment Method',
                           value: order.paymentMethod == PaymentMethod.cashOnDelivery ? 'Cash on Delivery' : 'GCash',
                         ),
+                        if (order.paymentMethod == PaymentMethod.gCash &&
+                            order.paymentReferenceNumber != null &&
+                            order.paymentReferenceNumber!.isNotEmpty)
+                          _ReceiptRow(
+                            label: 'GCash Ref #',
+                            value: GcashOcrHelper.formatRefNumber(order.paymentReferenceNumber!),
+                            isBold: true,
+                          ),
                         if (order.processedBy != null && order.processedBy!.isNotEmpty)
                           _ReceiptRow(label: 'Sold By', value: order.processedBy!),
                         _ReceiptRow(label: 'Date', value: order.formattedDate),

@@ -6,7 +6,7 @@ import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../../../shared/widgets/ocr_camera_scanner_screen.dart';
 import '../../../shared/utils/gcash_ocr_helper.dart';
-import '../../../core/services/ocr_service.dart';
+import 'package:sari_sari/core/services/ocr_service.dart';
 import '../employee_inventory_controller.dart';
 import '../inventory/employee_product_model.dart';
 import '../profile/employee_profile_controller.dart';
@@ -1736,17 +1736,13 @@ class _GcashQrView extends StatelessWidget {
           children: [
             Center(
               child: InteractiveViewer(
-                child: Image.network(
-                  imageUrl,
+                child: ProductImage(
+                  image: imageUrl,
                   fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.broken_image, color: Colors.white, size: 64),
-                      SizedBox(height: 16),
-                      Text('Failed to load QR code', style: TextStyle(color: Colors.white)),
-                    ],
-                  ),
+                  width: double.infinity,
+                  height: double.infinity,
+                  borderRadius: 0,
+                  fallbackIcon: Icons.broken_image,
                 ),
               ),
             ),

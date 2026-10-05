@@ -11,6 +11,7 @@ import '../../core/services/auth_service.dart';
 import '../../shared/utils/top_notification.dart';
 import '../../core/diagnostic/backend_diagnostic_page.dart';
 import '../forgot_password/forgot_password_page.dart';
+import '../../main.dart';
 
 class AdminLoginPage extends StatefulWidget {
   const AdminLoginPage({super.key});
@@ -137,11 +138,27 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
       return;
     }
 
-    // Sign in successful - check if user has admin/owner role
+    // Sign in successful - check if user has admin/owner/employee role
     final user = AuthService().currentUser;
     if (user == null) {
       if (mounted) {
         TopNotification.show(context, 'Authentication failed', isError: true);
+      }
+      return;
+    }
+
+    final bool isAdmin = await AuthService().hasRole('admin');
+    final bool isOwner = await AuthService().hasRole('owner');
+    final bool isEmployee = await AuthService().hasRole('employee');
+
+    if (!isAdmin && !isOwner && !isEmployee) {
+      await AuthService().signOut();
+      if (mounted) {
+        TopNotification.show(
+          context,
+          'Access Denied: This account does not have admin or staff privileges.',
+          isError: true,
+        );
       }
       return;
     }
@@ -450,6 +467,35 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
             height: isCompact ? 44 : 48,
           ),
           SizedBox(height: isCompact ? 18 : 22),
+
+          const SizedBox(height: 12),
+          const Divider(height: 1, color: AppColors.borderColor),
+          const SizedBox(height: 8),
+
+          // Quick Portal Navigation
+          Center(
+            child: TextButton.icon(
+              onPressed: () {
+                Navigator.pushReplacement(
+                  context,
+                  MaterialPageRoute(
+                    settings: const RouteSettings(name: '/login'),
+                    builder: (context) => const CustomerSessionGuard(),
+                  ),
+                );
+              },
+              icon: const Icon(Icons.storefront_rounded, size: 16, color: AppColors.primaryOrange),
+              label: const Text(
+                'Customer, Employee & Owner Login',
+                style: TextStyle(
+                  color: AppColors.primaryOrange,
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 12),
 
           // Copyright Footer
           const Center(

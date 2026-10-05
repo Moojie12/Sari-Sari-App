@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
-import '../../core/services/ocr_service.dart';
+import 'package:sari_sari/core/services/ocr_service.dart';
 
 class GcashReceiptValidationResult {
   final bool isValid;
@@ -121,14 +121,17 @@ class GcashOcrHelper {
       final mb = (fileSizeBytes / (1024 * 1024)).toStringAsFixed(1);
       return GcashReceiptValidationResult(
         isValid: false,
-        errorMessage: 'Image size ($mb MB) exceeds the 5MB limit. Please upload a smaller screenshot.',
+        errorMessage: 'The screenshot file size ($mb MB) is too large. Please upload a screenshot under 5MB.',
       );
     }
 
     if (items.isEmpty) {
+      if (kIsWeb) {
+        return const GcashReceiptValidationResult(isValid: true);
+      }
       return const GcashReceiptValidationResult(
         isValid: false,
-        errorMessage: 'No readable text detected in the image. Please upload a clear GCash receipt screenshot.',
+        errorMessage: 'The picture is too blurry or dark to read. Please upload a clear, bright screenshot of your GCash receipt.',
       );
     }
 
@@ -142,7 +145,20 @@ class GcashOcrHelper {
       'pay qr',
       'g-cash',
       'gcash send',
-      'transfer'
+      'transfer',
+      'amount',
+      'sent',
+      'total amount',
+      'ref',
+      'reference',
+      'instapay',
+      'pesonet',
+      'transaction',
+      'received',
+      'paid',
+      'payment',
+      'successfully',
+      'receipt'
     ];
 
     final secondaryKeywords = [
@@ -155,7 +171,13 @@ class GcashOcrHelper {
       'payment',
       'total amount',
       'php',
-      'balance'
+      'balance',
+      'no.',
+      'num',
+      'date',
+      'time',
+      'fee',
+      'account'
     ];
 
     bool hasPrimary = primaryKeywords.any((kw) => combinedText.contains(kw));
@@ -163,13 +185,13 @@ class GcashOcrHelper {
 
     final extractedRef = extractRefNumber(items);
 
-    // Validation rule: Must have at least 1 primary term OR (reference number + at least 1 secondary term)
-    bool isGcashReceipt = hasPrimary || (extractedRef != null && secondaryCount >= 1) || secondaryCount >= 3;
+    // Validation rule: Must have at least 1 primary term OR (reference number + at least 1 secondary term) OR secondaryCount >= 1
+    bool isGcashReceipt = hasPrimary || extractedRef != null || secondaryCount >= 1;
 
     if (!isGcashReceipt) {
       return const GcashReceiptValidationResult(
         isValid: false,
-        errorMessage: 'The uploaded image does not appear to be a valid GCash payment receipt. Please upload a clear screenshot of your GCash receipt.',
+        errorMessage: 'The uploaded picture does not look like a GCash receipt or is too blurry. Please make sure the GCash Ref No. and details are clearly visible.',
       );
     }
 
@@ -213,13 +235,13 @@ class GcashOcrHelper {
 
   /// Extracts a GCash reference number from a list of OCR items or raw text.
   /// GCash reference numbers are typically 10 to 13 digits long and often
-  /// preceded by "Ref No", "Reference No", "Ref", or "Ref.", e.g., "Ref No. 1002 345 6789".
+  /// preceded by "Ref No", "Reference No", "Ref", or "Ref.", e.g., "Ref No. 5045 062 915234".
   static String? extractRefNumber(List<OcrTextItem> items) {
     if (items.isEmpty) return null;
 
     // 1. First pass: look for lines containing explicit "Ref" or "Reference" keywords
     final refKeywordRegex = RegExp(
-      r'(?:ref|reference|ref\s*no|ref\s*num|ref\.)[:\s\.-]*([0-9\s-]{9,16})',
+      r'(?:ref|reference|ref\s*no|ref\s*num|ref\.)[:\s\.-]*([0-9\s-]{9,20})',
       caseSensitive: false,
     );
 
@@ -243,18 +265,21 @@ class GcashOcrHelper {
       }
     }
 
-    // 3. Fallback pass: Look for standalone digit sequences of 10-13 digits
+    // 3. Third pass: Look for grouped numbers like "5045 062 915234" or "1002 345 6789"
+    final groupedDigitsRegex = RegExp(r'\b\d{3,4}[\s-]\d{3,4}[\s-]\d{3,6}\b');
+    final groupedMatch = groupedDigitsRegex.firstMatch(combinedText);
+    if (groupedMatch != null) {
+      final cleanDigits = groupedMatch.group(0)!.replaceAll(RegExp(r'\D'), '');
+      if (cleanDigits.length >= 9 && cleanDigits.length <= 15) {
+        return cleanDigits;
+      }
+    }
+
+    // 4. Fourth pass: Look for standalone digit sequences of 10-13 digits
     final standaloneDigitsRegex = RegExp(r'\b\d{10,13}\b');
     final standaloneMatch = standaloneDigitsRegex.firstMatch(combinedText);
     if (standaloneMatch != null) {
       return standaloneMatch.group(0);
-    }
-
-    // 4. Fallback pass: Look for grouped numbers like "1002 345 6789"
-    final groupedDigitsRegex = RegExp(r'\b\d{3,4}[\s-]\d{3,4}[\s-]\d{3,4}\b');
-    final groupedMatch = groupedDigitsRegex.firstMatch(combinedText);
-    if (groupedMatch != null) {
-      return groupedMatch.group(0)!.replaceAll(RegExp(r'\D'), '');
     }
 
     return null;

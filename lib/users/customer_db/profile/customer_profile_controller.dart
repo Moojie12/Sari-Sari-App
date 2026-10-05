@@ -35,6 +35,7 @@ class CustomerProfileController extends ChangeNotifier {
   }
 
   void clear() {
+    UserProfileSyncService().stopProfileListener();
     _profile = const CustomerProfile(
       userId: '',
       firstName: '',
@@ -53,6 +54,11 @@ class CustomerProfileController extends ChangeNotifier {
       return;
     }
 
+    // Start listening for real-time profile updates from RTDB (e.g. edited via web)
+    UserProfileSyncService().listenToProfileChanges(user.uid, () {
+      loadProfileDataSilently(user.uid);
+    });
+
     // If switching accounts, clear stale profile first
     if (_profile.userId.isNotEmpty && _profile.userId != user.uid) {
       _profile = const CustomerProfile(
@@ -68,8 +74,12 @@ class CustomerProfileController extends ChangeNotifier {
     _isLoading = true;
     _safeNotifyListeners();
 
+    await loadProfileDataSilently(user.uid);
+  }
+
+  Future<void> loadProfileDataSilently(String uid) async {
     try {
-      final profileData = await UserProfileSyncService().loadProfileData(user.uid);
+      final profileData = await UserProfileSyncService().loadProfileData(uid);
       final avatarUrl = profileData['avatar_url']?.toString() ??
           profileData['photoUrl']?.toString() ??
           profileData['photo_url']?.toString();
@@ -77,16 +87,16 @@ class CustomerProfileController extends ChangeNotifier {
       final fName = profileData['firstName']?.toString() ?? profileData['first_name']?.toString() ?? '';
       final mInit = profileData['middleInitial']?.toString() ?? profileData['middle_initial']?.toString() ?? '';
       final lName = profileData['surname']?.toString() ?? profileData['lastName']?.toString() ?? profileData['last_name']?.toString() ?? '';
-      final email = profileData['email']?.toString() ?? user.email ?? '';
+      final email = profileData['email']?.toString() ?? AuthService().currentUser?.email ?? '';
       final phone = profileData['phone']?.toString() ??
           profileData['contactNumber']?.toString() ??
           profileData['contact_number']?.toString() ??
           profileData['phoneNumber']?.toString() ??
-          (user.phoneNumber ?? '');
+          (AuthService().currentUser?.phoneNumber ?? '');
 
       if (fName.trim().isNotEmpty || lName.trim().isNotEmpty) {
         _profile = CustomerProfile(
-          userId: user.uid,
+          userId: uid,
           firstName: fName.trim(),
           middleInitial: mInit.trim(),
           lastName: lName.trim(),
@@ -95,11 +105,11 @@ class CustomerProfileController extends ChangeNotifier {
           photoPath: avatarUrl ?? _profile.photoPath,
         );
       } else {
-        final displayName = (profileData['displayName']?.toString() ?? user.displayName ?? '').trim();
+        final displayName = (profileData['displayName']?.toString() ?? AuthService().currentUser?.displayName ?? '').trim();
         final parsed = _parseDisplayName(displayName);
 
         _profile = CustomerProfile(
-          userId: user.uid,
+          userId: uid,
           firstName: parsed['firstName']!.isNotEmpty ? parsed['firstName']! : 'Customer',
           middleInitial: parsed['middleInitial']!,
           lastName: parsed['lastName']!,

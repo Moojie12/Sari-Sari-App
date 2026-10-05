@@ -38,6 +38,7 @@ class OwnerProfileController extends ChangeNotifier {
   }
 
   void clear() {
+    UserProfileSyncService().stopProfileListener();
     _profile = const EmployeeProfile(
       userId: '',
       firstName: '',
@@ -57,6 +58,11 @@ class OwnerProfileController extends ChangeNotifier {
       return;
     }
 
+    // Start listening for real-time profile updates from RTDB (e.g. edited via web)
+    UserProfileSyncService().listenToProfileChanges(user.uid, () {
+      loadProfileDataSilently(user.uid);
+    });
+
     // If switching accounts, clear stale profile first
     if (_profile.userId.isNotEmpty && _profile.userId != user.uid) {
       _profile = const EmployeeProfile(
@@ -73,8 +79,13 @@ class OwnerProfileController extends ChangeNotifier {
     _isLoading = true;
     _safeNotifyListeners();
 
+    await loadProfileDataSilently(user.uid);
+  }
+
+  Future<void> loadProfileDataSilently(String uid) async {
+    final user = AuthService().currentUser;
     try {
-      final profileData = await UserProfileSyncService().loadProfileData(user.uid);
+      final profileData = await UserProfileSyncService().loadProfileData(uid);
       final avatarUrl = profileData['avatar_url']?.toString() ??
           profileData['photoUrl']?.toString() ??
           profileData['photo_url']?.toString();
@@ -82,16 +93,16 @@ class OwnerProfileController extends ChangeNotifier {
       final fName = profileData['firstName']?.toString() ?? profileData['first_name']?.toString() ?? '';
       final mInit = profileData['middleInitial']?.toString() ?? profileData['middle_initial']?.toString() ?? '';
       final lName = profileData['surname']?.toString() ?? profileData['lastName']?.toString() ?? profileData['last_name']?.toString() ?? '';
-      final email = profileData['email']?.toString() ?? user.email ?? '';
+      final email = profileData['email']?.toString() ?? user?.email ?? '';
       final phone = profileData['phone']?.toString() ??
           profileData['contactNumber']?.toString() ??
           profileData['contact_number']?.toString() ??
           profileData['phoneNumber']?.toString() ??
-          (user.phoneNumber ?? '');
+          (user?.phoneNumber ?? '');
 
       if (fName.trim().isNotEmpty || lName.trim().isNotEmpty) {
         _profile = EmployeeProfile(
-          userId: user.uid,
+          userId: uid,
           firstName: fName.trim(),
           middleInitial: mInit.trim(),
           lastName: lName.trim(),
@@ -101,11 +112,11 @@ class OwnerProfileController extends ChangeNotifier {
           photoPath: avatarUrl ?? _profile.photoPath,
         );
       } else {
-        final displayName = (profileData['displayName']?.toString() ?? user.displayName ?? '').trim();
+        final displayName = (profileData['displayName']?.toString() ?? user?.displayName ?? '').trim();
         final parsed = _parseDisplayName(displayName);
 
         _profile = EmployeeProfile(
-          userId: user.uid,
+          userId: uid,
           firstName: parsed['firstName']!.isNotEmpty ? parsed['firstName']! : 'Owner',
           middleInitial: parsed['middleInitial']!,
           lastName: parsed['lastName']!,
@@ -116,7 +127,7 @@ class OwnerProfileController extends ChangeNotifier {
         );
       }
     } catch (e) {
-      debugPrint('[OwnerProfileController] Error loading owner profile: $e');
+      debugPrint('[OwnerProfileController] Error loading owner profile silently: $e');
     } finally {
       _isLoading = false;
       _safeNotifyListeners();

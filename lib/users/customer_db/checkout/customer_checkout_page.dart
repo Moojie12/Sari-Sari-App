@@ -1,13 +1,12 @@
 import 'dart:convert';
 import 'dart:io';
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
-import '../../../shared/utils/gcash_ocr_helper.dart';
+import 'package:sari_sari/shared/utils/gcash_ocr_helper.dart';
 import '../../../shared/widgets/product_image.dart';
-import '../../../core/services/ocr_service.dart';
+import 'package:sari_sari/core/services/ocr_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/delivery_tracking_service.dart';
@@ -47,8 +46,16 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
   CustomerAddress? _selectedAddress;
   File? _gcashProofFile;
   String? _gcashProofBase64;
+  String? _gcashPaymentRefNumber;
+  final TextEditingController _refNumberController = TextEditingController();
   bool _isVerifyingOcr = false;
   final ImagePicker _picker = ImagePicker();
+
+  @override
+  void dispose() {
+    _refNumberController.dispose();
+    super.dispose();
+  }
 
   Future<void> _pickGcashScreenshot() async {
     final XFile? image = await _picker.pickImage(
@@ -72,7 +79,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
           setState(() => _isVerifyingOcr = false);
           TopNotification.show(
             context,
-            'Image size ($mb MB) exceeds 5MB limit. Please upload a smaller screenshot.',
+            'The screenshot file size ($mb MB) is too large. Please upload a screenshot under 5MB.',
             isError: true,
           );
         }
@@ -82,50 +89,56 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
       String? extractedRef;
 
-      // 2. OCR Text Recognition on Mobile Platforms (Non-Web)
-      if (!kIsWeb) {
-        List<OcrTextItem> ocrItems = [];
-        try {
-          final ocrService = MlKitOcrService();
-          ocrItems = await ocrService.processImage(image.path);
-          ocrService.dispose();
-        } catch (e) {
-          debugPrint('[OCR Service Exception]: $e');
-        }
-
-        if (ocrItems.isNotEmpty) {
-          final validation = GcashOcrHelper.validateReceipt(
-            items: ocrItems,
-            fileSizeBytes: fileSizeBytes,
-          );
-
-          if (!validation.isValid) {
-            if (mounted) {
-              setState(() => _isVerifyingOcr = false);
-              TopNotification.show(
-                context,
-                validation.errorMessage ?? 'Uploaded image is not a valid GCash payment receipt.',
-                isError: true,
-              );
-            }
-            return;
-          }
-
-          extractedRef = validation.extractedRefNumber;
-        }
+      // 2. OCR Text Recognition via Google ML Kit on Mobile App & Web OCR on Web
+      List<OcrTextItem> ocrItems = [];
+      try {
+        final ocrService = MlKitOcrService();
+        ocrItems = await ocrService.processImageWebOrMobile(
+          imagePath: image.path,
+          bytes: bytes,
+          filterJunk: false,
+        );
+        ocrService.dispose();
+      } catch (e) {
+        debugPrint('[OCR Service Exception]: $e');
       }
+
+      final validation = GcashOcrHelper.validateReceipt(
+        items: ocrItems,
+        fileSizeBytes: fileSizeBytes,
+      );
+
+      if (!validation.isValid) {
+        if (mounted) {
+          setState(() => _isVerifyingOcr = false);
+          TopNotification.show(
+            context,
+            validation.errorMessage ?? 'The uploaded picture does not look like a GCash receipt or is too blurry.',
+            isError: true,
+          );
+        }
+        return;
+      }
+
+      extractedRef = validation.extractedRefNumber;
 
       if (mounted) {
         setState(() {
           _isVerifyingOcr = false;
           _gcashProofFile = File(image.path);
           _gcashProofBase64 = base64Image;
+          _gcashPaymentRefNumber = extractedRef;
+          if (extractedRef != null && extractedRef.isNotEmpty) {
+            _refNumberController.text = GcashOcrHelper.formatRefNumber(extractedRef);
+          } else {
+            _refNumberController.clear();
+          }
         });
         TopNotification.show(
           context,
           extractedRef != null
-              ? 'GCash Receipt verified! Ref #: ${GcashOcrHelper.formatRefNumber(extractedRef)}'
-              : 'GCash Payment Receipt screenshot attached!',
+              ? 'GCash Receipt verified via Google OCR! Ref #: ${GcashOcrHelper.formatRefNumber(extractedRef)}'
+              : 'GCash receipt attached! Ref No. could not be read automatically — please type the Ref No. below.',
         );
       }
     } catch (e) {
@@ -134,7 +147,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
         setState(() => _isVerifyingOcr = false);
         TopNotification.show(
           context,
-          'Failed to verify receipt image. Please select a clear GCash screenshot.',
+          'Could not process the screenshot clearly. Please make sure the picture is not blurry and shows the GCash Ref No.',
           isError: true,
         );
       }
@@ -352,6 +365,12 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       destCoords = await DeliveryTrackingService.instance.geocodeAddress(_selectedAddress!.address);
     }
 
+    final String? finalRefNumber = _paymentMethod == PaymentMethod.gCash
+        ? (_refNumberController.text.trim().isNotEmpty
+            ? _refNumberController.text.trim().replaceAll(' ', '')
+            : _gcashPaymentRefNumber)
+        : null;
+
     final order = CustomerOrder(
       customerName: CustomerProfileController.instance.profile.fullName.isEmpty ? 'Customer' : CustomerProfileController.instance.profile.fullName,
       orderId: orderId,
@@ -369,6 +388,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       deliveryLatitude: destCoords?.latitude,
       deliveryLongitude: destCoords?.longitude,
       paymentProofUrl: _paymentMethod == PaymentMethod.gCash ? _gcashProofBase64 : null,
+      paymentReferenceNumber: finalRefNumber,
     );
 
     widget.orderController.placeOrder(order);
@@ -480,6 +500,10 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
                     onPickScreenshot: _pickGcashScreenshot,
                     totalAmount: _total,
                     isVerifyingOcr: _isVerifyingOcr,
+                    refNumberController: _refNumberController,
+                    onRefNumberChanged: (val) {
+                      _gcashPaymentRefNumber = val.trim().replaceAll(' ', '');
+                    },
                   ),
                 ],
                 const SizedBox(height: 32),
@@ -953,6 +977,8 @@ class _GcashPaymentProofUploadCard extends StatelessWidget {
     required this.onPickScreenshot,
     required this.totalAmount,
     this.isVerifyingOcr = false,
+    this.refNumberController,
+    this.onRefNumberChanged,
   });
 
   final File? proofFile;
@@ -960,6 +986,8 @@ class _GcashPaymentProofUploadCard extends StatelessWidget {
   final VoidCallback onPickScreenshot;
   final double totalAmount;
   final bool isVerifyingOcr;
+  final TextEditingController? refNumberController;
+  final ValueChanged<String>? onRefNumberChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -1067,6 +1095,64 @@ class _GcashPaymentProofUploadCard extends StatelessWidget {
                     width: double.infinity,
                     borderRadius: 12,
                   ),
+                const SizedBox(height: 12),
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.green.shade300),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.verified, color: Colors.green.shade700, size: 18),
+                          const SizedBox(width: 6),
+                          Text(
+                            'Extracted GCash Ref # (Google OCR)',
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              fontSize: 12,
+                              color: Colors.green.shade900,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: refNumberController,
+                        onChanged: onRefNumberChanged,
+                        keyboardType: TextInputType.number,
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 1.2,
+                          fontSize: 15,
+                          color: AppColors.darkText,
+                        ),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          hintText: 'e.g. 5045 062 915234',
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 4),
+                      const Text(
+                        'This reference number is automatically extracted by Google OCR and will be saved on your order receipt.',
+                        style: TextStyle(fontSize: 11, color: AppColors.secondaryText),
+                      ),
+                    ],
+                  ),
+                ),
                 const SizedBox(height: 10),
                 SizedBox(
                   width: double.infinity,

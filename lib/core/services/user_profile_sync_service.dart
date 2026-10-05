@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_storage/firebase_storage.dart';
 import 'package:flutter/foundation.dart';
 import 'auth_service.dart';
@@ -14,7 +16,33 @@ class UserProfileSyncService {
 
   final AuthService _authService = AuthService();
 
-  /// Loads profile data from Firebase Realtime Database, with Supabase fallback.
+  StreamSubscription<DatabaseEvent>? _profileSubscription;
+  String? _listenedUid;
+
+  /// Listens to real-time updates for user profile in RTDB.
+  void listenToProfileChanges(String uid, VoidCallback onProfileUpdated) {
+    if (_listenedUid == uid && _profileSubscription != null) return;
+    _profileSubscription?.cancel();
+    _listenedUid = uid;
+
+    try {
+      _profileSubscription = _authService.database.ref().child('users/$uid').onValue.listen((event) {
+        if (event.snapshot.exists) {
+          onProfileUpdated();
+        }
+      });
+    } catch (e) {
+      debugPrint('[UserProfileSyncService] Error starting profile listener: $e');
+    }
+  }
+
+  void stopProfileListener() {
+    _profileSubscription?.cancel();
+    _profileSubscription = null;
+    _listenedUid = null;
+  }
+
+  /// Loads profile data from Firebase Realtime Database, with Supabase fallback/sync.
   Future<Map<String, dynamic>> loadProfileData(String uid) async {
     final result = <String, dynamic>{};
 
@@ -40,21 +68,26 @@ class UserProfileSyncService {
         result['contact_no']?.toString() ??
         '';
 
-    // 2. Fetch from Supabase to fill in any missing fields
+    // 2. Fetch from Supabase to fill in missing fields or update values
     try {
       final sbData = await SupabaseService().getOrCreateUserProfile(uid);
       if (sbData.isNotEmpty) {
         final fName = result['firstName']?.toString() ?? result['first_name']?.toString() ?? '';
-        if (fName.trim().isEmpty && sbData['first_name'] != null) {
+        if ((fName.trim().isEmpty || fName == 'User' || fName == 'Customer') && sbData['first_name'] != null) {
           result['firstName'] = sbData['first_name'];
+          result['first_name'] = sbData['first_name'];
         }
         final mInit = result['middleInitial']?.toString() ?? result['middle_initial']?.toString() ?? '';
         if (mInit.trim().isEmpty && sbData['middle_initial'] != null) {
           result['middleInitial'] = sbData['middle_initial'];
+          result['middle_initial'] = sbData['middle_initial'];
         }
         final sName = result['surname']?.toString() ?? result['lastName']?.toString() ?? result['last_name']?.toString() ?? '';
-        if (sName.trim().isEmpty && sbData['surname'] != null) {
-          result['surname'] = sbData['surname'];
+        if (sName.trim().isEmpty && (sbData['surname'] != null || sbData['last_name'] != null)) {
+          final sbSurname = sbData['surname'] ?? sbData['last_name'];
+          result['surname'] = sbSurname;
+          result['lastName'] = sbSurname;
+          result['last_name'] = sbSurname;
         }
 
         if (phoneInResult.trim().isEmpty) {
@@ -71,18 +104,33 @@ class UserProfileSyncService {
 
         final avatar = result['avatar_url']?.toString() ?? result['photoUrl']?.toString() ?? result['photo_url']?.toString() ?? '';
         if (avatar.trim().isEmpty && (sbData['avatar_url'] != null || sbData['photo_url'] != null)) {
-          result['avatar_url'] = sbData['avatar_url'] ?? sbData['photo_url'];
+          final sbAvatar = sbData['avatar_url'] ?? sbData['photo_url'];
+          result['avatar_url'] = sbAvatar;
+          result['photoUrl'] = sbAvatar;
+        }
+
+        if ((result['role'] == null || result['role'].toString().trim().isEmpty) && sbData['role'] != null) {
+          result['role'] = sbData['role'];
+        }
+        if ((result['status'] == null || result['status'].toString().trim().isEmpty) && sbData['status'] != null) {
+          result['status'] = sbData['status'];
         }
       }
     } catch (e) {
       debugPrint('[UserProfileSyncService] Error fetching from Supabase: $e');
     }
 
-    // 3. Fallback to Firebase Auth user phoneNumber
-    if (phoneInResult.trim().isEmpty) {
-      final currentUser = _authService.currentUser;
-      if (currentUser != null && (currentUser.phoneNumber?.trim().isNotEmpty ?? false)) {
+    // 3. Fallback to Firebase Auth user phoneNumber or email or displayName
+    final currentUser = _authService.currentUser;
+    if (currentUser != null && currentUser.uid == uid) {
+      if (phoneInResult.trim().isEmpty && (currentUser.phoneNumber?.trim().isNotEmpty ?? false)) {
         phoneInResult = currentUser.phoneNumber!.trim();
+      }
+      if ((result['email'] == null || result['email'].toString().trim().isEmpty) && currentUser.email != null) {
+        result['email'] = currentUser.email;
+      }
+      if ((result['displayName'] == null || result['displayName'].toString().trim().isEmpty) && currentUser.displayName != null) {
+        result['displayName'] = currentUser.displayName;
       }
     }
 

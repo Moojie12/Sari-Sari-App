@@ -31,6 +31,21 @@
 
   <title>Tindahan ni Eca</title>
   <link rel="manifest" href="manifest.json">
+  <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+  <script>
+    window.performWebOcr = async function(base64Image) {
+      try {
+        if (typeof Tesseract === 'undefined') return '';
+        const worker = await Tesseract.createWorker('eng');
+        const ret = await worker.recognize(base64Image);
+        await worker.terminate();
+        return ret.data ? ret.data.text || '' : '';
+      } catch (err) {
+        console.error('Web OCR Error:', err);
+        return '';
+      }
+    };
+  </script>
 </head>
 <body>
   <!--

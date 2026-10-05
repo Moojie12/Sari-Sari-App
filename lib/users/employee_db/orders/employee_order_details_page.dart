@@ -554,17 +554,13 @@ class _OrderDetailsCard extends StatelessWidget {
           children: [
             Center(
               child: InteractiveViewer(
-                child: Image.network(
-                  imageUrl,
+                child: ProductImage(
+                  image: imageUrl,
                   fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.broken_image, color: Colors.white, size: 64),
-                      SizedBox(height: 16),
-                      Text('Failed to load payment screenshot', style: TextStyle(color: Colors.white)),
-                    ],
-                  ),
+                  width: double.infinity,
+                  height: double.infinity,
+                  borderRadius: 0,
+                  fallbackIcon: Icons.broken_image,
                 ),
               ),
             ),

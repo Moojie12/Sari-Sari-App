@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/gcash_ocr_helper.dart';
+import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/product_image.dart';
 import '../../employee_db/employee_inventory_controller.dart';
 import '../../employee_db/orders/employee_orders_controller.dart';
@@ -276,17 +278,13 @@ class _OrderDetailsCard extends StatelessWidget {
           children: [
             Center(
               child: InteractiveViewer(
-                child: Image.network(
-                  imageUrl,
+                child: ProductImage(
+                  image: imageUrl,
                   fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.broken_image, color: Colors.white, size: 64),
-                      SizedBox(height: 16),
-                      Text('Failed to load payment proof image', style: TextStyle(color: Colors.white)),
-                    ],
-                  ),
+                  width: double.infinity,
+                  height: double.infinity,
+                  borderRadius: 0,
+                  fallbackIcon: Icons.broken_image,
                 ),
               ),
             ),
@@ -310,9 +308,13 @@ class _OrderDetailsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final hasPaymentProof = order.paymentMethod == PaymentMethod.gCash &&
+    final isGcash = order.paymentMethod == PaymentMethod.gCash;
+    final hasPaymentProof = isGcash &&
         order.paymentProofUrl != null &&
         order.paymentProofUrl!.isNotEmpty;
+    final hasRefNumber = isGcash &&
+        order.paymentReferenceNumber != null &&
+        order.paymentReferenceNumber!.isNotEmpty;
 
     return Container(
       padding: const EdgeInsets.all(16),
@@ -321,6 +323,8 @@ class _OrderDetailsCard extends StatelessWidget {
         children: [
           _DetailRow(label: 'Order Type', value: order.orderType == OrderType.pickup ? 'Pickup' : 'Delivery'),
           _DetailRow(label: 'Payment Method', value: order.paymentMethod == PaymentMethod.cashOnDelivery ? 'Cash on Delivery' : 'GCash'),
+          if (hasRefNumber)
+            _DetailRow(label: 'GCash Ref #', value: GcashOcrHelper.formatRefNumber(order.paymentReferenceNumber!)),
           _DetailRow(label: 'Payment Status', value: order.paymentStatus.name.toUpperCase()),
           if (order.deliveryAddress != null)
             _DetailRow(label: 'Delivery Address', value: order.deliveryAddress!),
@@ -407,17 +411,13 @@ class _CancelledOrderBannerState extends State<_CancelledOrderBanner> {
           children: [
             Center(
               child: InteractiveViewer(
-                child: Image.network(
-                  imageUrl,
+                child: ProductImage(
+                  image: imageUrl,
                   fit: BoxFit.contain,
-                  errorBuilder: (context, error, stackTrace) => const Column(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.broken_image, color: Colors.white, size: 64),
-                      SizedBox(height: 16),
-                      Text('Failed to load refund proof image', style: TextStyle(color: Colors.white)),
-                    ],
-                  ),
+                  width: double.infinity,
+                  height: double.infinity,
+                  borderRadius: 0,
+                  fallbackIcon: Icons.broken_image,
                 ),
               ),
             ),
@@ -454,11 +454,9 @@ class _CancelledOrderBannerState extends State<_CancelledOrderBanner> {
 
     if (mounted) {
       setState(() => _isSubmitting = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('GCash refund details submitted successfully! Owner will process your refund soon.'),
-          backgroundColor: Colors.green,
-        ),
+      TopNotification.show(
+        context,
+        'GCash refund details submitted successfully! Owner will process your refund soon.',
       );
     }
   }
@@ -684,6 +682,33 @@ class _CancelledOrderBannerState extends State<_CancelledOrderBanner> {
                       'Refund Amount: ₱${order.totalAmount.toStringAsFixed(2)}',
                       style: TextStyle(fontSize: 12, color: Colors.grey.shade800, height: 1.4),
                     ),
+                    if (isRefunded && order.paymentReferenceNumber != null && order.paymentReferenceNumber!.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: Colors.green.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                          border: Border.all(color: Colors.green.shade200),
+                        ),
+                        child: Row(
+                          children: [
+                            Icon(Icons.verified, color: Colors.green.shade700, size: 16),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                'GCash Refund Ref #: ${GcashOcrHelper.formatRefNumber(order.paymentReferenceNumber!)}',
+                                style: TextStyle(
+                                  fontWeight: FontWeight.bold,
+                                  fontSize: 12,
+                                  color: Colors.green.shade900,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
                     if (isRefunded && order.refundProofUrl != null && order.refundProofUrl!.isNotEmpty) ...[
                       const SizedBox(height: 10),
                       SizedBox(
@@ -844,13 +869,10 @@ class _CancelOrderSectionState extends State<_CancelOrderSection> {
               if (liveOrder != null && liveOrder.status != OrderStatus.pending) {
                 if (mounted) {
                   setState(() => _isCancelling = false);
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text(
-                        'Cannot cancel order: status has already been updated to "${liveOrder.status.label}".',
-                      ),
-                      backgroundColor: Colors.red,
-                    ),
+                  TopNotification.show(
+                    context,
+                    'Cannot cancel order: status has already been updated to "${liveOrder.status.label}".',
+                    isError: true,
                   );
                 }
                 return;
@@ -866,18 +888,15 @@ class _CancelOrderSectionState extends State<_CancelOrderSection> {
               if (mounted) {
                 setState(() => _isCancelling = false);
                 if (success) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                      content: Text('Order #${widget.order.displayOrderId} has been successfully cancelled.'),
-                      backgroundColor: Colors.green,
-                    ),
+                  TopNotification.show(
+                    context,
+                    'Order #${widget.order.displayOrderId} has been successfully cancelled.',
                   );
                 } else {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(
-                      content: Text('Failed to cancel order. Only pending orders can be cancelled.'),
-                      backgroundColor: Colors.red,
-                    ),
+                  TopNotification.show(
+                    context,
+                    'Failed to cancel order. Only pending orders can be cancelled.',
+                    isError: true,
                   );
                 }
               }

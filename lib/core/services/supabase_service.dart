@@ -541,6 +541,7 @@ class SupabaseService {
         'customer_name': order.customerName,
         'customer_contact': '', // Using empty string as we don't have phone/email in order model
         'delivery_address': order.deliveryAddress ?? '',
+        'payment_reference_number': order.paymentReferenceNumber ?? '',
         'order_notes': sellerNote,
         'total_amount': order.totalAmount,
         'total_items': order.items.fold<int>(0, (sum, i) => sum + i.quantity),
@@ -1589,12 +1590,29 @@ class SupabaseService {
     );
   }
 
-  /// Delete user profile
-  Future<void> deleteUserProfile(String id) async {
+  /// Delete user profile by firebase_uid, id (UUID), or email
+  Future<void> deleteUserProfile(String id, {String? email}) async {
     try {
+      // 1. Try deleting by firebase_uid column
+      await _client.from('profiles').delete().eq('firebase_uid', id);
+    } catch (e) {
+      debugPrint('[SupabaseService] deleteUserProfile by firebase_uid note: $e');
+    }
+
+    try {
+      // 2. Try deleting by id (UUID primary key) column
       await _client.from('profiles').delete().eq('id', id);
     } catch (e) {
-      throw Exception('Failed to delete user profile: $e');
+      debugPrint('[SupabaseService] deleteUserProfile by id note: $e');
+    }
+
+    if (email != null && email.trim().isNotEmpty) {
+      try {
+        // 3. Try deleting by email column as fallback
+        await _client.from('profiles').delete().ilike('email', email.trim());
+      } catch (e) {
+        debugPrint('[SupabaseService] deleteUserProfile by email note: $e');
+      }
     }
   }
 

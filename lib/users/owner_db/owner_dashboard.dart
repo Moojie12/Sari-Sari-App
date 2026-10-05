@@ -10,6 +10,7 @@ import 'package:sari_sari/users/owner_db/home/owner_home_page.dart';
 import 'package:sari_sari/users/owner_db/inventory/owner_inventory_page.dart';
 import 'package:sari_sari/users/employee_db/inventory/employee_expiring_products_page.dart';
 import 'package:sari_sari/users/owner_db/profile/owner_profile_page.dart';
+import 'package:sari_sari/users/owner_db/profile/owner_profile_controller.dart';
 import 'package:sari_sari/users/employee_db/orders/employee_order_details_page.dart';
 import 'package:sari_sari/users/employee_db/orders/employee_orders_controller.dart';
 import 'package:sari_sari/users/employee_db/orders/employee_orders_page.dart';
@@ -42,6 +43,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   @override
   void initState() {
     super.initState();
+    OwnerProfileController.instance.loadProfile();
     DashboardNavigationController.instance.addListener(_handleNavigationRequest);
   }
 

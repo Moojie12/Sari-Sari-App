@@ -305,6 +305,22 @@ class AdminUserService extends ChangeNotifier {
       // Create profile in Firebase Realtime Database
       await _authService.database.ref().child('users/${firebaseUser.uid}').set(userData);
 
+      // Sync to Supabase
+      try {
+        await SupabaseService().updateUserProfile(firebaseUser.uid, {
+          'firstName': firstName.trim(),
+          'middleInitial': middleInitial.trim(),
+          'surname': surname.trim(),
+          'email': email.trim(),
+          'phone': phone.trim(),
+          'role': roleStr,
+          'status': status,
+          'isArchived': false,
+        });
+      } catch (sbErr) {
+        debugPrint('[AdminUserService] createUser Supabase sync note: $sbErr');
+      }
+
       // Reload users from Firebase
       await _loadUsers();
       AdminAuditService().logCreate(
@@ -362,13 +378,18 @@ class AdminUserService extends ChangeNotifier {
 
       final now = DateTime.now().millisecondsSinceEpoch;
       final roleStr = role.toString().split('.').last;
+      final displayName = '$firstName ${middleInitial.isNotEmpty ? '$middleInitial. ' : ''}$surname'.trim();
 
       final userData = {
         'firstName': firstName.trim(),
         'middleInitial': middleInitial.trim(),
         'surname': surname.trim(),
+        'lastName': surname.trim(),
         'email': email.trim(),
         'phone': phone.trim(),
+        'contactNumber': phone.trim(),
+        'contact_number': phone.trim(),
+        'displayName': displayName,
         'role': roleStr,
         'status': status,
         'updatedAt': now,
@@ -376,6 +397,13 @@ class AdminUserService extends ChangeNotifier {
 
       // Update in Firebase Realtime Database
       await _authService.database.ref().child('users/$id').update(userData);
+
+      // Sync to Supabase
+      try {
+        await SupabaseService().updateUserProfile(id, userData);
+      } catch (sbErr) {
+        debugPrint('[AdminUserService] updateUser Supabase sync note: $sbErr');
+      }
 
       await _loadUsers();
       AdminAuditService().logUpdate(
@@ -471,6 +499,14 @@ class AdminUserService extends ChangeNotifier {
         'updatedAt': now,
       });
 
+      // Sync to Supabase
+      try {
+        await SupabaseService().updateUserProfile(id, {
+          'isArchived': true,
+          'archivedAt': DateTime.now().toIso8601String(),
+        });
+      } catch (_) {}
+
       await _loadUsers();
       AdminAuditService().logArchive('User', id, user.fullName);
 
@@ -497,6 +533,14 @@ class AdminUserService extends ChangeNotifier {
         'updatedAt': now,
       });
 
+      // Sync to Supabase
+      try {
+        await SupabaseService().updateUserProfile(id, {
+          'isArchived': false,
+          'archivedAt': null,
+        });
+      } catch (_) {}
+
       await _loadUsers();
       AdminAuditService().logRestore('User', id, user.fullName);
 
@@ -514,6 +558,13 @@ class AdminUserService extends ChangeNotifier {
 
       // Delete from Firebase Realtime Database
       await _authService.database.ref().child('users/$id').remove();
+
+      // Delete from Supabase
+      try {
+        await SupabaseService().deleteUserProfile(id, email: user.email);
+      } catch (sbErr) {
+        debugPrint('[AdminUserService] Failed to delete user from Supabase: $sbErr');
+      }
 
       await _loadUsers();
       AdminAuditService().logDelete('User', id, user.fullName);

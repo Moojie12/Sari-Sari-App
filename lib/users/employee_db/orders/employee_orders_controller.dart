@@ -441,6 +441,7 @@ class EmployeeOrderController extends ChangeNotifier {
   Future<void> submitRefundProof(
     String orderId, {
     required String proofUrl,
+    String? refundRefNumber,
   }) async {
     final index = _orders.indexWhere((o) => o.orderId == orderId);
     if (index == -1) return;
@@ -449,6 +450,7 @@ class EmployeeOrderController extends ChangeNotifier {
     final updatedOrder = oldOrder.copyWith(
       refundProofUrl: proofUrl,
       refundStatus: 'refunded',
+      paymentReferenceNumber: refundRefNumber ?? oldOrder.paymentReferenceNumber,
     );
 
     _orders[index] = updatedOrder;
@@ -456,6 +458,9 @@ class EmployeeOrderController extends ChangeNotifier {
 
     _saveOrderToFirebase(updatedOrder);
     _saveRefundProofToSupabase(updatedOrder);
+    if (refundRefNumber != null && refundRefNumber.isNotEmpty) {
+      _savePaymentReferenceToSupabase(updatedOrder);
+    }
 
     CustomerNotificationsController.instance.addNotification(
       type: CustomerNotificationType.orderUpdate,
