@@ -1,5 +1,7 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:permission_handler/permission_handler.dart';
+import '../../main.dart';
 import '../theme/app_colors.dart';
 import '../../authentication/login/login_page.dart';
 import '../../users/owner_db/owner_db.dart';
@@ -22,6 +24,18 @@ class _SplashPageState extends State<SplashPage> {
   }
 
   Future<void> _navigateToHome() async {
+    if (kIsWeb) {
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(
+            builder: (context) => const AdminSessionGuard(),
+          ),
+        );
+      }
+      return;
+    }
+
     try {
       if (Uri.base.toString().toLowerCase().contains('admin')) {
         return;

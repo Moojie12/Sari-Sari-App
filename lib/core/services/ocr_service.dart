@@ -2,7 +2,7 @@ import 'dart:convert';
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:google_mlkit_text_recognition/google_mlkit_text_recognition.dart';
-import 'web_ocr_stub.dart' if (dart.library.js_util) 'web_ocr_impl.dart';
+import 'web_ocr_stub.dart' if (dart.library.js_interop) 'web_ocr_impl.dart';
 
 /// Represents a single piece of text extracted by OCR, including metadata
 /// for sorting by font size/prominence.
@@ -176,7 +176,7 @@ class MlKitOcrService implements OcrService {
 
     // 4. Dates & Manufacturing / Expiry prefixes (e.g. EXP 12/26, MFG 2025-01-01, 12/05/2026)
     final datePattern = RegExp(
-      r'(\b(exp|mfg|bb|best\s*before|use\s*by|date)\b|\b\d{1,2}[/\.-]\d{1,2}[/\.-]\d{2,4}\b|\b\d{4}[/\.-]\d{1,2}[/\.-]\d{1,2}\b)',
+      r'(\b(exp|mfg|bb|best\s*before|use\s*by|date)\b|\b\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}\b|\b\d{4}[/.-]\d{1,2}[/.-]\d{1,2}\b)',
       caseSensitive: false,
     );
     if (datePattern.hasMatch(cleaned)) return true;

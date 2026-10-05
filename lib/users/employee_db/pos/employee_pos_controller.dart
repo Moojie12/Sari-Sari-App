@@ -85,7 +85,7 @@ class EmployeePosController extends ChangeNotifier {
   int _receiptCounter = 1;
 
   /// Store's GCash QR code image.
-  String? _gcashQrCode = 'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/QR_code_for_mobile_English_Wikipedia.svg/1200px-QR_code_for_mobile_English_Wikipedia.svg.png';
+  String? _gcashQrCode = 'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=GCash';
 
   List<EmployeePosCartItem> get cart => List.unmodifiable(_cart);
   String? get gcashQrCode => _gcashQrCode;

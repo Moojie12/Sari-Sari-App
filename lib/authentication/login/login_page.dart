@@ -15,7 +15,6 @@ import '../../core/services/auth_service.dart';
 import '../../core/services/rate_limiter_service.dart';
 import '../../core/diagnostic/backend_diagnostic_page.dart';
 import '../../shared/utils/top_notification.dart';
-import '../../main.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({super.key});

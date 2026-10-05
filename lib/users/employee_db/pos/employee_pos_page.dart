@@ -1,12 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
-import '../../../shared/widgets/ocr_camera_scanner_screen.dart';
 import '../../../shared/utils/gcash_ocr_helper.dart';
 import 'package:sari_sari/core/services/ocr_service.dart';
+import '../../owner_db/profile/shop_settings_controller.dart';
 import '../employee_inventory_controller.dart';
 import '../inventory/employee_product_model.dart';
 import '../profile/employee_profile_controller.dart';
@@ -369,6 +370,7 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
                         Text(
                           'Float ₱${shift.startingFloat.toStringAsFixed(2)}'
                               ' + Cash Sales ₱${shift.cashSalesTotal.toStringAsFixed(2)}'
+                              '${shift.nonCashSalesTotal > 0 ? ' + GCash ₱${shift.nonCashSalesTotal.toStringAsFixed(2)}' : ''}'
                               '${shift.netAdjustments != 0 ? ' ${shift.netAdjustments >= 0 ? '+' : '-'} Adj ₱${shift.netAdjustments.abs().toStringAsFixed(2)}' : ''}',
                           style: TextStyle(
                             color: AppColors.secondaryText.withValues(alpha: 0.8),
@@ -1237,6 +1239,36 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
 
     setState(() => _amountErrorText = null);
 
+    if (_method == EmployeePaymentMethod.gCash && (_scannedRefNumber == null || _scannedRefNumber!.trim().isEmpty)) {
+      final proceedWithoutRef = await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+          title: const Text('No GCash Ref No. Scanned', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: const Text(
+            'You have not scanned or entered a GCash reference number.\n\nDo you want to proceed without a reference number?',
+            style: TextStyle(fontSize: 13, color: AppColors.secondaryText),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context, false),
+              child: const Text('Scan/Enter Ref #'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context, true),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+                foregroundColor: Colors.white,
+              ),
+              child: const Text('Proceed Anyway'),
+            ),
+          ],
+        ),
+      );
+
+      if (proceedWithoutRef != true) return;
+    }
+
     final change = amountPaid - total;
     final methodName = _method == EmployeePaymentMethod.cash ? 'Cash' : 'GCash';
 
@@ -1287,6 +1319,21 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                       ),
                     ],
                   ),
+                  if (_method == EmployeePaymentMethod.gCash &&
+                      _scannedRefNumber != null &&
+                      _scannedRefNumber!.isNotEmpty) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('GCash Ref #:', style: TextStyle(fontSize: 13, color: AppColors.secondaryText)),
+                        Text(
+                          GcashOcrHelper.formatRefNumber(_scannedRefNumber!),
+                          style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: Colors.green),
+                        ),
+                      ],
+                    ),
+                  ],
                   const SizedBox(height: 6),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -1347,6 +1394,14 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
         amount: receipt.totalAmount,
       );
       widget.onCompleted(receipt);
+    } else {
+      if (mounted) {
+        TopNotification.show(
+          context,
+          'Checkout failed: Selected batch has insufficient stock or is unavailable.',
+          isError: true,
+        );
+      }
     }
   }
 
@@ -1647,30 +1702,129 @@ class _GcashQrView extends StatelessWidget {
   final ValueChanged<String>? onRefNumberScanned;
 
   Future<void> _scanReceiptOcr(BuildContext context) async {
-    final results = await Navigator.push<List<OcrTextItem>>(
-      context,
-      MaterialPageRoute(
-        builder: (context) => const OcrCameraScannerScreen(),
+    final ImageSource? source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.symmetric(vertical: 16, horizontal: 20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Scan GCash Receipt',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkText),
+              ),
+              const SizedBox(height: 4),
+              const Text(
+                'Choose how to scan or upload the GCash payment receipt:',
+                style: TextStyle(fontSize: 12, color: AppColors.secondaryText),
+              ),
+              const SizedBox(height: 16),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: AppColors.lightPeach,
+                  child: Icon(Icons.camera_alt_rounded, color: AppColors.primaryOrange),
+                ),
+                title: const Text('Take Photo with Camera', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('Capture phone screen or printed receipt', style: TextStyle(fontSize: 11)),
+                onTap: () => Navigator.pop(ctx, ImageSource.camera),
+              ),
+              const Divider(height: 1),
+              ListTile(
+                leading: const CircleAvatar(
+                  backgroundColor: AppColors.lightPeach,
+                  child: Icon(Icons.photo_library_rounded, color: AppColors.primaryOrange),
+                ),
+                title: const Text('Choose Screenshot from Gallery', style: TextStyle(fontWeight: FontWeight.w600)),
+                subtitle: const Text('Select a saved GCash receipt image', style: TextStyle(fontSize: 11)),
+                onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+              ),
+            ],
+          ),
+        ),
       ),
     );
 
-    if (results != null && results.isNotEmpty) {
-      final detectedRef = GcashOcrHelper.extractRefNumber(results);
+    if (source == null || !context.mounted) return;
+
+    try {
+      final ImagePicker picker = ImagePicker();
+      final XFile? image = await picker.pickImage(
+        source: source,
+        imageQuality: 90,
+      );
+
+      if (image == null || !context.mounted) return;
+
+      TopNotification.show(context, 'Scanning GCash receipt with Google OCR...');
+
+      final bytes = await image.readAsBytes();
+      List<OcrTextItem> ocrItems = [];
+
+      try {
+        final ocrService = MlKitOcrService();
+        ocrItems = await ocrService.processImageWebOrMobile(
+          imagePath: image.path,
+          bytes: bytes,
+          filterJunk: false,
+        );
+        ocrService.dispose();
+      } catch (e) {
+        debugPrint('[POS OCR Exception]: $e');
+      }
+
+      final validation = GcashOcrHelper.validateReceipt(
+        items: ocrItems,
+        fileSizeBytes: bytes.length,
+      );
+
+      final String? detectedRef = validation.extractedRefNumber ?? GcashOcrHelper.extractRefNumber(ocrItems);
+
       if (context.mounted) {
-        _showRefVerificationDialog(context, detectedRef ?? '');
+        if (detectedRef != null && detectedRef.isNotEmpty) {
+          onRefNumberScanned?.call(detectedRef);
+          TopNotification.show(
+            context,
+            'GCash Receipt scanned! Ref #: ${GcashOcrHelper.formatRefNumber(detectedRef)}',
+          );
+          _showRefVerificationDialog(context, detectedRef);
+        } else {
+          TopNotification.show(
+            context,
+            'GCash Ref No. could not be read automatically. Please enter it below.',
+            isError: true,
+          );
+          _showRefVerificationDialog(context, '');
+        }
+      }
+    } catch (e) {
+      debugPrint('[POS OCR Error]: $e');
+      if (context.mounted) {
+        TopNotification.show(
+          context,
+          'Could not scan screenshot. Please enter the GCash Ref No. manually.',
+          isError: true,
+        );
+        _showRefVerificationDialog(context, '');
       }
     }
   }
 
   void _showRefVerificationDialog(BuildContext context, String initialRef) {
-    final controller = TextEditingController(text: initialRef);
+    final controller = TextEditingController(
+      text: initialRef.isNotEmpty ? GcashOcrHelper.formatRefNumber(initialRef) : '',
+    );
     showDialog(
       context: context,
       builder: (dialogCtx) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
         title: const Row(
           children: [
-            Icon(Icons.document_scanner_rounded, color: AppColors.primaryOrange),
+            Icon(Icons.verified, color: AppColors.primaryOrange),
             SizedBox(width: 8),
             Text('Verify Reference No.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
           ],
@@ -1680,7 +1834,7 @@ class _GcashQrView extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Confirm or edit the scanned GCash reference number below:',
+              'Confirm or edit the GCash reference number automatically extracted by Google OCR:',
               style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
             ),
             const SizedBox(height: 16),
@@ -1688,9 +1842,10 @@ class _GcashQrView extends StatelessWidget {
               controller: controller,
               keyboardType: TextInputType.number,
               autofocus: true,
+              style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2, fontSize: 15),
               decoration: InputDecoration(
                 labelText: 'GCash Reference Number *',
-                hintText: 'e.g. 10023456789',
+                hintText: 'e.g. 5045 062 915234',
                 filled: true,
                 fillColor: AppColors.lightPeach,
                 border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
@@ -1709,9 +1864,9 @@ class _GcashQrView extends StatelessWidget {
           ),
           ElevatedButton(
             onPressed: () {
-              final ref = controller.text.trim();
-              if (ref.isNotEmpty && onRefNumberScanned != null) {
-                onRefNumberScanned!(ref);
+              final cleanRef = controller.text.trim().replaceAll(' ', '');
+              if (cleanRef.isNotEmpty && onRefNumberScanned != null) {
+                onRefNumberScanned!(cleanRef);
               }
               Navigator.pop(dialogCtx);
             },
@@ -1720,7 +1875,7 @@ class _GcashQrView extends StatelessWidget {
               foregroundColor: Colors.white,
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
-            child: const Text('Confirm Reference #'),
+            child: const Text('Save Reference #'),
           ),
         ],
       ),
@@ -1791,9 +1946,11 @@ class _GcashQrView extends StatelessWidget {
     final isOwner = EmployeeProfileController.instance.profile.role == 'Owner';
 
     return ListenableBuilder(
-      listenable: posController,
+      listenable: Listenable.merge([posController, ShopSettingsController.instance]),
       builder: (context, _) {
-        final currentQr = posController.gcashQrCode;
+        final storeQr = ShopSettingsController.instance.gcashQrUrl;
+        final currentQr = (storeQr != null && storeQr.trim().isNotEmpty) ? storeQr : posController.gcashQrCode;
+
         if (currentQr == null) {
           if (!isOwner) {
             return Container(
@@ -1820,7 +1977,7 @@ class _GcashQrView extends StatelessWidget {
           return InkWell(
             onTap: () {
               posController.updateGcashQrCode(
-                  'https://upload.wikimedia.org/wikipedia/commons/thumb/d/d0/QR_code_for_mobile_English_Wikipedia.svg/1200px-QR_code_for_mobile_English_Wikipedia.svg.png'
+                  'https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=GCash'
               );
             },
             child: Container(
@@ -1855,15 +2012,17 @@ class _GcashQrView extends StatelessWidget {
                   child: Hero(
                     tag: 'gcash_qr',
                     child: Container(
-                      height: 100,
-                      width: 100,
                       decoration: BoxDecoration(
                         borderRadius: BorderRadius.circular(12),
                         border: Border.all(color: AppColors.borderColor),
-                        image: DecorationImage(
-                          image: NetworkImage(currentQr),
-                          fit: BoxFit.cover,
-                        ),
+                      ),
+                      child: ProductImage(
+                        image: currentQr,
+                        width: 100,
+                        height: 100,
+                        borderRadius: 12,
+                        fit: BoxFit.cover,
+                        fallbackIcon: Icons.qr_code_2_outlined,
                       ),
                     ),
                   ),
@@ -1937,6 +2096,15 @@ class _GcashQrView extends StatelessWidget {
                       onPressed: () => _showRefVerificationDialog(context, scannedRefNumber!),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
+                      tooltip: 'Edit Reference #',
+                    ),
+                    const SizedBox(width: 8),
+                    IconButton(
+                      icon: const Icon(Icons.close, size: 16, color: Colors.red),
+                      onPressed: () => onRefNumberScanned?.call(''),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      tooltip: 'Clear Reference #',
                     ),
                   ],
                 ),

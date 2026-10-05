@@ -1,4 +1,5 @@
 // lib/main.dart
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -377,6 +378,15 @@ class SariSariApp extends StatelessWidget {
             ),
           ];
         }
+        // Default landing page: On Web, default to Admin Login/Session Guard
+        if (kIsWeb) {
+          return [
+            MaterialPageRoute(
+              settings: const RouteSettings(name: '/admin'),
+              builder: (context) => const AdminSessionGuard(),
+            ),
+          ];
+        }
         return [
           MaterialPageRoute(
             settings: const RouteSettings(name: '/'),
@@ -407,6 +417,12 @@ class SariSariApp extends StatelessWidget {
           return MaterialPageRoute(
             settings: const RouteSettings(name: '/login'),
             builder: (context) => const LoginPage(),
+          );
+        }
+        if (kIsWeb) {
+          return MaterialPageRoute(
+            settings: const RouteSettings(name: '/admin'),
+            builder: (context) => const AdminSessionGuard(),
           );
         }
         return MaterialPageRoute(

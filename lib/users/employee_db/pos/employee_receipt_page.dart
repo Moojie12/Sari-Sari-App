@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/gcash_ocr_helper.dart';
 import 'employee_pos_controller.dart';
 
 /// Shown after a POS sale is completed (Receipt Generation feature).
@@ -102,7 +103,7 @@ class EmployeeReceiptPage extends StatelessWidget {
                             receipt.paymentReferenceNumber!.isNotEmpty)
                           _ReceiptRow(
                             label: 'GCash Ref #',
-                            value: receipt.paymentReferenceNumber!,
+                            value: GcashOcrHelper.formatRefNumber(receipt.paymentReferenceNumber!),
                             isBold: true,
                           ),
                         _ReceiptRow(
