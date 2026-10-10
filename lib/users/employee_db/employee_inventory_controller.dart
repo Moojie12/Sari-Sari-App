@@ -236,6 +236,7 @@ class EmployeeInventoryController extends ChangeNotifier {
           );
           _products.add(prod);
         }
+        _productsLoading = false;
         notifyListeners();
       }
     } catch (e) {

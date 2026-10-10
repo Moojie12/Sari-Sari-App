@@ -477,7 +477,7 @@ class _OrderList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (controller.isLoading) {
+    if (controller.isLoading && controller.orders.isEmpty) {
       return ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(24),

@@ -49,7 +49,7 @@ class _SplashPageState extends State<SplashPage> {
       }
     } catch (_) {}
 
-    await Future.delayed(const Duration(seconds: 3));
+    await Future.delayed(const Duration(milliseconds: 500));
     if (!mounted) return;
 
     // Check if user is already logged in

@@ -1,8 +1,11 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:sari_sari/core/theme/app_colors.dart';
+import 'package:sari_sari/shared/utils/exit_confirmation_dialog.dart';
 import 'package:sari_sari/shared/widgets/product_image.dart';
 import 'package:sari_sari/users/customer_db/cart/customer_cart_page.dart';
 import 'package:sari_sari/users/customer_db/customer_cart_controller.dart';
@@ -33,7 +36,27 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
   void switchTab(int index) {
     if (index >= 0 && index < _pages.length) {
       setState(() => _selectedIndex = index);
+      _saveCurrentTab(index);
     }
+  }
+
+  Future<void> _restoreSavedTab() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedIndex = prefs.getInt('last_customer_tab');
+      if (savedIndex != null && savedIndex >= 0 && savedIndex < _pages.length && mounted) {
+        setState(() {
+          _selectedIndex = savedIndex;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveCurrentTab(int index) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('last_customer_tab', index);
+    } catch (_) {}
   }
 
   // Using the singleton controllers (factory ensures we get the global instance)
@@ -68,6 +91,7 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
   @override
   void initState() {
     super.initState();
+    _restoreSavedTab();
     CustomerProfileController.instance.loadProfile();
     _cartPulseController = AnimationController(
       vsync: this,
@@ -220,6 +244,7 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
   void _onDestinationSelected(int index) {
     if (index == _selectedIndex) return;
     setState(() => _selectedIndex = index);
+    _saveCurrentTab(index);
   }
 
   bool _handleScrollNotification(UserScrollNotification notification) {
@@ -240,8 +265,21 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.lightBackground,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+        if (_selectedIndex != 0) {
+          switchTab(0);
+          return;
+        }
+        final shouldExit = await showExitConfirmationDialog(context);
+        if (shouldExit) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.lightBackground,
       body: Stack(
         children: [
           NotificationListener<UserScrollNotification>(
@@ -363,7 +401,8 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
             ),
         ],
       ),
-    );
+    ),
+  );
   }
 }
 

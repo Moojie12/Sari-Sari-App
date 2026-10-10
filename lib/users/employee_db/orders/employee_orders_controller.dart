@@ -80,6 +80,7 @@ class EmployeeOrderController extends ChangeNotifier {
           final parsed = CustomerOrder.fromMap(row);
           _mergeOrder(parsed, saveToLocal: false);
         }
+        _isLoading = false;
         notifyListeners();
       }
     } catch (e) {

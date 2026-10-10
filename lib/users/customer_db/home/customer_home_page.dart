@@ -56,8 +56,10 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   }
 
   void _simulateLoading() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 1000));
+    if (EmployeeInventoryController.instance.isProductsLoading) {
+      setState(() => _isLoading = true);
+      await Future.delayed(const Duration(milliseconds: 200));
+    }
     if (mounted) {
       setState(() => _isLoading = false);
     }
@@ -231,10 +233,10 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                   ),
                 ),
               ),
-              if (!_isLoading && pagedProducts.isEmpty)
-                SliverToBoxAdapter(child: _buildEmptyState(context))
-              else if (_isLoading)
+              if ((_isLoading || EmployeeInventoryController.instance.isProductsLoading) && pagedProducts.isEmpty)
                 _buildGridSkeletons()
+              else if (pagedProducts.isEmpty)
+                SliverToBoxAdapter(child: _buildEmptyState(context))
               else ...[
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),

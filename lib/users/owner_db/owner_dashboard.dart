@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme/app_colors.dart';
+import '../../shared/utils/exit_confirmation_dialog.dart';
 import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
 import 'package:sari_sari/users/employee_db/pos/employee_pos_controller.dart';
 import 'package:sari_sari/users/employee_db/pos/employee_pos_page.dart';
@@ -43,8 +46,28 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   @override
   void initState() {
     super.initState();
+    _restoreSavedTab();
     OwnerProfileController.instance.loadProfile();
     DashboardNavigationController.instance.addListener(_handleNavigationRequest);
+  }
+
+  Future<void> _restoreSavedTab() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedIndex = prefs.getInt('last_owner_tab');
+      if (savedIndex != null && savedIndex >= 0 && savedIndex < 5 && mounted) {
+        setState(() {
+          _selectedIndex = savedIndex;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveCurrentTab(int index) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('last_owner_tab', index);
+    } catch (_) {}
   }
 
   @override
@@ -138,9 +161,8 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   void _onDestinationSelected(int index) {
     if (index == _selectedIndex) return;
     setState(() => _selectedIndex = index);
+    _saveCurrentTab(index);
   }
-
-
 
   bool _handleScrollNotification(UserScrollNotification notification) {
     if (notification.metrics.axis != Axis.vertical) return false;
@@ -156,8 +178,6 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     }
     return false;
   }
-
-
 
   @override
   Widget build(BuildContext context) {
@@ -182,56 +202,70 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
       const OwnerProfilePage(),
     ];
 
-    return Scaffold(
-      backgroundColor: AppColors.lightBackground,
-      body: Stack(
-        children: [
-          NotificationListener<UserScrollNotification>(
-            onNotification: _handleScrollNotification,
-            child: IndexedStack(
-              index: _selectedIndex,
-              children: pages,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+        if (_selectedIndex != 0) {
+          _onDestinationSelected(0);
+          return;
+        }
+        final shouldExit = await showExitConfirmationDialog(context);
+        if (shouldExit) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.lightBackground,
+        body: Stack(
+          children: [
+            NotificationListener<UserScrollNotification>(
+              onNotification: _handleScrollNotification,
+              child: IndexedStack(
+                index: _selectedIndex,
+                children: pages,
+              ),
             ),
-          ),
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: IgnorePointer(
-              ignoring: !_isNavBarVisible,
-              child: AnimatedSlide(
-                duration: const Duration(milliseconds: 260),
-                curve: Curves.easeOut,
-                offset: _isNavBarVisible ? Offset.zero : const Offset(0, 2),
-                child: AnimatedOpacity(
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: IgnorePointer(
+                ignoring: !_isNavBarVisible,
+                child: AnimatedSlide(
                   duration: const Duration(milliseconds: 260),
-                  opacity: _isNavBarVisible ? 1 : 0,
-                  child: ListenableBuilder(
-                    listenable: Listenable.merge([
-                      _inventoryController,
-                      _posController,
-                      _ordersController,
-                      _messagesController,
-                      _notificationsController,
-                    ]),
-                    builder: (context, _) {
-                      return OwnerFloatingNavBar(
-                        selectedIndex: _selectedIndex,
-                        onDestinationSelected: _onDestinationSelected,
-                        inventoryAlertCount: _inventoryController.lowStockProducts.length +
-                            _inventoryController.outOfStockProducts.length,
-                        posBadgeCount: _posController.itemCount,
-                        ordersAlertCount: _ordersController.activeOrders.length,
-                        profileAlertCount: _messagesController.unreadCount +
-                            _notificationsController.unreadCount,
-                      );
-                    },
+                  curve: Curves.easeOut,
+                  offset: _isNavBarVisible ? Offset.zero : const Offset(0, 2),
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 260),
+                    opacity: _isNavBarVisible ? 1 : 0,
+                    child: ListenableBuilder(
+                      listenable: Listenable.merge([
+                        _inventoryController,
+                        _posController,
+                        _ordersController,
+                        _messagesController,
+                        _notificationsController,
+                      ]),
+                      builder: (context, _) {
+                        return OwnerFloatingNavBar(
+                          selectedIndex: _selectedIndex,
+                          onDestinationSelected: _onDestinationSelected,
+                          inventoryAlertCount: _inventoryController.lowStockProducts.length +
+                              _inventoryController.outOfStockProducts.length,
+                          posBadgeCount: _posController.itemCount,
+                          ordersAlertCount: _ordersController.activeOrders.length,
+                          profileAlertCount: _messagesController.unreadCount +
+                              _notificationsController.unreadCount,
+                        );
+                      },
+                    ),
                   ),
                 ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

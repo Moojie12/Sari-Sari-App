@@ -165,7 +165,7 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
                 SliverToBoxAdapter(child: _buildSearchBar()),
                 SliverToBoxAdapter(child: _buildFilters()),
                 const SliverToBoxAdapter(child: SizedBox(height: 8)),
-                if (widget.inventory.isProductsLoading)
+                if (widget.inventory.isProductsLoading && widget.inventory.products.isEmpty)
                   SliverPadding(
                     padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
                     sliver: SliverList.separated(

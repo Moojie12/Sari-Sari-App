@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/services/dashboard_navigation_controller.dart';
 import '../../core/theme/app_colors.dart';
+import '../../shared/utils/exit_confirmation_dialog.dart';
 import 'employee_floating_nav_bar.dart';
 import 'employee_inventory_controller.dart';
 import 'home/employee_home_page.dart';
@@ -54,8 +57,28 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   @override
   void initState() {
     super.initState();
+    _restoreSavedTab();
     EmployeeProfileController.instance.loadProfile();
     DashboardNavigationController.instance.addListener(_handleNavigationRequest);
+  }
+
+  Future<void> _restoreSavedTab() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedIndex = prefs.getInt('last_employee_tab');
+      if (savedIndex != null && savedIndex >= 0 && savedIndex < 5 && mounted) {
+        setState(() {
+          _selectedIndex = savedIndex;
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveCurrentTab(int index) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('last_employee_tab', index);
+    } catch (_) {}
   }
 
   @override
@@ -173,6 +196,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   void _onDestinationSelected(int index) {
     if (index == _selectedIndex) return;
     setState(() => _selectedIndex = index);
+    _saveCurrentTab(index);
   }
 
   bool _handleScrollNotification(UserScrollNotification notification) {
@@ -193,8 +217,21 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: AppColors.lightBackground,
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+        if (_selectedIndex != 0) {
+          _onDestinationSelected(0);
+          return;
+        }
+        final shouldExit = await showExitConfirmationDialog(context);
+        if (shouldExit) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.lightBackground,
       body: Stack(
         children: [
           NotificationListener<UserScrollNotification>(
@@ -240,6 +277,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
           ),
         ],
       ),
-    );
-  }
+    ),
+  );
+}
 }

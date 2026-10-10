@@ -15,21 +15,10 @@ class CustomerPurchasesPage extends StatefulWidget {
 
 class _CustomerPurchasesPageState extends State<CustomerPurchasesPage> with SingleTickerProviderStateMixin {
   late TabController _tabController;
-  bool _isLoading = true;
-
   @override
   void initState() {
     super.initState();
     _tabController = TabController(length: 5, vsync: this);
-    _simulateLoading();
-  }
-
-  void _simulateLoading() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 800));
-    if (mounted) {
-      setState(() => _isLoading = false);
-    }
   }
 
   @override
@@ -83,7 +72,7 @@ class _CustomerPurchasesPageState extends State<CustomerPurchasesPage> with Sing
               child: ListenableBuilder(
                 listenable: widget.orderController,
                 builder: (context, _) {
-                  if (_isLoading) {
+                  if (widget.orderController.isLoading && widget.orderController.orders.isEmpty) {
                     return ListView.separated(
                       padding: const EdgeInsets.all(24),
                       itemCount: 3,

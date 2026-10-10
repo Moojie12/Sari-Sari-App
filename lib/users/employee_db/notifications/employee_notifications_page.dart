@@ -143,7 +143,7 @@ class EmployeeNotificationsPage extends StatelessWidget {
       body: ListenableBuilder(
         listenable: controller,
         builder: (context, _) {
-          if (controller.isLoading) {
+          if (controller.isLoading && controller.notifications.isEmpty) {
             return ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: 6,

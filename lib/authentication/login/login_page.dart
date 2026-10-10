@@ -14,6 +14,7 @@ import '../../users/owner_db/owner_db.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/rate_limiter_service.dart';
 import '../../core/diagnostic/backend_diagnostic_page.dart';
+import '../../shared/utils/exit_confirmation_dialog.dart';
 import '../../shared/utils/top_notification.dart';
 
 class LoginPage extends StatefulWidget {
@@ -49,7 +50,16 @@ class _LoginPageState extends State<LoginPage> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+        final shouldExit = await showExitConfirmationDialog(context);
+        if (shouldExit) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
       body: LayoutBuilder(
         builder: (context, constraints) {
           final isDesktop = constraints.maxWidth >= 850;
@@ -220,8 +230,9 @@ class _LoginPageState extends State<LoginPage> {
           );
         },
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _buildDesktopBranding() {
     return Column(
@@ -628,6 +639,6 @@ class _LoginCardFormState extends State<_LoginCardForm> {
         ),
       ],
     ),
-  );
+    );
   }
 }

@@ -22,9 +22,7 @@ class _CustomerNotificationsPageState extends State<CustomerNotificationsPage> {
     _simulateLoading();
   }
 
-  void _simulateLoading() async {
-    setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 700));
+  void _simulateLoading() {
     if (mounted) {
       setState(() => _isLoading = false);
     }
@@ -58,7 +56,7 @@ class _CustomerNotificationsPageState extends State<CustomerNotificationsPage> {
       body: ListenableBuilder(
         listenable: controller,
         builder: (context, _) {
-          if (_isLoading) {
+          if ((_isLoading || controller.isLoading) && controller.notifications.isEmpty) {
             return ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: 6,

@@ -5,7 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_colors.dart';
+import '../../shared/utils/exit_confirmation_dialog.dart';
 import '../../core/services/supabase_service.dart';
 import '../../shared/widgets/product_image.dart';
 import '../../shared/widgets/product_image_crop_dialog.dart';
@@ -73,7 +75,27 @@ class _AdminDashboardState extends State<AdminDashboard> {
   @override
   void initState() {
     super.initState();
+    _restoreSavedSection();
     _initializeServices();
+  }
+
+  Future<void> _restoreSavedSection() async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      final savedIndex = prefs.getInt('last_admin_section');
+      if (savedIndex != null && savedIndex >= 0 && savedIndex < AdminSection.values.length && mounted) {
+        setState(() {
+          _selectedSection = AdminSection.values[savedIndex];
+        });
+      }
+    } catch (_) {}
+  }
+
+  Future<void> _saveCurrentSection(AdminSection section) async {
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.setInt('last_admin_section', section.index);
+    } catch (_) {}
   }
 
   Future<void> _initializeServices() async {
@@ -2432,6 +2454,11 @@ class _AdminDashboardState extends State<AdminDashboard> {
     }
   }
 
+  void _onSelectSection(AdminSection section) {
+    setState(() => _selectedSection = section);
+    _saveCurrentSection(section);
+  }
+
   @override
   Widget build(BuildContext context) {
     final bool isMobile = MediaQuery.of(context).size.width < 900;
@@ -2486,31 +2513,45 @@ class _AdminDashboardState extends State<AdminDashboard> {
       );
     }
 
-    return Scaffold(
-      backgroundColor: AppColors.lightBackground,
-      drawer: isMobile ? _buildSidebar(isDrawer: true) : null,
-      appBar: isMobile ? AppBar(
-        backgroundColor: Colors.white,
-        elevation: 0,
-        iconTheme: const IconThemeData(color: AppColors.darkText),
-        title: const Text('Tindahan ni Eca Admin', style: TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold)),
-      ) : null,
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Sidebar
-          if (!isMobile) _buildSidebar(),
-          // Main Content
-          Expanded(
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: SingleChildScrollView(
-                padding: EdgeInsets.all(isMobile ? 16 : 32),
-                child: _buildBody(),
+    return PopScope(
+      canPop: false,
+      onPopInvokedWithResult: (bool didPop, dynamic result) async {
+        if (didPop) return;
+        if (_selectedSection != AdminSection.overview) {
+          _onSelectSection(AdminSection.overview);
+          return;
+        }
+        final shouldExit = await showExitConfirmationDialog(context);
+        if (shouldExit) {
+          SystemNavigator.pop();
+        }
+      },
+      child: Scaffold(
+        backgroundColor: AppColors.lightBackground,
+        drawer: isMobile ? _buildSidebar(isDrawer: true) : null,
+        appBar: isMobile ? AppBar(
+          backgroundColor: Colors.white,
+          elevation: 0,
+          iconTheme: const IconThemeData(color: AppColors.darkText),
+          title: const Text('Tindahan ni Eca Admin', style: TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold)),
+        ) : null,
+        body: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            // Sidebar
+            if (!isMobile) _buildSidebar(),
+            // Main Content
+            Expanded(
+              child: Align(
+                alignment: Alignment.topLeft,
+                child: SingleChildScrollView(
+                  padding: EdgeInsets.all(isMobile ? 16 : 32),
+                  child: _buildBody(),
+                ),
               ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }
@@ -2605,7 +2646,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             label: 'Dashboard',
             isSelected: _selectedSection == AdminSection.overview,
             onTap: () {
-              setState(() => _selectedSection = AdminSection.overview);
+              _onSelectSection(AdminSection.overview);
               if (isDrawer) Navigator.pop(context);
             },
           ),
@@ -2614,7 +2655,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             label: 'Users',
             isSelected: _selectedSection == AdminSection.users,
             onTap: () {
-              setState(() => _selectedSection = AdminSection.users);
+              _onSelectSection(AdminSection.users);
               if (isDrawer) Navigator.pop(context);
             },
           ),
@@ -2623,7 +2664,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             label: 'Inventory',
             isSelected: _selectedSection == AdminSection.products,
             onTap: () {
-              setState(() => _selectedSection = AdminSection.products);
+              _onSelectSection(AdminSection.products);
               if (isDrawer) Navigator.pop(context);
             },
           ),
@@ -2632,7 +2673,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             label: 'Sales',
             isSelected: _selectedSection == AdminSection.sales,
             onTap: () {
-              setState(() => _selectedSection = AdminSection.sales);
+              _onSelectSection(AdminSection.sales);
               if (isDrawer) Navigator.pop(context);
             },
           ),
@@ -2641,7 +2682,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             label: 'Activity',
             isSelected: _selectedSection == AdminSection.activity,
             onTap: () {
-              setState(() => _selectedSection = AdminSection.activity);
+              _onSelectSection(AdminSection.activity);
               if (isDrawer) Navigator.pop(context);
             },
           ),
@@ -2650,7 +2691,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             label: 'Archived',
             isSelected: _selectedSection == AdminSection.archived,
             onTap: () {
-              setState(() => _selectedSection = AdminSection.archived);
+              _onSelectSection(AdminSection.archived);
               if (isDrawer) Navigator.pop(context);
             },
           ),
@@ -2659,7 +2700,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
             label: 'Settings',
             isSelected: _selectedSection == AdminSection.settings,
             onTap: () {
-              setState(() => _selectedSection = AdminSection.settings);
+              _onSelectSection(AdminSection.settings);
               if (isDrawer) Navigator.pop(context);
             },
           ),
