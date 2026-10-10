@@ -888,6 +888,16 @@ class _AddressSelectionModal extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 16),
+          if (addresses.isEmpty)
+            const Padding(
+              padding: EdgeInsets.symmetric(vertical: 20),
+              child: Center(
+                child: Text(
+                  'No addresses saved yet.',
+                  style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+                ),
+              ),
+            ),
           ...addresses.map((address) {
             final isSelected = selectedAddress?.id == address.id;
             return Padding(

@@ -59,7 +59,7 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
       _selectedType = 'Home';
       _customTypeController = TextEditingController();
       _streetDetailsController = TextEditingController();
-      _isDefault = false;
+      _isDefault = CustomerAddressController.instance.addresses.isEmpty;
     }
 
     _loadCities();

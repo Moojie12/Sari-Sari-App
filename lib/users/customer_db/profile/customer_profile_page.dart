@@ -4,6 +4,7 @@ import '../../../core/services/auth_service.dart';
 import '../../../core/theme/app_colors.dart';
 import 'customer_edit_profile_page.dart';
 import 'customer_profile_controller.dart';
+import 'customer_address_controller.dart';
 import '../../../shared/widgets/editable_profile_avatar.dart';
 import 'customer_change_password_page.dart';
 import 'customer_address_page.dart';
@@ -56,6 +57,7 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
               Navigator.pop(dialogContext); // Close dialog
               await AuthService().signOut();
               CustomerProfileController.instance.clear();
+              CustomerAddressController.instance.clear();
               navigator.pushAndRemoveUntil(
                 MaterialPageRoute(builder: (context) => const LoginPage()),
                 (route) => false,

@@ -4,8 +4,20 @@ import '../../../shared/utils/top_notification.dart';
 import 'customer_address_controller.dart';
 import 'customer_add_edit_address_page.dart';
 
-class CustomerAddressPage extends StatelessWidget {
+class CustomerAddressPage extends StatefulWidget {
   const CustomerAddressPage({super.key});
+
+  @override
+  State<CustomerAddressPage> createState() => _CustomerAddressPageState();
+}
+
+class _CustomerAddressPageState extends State<CustomerAddressPage> {
+  @override
+  void initState() {
+    super.initState();
+    CustomerAddressController.instance.ensureAddressesForActiveUser();
+    CustomerAddressController.instance.loadFromFirebase();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -30,16 +42,20 @@ class CustomerAddressPage extends StatelessWidget {
         builder: (context, _) {
           final addresses = CustomerAddressController.instance.addresses;
 
-          return ListView(
-            padding: const EdgeInsets.all(24),
-            children: [
-              if (addresses.isEmpty)
-                const Center(
-                  child: Padding(
-                    padding: EdgeInsets.symmetric(vertical: 40),
-                    child: Text('No addresses saved yet.', style: TextStyle(color: AppColors.secondaryText)),
+          return RefreshIndicator(
+            onRefresh: () => CustomerAddressController.instance.loadFromFirebase(),
+            color: AppColors.primaryOrange,
+            child: ListView(
+              physics: const AlwaysScrollableScrollPhysics(),
+              padding: const EdgeInsets.all(24),
+              children: [
+                if (addresses.isEmpty)
+                  const Center(
+                    child: Padding(
+                      padding: EdgeInsets.symmetric(vertical: 40),
+                      child: Text('No addresses saved yet.', style: TextStyle(color: AppColors.secondaryText)),
+                    ),
                   ),
-                ),
               ...addresses.map((a) => Padding(
                 padding: const EdgeInsets.only(bottom: 16),
                 child: _AddressCard(
@@ -98,8 +114,9 @@ class CustomerAddressPage extends StatelessWidget {
                 ),
               ),
             ],
-          );
-        },
+          ),
+        );
+      },
       ),
     );
   }

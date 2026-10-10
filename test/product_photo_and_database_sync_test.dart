@@ -194,5 +194,41 @@ void main() {
       expect(deserialized.address, equals('Tower 2, Unit 504, Pasig City'));
       expect(deserialized.isDefault, isTrue);
     });
+
+    test('CustomerAddressController enforces per-user isolation and clears on logout', () async {
+      final controller = CustomerAddressController.instance;
+
+      // Ensure fresh state
+      controller.clear();
+      expect(controller.addresses, isEmpty);
+
+      // Load for user 1
+      await controller.loadAddressesForUser('user_test_alpha');
+      expect(controller.addresses, isEmpty); // brand new account has 0 addresses
+
+      // Add address for user 1
+      controller.addAddress(const CustomerAddress(
+        id: 'addr_u1_1',
+        type: 'Home',
+        address: '101 Apple St, Calamba, Laguna',
+        isDefault: true,
+      ));
+      await controller.saveAddresses();
+      expect(controller.addresses.length, equals(1));
+      expect(controller.addresses.first.id, equals('addr_u1_1'));
+
+      // Logout clears controller
+      controller.clear();
+      expect(controller.addresses, isEmpty);
+
+      // User 2 (new account) logs in
+      await controller.loadAddressesForUser('user_test_beta');
+      expect(controller.addresses, isEmpty); // User 2 has NO pre-existing addresses from User 1!
+
+      // User 1 logs back in
+      await controller.loadAddressesForUser('user_test_alpha');
+      expect(controller.addresses.length, equals(1));
+      expect(controller.addresses.first.id, equals('addr_u1_1'));
+    });
   });
 }
