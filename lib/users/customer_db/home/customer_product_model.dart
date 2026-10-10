@@ -43,6 +43,8 @@ class CustomerProduct {
     required this.availability,
     this.isOnSale = false,
     this.isFeatured = false,
+    this.isBestSeller = false,
+    this.totalSold = 0,
   });
 
   final String id;
@@ -62,7 +64,39 @@ class CustomerProduct {
   final CustomerProductAvailability availability;
   final bool isOnSale;
   final bool isFeatured;
+  final bool isBestSeller;
+  final int totalSold;
 
   bool get isOutOfStock =>
       availability == CustomerProductAvailability.outOfStock;
+
+  CustomerProduct copyWith({
+    String? id,
+    String? name,
+    String? category,
+    double? price,
+    double? capital,
+    double? sellableQuantity,
+    String? image,
+    CustomerProductAvailability? availability,
+    bool? isOnSale,
+    bool? isFeatured,
+    bool? isBestSeller,
+    int? totalSold,
+  }) {
+    return CustomerProduct(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      category: category ?? this.category,
+      price: price ?? this.price,
+      capital: capital ?? this.capital,
+      sellableQuantity: sellableQuantity ?? this.sellableQuantity,
+      image: image ?? this.image,
+      availability: availability ?? this.availability,
+      isOnSale: isOnSale ?? this.isOnSale,
+      isFeatured: isFeatured ?? this.isFeatured,
+      isBestSeller: isBestSeller ?? this.isBestSeller,
+      totalSold: totalSold ?? this.totalSold,
+    );
+  }
 }

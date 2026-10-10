@@ -448,4 +448,97 @@ void main() {
       expect(find.text('Merienda Combo: 1 Piattos + 2 Sardines'), findsOneWidget);
     });
   });
+
+  group('Sale Promo Limit & Stock Validation Tests', () {
+    test('SaleDealModel tracks saleLimit, soldCount, remainingSaleLimit and isSoldOut', () {
+      final dealWithLimit = SaleDealModel(
+        id: 'DEAL-LIMIT-1',
+        title: 'Limited Sale Deal',
+        salePrice: 20.0,
+        items: const [
+          SaleDealItem(productId: 'PROD-PIATTOS', productName: 'Piattos', quantity: 1, originalPrice: 22.0),
+        ],
+        createdAt: DateTime.now(),
+        saleLimit: 10,
+        soldCount: 3,
+      );
+
+      expect(dealWithLimit.saleLimit, 10);
+      expect(dealWithLimit.soldCount, 3);
+      expect(dealWithLimit.remainingSaleLimit, 7);
+      expect(dealWithLimit.isSoldOut, isFalse);
+
+      final soldOutDeal = dealWithLimit.copyWith(soldCount: 10);
+      expect(soldOutDeal.remainingSaleLimit, 0);
+      expect(soldOutDeal.isSoldOut, isTrue);
+
+      // JSON serialization preserves saleLimit and soldCount
+      final map = dealWithLimit.toMap();
+      expect(map['saleLimit'], 10);
+      expect(map['soldCount'], 3);
+
+      final fromMap = SaleDealModel.fromMap(map);
+      expect(fromMap.saleLimit, 10);
+      expect(fromMap.soldCount, 3);
+      expect(fromMap.remainingSaleLimit, 7);
+    });
+
+    test('CustomerCartController caps available deal stock to owner promo limit even with high inventory', () {
+      final cart = CustomerCartController();
+      cart.clearCart();
+
+      // Product has 50 items in stock
+      final products = <CustomerProduct>[
+        const CustomerProduct(
+          id: 'PROD-PIATTOS',
+          name: 'Piattos Cheese 40g',
+          category: 'Snacks',
+          price: 22.0,
+          capital: 17.0,
+          sellableQuantity: 50.0,
+          image: '',
+          availability: CustomerProductAvailability.inStock,
+        ),
+      ];
+
+      // Owner set promo limit to 5 units
+      final dealWith5Limit = SaleDealModel(
+        id: 'DEAL-LIMIT-5',
+        title: 'Piattos Flash Deal',
+        salePrice: 15.0,
+        items: const [
+          SaleDealItem(productId: 'PROD-PIATTOS', productName: 'Piattos Cheese 40g', quantity: 1, originalPrice: 22.0),
+        ],
+        createdAt: DateTime.now(),
+        saleLimit: 5,
+        soldCount: 0,
+      );
+
+      // Max available deals must be 5 (limit), NOT 15 (stock in EmployeeInventoryController)
+      final available = cart.getAvailableDealStock(dealWith5Limit);
+      expect(available, 5);
+
+      // Add 5 times to cart - should succeed
+      for (int i = 0; i < 5; i++) {
+        final success = cart.addSaleDeal(dealWith5Limit, products);
+        expect(success, isTrue);
+      }
+      expect(cart.items.first.quantity, 5);
+
+      // Attempting to add 6th should be rejected
+      final sixthAdd = cart.addSaleDeal(dealWith5Limit, products);
+      expect(sixthAdd, isFalse);
+      expect(cart.items.first.quantity, 5);
+
+      // Attempting to increment in cart should also be rejected
+      String? errorMsg;
+      cart.incrementQuantity(
+        cart.items.first.id,
+        onError: (msg) => errorMsg = msg,
+      );
+      expect(errorMsg, contains('Limit is 5'));
+      expect(cart.items.first.quantity, 5);
+    });
+  });
 }
+

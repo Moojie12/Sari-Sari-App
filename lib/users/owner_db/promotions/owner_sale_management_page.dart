@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../models/sale_deal_model.dart';
-import '../../../core/services/sale_deal_controller.dart';
+import 'package:sari_sari/models/sale_deal_model.dart';
+import 'package:sari_sari/core/services/sale_deal_controller.dart';
 import '../../../shared/utils/top_notification.dart';
 import 'owner_edit_sale_deal_page.dart';
 
@@ -207,13 +207,38 @@ class OwnerSaleManagementPage extends StatelessWidget {
                               ),
                             ),
                           ),
+                          if (deal.isSoldOut) ...[
+                            const SizedBox(width: 6),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.red.withValues(alpha: 0.1),
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: Text(
+                                'SOLD OUT',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.bold,
+                                  color: Colors.red[800],
+                                ),
+                              ),
+                            ),
+                          ],
                         ],
                       ),
                       const SizedBox(height: 4),
                       Text(
-                        '${deal.totalItemQuantity} items total in promo',
+                        'Promo Limit: ${deal.saleLimit != null ? "${deal.remainingSaleLimit} left of ${deal.saleLimit}" : "Full stock"} • ${deal.totalItemQuantity} items per deal',
                         style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
                       ),
+                      if (deal.soldCount > 0) ...[
+                        const SizedBox(height: 2),
+                        Text(
+                          '${deal.soldCount} deal${deal.soldCount > 1 ? "s" : ""} sold at promo price',
+                          style: TextStyle(fontSize: 11, fontWeight: FontWeight.w600, color: Colors.green[800]),
+                        ),
+                      ],
                     ],
                   ),
                 ),

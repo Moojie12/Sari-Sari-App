@@ -1,9 +1,12 @@
 import 'dart:convert';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/services/auth_service.dart';
 import '../../core/services/local_database_service.dart';
-import '../../models/sale_deal_model.dart';
+import 'package:sari_sari/models/sale_deal_model.dart';
+import '../employee_db/employee_inventory_controller.dart';
+import '../employee_db/inventory/employee_product_model.dart';
 import 'home/customer_product_model.dart';
 
 /// Represents a single item or bundled deal item in the shopping cart.
@@ -122,34 +125,62 @@ class CustomerCartController extends ChangeNotifier {
     return true;
   }
 
-  /// Adds an entire customized on-sale deal/bundle into the cart as ONE bundled CartItem.
-  bool addSaleDeal(SaleDealModel deal, List<CustomerProduct> availableProducts) {
-    ensureCartForActiveUser();
-    if (deal.items.isEmpty) return false;
-
-    // 1. Verify stock availability for all items in deal
+  /// Calculates how many bundles of this deal can be purchased, respecting
+  /// BOTH the owner's promo quota limit and live inventory of each included item.
+  int getAvailableDealStock(SaleDealModel deal) {
+    if (deal.items.isEmpty) return 0;
+    final products = EmployeeInventoryController.instance.products;
+    int maxFromStock = 999999;
     for (final item in deal.items) {
-      final product = availableProducts.firstWhere(
+      final prod = products.firstWhere(
         (p) => p.id == item.productId,
-        orElse: () => CustomerProduct(
+        orElse: () => EmployeeProduct(
           id: item.productId,
           name: item.productName,
+          barcode: '',
           category: '',
           price: item.originalPrice,
           capital: 0,
-          sellableQuantity: 0,
-          image: '',
-          availability: CustomerProductAvailability.outOfStock,
+          batches: const [],
         ),
       );
-      if (product.sellableQuantity < item.quantity) {
-        return false; // Insufficient stock
+      if (item.quantity <= 0) continue;
+      final possible = prod.sellableQuantity.toInt() ~/ item.quantity;
+      if (possible < maxFromStock) {
+        maxFromStock = possible;
       }
     }
+    final quota = deal.remainingSaleLimit;
+    return max(0, min(maxFromStock, quota));
+  }
 
-    // 2. Add or increment deal as a single bundled CartItem
+  /// Adds an entire customized on-sale deal/bundle into the cart as ONE bundled CartItem.
+  /// Strictly checks against live product stock and owner-defined promo sale limit.
+  bool addSaleDeal(
+    SaleDealModel deal,
+    List<CustomerProduct> availableProducts, {
+    void Function(String message)? onError,
+  }) {
+    ensureCartForActiveUser();
+    if (deal.items.isEmpty) {
+      onError?.call('This sale promo has no included products.');
+      return false;
+    }
+
+    final maxAvailable = getAvailableDealStock(deal);
+    if (maxAvailable <= 0) {
+      onError?.call('Sorry, promo deal "${deal.title}" is currently sold out.');
+      return false;
+    }
+
     final dealCartId = 'deal_${deal.id}';
     final existingIndex = _items.indexWhere((item) => item.id == dealCartId);
+    final currentQty = existingIndex >= 0 ? _items[existingIndex].quantity : 0;
+
+    if (currentQty + 1 > maxAvailable) {
+      onError?.call('Cannot add more. Only $maxAvailable available on sale.');
+      return false;
+    }
 
     final anchorProduct = CustomerProduct(
       id: dealCartId,
@@ -157,7 +188,7 @@ class CustomerCartController extends ChangeNotifier {
       category: 'Promotions',
       price: deal.salePrice,
       capital: 0,
-      sellableQuantity: 999,
+      sellableQuantity: maxAvailable.toDouble(),
       image: deal.effectiveImage ?? '',
       availability: CustomerProductAvailability.inStock,
       isOnSale: true,
@@ -182,12 +213,17 @@ class CustomerCartController extends ChangeNotifier {
     return true;
   }
 
-  void incrementQuantity(String id) {
+  void incrementQuantity(String id, {void Function(String message)? onError}) {
     ensureCartForActiveUser();
     final index = _items.indexWhere((item) => item.id == id || item.product.id == id);
     if (index >= 0) {
       final item = _items[index];
-      if (item.isDeal) {
+      if (item.isDeal && item.deal != null) {
+        final maxAvailable = getAvailableDealStock(item.deal!);
+        if (item.quantity >= maxAvailable) {
+          onError?.call('Cannot add more. Limit is $maxAvailable for this promo.');
+          return;
+        }
         item.quantity++;
         notifyListeners();
         _saveCartToLocalAndQueueSync();
@@ -197,6 +233,8 @@ class CustomerCartController extends ChangeNotifier {
           item.quantity++;
           notifyListeners();
           _saveCartToLocalAndQueueSync();
+        } else {
+          onError?.call('Cannot add more. Only $maxAvailable available in stock.');
         }
       }
     }

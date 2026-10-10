@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/admin_models.dart';
 import '../../core/services/supabase_service.dart';
+import '../../core/services/local_database_service.dart';
 import 'admin_audit_service.dart';
 
 /// Service for handling product operations using Supabase as the data source
@@ -348,6 +349,7 @@ class AdminProductService extends ChangeNotifier {
       );
 
       _products[index] = updatedProduct;
+      LocalDatabaseService.instance.delete('products', 'id = ?', [id]);
       AdminAuditService().logArchive('Product', id, product.name);
       notifyListeners();
 
@@ -405,6 +407,7 @@ class AdminProductService extends ChangeNotifier {
       await _supabaseService.deleteProduct(id);
 
       _products.removeWhere((p) => p.id == id);
+      LocalDatabaseService.instance.delete('products', 'id = ?', [id]);
       AdminAuditService().logDelete('Product', id, product.name);
       notifyListeners();
 

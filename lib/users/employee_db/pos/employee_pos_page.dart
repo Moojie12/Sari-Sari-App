@@ -3,8 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/theme/app_colors.dart';
-import '../../../models/sale_deal_model.dart';
-import '../../../core/services/sale_deal_controller.dart';
+import 'package:sari_sari/models/sale_deal_model.dart';
+import 'package:sari_sari/core/services/sale_deal_controller.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../../../shared/utils/gcash_ocr_helper.dart';

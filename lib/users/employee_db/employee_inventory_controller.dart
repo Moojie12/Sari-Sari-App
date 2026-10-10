@@ -4,6 +4,7 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../core/services/local_database_service.dart';
 import '../../core/services/stock_reservation_service.dart';
 import '../../core/services/supabase_service.dart';
+import '../../shared/widgets/product_image.dart';
 import '../../admin/services/admin_audit_service.dart';
 
 import '../../core/expiry/expiry_checker.dart';
@@ -222,6 +223,7 @@ class EmployeeInventoryController extends ChangeNotifier {
       final cachedRows = await LocalDatabaseService.instance.queryAll('products');
       if (cachedRows.isNotEmpty && _products.isEmpty) {
         for (final row in cachedRows) {
+          if (row['is_active'] == 0) continue;
           final prod = EmployeeProduct(
             id: row['id']?.toString() ?? '',
             name: row['name']?.toString() ?? '',
@@ -243,17 +245,19 @@ class EmployeeInventoryController extends ChangeNotifier {
       debugPrint('Error loading cached products from SQLite: $e');
     }
 
-    // 2. Fetch from Supabase and upsert to SQLite
+    // 2. Fetch from Supabase, upsert to SQLite, and delete removed products from cache
     try {
       final supabaseProducts = await _supabaseService.getProductsWithInventory();
+      _products.clear();
+      final activeIds = <String>{};
       if (supabaseProducts.isNotEmpty) {
-        _products.clear();
         for (final p in supabaseProducts) {
           if (p['is_archived'] == true) continue;
           final prod = _fromSupabaseProduct(p);
           _products.add(prod);
+          activeIds.add(prod.id);
 
-          LocalDatabaseService.instance.insert('products', {
+          await LocalDatabaseService.instance.insert('products', {
             'id': prod.id,
             'name': prod.name,
             'category_id': prod.category,
@@ -268,6 +272,20 @@ class EmployeeInventoryController extends ChangeNotifier {
             'updated_at': DateTime.now().toIso8601String(),
           });
         }
+      }
+
+      // Reconcile SQLite cache: delete any cached products that no longer exist or are archived in Supabase
+      final cachedRows = await LocalDatabaseService.instance.queryAll('products');
+      bool hasDeleted = false;
+      for (final row in cachedRows) {
+        final cachedId = row['id']?.toString();
+        if (cachedId != null && !activeIds.contains(cachedId)) {
+          await LocalDatabaseService.instance.delete('products', 'id = ?', [cachedId]);
+          hasDeleted = true;
+        }
+      }
+      if (hasDeleted) {
+        ProductImage.clearCache();
       }
     } catch (e) {
       debugPrint('Error loading products from Supabase: $e');
@@ -521,6 +539,7 @@ class EmployeeInventoryController extends ChangeNotifier {
 
     if (updatedBatches.isEmpty) {
       _products.removeAt(productIndex);
+      LocalDatabaseService.instance.delete('products', 'id = ?', [productId]);
       _supabaseService.updateProduct(productId, {
         'is_archived': true,
         'archived_at': DateTime.now().toIso8601String(),
@@ -600,6 +619,7 @@ class EmployeeInventoryController extends ChangeNotifier {
     }
 
     _products.removeWhere((p) => p.id == productId);
+    LocalDatabaseService.instance.delete('products', 'id = ?', [productId]);
     notifyListeners();
 
     _supabaseService.updateProduct(productId, {
@@ -678,6 +698,8 @@ class EmployeeInventoryController extends ChangeNotifier {
     final matches = _products.where((p) => p.id == productId);
     final prodName = matches.isNotEmpty ? matches.first.name : 'Product';
     _products.removeWhere((p) => p.id == productId);
+    LocalDatabaseService.instance.delete('products', 'id = ?', [productId]);
+    ProductImage.clearCache();
 
     AdminAuditService().logDelete(
       'Product',

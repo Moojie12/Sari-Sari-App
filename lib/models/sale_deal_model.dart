@@ -92,6 +92,8 @@ class SaleDealModel {
   final bool isActive;
   final DateTime createdAt;
   final DateTime? updatedAt;
+  final int? saleLimit;
+  final int soldCount;
 
   const SaleDealModel({
     required this.id,
@@ -103,7 +105,19 @@ class SaleDealModel {
     this.isActive = true,
     required this.createdAt,
     this.updatedAt,
+    this.saleLimit,
+    this.soldCount = 0,
   });
+
+  /// Remaining deals available under the owner's promo quota.
+  /// Returns 999999 if no specific limit was set.
+  int get remainingSaleLimit {
+    if (saleLimit == null) return 999999;
+    return max(0, saleLimit! - soldCount);
+  }
+
+  /// Whether the promo deal is currently sold out based on the owner's limit.
+  bool get isSoldOut => saleLimit != null && remainingSaleLimit <= 0;
 
   /// Returns the custom promo image, or falls back to the first item image with a valid photo
   String? get effectiveImage {
@@ -181,6 +195,9 @@ class SaleDealModel {
     bool? isActive,
     DateTime? createdAt,
     DateTime? updatedAt,
+    int? saleLimit,
+    int? soldCount,
+    bool clearSaleLimit = false,
   }) {
     return SaleDealModel(
       id: id ?? this.id,
@@ -192,6 +209,8 @@ class SaleDealModel {
       isActive: isActive ?? this.isActive,
       createdAt: createdAt ?? this.createdAt,
       updatedAt: updatedAt ?? this.updatedAt,
+      saleLimit: clearSaleLimit ? null : (saleLimit ?? this.saleLimit),
+      soldCount: soldCount ?? this.soldCount,
     );
   }
 
@@ -206,6 +225,8 @@ class SaleDealModel {
       'isActive': isActive,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
+      'saleLimit': saleLimit,
+      'soldCount': soldCount,
     };
   }
 
@@ -244,6 +265,21 @@ class SaleDealModel {
       return 0.0;
     }
 
+    int? parseNullableInt(dynamic val) {
+      if (val is num) return val.toInt();
+      if (val != null) return int.tryParse(val.toString());
+      return null;
+    }
+
+    int parseInt(dynamic val, [int fallback = 0]) {
+      if (val is num) return val.toInt();
+      if (val != null) {
+        final parsed = int.tryParse(val.toString());
+        if (parsed != null) return parsed;
+      }
+      return fallback;
+    }
+
     final createdStr = map['createdAt']?.toString();
     final updatedStr = map['updatedAt']?.toString();
 
@@ -262,6 +298,8 @@ class SaleDealModel {
       isActive: isActive,
       createdAt: createdStr != null ? (DateTime.tryParse(createdStr) ?? DateTime.now()) : DateTime.now(),
       updatedAt: updatedStr != null ? DateTime.tryParse(updatedStr) : null,
+      saleLimit: parseNullableInt(map['saleLimit']),
+      soldCount: parseInt(map['soldCount'], 0),
     );
   }
 }

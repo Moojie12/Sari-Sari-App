@@ -389,12 +389,12 @@ class SupabaseService {
       final username = (displayName.replaceAll(' ', '_').toLowerCase());
 
       String role = 'customer';
-      final emailLower = email.toLowerCase();
-      if (emailLower.contains('owner')) {
+      final emailLower = email.toLowerCase().trim();
+      if (emailLower == 'owner@sarisari.com' || emailLower == 'owner@gmail.com') {
         role = 'owner';
-      } else if (emailLower.contains('employee')) {
+      } else if (emailLower == 'employee@sarisari.com' || emailLower == 'employee@gmail.com') {
         role = 'employee';
-      } else if (emailLower.contains('admin')) {
+      } else if (emailLower == 'admin@sarisari.com' || emailLower == 'admin@gmail.com') {
         role = 'admin';
       }
 

@@ -11,8 +11,6 @@ import '../../core/services/supabase_service.dart';
 import '../../core/services/user_profile_sync_service.dart';
 import '../../core/services/emailjs_service.dart';
 import '../../users/customer_db/customer_db.dart';
-import '../../users/employee_db/employee_db.dart';
-import '../../users/owner_db/owner_db.dart';
 import 'create_new_password_page.dart';
 
 class OtpVerificationPage extends StatefulWidget {
@@ -186,15 +184,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
 
       final currentUser = AuthService().currentUser;
       if (currentUser != null) {
-        String inferredRole = 'customer';
-        final emailLower = widget.email.trim().toLowerCase();
-        if (emailLower.contains('admin')) {
-          inferredRole = 'admin';
-        } else if (emailLower.contains('owner')) {
-          inferredRole = 'owner';
-        } else if (emailLower.contains('employee')) {
-          inferredRole = 'employee';
-        }
+        const String role = 'customer';
 
         try {
           await UserProfileSyncService().saveProfileInfo(
@@ -211,30 +201,18 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
             'surname': widget.surname?.trim(),
             'email': widget.email.trim(),
             'phone': widget.phone?.trim(),
-            'role': inferredRole,
+            'role': role,
           });
         } catch (e) {
           debugPrint('Error syncing profile: $e');
         }
       }
 
-      final bool isOwner = await AuthService().hasRole('owner');
-      final bool isEmployee = await AuthService().hasRole('employee');
-
-      Widget destination;
-      if (isOwner) {
-        destination = const OwnerDb();
-      } else if (isEmployee) {
-        destination = const EmployeeDb();
-      } else {
-        destination = const CustomerDb();
-      }
-
       if (mounted) {
         TopNotification.show(context, 'Account verified! Welcome to Tindahan ni Eca.');
         Navigator.pushAndRemoveUntil(
           context,
-          MaterialPageRoute(builder: (context) => destination),
+          MaterialPageRoute(builder: (context) => const CustomerDb()),
           (route) => false,
         );
       }

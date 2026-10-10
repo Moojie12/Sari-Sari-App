@@ -7,6 +7,7 @@ import '../../../core/services/local_database_service.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../admin/services/admin_audit_service.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
+import 'package:sari_sari/core/services/sale_deal_controller.dart';
 import '../employee_inventory_controller.dart';
 import '../notifications/employee_notifications_controller.dart';
 import '../notifications/employee_notification_model.dart';
@@ -67,6 +68,48 @@ class EmployeeOrderController extends ChangeNotifier {
 
   List<CustomerOrder> get completedOrders =>
       _orders.where((o) => o.status == OrderStatus.completed).toList();
+
+  /// Returns a map of productId -> total units sold from all completed orders.
+  Map<String, int> getProductUnitsSold() {
+    final Map<String, int> sales = {};
+    for (final order in completedOrders) {
+      for (final item in order.items) {
+        if (item.productId.isNotEmpty) {
+          sales[item.productId] = (sales[item.productId] ?? 0) + item.quantity;
+        }
+      }
+    }
+    return sales;
+  }
+
+  /// Returns a map of trimmed lowercase productName -> total units sold from all completed orders.
+  Map<String, int> getProductUnitsSoldByName() {
+    final Map<String, int> sales = {};
+    for (final order in completedOrders) {
+      for (final item in order.items) {
+        if (item.productName.isNotEmpty) {
+          final key = item.productName.trim().toLowerCase();
+          sales[key] = (sales[key] ?? 0) + item.quantity;
+        }
+      }
+    }
+    return sales;
+  }
+
+  /// Returns total units sold for a product (checking productId first, then productName).
+  int getUnitsSoldForProduct({required String productId, String? productName}) {
+    int total = 0;
+    final lowerName = productName?.trim().toLowerCase();
+    for (final order in completedOrders) {
+      for (final item in order.items) {
+        if ((item.productId.isNotEmpty && item.productId == productId) ||
+            (lowerName != null && lowerName.isNotEmpty && item.productName.trim().toLowerCase() == lowerName)) {
+          total += item.quantity;
+        }
+      }
+    }
+    return total;
+  }
 
   Future<void> _loadAllOrders() async {
     _isLoading = true;
@@ -508,7 +551,29 @@ class EmployeeOrderController extends ChangeNotifier {
           oldOrder.status != OrderStatus.completed &&
           oldOrder.status != OrderStatus.cancelled) {
         for (var item in oldOrder.items) {
-          _inventory.adjustStock(item.productId, -item.quantity.toDouble());
+          if (item.productId.startsWith('deal_')) {
+            final dealId = item.productId.substring(5);
+            final deals = SaleDealController.instance.deals;
+            final dealIndex = deals.indexWhere((d) => d.id == dealId);
+            if (dealIndex >= 0) {
+              final deal = deals[dealIndex];
+              for (final dItem in deal.items) {
+                _inventory.adjustStock(dItem.productId, -(dItem.quantity * item.quantity).toDouble());
+              }
+            }
+          } else {
+            _inventory.adjustStock(item.productId, -item.quantity.toDouble());
+          }
+        }
+      }
+
+      // Restore promo quota if a pending order containing promo deals is cancelled
+      if (newStatus == OrderStatus.cancelled && oldOrder.status != OrderStatus.cancelled) {
+        for (var item in oldOrder.items) {
+          if (item.productId.startsWith('deal_')) {
+            final dealId = item.productId.substring(5);
+            SaleDealController.instance.restoreDealPurchase(dealId, item.quantity);
+          }
         }
       }
 

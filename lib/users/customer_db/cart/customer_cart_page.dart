@@ -120,7 +120,10 @@ class CustomerCartPage extends StatelessWidget {
                           );
                         }
                       },
-                      onIncrement: () => cartController.incrementQuantity(item.id),
+                      onIncrement: () => cartController.incrementQuantity(
+                        item.id,
+                        onError: (msg) => TopNotification.show(context, msg, isError: true),
+                      ),
                       onDecrement: () => cartController.decrementQuantity(item.id),
                       onRemove: () async {
                         final confirmed = await showDialog<bool>(
@@ -334,42 +337,65 @@ class _CartItemCard extends StatelessWidget {
                   const SizedBox(height: 12),
 
                   // Stepper & Subtotal Row
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Row(
-                        children: [
-                          _QuantityBtn(
-                            icon: Icons.remove,
-                            onPressed: item.quantity > 1 ? onDecrement : null,
-                          ),
-                          SizedBox(
-                            width: 40,
-                            child: Text(
-                              '${item.quantity}',
-                              textAlign: TextAlign.center,
+                  () {
+                    final int maxAllowed = item.isDeal && item.deal != null
+                        ? CustomerCartController.instance.getAvailableDealStock(item.deal!)
+                        : item.product.sellableQuantity.toInt();
+                    final bool canAddMore = item.quantity < maxAllowed;
+
+                    return Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            Row(
+                              children: [
+                                _QuantityBtn(
+                                  icon: Icons.remove,
+                                  onPressed: item.quantity > 1 ? onDecrement : null,
+                                ),
+                                SizedBox(
+                                  width: 40,
+                                  child: Text(
+                                    '${item.quantity}',
+                                    textAlign: TextAlign.center,
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.bold,
+                                      fontSize: 16,
+                                    ),
+                                  ),
+                                ),
+                                _QuantityBtn(
+                                  icon: Icons.add,
+                                  onPressed: canAddMore ? onIncrement : null,
+                                ),
+                              ],
+                            ),
+                            Text(
+                              '₱${item.subtotal.toStringAsFixed(2)}',
                               style: const TextStyle(
-                                fontWeight: FontWeight.bold,
+                                color: AppColors.darkText,
                                 fontSize: 16,
+                                fontWeight: FontWeight.bold,
                               ),
                             ),
-                          ),
-                          _QuantityBtn(
-                            icon: Icons.add,
-                            onPressed: onIncrement,
+                          ],
+                        ),
+                        if (item.isDeal && !canAddMore) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Max promo limit reached ($maxAllowed)',
+                            style: TextStyle(
+                              color: Colors.orange.shade900,
+                              fontSize: 10,
+                              fontWeight: FontWeight.w600,
+                            ),
                           ),
                         ],
-                      ),
-                      Text(
-                        '₱${item.subtotal.toStringAsFixed(2)}',
-                        style: const TextStyle(
-                          color: AppColors.darkText,
-                          fontSize: 16,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                    ],
-                  ),
+                      ],
+                    );
+                  }(),
                 ],
               ),
             ),

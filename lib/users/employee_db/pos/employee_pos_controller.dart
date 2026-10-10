@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 
-import '../../../models/sale_deal_model.dart';
+import 'package:sari_sari/models/sale_deal_model.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
 import '../employee_inventory_controller.dart';
 import '../inventory/employee_batch_model.dart';
@@ -144,6 +144,11 @@ class EmployeePosController extends ChangeNotifier {
   bool addSaleDealToCart(SaleDealModel deal, {void Function(String error)? onError}) {
     if (deal.items.isEmpty) {
       onError?.call('Promo deal "${deal.title}" has no items.');
+      return false;
+    }
+
+    if (deal.isSoldOut || deal.remainingSaleLimit <= 0) {
+      onError?.call('Promo deal "${deal.title}" is sold out (sale limit reached).');
       return false;
     }
 

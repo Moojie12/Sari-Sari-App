@@ -262,6 +262,8 @@ class AdminUserService extends ChangeNotifier {
         return 'That email is already registered.';
       }
 
+      final roleStr = role.toString().split('.').last;
+
       // Create user in Firebase Auth
       final authResult = await _authService.createAccountWithEmailPassword(
         email: email.trim(),
@@ -271,6 +273,7 @@ class AdminUserService extends ChangeNotifier {
         middleInitial: middleInitial.trim(),
         surname: surname.trim(),
         phone: phone.trim(),
+        role: roleStr,
       );
 
       if (authResult != null) {
@@ -284,7 +287,6 @@ class AdminUserService extends ChangeNotifier {
       }
 
       final now = DateTime.now().millisecondsSinceEpoch;
-      final roleStr = role.toString().split('.').last;
 
       // Prepare user data for Firebase Realtime Database
       final userData = {

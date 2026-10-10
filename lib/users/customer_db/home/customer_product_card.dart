@@ -49,6 +49,7 @@ class CustomerProductCard extends StatelessWidget {
                   isOutOfStock: isOutOfStock,
                   image: product.image,
                   isOnSale: product.isOnSale,
+                  isBestSeller: product.isBestSeller,
                 ),
               ),
               Padding(
@@ -56,15 +57,29 @@ class CustomerProductCard extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      product.name,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
-                        color: AppColors.darkText,
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
+                    Row(
+                      children: [
+                        if (product.isBestSeller) ...[
+                          const Icon(
+                            Icons.local_fire_department_rounded,
+                            color: Color(0xFFFF5722),
+                            size: 14,
+                          ),
+                          const SizedBox(width: 2),
+                        ],
+                        Expanded(
+                          child: Text(
+                            product.name,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: const TextStyle(
+                              color: AppColors.darkText,
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                     const SizedBox(height: 2),
                     Text(
@@ -183,11 +198,13 @@ class _CustomerProductImagePlaceholder extends StatelessWidget {
     required this.isOutOfStock,
     this.image,
     this.isOnSale = false,
+    this.isBestSeller = false,
   });
 
   final bool isOutOfStock;
   final String? image;
   final bool isOnSale;
+  final bool isBestSeller;
 
   @override
   Widget build(BuildContext context) {
@@ -219,6 +236,49 @@ class _CustomerProductImagePlaceholder extends StatelessWidget {
                 Icons.image_outlined,
                 size: 32,
                 color: AppColors.primaryOrange.withValues(alpha: 0.4),
+              ),
+            ),
+          if (isBestSeller)
+            Positioned(
+              top: 6,
+              left: 6,
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 2),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    colors: [Color(0xFFFF3D00), Color(0xFFFF9100)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(6),
+                  boxShadow: [
+                    BoxShadow(
+                      color: const Color(0xFFFF3D00).withValues(alpha: 0.35),
+                      blurRadius: 4,
+                      offset: const Offset(0, 1),
+                    ),
+                  ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: const [
+                    Icon(
+                      Icons.local_fire_department_rounded,
+                      color: Colors.white,
+                      size: 11,
+                    ),
+                    SizedBox(width: 2),
+                    Text(
+                      'Best Seller',
+                      style: TextStyle(
+                        color: Colors.white,
+                        fontSize: 8.5,
+                        fontWeight: FontWeight.bold,
+                        letterSpacing: 0.2,
+                      ),
+                    ),
+                  ],
+                ),
               ),
             ),
           if (isOnSale)

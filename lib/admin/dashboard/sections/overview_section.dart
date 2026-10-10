@@ -1,8 +1,8 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
-import '../../../core/services/sale_deal_controller.dart';
-import '../../../models/sale_deal_model.dart';
+import 'package:sari_sari/core/services/sale_deal_controller.dart';
+import 'package:sari_sari/models/sale_deal_model.dart';
 import '../../models/admin_models.dart';
 import '../../services/admin_product_service.dart';
 import '../../services/admin_user_service.dart';
@@ -503,11 +503,29 @@ class _OverviewSectionState extends State<OverviewSection> {
                             ),
                           ),
                         ],
+                        if (deal.isSoldOut) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: Colors.red.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: const Text(
+                              'SOLD OUT',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.red,
+                              ),
+                            ),
+                          ),
+                        ],
                       ],
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '${deal.totalItemQuantity} items · Regular: ${widget.analyticsService.formatPeso(deal.originalTotalPrice)}',
+                      '${deal.totalItemQuantity} items · Regular: ${widget.analyticsService.formatPeso(deal.originalTotalPrice)}${deal.saleLimit != null ? ' · Limit: ${deal.saleLimit} (${deal.remainingSaleLimit} left · ${deal.soldCount} sold)' : ''}',
                       style: const TextStyle(
                         fontSize: 11.5,
                         color: AppColors.secondaryText,
@@ -594,6 +612,9 @@ class _OverviewSectionState extends State<OverviewSection> {
     final priceController = TextEditingController(
       text: existingDeal != null ? existingDeal.salePrice.toStringAsFixed(2) : '',
     );
+    final limitController = TextEditingController(
+      text: existingDeal?.saleLimit != null ? existingDeal!.saleLimit.toString() : '',
+    );
 
     final Map<String, int> selectedItems = {};
     if (existingDeal != null) {
@@ -623,10 +644,32 @@ class _OverviewSectionState extends State<OverviewSection> {
               return total;
             }
 
+            int calculateMaxPossibleDeals() {
+              if (selectedItems.isEmpty) return 0;
+              int maxDeals = 999999;
+              for (final entry in selectedItems.entries) {
+                final product = products.cast<AdminProduct?>().firstWhere(
+                      (p) => p?.id == entry.key,
+                      orElse: () => null,
+                    );
+                if (product == null) continue;
+                final needed = entry.value;
+                if (needed <= 0) continue;
+                final available = product.quantity.toInt();
+                final possible = available ~/ needed;
+                if (possible < maxDeals) {
+                  maxDeals = possible;
+                }
+              }
+              return maxDeals == 999999 ? 0 : maxDeals;
+            }
+
+            final maxPossibleDeals = calculateMaxPossibleDeals();
+
             return Dialog(
               shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 620, maxHeight: 720),
+                constraints: const BoxConstraints(maxWidth: 620, maxHeight: 760),
                 child: Padding(
                   padding: const EdgeInsets.all(24),
                   child: Column(
@@ -704,6 +747,92 @@ class _OverviewSectionState extends State<OverviewSection> {
                                   contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
                                 ),
                               ),
+                              const SizedBox(height: 16),
+
+                              // Sale Promo Limit (Quota) Section
+                              Row(
+                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                children: [
+                                  const Text(
+                                    'Sale Promo Limit (Max Deals to Sell)',
+                                    style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.darkText),
+                                  ),
+                                  if (selectedItems.isNotEmpty)
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                      decoration: BoxDecoration(
+                                        color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                                        borderRadius: BorderRadius.circular(6),
+                                      ),
+                                      child: Text(
+                                        'Max Stock Available: $maxPossibleDeals deals',
+                                        style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryOrange),
+                                      ),
+                                    ),
+                                ],
+                              ),
+                              const SizedBox(height: 6),
+                              TextField(
+                                controller: limitController,
+                                keyboardType: TextInputType.number,
+                                decoration: InputDecoration(
+                                  hintText: selectedItems.isEmpty
+                                      ? 'Select products first to calculate limit'
+                                      : 'e.g. 10 (Leave blank for unlimited up to stock)',
+                                  suffixText: 'deals',
+                                  helperText: selectedItems.isEmpty
+                                      ? null
+                                      : 'Limits promo units to prevent overselling. Cannot exceed $maxPossibleDeals deals.',
+                                  helperStyle: const TextStyle(fontSize: 11, color: AppColors.secondaryText),
+                                  filled: true,
+                                  fillColor: AppColors.lightPeach,
+                                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                                  contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                                ),
+                              ),
+                              if (selectedItems.isNotEmpty && maxPossibleDeals > 0) ...[
+                                const SizedBox(height: 6),
+                                Wrap(
+                                  spacing: 6,
+                                  children: [
+                                    for (final preset in [5, 10, 20])
+                                      if (preset <= maxPossibleDeals)
+                                        InkWell(
+                                          onTap: () {
+                                            setModalState(() {
+                                              limitController.text = preset.toString();
+                                            });
+                                          },
+                                          borderRadius: BorderRadius.circular(6),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                            decoration: BoxDecoration(
+                                              color: AppColors.lightBackground,
+                                              border: Border.all(color: AppColors.borderColor),
+                                              borderRadius: BorderRadius.circular(6),
+                                            ),
+                                            child: Text('$preset deals', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w600)),
+                                          ),
+                                        ),
+                                    InkWell(
+                                      onTap: () {
+                                        setModalState(() {
+                                          limitController.text = maxPossibleDeals.toString();
+                                        });
+                                      },
+                                      borderRadius: BorderRadius.circular(6),
+                                      child: Container(
+                                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                        decoration: BoxDecoration(
+                                          color: AppColors.primaryOrange.withValues(alpha: 0.15),
+                                          borderRadius: BorderRadius.circular(6),
+                                        ),
+                                        child: Text('Max ($maxPossibleDeals)', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryOrange)),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ],
                               const SizedBox(height: 20),
 
                               Row(
@@ -729,33 +858,61 @@ class _OverviewSectionState extends State<OverviewSection> {
                                     : ListView.separated(
                                         padding: const EdgeInsets.all(8),
                                         itemCount: products.length,
-                                        separatorBuilder: (_, __) => const Divider(height: 10),
+                                        separatorBuilder: (context, index) => const Divider(height: 10),
                                         itemBuilder: (context, idx) {
                                           final product = products[idx];
                                           final isSelected = selectedItems.containsKey(product.id);
                                           final qty = selectedItems[product.id] ?? 1;
+                                          final stockInt = product.quantity.toInt();
+                                          final isOutOfStock = stockInt <= 0;
 
                                           return Row(
                                             children: [
                                               Checkbox(
                                                 value: isSelected,
                                                 activeColor: AppColors.primaryOrange,
-                                                onChanged: (val) {
-                                                  setModalState(() {
-                                                    if (val == true) {
-                                                      selectedItems[product.id] = 1;
-                                                    } else {
-                                                      selectedItems.remove(product.id);
-                                                    }
-                                                  });
-                                                },
+                                                onChanged: isOutOfStock
+                                                    ? null
+                                                    : (val) {
+                                                        setModalState(() {
+                                                          if (val == true) {
+                                                            selectedItems[product.id] = 1;
+                                                          } else {
+                                                            selectedItems.remove(product.id);
+                                                          }
+                                                        });
+                                                      },
                                               ),
                                               Expanded(
                                                 child: Column(
                                                   crossAxisAlignment: CrossAxisAlignment.start,
                                                   children: [
-                                                    Text(product.name, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.darkText)),
-                                                    Text(widget.analyticsService.formatPeso(product.price), style: const TextStyle(fontSize: 11, color: AppColors.secondaryText)),
+                                                    Row(
+                                                      children: [
+                                                        Expanded(
+                                                          child: Text(
+                                                            product.name,
+                                                            style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.darkText),
+                                                          ),
+                                                        ),
+                                                        if (isOutOfStock)
+                                                          Container(
+                                                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                                                            decoration: BoxDecoration(
+                                                              color: Colors.red.withValues(alpha: 0.1),
+                                                              borderRadius: BorderRadius.circular(4),
+                                                            ),
+                                                            child: const Text('Out of Stock', style: TextStyle(fontSize: 10, color: Colors.red, fontWeight: FontWeight.bold)),
+                                                          ),
+                                                      ],
+                                                    ),
+                                                    Text(
+                                                      '${widget.analyticsService.formatPeso(product.price)} · Stock: $stockInt ${product.unit}',
+                                                      style: TextStyle(
+                                                        fontSize: 11,
+                                                        color: isOutOfStock ? Colors.red : AppColors.secondaryText,
+                                                      ),
+                                                    ),
                                                   ],
                                                 ),
                                               ),
@@ -774,6 +931,14 @@ class _OverviewSectionState extends State<OverviewSection> {
                                                 IconButton(
                                                   icon: const Icon(Icons.add_circle_outline, size: 20, color: AppColors.primaryOrange),
                                                   onPressed: () {
+                                                    if (qty >= stockInt) {
+                                                      TopNotification.show(
+                                                        context,
+                                                        'Cannot exceed available stock of $stockInt ${product.unit} for ${product.name}.',
+                                                        isError: true,
+                                                      );
+                                                      return;
+                                                    }
                                                     setModalState(() {
                                                       selectedItems[product.id] = qty + 1;
                                                     });
@@ -803,6 +968,7 @@ class _OverviewSectionState extends State<OverviewSection> {
                               final title = titleController.text.trim();
                               final desc = descController.text.trim();
                               final salePrice = double.tryParse(priceController.text.trim()) ?? 0.0;
+                              final limitStr = limitController.text.trim();
 
                               if (title.isEmpty) {
                                 TopNotification.show(context, 'Please enter a promo title.', isError: true);
@@ -815,6 +981,40 @@ class _OverviewSectionState extends State<OverviewSection> {
                               if (selectedItems.isEmpty) {
                                 TopNotification.show(context, 'Please select at least one product for the promo.', isError: true);
                                 return;
+                              }
+
+                              for (final entry in selectedItems.entries) {
+                                final p = products.cast<AdminProduct?>().firstWhere(
+                                      (prod) => prod?.id == entry.key,
+                                      orElse: () => null,
+                                    );
+                                if (p == null) continue;
+                                if (entry.value > p.quantity.toInt()) {
+                                  TopNotification.show(
+                                    context,
+                                    'Selected quantity (${entry.value}) for ${p.name} exceeds available stock (${p.quantity.toInt()} ${p.unit}).',
+                                    isError: true,
+                                  );
+                                  return;
+                                }
+                              }
+
+                              int? saleLimit;
+                              if (limitStr.isNotEmpty) {
+                                saleLimit = int.tryParse(limitStr);
+                                if (saleLimit == null || saleLimit <= 0) {
+                                  TopNotification.show(context, 'Sale limit must be a positive whole number.', isError: true);
+                                  return;
+                                }
+                                final maxPossible = calculateMaxPossibleDeals();
+                                if (saleLimit > maxPossible) {
+                                  TopNotification.show(
+                                    context,
+                                    'Sale promo limit ($saleLimit) cannot exceed available inventory ($maxPossible deals).',
+                                    isError: true,
+                                  );
+                                  return;
+                                }
                               }
 
                               final List<SaleDealItem> items = [];
@@ -839,6 +1039,8 @@ class _OverviewSectionState extends State<OverviewSection> {
                                 isActive: existingDeal?.isActive ?? true,
                                 createdAt: existingDeal?.createdAt ?? DateTime.now(),
                                 updatedAt: DateTime.now(),
+                                saleLimit: saleLimit,
+                                soldCount: existingDeal?.soldCount ?? 0,
                               );
 
                               await SaleDealController.instance.saveDeal(deal);
@@ -942,6 +1144,44 @@ class _OverviewSectionState extends State<OverviewSection> {
                       children: [
                         const Text('Total Savings:', style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold)),
                         Text('Save ${widget.analyticsService.formatPeso(deal.discountSavings)} (${deal.discountPercentage}% OFF)', style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold)),
+                      ],
+                    ),
+                  ],
+                  const SizedBox(height: 12),
+                  const Divider(height: 1),
+                  const SizedBox(height: 12),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Promo Quota Limit:', style: TextStyle(fontSize: 13, color: AppColors.secondaryText)),
+                      Text(
+                        deal.saleLimit != null ? '${deal.saleLimit} deals' : 'No Limit (Unlimited)',
+                        style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkText),
+                      ),
+                    ],
+                  ),
+                  if (deal.saleLimit != null) ...[
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Remaining Deals:', style: TextStyle(fontSize: 13, color: AppColors.secondaryText)),
+                        Text(
+                          '${deal.remainingSaleLimit} deals left',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.bold,
+                            color: deal.isSoldOut ? Colors.red : Colors.green[700],
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 6),
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Sold Deals:', style: TextStyle(fontSize: 13, color: AppColors.secondaryText)),
+                        Text('${deal.soldCount} deals sold', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),
                       ],
                     ),
                   ],

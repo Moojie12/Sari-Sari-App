@@ -374,7 +374,17 @@ class _CustomerProductDetailsPageState
                             ),
                     ),
                   ),
-                  if (product.isFeatured && !_isOutOfStock)
+                  if (product.isBestSeller && !_isOutOfStock)
+                    Positioned(
+                      top: 12,
+                      left: 12,
+                      child: _Badge(
+                        label: 'Best Seller',
+                        color: const Color(0xFFFF5722),
+                        icon: Icons.local_fire_department_rounded,
+                      ),
+                    )
+                  else if (product.isFeatured && !_isOutOfStock)
                     Positioned(
                       top: 12,
                       left: 12,
@@ -423,6 +433,33 @@ class _CustomerProductDetailsPageState
                 spacing: 10,
                 runSpacing: 8,
                 children: [
+                  if (product.isBestSeller)
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 8, vertical: 3),
+                      decoration: BoxDecoration(
+                        color: const Color(0xFFFF5722).withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                            color: const Color(0xFFFF5722).withValues(alpha: 0.3)),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: const [
+                          Icon(Icons.local_fire_department_rounded,
+                              size: 13, color: Color(0xFFFF5722)),
+                          SizedBox(width: 4),
+                          Text(
+                            'Best Seller',
+                            style: TextStyle(
+                              color: Color(0xFFFF5722),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
                   if (_isLowStock)
                     Container(
                       padding: const EdgeInsets.symmetric(

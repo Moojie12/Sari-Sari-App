@@ -4,8 +4,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../models/sale_deal_model.dart';
-import '../../../core/services/sale_deal_controller.dart';
+import 'package:sari_sari/models/sale_deal_model.dart';
+import 'package:sari_sari/core/services/sale_deal_controller.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/product_image.dart';
@@ -28,10 +28,11 @@ class _OwnerEditSaleDealPageState extends State<OwnerEditSaleDealPage> {
   late final TextEditingController _titleController;
   late final TextEditingController _priceController;
   late final TextEditingController _descriptionController;
+  late final TextEditingController _limitController;
 
   String? _imagePath;
 
-  // Key: productId, Value: quantity selected
+  // Key: productId, Value: quantity selected per deal bundle
   final Map<String, int> _selectedProductQuantities = {};
   String _searchQuery = '';
 
@@ -44,6 +45,9 @@ class _OwnerEditSaleDealPageState extends State<OwnerEditSaleDealPage> {
       text: deal != null ? deal.salePrice.toStringAsFixed(0) : '',
     );
     _descriptionController = TextEditingController(text: deal?.description ?? '');
+    _limitController = TextEditingController(
+      text: deal?.saleLimit != null ? deal!.saleLimit.toString() : '',
+    );
     _imagePath = deal?.image;
 
     if (deal != null) {
@@ -58,7 +62,36 @@ class _OwnerEditSaleDealPageState extends State<OwnerEditSaleDealPage> {
     _titleController.dispose();
     _priceController.dispose();
     _descriptionController.dispose();
+    _limitController.dispose();
     super.dispose();
+  }
+
+  /// Calculates maximum deals that can be constructed based on current physical inventory
+  int _calculateMaxPossibleDeals(List<EmployeeProduct> products) {
+    if (_selectedProductQuantities.isEmpty) return 0;
+    int maxDeals = 999999;
+    for (final entry in _selectedProductQuantities.entries) {
+      final prod = products.firstWhere(
+        (p) => p.id == entry.key,
+        orElse: () => EmployeeProduct(
+          id: entry.key,
+          name: '',
+          barcode: '',
+          category: '',
+          price: 0,
+          capital: 0,
+          batches: const [],
+        ),
+      );
+      final needed = entry.value;
+      if (needed <= 0) continue;
+      final stockAvailable = (prod.isExpired ? prod.quantity : prod.sellableQuantity).toInt();
+      final possible = stockAvailable ~/ needed;
+      if (possible < maxDeals) {
+        maxDeals = possible;
+      }
+    }
+    return maxDeals == 999999 ? 0 : maxDeals;
   }
 
   /// Calculates total regular price of currently selected items
@@ -208,7 +241,7 @@ class _OwnerEditSaleDealPageState extends State<OwnerEditSaleDealPage> {
                 child: const Text('No matching products found.', style: TextStyle(color: AppColors.secondaryText)),
               )
             else
-              ...filteredProducts.map((product) => _buildProductSelectTile(product)),
+              ...filteredProducts.map((product) => _buildProductSelectTile(product, allProducts)),
 
             const SizedBox(height: 40),
           ],
@@ -336,6 +369,10 @@ class _OwnerEditSaleDealPageState extends State<OwnerEditSaleDealPage> {
             ],
           ),
 
+          // Sale Promo Limit Section (Quota for how many to put on sale)
+          const SizedBox(height: 14),
+          _buildSaleLimitSection(allProducts),
+
           // Live Discount Savings Preview
           if (regularTotal > 0 && salePrice > 0) ...[
             const SizedBox(height: 12),
@@ -374,9 +411,180 @@ class _OwnerEditSaleDealPageState extends State<OwnerEditSaleDealPage> {
     );
   }
 
-  Widget _buildProductSelectTile(EmployeeProduct product) {
+  Widget _buildSaleLimitSection(List<EmployeeProduct> allProducts) {
+    final maxPossibleDeals = _calculateMaxPossibleDeals(allProducts);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const Icon(Icons.inventory_2_outlined, size: 16, color: AppColors.primaryOrange),
+            const SizedBox(width: 6),
+            const Expanded(
+              child: Text(
+                'Sale Promo Limit (Max Units / Deals)',
+                style: TextStyle(fontWeight: FontWeight.w600, fontSize: 13, color: AppColors.darkText),
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+            if (_selectedProductQuantities.isNotEmpty) ...[
+              const SizedBox(width: 6),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                decoration: BoxDecoration(
+                  color: AppColors.primaryOrange.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: Text(
+                  'Max: $maxPossibleDeals deals',
+                  style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: AppColors.primaryOrange),
+                ),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 6),
+        TextFormField(
+          controller: _limitController,
+          keyboardType: TextInputType.number,
+          inputFormatters: [
+            FilteringTextInputFormatter.digitsOnly,
+          ],
+          onChanged: (_) => setState(() {}),
+          decoration: InputDecoration(
+            hintText: 'e.g. 10 (units/deals to sell on sale)',
+            suffixText: 'deals',
+            border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+            contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+            helperText: _selectedProductQuantities.isEmpty
+                ? 'Select products below to determine maximum stock.'
+                : 'Sets how many will be sold on promo. Regular stock remains protected.',
+            helperMaxLines: 2,
+          ),
+          validator: (val) {
+            final trimmed = val?.trim() ?? '';
+            if (trimmed.isEmpty) return null;
+            final parsed = int.tryParse(trimmed);
+            if (parsed == null || parsed <= 0) return 'Limit must be at least 1 deal';
+            if (_selectedProductQuantities.isNotEmpty) {
+              final maxAllowed = _calculateMaxPossibleDeals(allProducts);
+              if (parsed > maxAllowed) {
+                return 'Cannot exceed available stock (max $maxAllowed deals based on stock)';
+              }
+            }
+            return null;
+          },
+        ),
+
+        // Quick Preset Chips
+        if (maxPossibleDeals > 0) ...[
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              children: [
+                const Text('Quick limits: ', style: TextStyle(fontSize: 11, color: AppColors.secondaryText)),
+                const SizedBox(width: 4),
+                for (final preset in [5, 10, 20])
+                  if (preset < maxPossibleDeals)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 6),
+                      child: InkWell(
+                        borderRadius: BorderRadius.circular(14),
+                        onTap: () {
+                          setState(() {
+                            _limitController.text = preset.toString();
+                          });
+                        },
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: _limitController.text == preset.toString()
+                                ? AppColors.primaryOrange
+                                : AppColors.lightBackground,
+                            borderRadius: BorderRadius.circular(14),
+                            border: Border.all(
+                              color: _limitController.text == preset.toString()
+                                  ? AppColors.primaryOrange
+                                  : AppColors.borderColor,
+                            ),
+                          ),
+                          child: Text(
+                            '$preset',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: _limitController.text == preset.toString()
+                                  ? Colors.white
+                                  : AppColors.darkText,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                // Max Stock Chip
+                InkWell(
+                  borderRadius: BorderRadius.circular(14),
+                  onTap: () {
+                    setState(() {
+                      _limitController.text = maxPossibleDeals.toString();
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                    decoration: BoxDecoration(
+                      color: _limitController.text == maxPossibleDeals.toString()
+                          ? AppColors.primaryOrange
+                          : AppColors.lightBackground,
+                      borderRadius: BorderRadius.circular(14),
+                      border: Border.all(
+                        color: _limitController.text == maxPossibleDeals.toString()
+                            ? AppColors.primaryOrange
+                            : AppColors.borderColor,
+                      ),
+                    ),
+                    child: Text(
+                      'Max Stock ($maxPossibleDeals)',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: _limitController.text == maxPossibleDeals.toString()
+                            ? Colors.white
+                            : AppColors.darkText,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+
+  void _adjustSaleLimitAfterProductChange(List<EmployeeProduct> allProducts) {
+    final maxDeals = _calculateMaxPossibleDeals(allProducts);
+    final currentLimit = int.tryParse(_limitController.text.trim());
+    if (maxDeals > 0) {
+      if (currentLimit == null || currentLimit <= 0) {
+        _limitController.text = (maxDeals < 10 ? maxDeals : 10).toString();
+      } else if (currentLimit > maxDeals) {
+        _limitController.text = maxDeals.toString();
+        TopNotification.show(
+          context,
+          'Sale limit adjusted to $maxDeals (maximum available from inventory)',
+        );
+      }
+    }
+  }
+
+  Widget _buildProductSelectTile(EmployeeProduct product, List<EmployeeProduct> allProducts) {
     final qty = _selectedProductQuantities[product.id] ?? 0;
     final isSelected = qty > 0;
+    final maxStock = (product.isExpired ? product.quantity : product.sellableQuantity).toInt();
+    final isOutOfStock = maxStock <= 0;
 
     // Expiry tag indicator
     Widget? expiryBadge;
@@ -406,6 +614,19 @@ class _OwnerEditSaleDealPageState extends State<OwnerEditSaleDealPage> {
           style: TextStyle(color: Colors.deepOrange, fontSize: 9, fontWeight: FontWeight.bold),
         ),
       );
+    } else if (isOutOfStock) {
+      expiryBadge = Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+        decoration: BoxDecoration(
+          color: Colors.red.withValues(alpha: 0.12),
+          borderRadius: BorderRadius.circular(4),
+          border: Border.all(color: Colors.red.shade400, width: 0.8),
+        ),
+        child: const Text(
+          'OUT OF STOCK',
+          style: TextStyle(color: Colors.red, fontSize: 9, fontWeight: FontWeight.bold),
+        ),
+      );
     } else {
       expiryBadge = Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
@@ -414,117 +635,135 @@ class _OwnerEditSaleDealPageState extends State<OwnerEditSaleDealPage> {
           borderRadius: BorderRadius.circular(4),
         ),
         child: Text(
-          'Fresh (${product.sellableQuantity.toInt()} left)',
+          'Fresh ($maxStock left)',
           style: TextStyle(color: Colors.green[700], fontSize: 9, fontWeight: FontWeight.w500),
         ),
       );
     }
 
-    return Container(
-      margin: const EdgeInsets.only(bottom: 8),
-      decoration: BoxDecoration(
-        color: isSelected ? AppColors.primaryOrange.withValues(alpha: 0.05) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
-        border: Border.all(
-          color: isSelected ? AppColors.primaryOrange : AppColors.borderColor,
-          width: isSelected ? 1.5 : 1.0,
+    return Opacity(
+      opacity: isOutOfStock ? 0.5 : 1.0,
+      child: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primaryOrange.withValues(alpha: 0.05) : Colors.white,
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: isSelected ? AppColors.primaryOrange : AppColors.borderColor,
+            width: isSelected ? 1.5 : 1.0,
+          ),
         ),
-      ),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(12),
-        onTap: () {
-          setState(() {
-            if (qty == 0) {
-              _selectedProductQuantities[product.id] = 1;
-            } else {
-              _selectedProductQuantities.remove(product.id);
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () {
+            if (isOutOfStock) {
+              TopNotification.show(context, '"${product.name}" is out of stock', isError: true);
+              return;
             }
-          });
-        },
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
-          child: Row(
-            children: [
-              // Checkbox indicator
-              Icon(
-                isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
-                color: isSelected ? AppColors.primaryOrange : AppColors.secondaryText,
-                size: 22,
-              ),
-              const SizedBox(width: 12),
+            setState(() {
+              if (qty == 0) {
+                _selectedProductQuantities[product.id] = 1;
+              } else {
+                _selectedProductQuantities.remove(product.id);
+              }
+              _adjustSaleLimitAfterProductChange(allProducts);
+            });
+          },
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+            child: Row(
+              children: [
+                // Checkbox indicator
+                Icon(
+                  isSelected ? Icons.check_circle_rounded : Icons.radio_button_unchecked,
+                  color: isSelected ? AppColors.primaryOrange : AppColors.secondaryText,
+                  size: 22,
+                ),
+                const SizedBox(width: 12),
 
-              // Product Info
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            product.name,
-                            style: TextStyle(
-                              color: AppColors.darkText,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                              fontSize: 14,
+                // Product Info
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              product.name,
+                              style: TextStyle(
+                                color: AppColors.darkText,
+                                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                                fontSize: 14,
+                              ),
                             ),
                           ),
-                        ),
-                        expiryBadge,
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      '₱${product.price.toStringAsFixed(2)} each • ${product.category}',
-                      style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
-                    ),
-                  ],
-                ),
-              ),
-
-              // Quantity Stepper (if selected)
-              if (isSelected) ...[
-                const SizedBox(width: 8),
-                Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    IconButton(
-                      icon: const Icon(Icons.remove_circle_outline, size: 22),
-                      color: AppColors.secondaryText,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () {
-                        setState(() {
-                          if (qty > 1) {
-                            _selectedProductQuantities[product.id] = qty - 1;
-                          } else {
-                            _selectedProductQuantities.remove(product.id);
-                          }
-                        });
-                      },
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 8),
-                      child: Text(
-                        '$qty',
-                        style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.primaryOrange),
+                          expiryBadge,
+                        ],
                       ),
-                    ),
-                    IconButton(
-                      icon: const Icon(Icons.add_circle_outline, size: 22),
-                      color: AppColors.primaryOrange,
-                      padding: EdgeInsets.zero,
-                      constraints: const BoxConstraints(),
-                      onPressed: () {
-                        setState(() {
-                          _selectedProductQuantities[product.id] = qty + 1;
-                        });
-                      },
-                    ),
-                  ],
+                      const SizedBox(height: 4),
+                      Text(
+                        '₱${product.price.toStringAsFixed(2)} each • ${product.category}',
+                        style: const TextStyle(color: AppColors.secondaryText, fontSize: 12),
+                      ),
+                    ],
+                  ),
                 ),
+
+                // Quantity Stepper (if selected)
+                if (isSelected) ...[
+                  const SizedBox(width: 8),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      IconButton(
+                        icon: const Icon(Icons.remove_circle_outline, size: 22),
+                        color: AppColors.secondaryText,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () {
+                          setState(() {
+                            if (qty > 1) {
+                              _selectedProductQuantities[product.id] = qty - 1;
+                            } else {
+                              _selectedProductQuantities.remove(product.id);
+                            }
+                            _adjustSaleLimitAfterProductChange(allProducts);
+                          });
+                        },
+                      ),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 8),
+                        child: Text(
+                          '$qty',
+                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.primaryOrange),
+                        ),
+                      ),
+                      IconButton(
+                        icon: const Icon(Icons.add_circle_outline, size: 22),
+                        color: qty < maxStock ? AppColors.primaryOrange : Colors.grey.shade400,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                        onPressed: () {
+                          if (qty < maxStock) {
+                            setState(() {
+                              _selectedProductQuantities[product.id] = qty + 1;
+                              _adjustSaleLimitAfterProductChange(allProducts);
+                            });
+                          } else {
+                            TopNotification.show(
+                              context,
+                              'Cannot exceed available stock ($maxStock left for ${product.name})',
+                              isError: true,
+                            );
+                          }
+                        },
+                      ),
+                    ],
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
@@ -926,6 +1165,57 @@ class _OwnerEditSaleDealPageState extends State<OwnerEditSaleDealPage> {
                 ),
                 const SizedBox(height: 12),
 
+                // Promo Sale Limit Box
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: AppColors.lightBackground,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: AppColors.borderColor),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: const Icon(Icons.production_quantity_limits, size: 18, color: AppColors.primaryOrange),
+                      ),
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            const Text(
+                              'SALE PROMO LIMIT',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.secondaryText,
+                                letterSpacing: 0.5,
+                              ),
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              '${deal.saleLimit ?? "Full stock"} deals available on promo',
+                              style: const TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.darkText),
+                            ),
+                            const SizedBox(height: 2),
+                            const Text(
+                              'Only this promo quota will be sold at sale price. Regular inventory is protected.',
+                              style: TextStyle(fontSize: 11, color: AppColors.secondaryText),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 12),
+
                 // Pricing Summary Box
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -1032,6 +1322,19 @@ class _OwnerEditSaleDealPageState extends State<OwnerEditSaleDealPage> {
       return;
     }
 
+    final maxPossible = _calculateMaxPossibleDeals(allProducts);
+    final rawLimit = _limitController.text.trim();
+    int? saleLimit = rawLimit.isNotEmpty ? int.tryParse(rawLimit) : null;
+    if (saleLimit == null && maxPossible > 0) {
+      saleLimit = maxPossible;
+    }
+    if (saleLimit != null && maxPossible > 0 && saleLimit > maxPossible) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Sale limit cannot exceed available stock (max $maxPossible deals)!')),
+      );
+      return;
+    }
+
     final items = <SaleDealItem>[];
     for (final entry in _selectedProductQuantities.entries) {
       final prod = allProducts.firstWhere(
@@ -1059,6 +1362,8 @@ class _OwnerEditSaleDealPageState extends State<OwnerEditSaleDealPage> {
       isActive: widget.initialDeal?.isActive ?? true,
       createdAt: widget.initialDeal?.createdAt ?? DateTime.now(),
       updatedAt: DateTime.now(),
+      saleLimit: saleLimit,
+      soldCount: widget.initialDeal?.soldCount ?? 0,
     );
 
     // Show Preview & Confirmation Dialog before proceeding

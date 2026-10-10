@@ -12,6 +12,7 @@ import '../../../core/services/auth_service.dart';
 import '../../../core/services/delivery_tracking_service.dart';
 import '../../../core/services/rate_limiter_service.dart';
 import '../../../core/services/stock_reservation_service.dart';
+import 'package:sari_sari/core/services/sale_deal_controller.dart';
 import '../../owner_db/profile/shop_settings_controller.dart';
 import 'package:sari_sari/users/customer_db/customer_cart_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
@@ -288,7 +289,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       return;
     }
 
-    // Price & Stock Re-validation against live inventory
+    // Price & Stock Re-validation against live inventory and promo sale limits
     final liveProducts = EmployeeInventoryController.instance.products;
     for (final cartItem in widget.cartController.items) {
       if (!cartItem.isDeal) {
@@ -304,7 +305,44 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
             }
             return;
           }
+          if (cartItem.quantity > liveProd.sellableQuantity.toInt()) {
+            if (mounted) {
+              TopNotification.show(
+                context,
+                'Not enough stock for "${cartItem.displayName}" (${liveProd.sellableQuantity.toInt()} left).',
+                isError: true,
+              );
+            }
+            return;
+          }
         } catch (_) {}
+      } else if (cartItem.deal != null) {
+        // Validate deal limit and live physical stock
+        final currentDeal = SaleDealController.instance.deals.firstWhere(
+          (d) => d.id == cartItem.deal!.id,
+          orElse: () => cartItem.deal!,
+        );
+        final available = widget.cartController.getAvailableDealStock(currentDeal);
+        if (available <= 0) {
+          if (mounted) {
+            TopNotification.show(
+              context,
+              'Promo deal "${currentDeal.title}" is currently sold out.',
+              isError: true,
+            );
+          }
+          return;
+        }
+        if (cartItem.quantity > available) {
+          if (mounted) {
+            TopNotification.show(
+              context,
+              'Only $available available on sale for "${currentDeal.title}". Please adjust your cart.',
+              isError: true,
+            );
+          }
+          return;
+        }
       }
     }
 
@@ -392,6 +430,14 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
     );
 
     widget.orderController.placeOrder(order);
+
+    // Record deal purchases to track remaining promo quota in real time
+    for (final cartItem in widget.cartController.items) {
+      if (cartItem.isDeal && cartItem.deal != null) {
+        SaleDealController.instance.recordDealPurchase(cartItem.deal!.id, cartItem.quantity);
+      }
+    }
+
     widget.cartController.clearCart();
 
     if (mounted) {

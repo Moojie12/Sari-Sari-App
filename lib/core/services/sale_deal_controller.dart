@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../../models/sale_deal_model.dart';
+import 'package:sari_sari/models/sale_deal_model.dart';
 import 'auth_service.dart';
 
 /// Controller managing all custom On-Sale deals with local SharedPreferences cache
@@ -234,6 +234,54 @@ class SaleDealController extends ChangeNotifier {
       }
     }
     return false;
+  }
+
+  /// Records the purchase of a deal bundle, updating the sold count and persisting
+  Future<void> recordDealPurchase(String dealId, int quantity) async {
+    final index = _deals.indexWhere((d) => d.id == dealId);
+    if (index >= 0) {
+      final deal = _deals[index];
+      final newSoldCount = deal.soldCount + quantity;
+      final updated = deal.copyWith(
+        soldCount: newSoldCount,
+        updatedAt: DateTime.now(),
+      );
+      _deals[index] = updated;
+      notifyListeners();
+      await _saveLocalDeals();
+
+      try {
+        final db = _authService.database;
+        await db.ref().child('sale_deals/$dealId/soldCount').set(newSoldCount);
+        await db.ref().child('sale_deals/$dealId/updatedAt').set(updated.updatedAt!.toIso8601String());
+      } catch (e) {
+        debugPrint('Failed to sync sold count to Firebase: $e');
+      }
+    }
+  }
+
+  /// Restores deal purchase sold count if an order was cancelled
+  Future<void> restoreDealPurchase(String dealId, int quantity) async {
+    final index = _deals.indexWhere((d) => d.id == dealId);
+    if (index >= 0) {
+      final deal = _deals[index];
+      final newSoldCount = (deal.soldCount - quantity).clamp(0, 999999);
+      final updated = deal.copyWith(
+        soldCount: newSoldCount,
+        updatedAt: DateTime.now(),
+      );
+      _deals[index] = updated;
+      notifyListeners();
+      await _saveLocalDeals();
+
+      try {
+        final db = _authService.database;
+        await db.ref().child('sale_deals/$dealId/soldCount').set(newSoldCount);
+        await db.ref().child('sale_deals/$dealId/updatedAt').set(updated.updatedAt!.toIso8601String());
+      } catch (e) {
+        debugPrint('Failed to sync restored sold count to Firebase: $e');
+      }
+    }
   }
 
   /// Helper for testing

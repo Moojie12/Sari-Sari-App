@@ -69,7 +69,7 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
         setState(() => _isLoading = false);
       }
 
-      if (resultMessage != null && resultMessage.toLowerCase().contains('could not')) {
+      if (resultMessage != null) {
         if (mounted) {
           TopNotification.show(context, resultMessage, isError: true);
         }
@@ -77,8 +77,7 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
       }
 
       if (mounted) {
-        final message = resultMessage ?? 'Password updated successfully! You can now log in with your new password.';
-        TopNotification.show(context, message);
+        TopNotification.show(context, 'Password updated successfully! You can now log in with your new password.');
         Navigator.popUntil(context, (route) => route.isFirst);
       }
     } catch (e) {

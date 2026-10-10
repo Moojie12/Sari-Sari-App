@@ -8,6 +8,7 @@ import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
 import 'package:sari_sari/users/employee_db/inventory/employee_product_model.dart';
 import 'package:sari_sari/users/customer_db/customer_cart_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.dart';
+import 'package:sari_sari/users/employee_db/orders/employee_orders_controller.dart';
 import '../purchases/customer_order_model.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_details_page.dart';
 import 'package:sari_sari/users/customer_db/checkout/customer_checkout_page.dart';
@@ -15,8 +16,8 @@ import 'package:sari_sari/users/customer_db/home/customer_product_card.dart';
 import 'package:sari_sari/users/customer_db/home/customer_product_details_page.dart';
 import 'package:sari_sari/users/customer_db/home/customer_product_model.dart';
 import 'package:sari_sari/shared/widgets/skeleton.dart';
-import '../../../models/sale_deal_model.dart';
-import '../../../core/services/sale_deal_controller.dart';
+import 'package:sari_sari/models/sale_deal_model.dart';
+import 'package:sari_sari/core/services/sale_deal_controller.dart';
 import 'package:sari_sari/users/customer_db/tutorial/customer_tutorial_keys.dart';
 
 /// Customer "Home" tab: product browsing.
@@ -76,7 +77,26 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   bool get _isFiltering =>
       _searchQuery.isNotEmpty || _selectedCategory != 'All';
 
-  CustomerProduct _mapToCustomerProduct(EmployeeProduct ep) {
+  int _computeMaxSales(Map<String, int> salesById, Map<String, int> salesByName) {
+    final employeeProducts = EmployeeInventoryController.instance.products;
+    int maxSales = 0;
+    for (final ep in employeeProducts) {
+      final idQty = salesById[ep.id] ?? 0;
+      final nameQty = salesByName[ep.name.trim().toLowerCase()] ?? 0;
+      final sold = idQty > 0 ? idQty : nameQty;
+      if (sold > maxSales) {
+        maxSales = sold;
+      }
+    }
+    return maxSales;
+  }
+
+  CustomerProduct _mapToCustomerProduct(
+    EmployeeProduct ep, {
+    Map<String, int>? salesById,
+    Map<String, int>? salesByName,
+    int? maxSales,
+  }) {
     CustomerProductAvailability availability;
     switch (ep.stockStatus) {
       case EmployeeStockStatus.inStock:
@@ -90,6 +110,15 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         break;
     }
 
+    final idMap = salesById ?? EmployeeOrderController.instance.getProductUnitsSold();
+    final nameMap = salesByName ?? EmployeeOrderController.instance.getProductUnitsSoldByName();
+    final idQty = idMap[ep.id] ?? 0;
+    final nameQty = nameMap[ep.name.trim().toLowerCase()] ?? 0;
+    final totalSold = idQty > 0 ? idQty : nameQty;
+
+    final max = maxSales ?? _computeMaxSales(idMap, nameMap);
+    final isBestSeller = max > 0 && totalSold == max;
+
     return CustomerProduct(
       id: ep.id,
       name: ep.name,
@@ -100,29 +129,66 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       image: ep.image ?? '',
       availability: availability,
       isOnSale: ep.hasExpiringSoonBatch,
+      isBestSeller: isBestSeller,
+      totalSold: totalSold,
     );
   }
 
   List<CustomerProduct> get _filteredProducts {
     final query = _searchQuery.trim().toLowerCase();
     final employeeProducts = EmployeeInventoryController.instance.products;
+    final salesById = EmployeeOrderController.instance.getProductUnitsSold();
+    final salesByName = EmployeeOrderController.instance.getProductUnitsSoldByName();
+    final maxSales = _computeMaxSales(salesById, salesByName);
 
-    return employeeProducts
-        .map((ep) => _mapToCustomerProduct(ep))
-        .where((product) {
+    final List<CustomerProduct> list = [];
+    for (final ep in employeeProducts) {
+      final product = _mapToCustomerProduct(
+        ep,
+        salesById: salesById,
+        salesByName: salesByName,
+        maxSales: maxSales,
+      );
+
       final matchesCategory =
           _selectedCategory == 'All' || product.category == _selectedCategory;
       final matchesSearch =
           query.isEmpty || product.name.toLowerCase().contains(query);
-      return matchesCategory && matchesSearch;
-    }).toList();
+
+      if (matchesCategory && matchesSearch) {
+        list.add(product);
+      }
+    }
+
+    // Sort products so that the product with the best sale comes at the top!
+    // Products are sorted by totalSold descending; ties preserve original order.
+    final indexed = list.asMap().entries.toList();
+    indexed.sort((a, b) {
+      final soldA = a.value.totalSold;
+      final soldB = b.value.totalSold;
+      if (soldA != soldB) {
+        return soldB.compareTo(soldA); // Best sale first!
+      }
+      return a.key.compareTo(b.key); // Stable order for ties
+    });
+
+    return indexed.map((e) => e.value).toList();
   }
 
   List<CustomerProduct> get _onSaleProducts {
     final employeeProducts = EmployeeInventoryController.instance.products;
+    final salesById = EmployeeOrderController.instance.getProductUnitsSold();
+    final salesByName = EmployeeOrderController.instance.getProductUnitsSoldByName();
+    final maxSales = _computeMaxSales(salesById, salesByName);
+
     return employeeProducts
         .where((ep) => ep.hasExpiringSoonBatch)
-        .map((ep) => _mapToCustomerProduct(ep))
+        .map((ep) => _mapToCustomerProduct(
+              ep,
+              salesById: salesById,
+              salesByName: salesByName,
+              maxSales: maxSales,
+            ))
         .toList();
   }
 
@@ -171,41 +237,44 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   }
 
   void _addSaleDealToCart(SaleDealModel deal, [Offset? startPosition]) {
-    final employeeProducts = EmployeeInventoryController.instance.products;
-    final allCustomerProducts = employeeProducts.map((ep) => _mapToCustomerProduct(ep)).toList();
-    final success = widget.cartController.addSaleDeal(deal, allCustomerProducts);
+    final allCustomerProducts = _allCustomerProducts;
+    final success = widget.cartController.addSaleDeal(
+      deal,
+      allCustomerProducts,
+      onError: (msg) => TopNotification.show(context, msg, isError: true),
+    );
     if (success) {
       final pos = startPosition ?? Offset(MediaQuery.of(context).size.width / 2, MediaQuery.of(context).size.height / 2);
       CustomerDashboard.dashboardKey.currentState?.runFlyToCartAnimation(
         startOffset: pos,
         productImage: deal.effectiveImage,
       );
-    } else {
-      TopNotification.show(context, 'Sorry, some items in this promo are out of stock.', isError: true);
+      TopNotification.show(context, 'Added "${deal.title}" promo to your cart!');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final filtered = _filteredProducts;
-    final int totalCount = filtered.length;
-    final int totalPages = (totalCount / _itemsPerPage).ceil();
-
-    if (_currentPage > totalPages && totalPages > 0) {
-      _currentPage = totalPages;
-    }
-
-    final pagedProducts = filtered
-        .skip((_currentPage - 1) * _itemsPerPage)
-        .take(_itemsPerPage)
-        .toList();
-
     return ListenableBuilder(
       listenable: Listenable.merge([
         EmployeeInventoryController.instance,
         SaleDealController.instance,
+        EmployeeOrderController.instance,
       ]),
       builder: (context, _) {
+        final filtered = _filteredProducts;
+        final int totalCount = filtered.length;
+        final int totalPages = (totalCount / _itemsPerPage).ceil();
+
+        if (_currentPage > totalPages && totalPages > 0) {
+          _currentPage = totalPages;
+        }
+
+        final pagedProducts = filtered
+            .skip((_currentPage - 1) * _itemsPerPage)
+            .take(_itemsPerPage)
+            .toList();
+
         return Scaffold(
           backgroundColor: Colors.transparent,
           body: CustomScrollView(
@@ -602,11 +671,26 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
 
   List<CustomerProduct> get _allCustomerProducts {
     final employeeProducts = EmployeeInventoryController.instance.products;
-    return employeeProducts.map((ep) => _mapToCustomerProduct(ep)).toList();
+    final salesById = EmployeeOrderController.instance.getProductUnitsSold();
+    final salesByName = EmployeeOrderController.instance.getProductUnitsSoldByName();
+    final maxSales = _computeMaxSales(salesById, salesByName);
+
+    return employeeProducts
+        .map((ep) => _mapToCustomerProduct(
+              ep,
+              salesById: salesById,
+              salesByName: salesByName,
+              maxSales: maxSales,
+            ))
+        .toList();
   }
 
   void _buyNowSaleDeal(SaleDealModel deal) {
-    final success = widget.cartController.addSaleDeal(deal, _allCustomerProducts);
+    final success = widget.cartController.addSaleDeal(
+      deal,
+      _allCustomerProducts,
+      onError: (msg) => TopNotification.show(context, msg, isError: true),
+    );
     if (success) {
       Navigator.push(
         context,
@@ -617,8 +701,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
           ),
         ),
       );
-    } else {
-      TopNotification.show(context, 'Sorry, some items in this promo are out of stock.', isError: true);
     }
   }
 
@@ -852,6 +934,8 @@ class _SaleDealCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final image = deal.effectiveImage;
+    final availableStock = CustomerCartController.instance.getAvailableDealStock(deal);
+    final isSoldOut = deal.isSoldOut || availableStock <= 0;
 
     return Material(
       color: Colors.white,
@@ -943,6 +1027,25 @@ class _SaleDealCard extends StatelessWidget {
                             ),
                           ),
                         ),
+                      // Sold Out Overlay
+                      if (isSoldOut)
+                        Positioned.fill(
+                          child: Container(
+                            color: Colors.black.withValues(alpha: 0.5),
+                            alignment: Alignment.center,
+                            child: Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.red.shade700,
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Text(
+                                'SOLD OUT',
+                                style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 11),
+                              ),
+                            ),
+                          ),
+                        ),
                     ],
                   ),
                 ),
@@ -999,7 +1102,32 @@ class _SaleDealCard extends StatelessWidget {
                           ),
                       ],
                     ),
-                    const SizedBox(height: 8),
+                    const SizedBox(height: 4),
+
+                    // Remaining Sale Limit Badge
+                    if (!isSoldOut)
+                      Text(
+                        'Only $availableStock left on sale',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.orange.shade800,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      )
+                    else
+                      Text(
+                        'Promo sold out',
+                        style: TextStyle(
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.red.shade700,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    const SizedBox(height: 6),
 
                     // Action Buttons Row: Purchase & Cart
                     SizedBox(
@@ -1010,17 +1138,17 @@ class _SaleDealCard extends StatelessWidget {
                             child: ElevatedButton(
                               style: ElevatedButton.styleFrom(
                                 padding: EdgeInsets.zero,
-                                backgroundColor: AppColors.primaryOrange,
+                                backgroundColor: isSoldOut ? Colors.grey.shade400 : AppColors.primaryOrange,
                                 foregroundColor: Colors.white,
                                 elevation: 0,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                 ),
                               ),
-                              onPressed: onBuyNow,
-                              child: const Text(
-                                'Purchase',
-                                style: TextStyle(
+                              onPressed: isSoldOut ? null : onBuyNow,
+                              child: Text(
+                                isSoldOut ? 'Sold Out' : 'Purchase',
+                                style: const TextStyle(
                                   fontSize: 12,
                                   fontWeight: FontWeight.bold,
                                 ),
@@ -1037,13 +1165,13 @@ class _SaleDealCard extends StatelessWidget {
                                   key: addToCartKey,
                                   style: OutlinedButton.styleFrom(
                                     padding: EdgeInsets.zero,
-                                    foregroundColor: AppColors.primaryOrange,
-                                    side: const BorderSide(color: AppColors.primaryOrange),
+                                    foregroundColor: isSoldOut ? Colors.grey.shade400 : AppColors.primaryOrange,
+                                    side: BorderSide(color: isSoldOut ? Colors.grey.shade300 : AppColors.primaryOrange),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                   ),
-                                  onPressed: () {
+                                  onPressed: isSoldOut ? null : () {
                                     final box = btnContext.findRenderObject() as RenderBox?;
                                     final pos = box != null
                                         ? box.localToGlobal(box.size.center(Offset.zero))
@@ -1116,18 +1244,24 @@ void showSaleDealDetailsModal({
       deal: deal,
       showActions: showActions,
       onAddToCart: () {
-        Navigator.pop(modalContext);
-        final success = cartController.addSaleDeal(deal, allCustomerProducts);
+        final success = cartController.addSaleDeal(
+          deal,
+          allCustomerProducts,
+          onError: (msg) => TopNotification.show(context, msg, isError: true),
+        );
         if (success) {
+          Navigator.pop(modalContext);
           TopNotification.show(context, 'Added "${deal.title}" promo to your cart!');
-        } else {
-          TopNotification.show(context, 'Sorry, some items in this promo are out of stock.', isError: true);
         }
       },
       onBuyNow: () {
-        Navigator.pop(modalContext);
-        final success = cartController.addSaleDeal(deal, allCustomerProducts);
+        final success = cartController.addSaleDeal(
+          deal,
+          allCustomerProducts,
+          onError: (msg) => TopNotification.show(context, msg, isError: true),
+        );
         if (success) {
+          Navigator.pop(modalContext);
           Navigator.push(
             context,
             MaterialPageRoute(
@@ -1137,8 +1271,6 @@ void showSaleDealDetailsModal({
               ),
             ),
           );
-        } else {
-          TopNotification.show(context, 'Sorry, some items in this promo are out of stock.', isError: true);
         }
       },
     ),
@@ -1162,6 +1294,8 @@ class SaleDealDetailsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final image = deal.effectiveImage;
+    final availableStock = CustomerCartController.instance.getAvailableDealStock(deal);
+    final isSoldOut = deal.isSoldOut || availableStock <= 0;
 
     return Container(
       decoration: const BoxDecoration(
@@ -1240,6 +1374,42 @@ class SaleDealDetailsSheet extends StatelessWidget {
                   ),
                 ],
               ),
+
+              // Promo Stock Status Box
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSoldOut ? Colors.red.shade50 : AppColors.primaryOrange.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(
+                    color: isSoldOut ? Colors.red.shade200 : AppColors.primaryOrange.withValues(alpha: 0.25),
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      isSoldOut ? Icons.block : Icons.inventory_2_outlined,
+                      size: 16,
+                      color: isSoldOut ? Colors.red.shade700 : AppColors.primaryOrange,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        isSoldOut
+                            ? 'Promo deal is currently SOLD OUT.'
+                            : 'Only $availableStock available on promo (Limit: ${deal.saleLimit ?? "Full stock"})',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.bold,
+                          color: isSoldOut ? Colors.red.shade800 : AppColors.primaryOrange,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
               const Divider(height: 24),
 
               const Text(
@@ -1380,17 +1550,17 @@ class SaleDealDetailsSheet extends StatelessWidget {
                         height: 48,
                         child: ElevatedButton.icon(
                           style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryOrange,
+                            backgroundColor: isSoldOut ? Colors.grey.shade400 : AppColors.primaryOrange,
                             foregroundColor: Colors.white,
                             elevation: 0,
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           icon: const Icon(Icons.shopping_bag_outlined, color: Colors.white, size: 18),
                           label: Text(
-                            'Purchase (₱${deal.salePrice.toStringAsFixed(2)})',
+                            isSoldOut ? 'Sold Out' : 'Purchase (₱${deal.salePrice.toStringAsFixed(2)})',
                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 14),
                           ),
-                          onPressed: onBuyNow,
+                          onPressed: isSoldOut ? null : onBuyNow,
                         ),
                       ),
                     ),
@@ -1403,8 +1573,11 @@ class SaleDealDetailsSheet extends StatelessWidget {
                         height: 48,
                         child: OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: AppColors.primaryOrange,
-                            side: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+                            foregroundColor: isSoldOut ? Colors.grey.shade400 : AppColors.primaryOrange,
+                            side: BorderSide(
+                              color: isSoldOut ? Colors.grey.shade300 : AppColors.primaryOrange,
+                              width: 1.5,
+                            ),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
                           icon: const Icon(Icons.add_shopping_cart, size: 18),
@@ -1412,7 +1585,7 @@ class SaleDealDetailsSheet extends StatelessWidget {
                             'Add to Cart',
                             style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                           ),
-                          onPressed: onAddToCart,
+                          onPressed: isSoldOut ? null : onAddToCart,
                         ),
                       ),
                     ),
