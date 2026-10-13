@@ -38,6 +38,7 @@ class _EmployeeChangePasswordPageState extends State<EmployeeChangePasswordPage>
   }
 
   void _submit() async {
+    if (_isLoading) return;
     final current = _currentPasswordController.text;
     final newPassword = _newPasswordController.text;
     final confirm = _confirmPasswordController.text;
@@ -139,7 +140,7 @@ class _EmployeeChangePasswordPageState extends State<EmployeeChangePasswordPage>
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
         ),
         title: const Text(
           'Change Password',
@@ -163,6 +164,7 @@ class _EmployeeChangePasswordPageState extends State<EmployeeChangePasswordPage>
                 isPassword: true,
                 controller: _currentPasswordController,
                 errorText: _currentPasswordError,
+                enabled: !_isLoading,
                 onChanged: (val) {
                   if (_currentPasswordError != null) {
                     setState(() => _currentPasswordError = null);
@@ -176,6 +178,7 @@ class _EmployeeChangePasswordPageState extends State<EmployeeChangePasswordPage>
                 isPassword: true,
                 controller: _newPasswordController,
                 errorText: _newPasswordError,
+                enabled: !_isLoading,
                 onChanged: (val) {
                   setState(() {
                     if (_newPasswordError != null) {
@@ -197,6 +200,7 @@ class _EmployeeChangePasswordPageState extends State<EmployeeChangePasswordPage>
                 isPassword: true,
                 controller: _confirmPasswordController,
                 errorText: _confirmPasswordError,
+                enabled: !_isLoading,
                 onChanged: (val) {
                   setState(() {
                     if (_confirmPasswordError != null) {
@@ -218,7 +222,7 @@ class _EmployeeChangePasswordPageState extends State<EmployeeChangePasswordPage>
                 label: _isLoading ? 'Updating...' : 'Update Password',
                 isLoading: _isLoading,
                 height: 48,
-                onPressed: _submit,
+                onPressed: _isLoading ? null : _submit,
               ),
             ],
           ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import '../../core/theme/app_colors.dart';
+import '../../shared/tutorial/staff_tutorial_step.dart';
 
 class _OwnerNavDestination {
   const _OwnerNavDestination({
@@ -84,11 +85,19 @@ class OwnerFloatingNavBar extends StatelessWidget {
                 if (index == 3 && ordersAlertCount > 0) badgeCount = ordersAlertCount;
                 if (index == 4 && profileAlertCount > 0) badgeCount = profileAlertCount;
 
+                Key? tabKey;
+                if (index == 0) tabKey = StaffTutorialKeys.homeTabKey;
+                if (index == 1) tabKey = StaffTutorialKeys.posTabKey;
+                if (index == 2) tabKey = StaffTutorialKeys.inventoryTabKey;
+                if (index == 3) tabKey = StaffTutorialKeys.ordersTabKey;
+                if (index == 4) tabKey = StaffTutorialKeys.profileTabKey;
+
                 return Expanded(
                   child: InkWell(
                     onTap: () => onDestinationSelected(index),
                     borderRadius: BorderRadius.circular(24),
                     child: Column(
+                      key: tabKey,
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Stack(

@@ -276,7 +276,7 @@ class _OverviewSectionState extends State<OverviewSection> {
                             ? _inlineEmpty('No matching top selling products found.')
                             : ListView.separated(
                                 itemCount: filteredStats.length,
-                                separatorBuilder: (_, __) => const SizedBox(height: 12),
+                                separatorBuilder: (context, index) => const SizedBox(height: 12),
                                 itemBuilder: (context, idx) {
                                   final stat = filteredStats[idx];
                                   final actualRank = allStats.indexOf(stat) + 1;
@@ -450,6 +450,7 @@ class _OverviewSectionState extends State<OverviewSection> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Container(
                 width: 36,
@@ -472,21 +473,20 @@ class _OverviewSectionState extends State<OverviewSection> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Row(
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 6,
+                      runSpacing: 2,
                       children: [
-                        Expanded(
-                          child: Text(
-                            deal.title,
-                            overflow: TextOverflow.ellipsis,
-                            style: TextStyle(
-                              fontSize: 14,
-                              fontWeight: FontWeight.bold,
-                              color: deal.isActive ? AppColors.darkText : Colors.grey[700],
-                            ),
+                        Text(
+                          deal.title,
+                          style: TextStyle(
+                            fontSize: 14,
+                            fontWeight: FontWeight.bold,
+                            color: deal.isActive ? AppColors.darkText : Colors.grey[700],
                           ),
                         ),
-                        if (deal.discountPercentage > 0) ...[
-                          const SizedBox(width: 6),
+                        if (deal.discountPercentage > 0)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
@@ -502,9 +502,7 @@ class _OverviewSectionState extends State<OverviewSection> {
                               ),
                             ),
                           ),
-                        ],
-                        if (deal.isSoldOut) ...[
-                          const SizedBox(width: 6),
+                        if (deal.isSoldOut)
                           Container(
                             padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                             decoration: BoxDecoration(
@@ -520,7 +518,6 @@ class _OverviewSectionState extends State<OverviewSection> {
                               ),
                             ),
                           ),
-                        ],
                       ],
                     ),
                     const SizedBox(height: 2),
@@ -534,7 +531,7 @@ class _OverviewSectionState extends State<OverviewSection> {
                   ],
                 ),
               ),
-              const SizedBox(width: 12),
+              const SizedBox(width: 8),
               Text(
                 widget.analyticsService.formatPeso(deal.salePrice),
                 style: TextStyle(
@@ -546,8 +543,11 @@ class _OverviewSectionState extends State<OverviewSection> {
             ],
           ),
           const SizedBox(height: 10),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          Wrap(
+            alignment: WrapAlignment.spaceBetween,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            spacing: 8,
+            runSpacing: 6,
             children: [
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
@@ -567,24 +567,34 @@ class _OverviewSectionState extends State<OverviewSection> {
                 ),
               ),
               Row(
+                mainAxisSize: MainAxisSize.min,
                 children: [
                   IconButton(
                     tooltip: 'View Details',
                     icon: const Icon(Icons.visibility_outlined, size: 18),
                     color: AppColors.darkText,
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(),
+                    splashRadius: 18,
                     onPressed: () => _openViewDealModal(context, deal),
                   ),
+                  const SizedBox(width: 4),
                   IconButton(
                     tooltip: 'Edit / Customize Promo',
                     icon: const Icon(Icons.edit_outlined, size: 18),
                     color: AppColors.primaryOrange,
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(),
+                    splashRadius: 18,
                     onPressed: () => _openAddEditDealModal(context, deal),
                   ),
+                  const SizedBox(width: 2),
                   Transform.scale(
                     scale: 0.75,
                     child: Switch(
                       value: deal.isActive,
-                      activeColor: AppColors.primaryOrange,
+                      activeThumbColor: AppColors.primaryOrange,
+                      materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       onChanged: (val) {
                         dealController.toggleDealStatus(deal.id, val);
                       },
@@ -594,6 +604,9 @@ class _OverviewSectionState extends State<OverviewSection> {
                     tooltip: 'Delete Promo',
                     icon: const Icon(Icons.delete_outline_rounded, size: 18),
                     color: Colors.red,
+                    padding: const EdgeInsets.all(4),
+                    constraints: const BoxConstraints(),
+                    splashRadius: 18,
                     onPressed: () => _confirmDeleteDeal(context, deal),
                   ),
                 ],
@@ -677,21 +690,19 @@ class _OverviewSectionState extends State<OverviewSection> {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
                         children: [
-                          Row(
-                            children: [
-                              const Icon(Icons.local_offer_rounded, color: AppColors.primaryOrange, size: 22),
-                              const SizedBox(width: 8),
-                              Text(
-                                existingDeal == null ? 'Create On-Sale Promo' : 'Customize On-Sale Promo',
-                                style: const TextStyle(
-                                  fontSize: 18,
-                                  fontWeight: FontWeight.bold,
-                                  color: AppColors.darkText,
-                                ),
+                          const Icon(Icons.local_offer_rounded, color: AppColors.primaryOrange, size: 22),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              existingDeal == null ? 'Create On-Sale Promo' : 'Customize On-Sale Promo',
+                              style: const TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.darkText,
                               ),
-                            ],
+                              overflow: TextOverflow.ellipsis,
+                            ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.close_rounded),
@@ -750,8 +761,11 @@ class _OverviewSectionState extends State<OverviewSection> {
                               const SizedBox(height: 16),
 
                               // Sale Promo Limit (Quota) Section
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              Wrap(
+                                alignment: WrapAlignment.spaceBetween,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 8,
+                                runSpacing: 4,
                                 children: [
                                   const Text(
                                     'Sale Promo Limit (Max Deals to Sell)',
@@ -835,8 +849,11 @@ class _OverviewSectionState extends State<OverviewSection> {
                               ],
                               const SizedBox(height: 20),
 
-                              Row(
-                                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              Wrap(
+                                alignment: WrapAlignment.spaceBetween,
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 8,
+                                runSpacing: 4,
                                 children: [
                                   const Text('Select Included Products', style: TextStyle(fontSize: 13, fontWeight: FontWeight.bold, color: AppColors.darkText)),
                                   Text(
@@ -1122,16 +1139,22 @@ class _OverviewSectionState extends State<OverviewSection> {
                       ),
                     ),
                   const Divider(height: 24),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 2,
                     children: [
                       const Text('Regular Total:', style: TextStyle(fontSize: 13, color: AppColors.secondaryText)),
                       Text(widget.analyticsService.formatPeso(deal.originalTotalPrice), style: const TextStyle(fontSize: 13, decoration: TextDecoration.lineThrough, color: Colors.grey)),
                     ],
                   ),
                   const SizedBox(height: 6),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 2,
                     children: [
                       const Text('Promo Sale Price:', style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: AppColors.darkText)),
                       Text(widget.analyticsService.formatPeso(deal.salePrice), style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w900, color: AppColors.primaryOrange)),
@@ -1139,8 +1162,11 @@ class _OverviewSectionState extends State<OverviewSection> {
                   ),
                   if (deal.discountSavings > 0) ...[
                     const SizedBox(height: 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 2,
                       children: [
                         const Text('Total Savings:', style: TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold)),
                         Text('Save ${widget.analyticsService.formatPeso(deal.discountSavings)} (${deal.discountPercentage}% OFF)', style: const TextStyle(fontSize: 12, color: Colors.green, fontWeight: FontWeight.bold)),
@@ -1150,8 +1176,11 @@ class _OverviewSectionState extends State<OverviewSection> {
                   const SizedBox(height: 12),
                   const Divider(height: 1),
                   const SizedBox(height: 12),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  Wrap(
+                    alignment: WrapAlignment.spaceBetween,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 2,
                     children: [
                       const Text('Promo Quota Limit:', style: TextStyle(fontSize: 13, color: AppColors.secondaryText)),
                       Text(
@@ -1162,8 +1191,11 @@ class _OverviewSectionState extends State<OverviewSection> {
                   ),
                   if (deal.saleLimit != null) ...[
                     const SizedBox(height: 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 2,
                       children: [
                         const Text('Remaining Deals:', style: TextStyle(fontSize: 13, color: AppColors.secondaryText)),
                         Text(
@@ -1177,8 +1209,11 @@ class _OverviewSectionState extends State<OverviewSection> {
                       ],
                     ),
                     const SizedBox(height: 6),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    Wrap(
+                      alignment: WrapAlignment.spaceBetween,
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 8,
+                      runSpacing: 2,
                       children: [
                         const Text('Sold Deals:', style: TextStyle(fontSize: 13, color: AppColors.secondaryText)),
                         Text('${deal.soldCount} deals sold', style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w600)),

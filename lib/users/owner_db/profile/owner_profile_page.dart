@@ -24,6 +24,7 @@ import '../promotions/owner_sale_management_page.dart';
 import '../../../shared/widgets/editable_profile_avatar.dart';
 import '../../../shared/widgets/product_image.dart';
 import '../../../shared/utils/gcash_ocr_helper.dart';
+import '../owner_dashboard.dart';
 
 class OwnerProfilePage extends StatefulWidget {
   const OwnerProfilePage({super.key});
@@ -214,6 +215,19 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
                   label: 'Expiry Monitoring Config',
                   isLast: true,
                   onTap: () => _showExpiryConfigDialog(context),
+                ),
+              ],
+            ),
+            const SizedBox(height: 28),
+            _MenuCard(
+              children: [
+                _MenuTile(
+                  icon: Icons.help_outline_rounded,
+                  label: 'View Tutorial',
+                  isLast: true,
+                  onTap: () {
+                    OwnerDashboard.dashboardKey.currentState?.startTutorial();
+                  },
                 ),
               ],
             ),

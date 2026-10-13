@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 
 import 'package:sari_sari/core/theme/app_colors.dart';
+import 'package:sari_sari/shared/widgets/skeleton.dart';
 import 'customer_notification_details_page.dart';
 import 'customer_notification_model.dart';
 import 'customer_notifications_controller.dart';
-import 'package:sari_sari/shared/widgets/skeleton.dart';
 
 class CustomerNotificationsPage extends StatefulWidget {
   const CustomerNotificationsPage({super.key});
@@ -14,7 +14,10 @@ class CustomerNotificationsPage extends StatefulWidget {
 }
 
 class _CustomerNotificationsPageState extends State<CustomerNotificationsPage> {
+  final CustomerNotificationsController _controller = CustomerNotificationsController();
   bool _isLoading = true;
+  bool _isSelectionMode = false;
+  final Set<String> _selectedIds = {};
 
   @override
   void initState() {
@@ -28,35 +31,215 @@ class _CustomerNotificationsPageState extends State<CustomerNotificationsPage> {
     }
   }
 
-  @override
-  Widget build(BuildContext context) {
-    final controller = CustomerNotificationsController();
+  void _enterSelectionMode(String initialId) {
+    setState(() {
+      _isSelectionMode = true;
+      _selectedIds.clear();
+      _selectedIds.add(initialId);
+    });
+  }
 
-    return Scaffold(
-      backgroundColor: AppColors.lightBackground,
-      appBar: AppBar(
-        backgroundColor: AppColors.primaryOrange,
-        elevation: 0,
-        automaticallyImplyLeading: false,
-        title: const Text(
-          'Notifications',
-          style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.bold),
-        ),
+  void _exitSelectionMode() {
+    setState(() {
+      _isSelectionMode = false;
+      _selectedIds.clear();
+    });
+  }
+
+  void _toggleSelection(String id) {
+    setState(() {
+      if (_selectedIds.contains(id)) {
+        _selectedIds.remove(id);
+        if (_selectedIds.isEmpty) {
+          _isSelectionMode = false;
+        }
+      } else {
+        _selectedIds.add(id);
+      }
+    });
+  }
+
+  void _selectAll(List<CustomerNotification> notifs) {
+    setState(() {
+      if (_selectedIds.length == notifs.length) {
+        _selectedIds.clear();
+      } else {
+        _selectedIds.clear();
+        _selectedIds.addAll(notifs.map((n) => n.id));
+      }
+    });
+  }
+
+  Future<void> _confirmMarkAllRead() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Mark all as read?'),
+        content: const Text('Are you sure you want to mark all notifications as read?'),
         actions: [
           TextButton(
-            onPressed: () => controller.markAllAsRead(),
-            child: const Text(
-              'Mark all as read',
-              style: TextStyle(color: Colors.white, fontSize: 12),
-            ),
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
           ),
-          const SizedBox(width: 8),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primaryOrange),
+            child: const Text('Mark as Read', style: TextStyle(color: Colors.white)),
+          ),
         ],
       ),
+    );
+
+    if (confirmed == true) {
+      _controller.markAllAsRead();
+    }
+  }
+
+  Future<void> _confirmClearRead() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear read notifications?'),
+        content: const Text('Are you sure you want to delete all read notifications?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Clear', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      _controller.clearReadNotifications();
+    }
+  }
+
+  Future<void> _confirmDeleteSelected() async {
+    if (_selectedIds.isEmpty) return;
+    final count = _selectedIds.length;
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Delete $count ${count == 1 ? 'notification' : 'notifications'}?'),
+        content: Text('Are you sure you want to delete the selected $count ${count == 1 ? 'notification' : 'notifications'}?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      _controller.deleteNotifications(_selectedIds);
+      _exitSelectionMode();
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.lightBackground,
+      appBar: _isSelectionMode
+          ? AppBar(
+              backgroundColor: AppColors.primaryOrange,
+              elevation: 0,
+              titleSpacing: 0,
+              leading: IconButton(
+                icon: const Icon(Icons.close, color: Colors.white),
+                onPressed: _exitSelectionMode,
+              ),
+              title: Text(
+                '${_selectedIds.length} selected',
+                style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.select_all, color: Colors.white),
+                  tooltip: 'Select All',
+                  onPressed: () => _selectAll(_controller.notifications),
+                ),
+                IconButton(
+                  icon: const Icon(Icons.delete_outline, color: Colors.white),
+                  tooltip: 'Delete Selected',
+                  onPressed: _confirmDeleteSelected,
+                ),
+                const SizedBox(width: 8),
+              ],
+            )
+          : AppBar(
+              backgroundColor: AppColors.primaryOrange,
+              elevation: 0,
+              automaticallyImplyLeading: false,
+              title: const Text(
+                'Notifications',
+                style: TextStyle(color: Colors.white, fontSize: 18, fontWeight: FontWeight.bold),
+              ),
+              actions: [
+                ListenableBuilder(
+                  listenable: _controller,
+                  builder: (context, _) {
+                    final canMarkRead = _controller.unreadCount > 0;
+                    final canClearRead = _controller.notifications.any((n) => n.isRead);
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        TextButton(
+                          onPressed: canMarkRead ? _confirmMarkAllRead : null,
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text(
+                            'Mark read',
+                            style: TextStyle(
+                              color: canMarkRead ? Colors.white : Colors.white.withValues(alpha: 0.4),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 4),
+                        TextButton(
+                          onPressed: canClearRead ? _confirmClearRead : null,
+                          style: TextButton.styleFrom(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            minimumSize: Size.zero,
+                            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                          ),
+                          child: Text(
+                            'Clear read',
+                            style: TextStyle(
+                              color: canClearRead ? Colors.white : Colors.white.withValues(alpha: 0.4),
+                              fontSize: 11,
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                      ],
+                    );
+                  },
+                ),
+              ],
+            ),
       body: ListenableBuilder(
-        listenable: controller,
+        listenable: _controller,
         builder: (context, _) {
-          if ((_isLoading || controller.isLoading) && controller.notifications.isEmpty) {
+          if ((_isLoading || _controller.isLoading) && _controller.notifications.isEmpty) {
             return ListView.separated(
               padding: const EdgeInsets.all(16),
               itemCount: 6,
@@ -65,7 +248,7 @@ class _CustomerNotificationsPageState extends State<CustomerNotificationsPage> {
             );
           }
 
-          final notifications = controller.notifications;
+          final notifications = _controller.notifications;
 
           if (notifications.isEmpty) {
             return Center(
@@ -94,7 +277,7 @@ class _CustomerNotificationsPageState extends State<CustomerNotificationsPage> {
           return RefreshIndicator(
             color: AppColors.primaryOrange,
             onRefresh: () async {
-              await controller.loadNotifications();
+              await _controller.loadNotifications();
             },
             child: ListView.separated(
               physics: const AlwaysScrollableScrollPhysics(),
@@ -103,19 +286,51 @@ class _CustomerNotificationsPageState extends State<CustomerNotificationsPage> {
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
                 final notification = notifications[index];
-                return _NotificationTile(
-                  notification: notification,
-                  onTap: () {
-                    controller.markAsRead(notification.id);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => CustomerNotificationDetailsPage(
-                          notification: notification.copyWith(isRead: true),
-                        ),
-                      ),
-                    );
+                final isSelected = _selectedIds.contains(notification.id);
+
+                return Dismissible(
+                  key: Key(notification.id),
+                  direction: _isSelectionMode ? DismissDirection.none : DismissDirection.endToStart,
+                  onDismissed: (_) {
+                    _controller.deleteNotification(notification.id);
                   },
+                  background: Container(
+                    alignment: Alignment.centerRight,
+                    padding: const EdgeInsets.only(right: 20),
+                    decoration: BoxDecoration(
+                      color: Colors.red.shade400,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                    child: const Icon(Icons.delete_outline, color: Colors.white, size: 24),
+                  ),
+                  child: _NotificationTile(
+                    notification: notification,
+                    isSelectionMode: _isSelectionMode,
+                    isSelected: isSelected,
+                    onLongPress: () {
+                      if (!_isSelectionMode) {
+                        _enterSelectionMode(notification.id);
+                      } else {
+                        _toggleSelection(notification.id);
+                      }
+                    },
+                    onTap: () {
+                      if (_isSelectionMode) {
+                        _toggleSelection(notification.id);
+                        return;
+                      }
+
+                      _controller.markAsRead(notification.id);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => CustomerNotificationDetailsPage(
+                            notification: notification.copyWith(isRead: true),
+                          ),
+                        ),
+                      );
+                    },
+                  ),
                 );
               },
             ),
@@ -130,10 +345,16 @@ class _NotificationTile extends StatelessWidget {
   const _NotificationTile({
     required this.notification,
     required this.onTap,
+    this.onLongPress,
+    this.isSelectionMode = false,
+    this.isSelected = false,
   });
 
   final CustomerNotification notification;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
+  final bool isSelectionMode;
+  final bool isSelected;
 
   String _formatTimestamp(DateTime dateTime) {
     final now = DateTime.now();
@@ -149,18 +370,30 @@ class _NotificationTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: notification.isRead ? Colors.white.withValues(alpha: 0.6) : Colors.white,
+      color: isSelected
+          ? AppColors.primaryOrange.withValues(alpha: 0.12)
+          : (notification.isRead ? Colors.white.withValues(alpha: 0.6) : Colors.white),
       borderRadius: BorderRadius.circular(16),
-      elevation: notification.isRead ? 0 : 2,
+      elevation: isSelected ? 1 : (notification.isRead ? 0 : 2),
       shadowColor: Colors.black.withValues(alpha: 0.1),
       child: InkWell(
         onTap: onTap,
+        onLongPress: onLongPress,
         borderRadius: BorderRadius.circular(16),
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              if (isSelectionMode) ...[
+                Checkbox(
+                  value: isSelected,
+                  activeColor: AppColors.primaryOrange,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
+                  onChanged: (_) => onTap(),
+                ),
+                const SizedBox(width: 8),
+              ],
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
@@ -181,12 +414,14 @@ class _NotificationTile extends StatelessWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text(
-                          notification.title,
-                          style: TextStyle(
-                            color: AppColors.darkText,
-                            fontSize: 15,
-                            fontWeight: notification.isRead ? FontWeight.w600 : FontWeight.bold,
+                        Expanded(
+                          child: Text(
+                            notification.title,
+                            style: TextStyle(
+                              color: AppColors.darkText,
+                              fontSize: 15,
+                              fontWeight: notification.isRead ? FontWeight.w600 : FontWeight.bold,
+                            ),
                           ),
                         ),
                         if (!notification.isRead)

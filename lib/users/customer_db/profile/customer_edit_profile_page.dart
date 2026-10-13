@@ -32,6 +32,7 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
   String? _lastNameError;
   String? _emailError;
   String? _contactError;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -205,6 +206,7 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
   }
 
   void _saveChanges() async {
+    if (_isSaving) return;
     final fnError = _validateFirstName(_firstNameController.text);
     final miError = _validateMiddleInitial(_middleInitialController.text);
     final lnError = _validateLastName(_lastNameController.text);
@@ -251,20 +253,31 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
     if (confirmed != true) return;
     if (!mounted) return;
 
-    if (_previewPhotoPath != null) {
-      await _controller.setPhoto(_previewPhotoPath == '' ? null : _previewPhotoPath);
-    }
-    await _controller.updateProfile(
-      firstName: firstName,
-      middleInitial: middleInitial,
-      lastName: lastName,
-      email: email,
-      contactNumber: contact,
-    );
+    setState(() => _isSaving = true);
+    try {
+      if (_previewPhotoPath != null) {
+        await _controller.setPhoto(_previewPhotoPath == '' ? null : _previewPhotoPath);
+      }
+      await _controller.updateProfile(
+        firstName: firstName,
+        middleInitial: middleInitial,
+        lastName: lastName,
+        email: email,
+        contactNumber: contact,
+      );
 
-    if (!mounted) return;
-    TopNotification.show(context, 'Profile updated successfully.');
-    Navigator.pop(context);
+      if (!mounted) return;
+      TopNotification.show(context, 'Profile updated successfully.');
+      Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        TopNotification.show(context, 'Failed to update profile: $e', isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   @override
@@ -276,7 +289,7 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isSaving ? null : () => Navigator.pop(context),
         ),
         title: const Text(
           'Edit Profile',
@@ -299,11 +312,13 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
                     return EditableProfileAvatar(
                       initials: _computedInitials,
                       photoPath: photoToDisplay,
-                      onPhotoChanged: (newPath) {
-                        setState(() {
-                          _previewPhotoPath = newPath ?? '';
-                        });
-                      },
+                      onPhotoChanged: _isSaving
+                          ? null
+                          : (newPath) {
+                              setState(() {
+                                _previewPhotoPath = newPath ?? '';
+                              });
+                            },
                       radius: 46,
                     );
                   },
@@ -356,6 +371,7 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
                           errorText: _firstNameError,
                           maxLength: 50,
                           textCapitalization: TextCapitalization.words,
+                          enabled: !_isSaving,
                           inputFormatters: [
                             FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]')),
                             LengthLimitingTextInputFormatter(50),
@@ -387,6 +403,7 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
                           errorText: _middleInitialError,
                           maxLength: 1,
                           textCapitalization: TextCapitalization.characters,
+                          enabled: !_isSaving,
                           inputFormatters: [
                             FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z]')),
                             LengthLimitingTextInputFormatter(1),
@@ -420,6 +437,7 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
                 errorText: _lastNameError,
                 maxLength: 50,
                 textCapitalization: TextCapitalization.words,
+                enabled: !_isSaving,
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[a-zA-Z\s]')),
                   LengthLimitingTextInputFormatter(50),
@@ -442,6 +460,7 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
                 errorText: _emailError,
+                enabled: !_isSaving,
                 onChanged: _onEmailChanged,
               ),
               const SizedBox(height: 14),
@@ -461,6 +480,7 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
                 keyboardType: TextInputType.phone,
                 errorText: _contactError,
                 maxLength: 13,
+                enabled: !_isSaving,
                 inputFormatters: [
                   FilteringTextInputFormatter.allow(RegExp(r'[0-9+]')),
                   LengthLimitingTextInputFormatter(13),
@@ -469,9 +489,10 @@ class _CustomerEditProfilePageState extends State<CustomerEditProfilePage> {
               ),
               const SizedBox(height: 24),
               PrimaryButton(
-                label: 'Save Changes',
+                label: _isSaving ? 'Saving...' : 'Save Changes',
+                isLoading: _isSaving,
                 height: 48,
-                onPressed: _saveChanges,
+                onPressed: _isSaving ? null : _saveChanges,
               ),
             ],
           ),

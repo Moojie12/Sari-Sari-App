@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../../core/services/auth_service.dart';
 
 /// Service managing the onboarding tutorial status for customers.
 class CustomerTutorialService {
@@ -7,6 +8,16 @@ class CustomerTutorialService {
 
   static const String _prefKey = 'customer_tutorial_completed_v1';
   static bool? _mockSeenTutorial;
+
+  static String _getKey() {
+    try {
+      final uid = AuthService().currentUser?.uid;
+      if (uid != null && uid.isNotEmpty) {
+        return '${_prefKey}_$uid';
+      }
+    } catch (_) {}
+    return _prefKey;
+  }
 
   /// Visible for testing to mock tutorial completed state.
   @visibleForTesting
@@ -21,7 +32,7 @@ class CustomerTutorialService {
     }
     try {
       final prefs = await SharedPreferences.getInstance();
-      return prefs.getBool(_prefKey) ?? false;
+      return prefs.getBool(_getKey()) ?? false;
     } catch (e) {
       debugPrint('CustomerTutorialService: Error checking tutorial status: $e');
       return false;
@@ -33,7 +44,7 @@ class CustomerTutorialService {
     _mockSeenTutorial = true;
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.setBool(_prefKey, true);
+      await prefs.setBool(_getKey(), true);
     } catch (e) {
       debugPrint('CustomerTutorialService: Error saving tutorial status: $e');
     }
@@ -44,7 +55,7 @@ class CustomerTutorialService {
     _mockSeenTutorial = false;
     try {
       final prefs = await SharedPreferences.getInstance();
-      await prefs.remove(_prefKey);
+      await prefs.remove(_getKey());
     } catch (e) {
       debugPrint('CustomerTutorialService: Error resetting tutorial status: $e');
     }

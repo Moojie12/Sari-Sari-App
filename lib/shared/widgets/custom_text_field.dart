@@ -23,6 +23,7 @@ class CustomTextField extends StatefulWidget {
     this.textInputAction,
     this.focusNode,
     this.textCapitalization = TextCapitalization.none,
+    this.enabled = true,
   });
 
   final String hint;
@@ -44,6 +45,7 @@ class CustomTextField extends StatefulWidget {
   final TextInputAction? textInputAction;
   final FocusNode? focusNode;
   final TextCapitalization textCapitalization;
+  final bool enabled;
 
   @override
   State<CustomTextField> createState() => _CustomTextFieldState();
@@ -55,6 +57,7 @@ class _CustomTextFieldState extends State<CustomTextField> {
   @override
   Widget build(BuildContext context) {
     return TextField(
+      enabled: widget.enabled,
       controller: widget.controller,
       focusNode: widget.focusNode,
       obscureText: widget.isPassword ? _obscureText : false,
@@ -83,23 +86,29 @@ class _CustomTextFieldState extends State<CustomTextField> {
             ? Icon(
                 widget.icon,
                 size: 18,
-                color: widget.errorText != null ? Colors.redAccent : AppColors.primaryOrange,
+                color: !widget.enabled
+                    ? AppColors.placeholderColor.withValues(alpha: 0.5)
+                    : (widget.errorText != null ? Colors.redAccent : AppColors.primaryOrange),
               )
             : null,
         suffixIcon: widget.isPassword
             ? IconButton(
-                onPressed: () => setState(() => _obscureText = !_obscureText),
+                onPressed: widget.enabled ? () => setState(() => _obscureText = !_obscureText) : null,
                 icon: Icon(
                   _obscureText
                       ? Icons.visibility_off_outlined
                       : Icons.visibility_outlined,
                   size: 18,
-                  color: widget.errorText != null ? Colors.redAccent : AppColors.placeholderColor,
+                  color: !widget.enabled
+                      ? AppColors.placeholderColor.withValues(alpha: 0.5)
+                      : (widget.errorText != null ? Colors.redAccent : AppColors.placeholderColor),
                 ),
               )
             : widget.trailing,
         filled: true,
-        fillColor: AppColors.lightPeach,
+        fillColor: widget.enabled
+            ? AppColors.lightPeach
+            : AppColors.placeholderColor.withValues(alpha: 0.12),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
           vertical: 14,
@@ -109,6 +118,10 @@ class _CustomTextFieldState extends State<CustomTextField> {
           borderSide: BorderSide.none,
         ),
         enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(8),
+          borderSide: BorderSide.none,
+        ),
+        disabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(8),
           borderSide: BorderSide.none,
         ),

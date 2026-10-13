@@ -43,6 +43,8 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
   }
 
   Future<void> _sendOtp() async {
+    if (_isLoading) return;
+
     final email = _emailController.text.trim();
     final validationError = _validateEmail(email);
 
@@ -246,6 +248,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
             ),
             const SizedBox(height: 6),
             CustomTextField(
+              enabled: !_isLoading,
               hint: 'Enter your email',
               icon: Icons.email_outlined,
               keyboardType: TextInputType.emailAddress,
@@ -266,7 +269,7 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
             // Action Button
             PrimaryButton(
               label: _isLoading ? 'Sending OTP...' : 'Send OTP',
-              onPressed: _sendPressed,
+              onPressed: _isLoading ? null : _sendPressed,
               isLoading: _isLoading,
               height: isCompact ? 44 : 48,
             ),
@@ -275,16 +278,16 @@ class _ForgotPasswordPageState extends State<ForgotPasswordPage> {
             // Back to Login Link
             Center(
               child: TextButton.icon(
-                onPressed: () => Navigator.pop(context),
-                icon: const Icon(
+                onPressed: _isLoading ? null : () => Navigator.pop(context),
+                icon: Icon(
                   Icons.arrow_back_rounded,
                   size: 16,
-                  color: AppColors.primaryOrange,
+                  color: _isLoading ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.primaryOrange,
                 ),
-                label: const Text(
+                label: Text(
                   'Back to Login',
                   style: TextStyle(
-                    color: AppColors.primaryOrange,
+                    color: _isLoading ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.primaryOrange,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),

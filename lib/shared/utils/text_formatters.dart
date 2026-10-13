@@ -1,11 +1,11 @@
 import 'package:flutter/services.dart';
 
 /// TextInputFormatter that restricts input to a maximum character length
-/// (default 20) and disallows double spaces ("  ") or leading spaces.
+/// and disallows double spaces ("  ") or leading spaces.
 class NoDoubleSpaceAndMax20Formatter extends TextInputFormatter {
   final int maxLength;
 
-  NoDoubleSpaceAndMax20Formatter({this.maxLength = 20});
+  NoDoubleSpaceAndMax20Formatter({this.maxLength = 50});
 
   @override
   TextEditingValue formatEditUpdate(

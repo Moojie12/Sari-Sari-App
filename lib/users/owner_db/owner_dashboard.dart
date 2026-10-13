@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -5,6 +6,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../shared/utils/exit_confirmation_dialog.dart';
+import '../../shared/tutorial/staff_tutorial_overlay.dart';
+import '../../shared/tutorial/staff_tutorial_service.dart';
 import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
 import 'package:sari_sari/users/employee_db/pos/employee_pos_controller.dart';
 import 'package:sari_sari/users/employee_db/pos/employee_pos_page.dart';
@@ -27,13 +30,14 @@ import 'package:sari_sari/users/employee_db/inventory/employee_archive_stock_dia
 import 'package:sari_sari/users/employee_db/inventory/employee_consume_stock_dialog.dart';
 
 class OwnerDashboard extends StatefulWidget {
+  static final GlobalKey<OwnerDashboardState> dashboardKey = GlobalKey<OwnerDashboardState>();
   const OwnerDashboard({super.key});
 
   @override
-  State<OwnerDashboard> createState() => _OwnerDashboardState();
+  State<OwnerDashboard> createState() => OwnerDashboardState();
 }
 
-class _OwnerDashboardState extends State<OwnerDashboard> {
+class OwnerDashboardState extends State<OwnerDashboard> {
   int _selectedIndex = 0;
   final _inventoryController = EmployeeInventoryController.instance;
   late final _posController = EmployeePosController(inventory: _inventoryController);
@@ -42,6 +46,24 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
   final _notificationsController = EmployeeNotificationsController.instance;
 
   bool _isNavBarVisible = true;
+  bool _isTutorialActive = false;
+  Timer? _tutorialStartupTimer;
+
+  void startTutorial() {
+    if (_selectedIndex != 0) {
+      _onDestinationSelected(0);
+    }
+    setState(() {
+      _isNavBarVisible = true;
+      _isTutorialActive = true;
+    });
+  }
+
+  void dismissTutorial() {
+    setState(() {
+      _isTutorialActive = false;
+    });
+  }
 
   @override
   void initState() {
@@ -49,6 +71,17 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
     _restoreSavedTab();
     OwnerProfileController.instance.loadProfile();
     DashboardNavigationController.instance.addListener(_handleNavigationRequest);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final seen = await StaffTutorialService.hasSeenTutorial(isOwner: true);
+      if (!seen && mounted) {
+        _tutorialStartupTimer = Timer(const Duration(milliseconds: 600), () {
+          if (mounted && !_isTutorialActive) {
+            startTutorial();
+          }
+        });
+      }
+    });
   }
 
   Future<void> _restoreSavedTab() async {
@@ -72,6 +105,7 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
 
   @override
   void dispose() {
+    _tutorialStartupTimer?.cancel();
     DashboardNavigationController.instance.removeListener(_handleNavigationRequest);
     _posController.dispose();
     super.dispose();
@@ -264,6 +298,14 @@ class _OwnerDashboardState extends State<OwnerDashboard> {
                 ),
               ),
             ),
+            // Owner Interactive Onboarding Tutorial Overlay
+            if (_isTutorialActive)
+              Positioned.fill(
+                child: StaffTutorialOverlay(
+                  isOwner: true,
+                  onDismiss: dismissTutorial,
+                ),
+              ),
           ],
         ),
       ),

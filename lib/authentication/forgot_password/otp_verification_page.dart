@@ -465,6 +465,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                     width: 44,
                     height: 52,
                     child: TextField(
+                      enabled: !_isVerifying,
                       controller: _controllers[index],
                       focusNode: _focusNodes[index],
                       onChanged: (value) => _nextField(value, index),
@@ -472,10 +473,10 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                       textInputAction: TextInputAction.done,
                       keyboardType: TextInputType.number,
                       textAlign: TextAlign.center,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
-                        color: AppColors.darkText,
+                        color: _isVerifying ? AppColors.secondaryText : AppColors.darkText,
                       ),
                       inputFormatters: [
                         LengthLimitingTextInputFormatter(_otpLength),
@@ -483,7 +484,9 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                       ],
                       decoration: InputDecoration(
                         filled: true,
-                        fillColor: AppColors.lightPeach,
+                        fillColor: !_isVerifying
+                            ? AppColors.lightPeach
+                            : AppColors.placeholderColor.withValues(alpha: 0.12),
                         contentPadding: EdgeInsets.zero,
                         border: OutlineInputBorder(
                           borderRadius: BorderRadius.circular(10),
@@ -508,7 +511,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
           PrimaryButton(
             label: _isVerifying ? 'Verifying...' : 'Verify Code',
             isLoading: _isVerifying,
-            onPressed: _verifyOtp,
+            onPressed: _isVerifying ? null : _verifyOtp,
             height: isCompact ? 44 : 48,
           ),
           const SizedBox(height: 16),
@@ -527,7 +530,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                       ),
                     ),
                     TextButton(
-                      onPressed: isTimerActive ? null : _handleResendCode,
+                      onPressed: (isTimerActive || _isVerifying) ? null : _handleResendCode,
                       style: TextButton.styleFrom(
                         padding: EdgeInsets.zero,
                         minimumSize: const Size(0, 30),
@@ -536,7 +539,7 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                       child: Text(
                         isTimerActive ? 'Resend in $_formattedTime' : 'Resend Code',
                         style: TextStyle(
-                          color: isTimerActive ? AppColors.secondaryText : AppColors.primaryOrange,
+                          color: (isTimerActive || _isVerifying) ? AppColors.secondaryText : AppColors.primaryOrange,
                           fontSize: 12,
                           fontWeight: FontWeight.w600,
                         ),
@@ -545,11 +548,19 @@ class _OtpVerificationPageState extends State<OtpVerificationPage> {
                   ],
                 ),
                 TextButton.icon(
-                  onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.arrow_back_rounded, size: 15, color: AppColors.primaryOrange),
-                  label: const Text(
+                  onPressed: _isVerifying ? null : () => Navigator.pop(context),
+                  icon: Icon(
+                    Icons.arrow_back_rounded,
+                    size: 15,
+                    color: _isVerifying ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.primaryOrange,
+                  ),
+                  label: Text(
                     'Back',
-                    style: TextStyle(color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.w600),
+                    style: TextStyle(
+                      color: _isVerifying ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.primaryOrange,
+                      fontSize: 12,
+                      fontWeight: FontWeight.w600,
+                    ),
                   ),
                 ),
               ],

@@ -1485,6 +1485,8 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
   }
 
   Future<void> _continue() async {
+    if (_isSaving) return;
+
     if (_isBulkMode) {
       final bulkPrice = double.tryParse(_bulkPriceController.text.trim());
       final sizeVal = double.tryParse(_pcsPerBulkController.text.trim());
@@ -1519,8 +1521,8 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
     setState(() {
       if (name.isEmpty) {
         _nameError = 'Product name is required.';
-      } else if (name.length > 20) {
-        _nameError = 'Max 20 characters allowed.';
+      } else if (name.length > 50) {
+        _nameError = 'Max 50 characters allowed.';
       } else if (name.contains('  ')) {
         _nameError = 'Double spaces are not allowed.';
       } else {
@@ -1798,7 +1800,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
               const SizedBox(height: 16),
               Center(
                 child: GestureDetector(
-                  onTap: _pickImage,
+                  onTap: _isSaving ? null : _pickImage,
                   child: Container(
                     width: 100,
                     height: 100,
@@ -1862,7 +1864,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                       style: const TextStyle(fontSize: 11),
                     ),
                     value: _isBulkMode,
-                    onChanged: (val) => _toggleBulkMode(val),
+                    onChanged: _isSaving ? null : (val) => _toggleBulkMode(val),
                     activeThumbColor: AppColors.primaryOrange,
                     contentPadding: EdgeInsets.zero,
                   ),
@@ -1874,12 +1876,23 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                 children: [
                   const Text('Product Name *', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
                   GestureDetector(
-                    onTap: _scanNameWithOcrInSheet,
-                    child: const Row(
+                    onTap: _isSaving ? null : _scanNameWithOcrInSheet,
+                    child: Row(
                       children: [
-                        Icon(Icons.center_focus_strong, size: 14, color: AppColors.primaryOrange),
-                        SizedBox(width: 4),
-                        Text('Scan Packaging (OCR)', style: TextStyle(color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.bold)),
+                        Icon(
+                          Icons.center_focus_strong,
+                          size: 14,
+                          color: _isSaving ? AppColors.secondaryText : AppColors.primaryOrange,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Scan Packaging (OCR)',
+                          style: TextStyle(
+                            color: _isSaving ? AppColors.secondaryText : AppColors.primaryOrange,
+                            fontSize: 12,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -1887,10 +1900,11 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
               ),
               const SizedBox(height: 8),
               TextField(
+                enabled: !_isSaving,
                 controller: _nameController,
-                maxLength: 20,
+                maxLength: 50,
                 inputFormatters: [
-                  NoDoubleSpaceAndMax20Formatter(maxLength: 20),
+                  NoDoubleSpaceAndMax20Formatter(maxLength: 50),
                 ],
                 onChanged: (_) {
                   if (_nameError != null) setState(() => _nameError = null);
@@ -1903,14 +1917,22 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                 children: [
                   const Text('Category', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
                   GestureDetector(
-                    onTap: () => setState(() => _isAddingNewCategory = !_isAddingNewCategory),
-                    child: Text(_isAddingNewCategory ? 'Select Existing' : 'Add New', style: const TextStyle(color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.bold)),
+                    onTap: _isSaving ? null : () => setState(() => _isAddingNewCategory = !_isAddingNewCategory),
+                    child: Text(
+                      _isAddingNewCategory ? 'Select Existing' : 'Add New',
+                      style: TextStyle(
+                        color: _isSaving ? AppColors.secondaryText : AppColors.primaryOrange,
+                        fontSize: 12,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                   ),
                 ],
               ),
               const SizedBox(height: 8),
               if (_isAddingNewCategory)
                 TextField(
+                  enabled: !_isSaving,
                   controller: _newCategoryController,
                   maxLength: 20,
                   inputFormatters: [
@@ -1925,9 +1947,11 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                 DropdownButtonFormField<String>(
                   initialValue: _category,
                   items: categories.map((category) => DropdownMenuItem(value: category, child: Text(category))).toList(),
-                  onChanged: (value) {
-                    if (value != null) setState(() => _category = value);
-                  },
+                  onChanged: _isSaving
+                      ? null
+                      : (value) {
+                          if (value != null) setState(() => _category = value);
+                        },
                   decoration: _fieldDecoration(null),
                 ),
               const SizedBox(height: 14),
@@ -1948,6 +1972,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                       const Text('Bulk Price (₱) *', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
                       const SizedBox(height: 8),
                       TextField(
+                        enabled: !_isSaving,
                         controller: _bulkPriceController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         inputFormatters: [
@@ -1971,6 +1996,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                                 ),
                                 const SizedBox(height: 8),
                                 TextField(
+                                  enabled: !_isSaving,
                                   controller: _pcsPerBulkController,
                                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                   inputFormatters: [
@@ -1994,6 +2020,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                                 ),
                                 const SizedBox(height: 8),
                                 TextField(
+                                  enabled: !_isSaving,
                                   controller: _numberOfBulkController,
                                   keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                   inputFormatters: [
@@ -2022,7 +2049,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                         const SizedBox(height: 8),
                         TextField(
                           controller: _capitalController,
-                          enabled: !_isBulkMode,
+                          enabled: !_isBulkMode && !_isSaving,
                           readOnly: _isBulkMode,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           inputFormatters: [
@@ -2042,6 +2069,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                         Text(_isWeightBased ? 'Price per kg *' : 'Price per pc *', style: const TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
                         const SizedBox(height: 8),
                         TextField(
+                          enabled: !_isSaving,
                           controller: _priceController,
                           keyboardType: const TextInputType.numberWithOptions(decimal: true),
                           inputFormatters: [
@@ -2063,7 +2091,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                   Expanded(
                     child: TextField(
                       controller: _quantityController,
-                      enabled: !_isBulkMode,
+                      enabled: !_isBulkMode && !_isSaving,
                       readOnly: _isBulkMode,
                       keyboardType: const TextInputType.numberWithOptions(decimal: true),
                       inputFormatters: [
@@ -2083,11 +2111,11 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                   if (_isWeightBased) ...[
                     const SizedBox(width: 8),
                     Material(
-                      color: AppColors.primaryOrange,
+                      color: _isSaving ? AppColors.placeholderColor : AppColors.primaryOrange,
                       borderRadius: BorderRadius.circular(8),
                       child: InkWell(
                         borderRadius: BorderRadius.circular(8),
-                        onTap: _isReadingFromScale ? null : _captureWeightFromScale,
+                        onTap: (_isReadingFromScale || _isSaving) ? null : _captureWeightFromScale,
                         child: SizedBox(
                           width: 48,
                           height: 48,
@@ -2106,12 +2134,23 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                 children: [
                   const Text('Barcode (scanned, custom, or auto)', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
                   GestureDetector(
-                    onTap: _generateAutoBarcode,
-                    child: const Row(
+                    onTap: _isSaving ? null : _generateAutoBarcode,
+                    child: Row(
                       children: [
-                        Icon(Icons.auto_awesome, size: 14, color: AppColors.primaryOrange),
-                        SizedBox(width: 4),
-                        Text('Auto Generate', style: TextStyle(fontSize: 12, color: AppColors.primaryOrange, fontWeight: FontWeight.bold)),
+                        Icon(
+                          Icons.auto_awesome,
+                          size: 14,
+                          color: _isSaving ? AppColors.secondaryText : AppColors.primaryOrange,
+                        ),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Auto Generate',
+                          style: TextStyle(
+                            fontSize: 12,
+                            color: _isSaving ? AppColors.secondaryText : AppColors.primaryOrange,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -2122,6 +2161,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                 children: [
                   Expanded(
                     child: TextField(
+                      enabled: !_isSaving,
                       controller: _barcodeController,
                       inputFormatters: [
                         FilteringTextInputFormatter.deny(RegExp(r'\s')),
@@ -2131,11 +2171,11 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                   ),
                   const SizedBox(width: 8),
                   Material(
-                    color: AppColors.primaryOrange,
+                    color: _isSaving ? AppColors.placeholderColor : AppColors.primaryOrange,
                     borderRadius: BorderRadius.circular(8),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(8),
-                      onTap: _scanBarcodeInSheet,
+                      onTap: _isSaving ? null : _scanBarcodeInSheet,
                       child: const SizedBox(width: 48, height: 48, child: Icon(Icons.qr_code_scanner, color: Colors.white)),
                     ),
                   ),
@@ -2148,7 +2188,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                 children: [
                   Expanded(
                     child: GestureDetector(
-                      onTap: _pickExpiryManually,
+                      onTap: _isSaving ? null : _pickExpiryManually,
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
                         decoration: BoxDecoration(color: AppColors.lightPeach, borderRadius: BorderRadius.circular(8)),
@@ -2161,11 +2201,11 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                   ),
                   const SizedBox(width: 8),
                   Material(
-                    color: AppColors.primaryOrange,
+                    color: _isSaving ? AppColors.placeholderColor : AppColors.primaryOrange,
                     borderRadius: BorderRadius.circular(8),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(8),
-                      onTap: _scanExpiry,
+                      onTap: _isSaving ? null : _scanExpiry,
                       child: const SizedBox(width: 48, height: 48, child: Icon(Icons.qr_code_scanner, color: Colors.white)),
                     ),
                   ),

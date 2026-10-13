@@ -18,6 +18,6 @@ class EmployeeDb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const EmployeeDashboard();
+    return EmployeeDashboard(key: EmployeeDashboard.dashboardKey);
   }
 }

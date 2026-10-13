@@ -212,6 +212,24 @@ class AdminUserService extends ChangeNotifier {
     _isInitialized = true;
     _error = null;
     notifyListeners();
+
+    // Automatically purge archived users older than 30 days
+    _purgeExpiredArchivedUsers();
+  }
+
+  void _purgeExpiredArchivedUsers() {
+    final now = DateTime.now();
+    final expiredArchived = _users.where((u) {
+      if (!u.isArchived || u.archivedAt == null) return false;
+      return now.difference(u.archivedAt!).inDays >= 30;
+    }).toList();
+
+    for (final expired in expiredArchived) {
+      permanentlyDeleteUser(expired.id).catchError((e) {
+        debugPrint('Auto-delete 30-day archived user failed for ${expired.id}: $e');
+        return null;
+      });
+    }
   }
 
   Future<void> refresh() async {

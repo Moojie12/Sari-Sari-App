@@ -7,13 +7,13 @@ class PrimaryButton extends StatelessWidget {
   const PrimaryButton({
     super.key,
     required this.label,
-    required this.onPressed,
+    this.onPressed,
     this.height = 46,
     this.isLoading = false,
   });
 
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
   final double height;
   final bool isLoading;
 
@@ -23,7 +23,7 @@ class PrimaryButton extends StatelessWidget {
       width: double.infinity,
       height: height,
       child: ElevatedButton(
-        onPressed: isLoading ? null : onPressed,
+        onPressed: (isLoading || onPressed == null) ? null : onPressed,
         style: ElevatedButton.styleFrom(
           backgroundColor: AppColors.primaryOrange,
           foregroundColor: Colors.white,

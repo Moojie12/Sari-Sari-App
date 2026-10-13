@@ -25,6 +25,7 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
   late final TextEditingController _emailController;
   late final TextEditingController _contactController;
   String? _previewPhotoPath;
+  bool _isSaving = false;
 
   @override
   void initState() {
@@ -82,6 +83,7 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
   }
 
   void _saveChanges() async {
+    if (_isSaving) return;
     final firstName = _firstNameController.text.trim();
     final middleInitial = _middleInitialController.text.trim();
     final lastName = _lastNameController.text.trim();
@@ -114,20 +116,31 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
     if (confirmed != true) return;
     if (!mounted) return;
 
-    if (_previewPhotoPath != null) {
-      await _controller.setPhoto(_previewPhotoPath == '' ? null : _previewPhotoPath);
-    }
-    await _controller.updateProfile(
-      firstName: firstName,
-      middleInitial: middleInitial,
-      lastName: lastName,
-      email: email,
-      contactNumber: contact,
-    );
+    setState(() => _isSaving = true);
+    try {
+      if (_previewPhotoPath != null) {
+        await _controller.setPhoto(_previewPhotoPath == '' ? null : _previewPhotoPath);
+      }
+      await _controller.updateProfile(
+        firstName: firstName,
+        middleInitial: middleInitial,
+        lastName: lastName,
+        email: email,
+        contactNumber: contact,
+      );
 
-    if (!mounted) return;
-    TopNotification.show(context, 'Profile updated successfully.');
-    Navigator.pop(context);
+      if (!mounted) return;
+      TopNotification.show(context, 'Profile updated successfully.');
+      Navigator.pop(context);
+    } catch (e) {
+      if (mounted) {
+        TopNotification.show(context, 'Failed to update profile: $e', isError: true);
+      }
+    } finally {
+      if (mounted) {
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   @override
@@ -139,7 +152,7 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isSaving ? null : () => Navigator.pop(context),
         ),
         title: const Text(
           'Edit Profile',
@@ -162,11 +175,13 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
                     return EditableProfileAvatar(
                       initials: _computedInitials,
                       photoPath: photoToDisplay,
-                      onPhotoChanged: (newPath) {
-                        setState(() {
-                          _previewPhotoPath = newPath ?? '';
-                        });
-                      },
+                      onPhotoChanged: _isSaving
+                          ? null
+                          : (newPath) {
+                              setState(() {
+                                _previewPhotoPath = newPath ?? '';
+                              });
+                            },
                       radius: 46,
                     );
                   },
@@ -216,6 +231,7 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
                           hint: 'First Name',
                           icon: Icons.person_outline,
                           controller: _firstNameController,
+                          enabled: !_isSaving,
                         ),
                       ],
                     ),
@@ -239,6 +255,7 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
                           hint: 'M.I.',
                           textAlign: TextAlign.center,
                           controller: _middleInitialController,
+                          enabled: !_isSaving,
                         ),
                       ],
                     ),
@@ -259,6 +276,7 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
                 hint: 'Last Name',
                 icon: Icons.badge_outlined,
                 controller: _lastNameController,
+                enabled: !_isSaving,
               ),
               const SizedBox(height: 14),
               const Text(
@@ -275,6 +293,7 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
                 icon: Icons.email_outlined,
                 controller: _emailController,
                 keyboardType: TextInputType.emailAddress,
+                enabled: !_isSaving,
               ),
               const SizedBox(height: 14),
               const Text(
@@ -291,12 +310,14 @@ class _EmployeeEditProfilePageState extends State<EmployeeEditProfilePage> {
                 icon: Icons.phone_outlined,
                 controller: _contactController,
                 keyboardType: TextInputType.phone,
+                enabled: !_isSaving,
               ),
               const SizedBox(height: 24),
               PrimaryButton(
-                label: 'Save Changes',
+                label: _isSaving ? 'Saving...' : 'Save Changes',
+                isLoading: _isSaving,
                 height: 48,
-                onPressed: _saveChanges,
+                onPressed: _isSaving ? null : _saveChanges,
               ),
             ],
           ),

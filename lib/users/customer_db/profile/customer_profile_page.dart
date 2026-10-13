@@ -8,7 +8,6 @@ import 'customer_address_controller.dart';
 import '../../../shared/widgets/editable_profile_avatar.dart';
 import 'customer_change_password_page.dart';
 import 'customer_address_page.dart';
-import 'customer_gcash_setting_page.dart';
 import '../chat/customer_chat_page.dart';
 import '../customer_dashboard.dart';
 import '../../../shared/widgets/skeleton.dart';
@@ -156,16 +155,6 @@ class _CustomerProfilePageState extends State<CustomerProfilePage> {
                     Navigator.push(
                       context,
                       MaterialPageRoute(builder: (context) => const CustomerChatPage()),
-                    );
-                  },
-                ),
-                _MenuTile(
-                  icon: Icons.account_balance_wallet_outlined,
-                  label: 'Gcash Payment Method',
-                  onTap: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const CustomerGcashSettingPage()),
                     );
                   },
                 ),

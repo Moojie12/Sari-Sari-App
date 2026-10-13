@@ -86,6 +86,20 @@ class AdminCategoryService extends ChangeNotifier {
     try {
       final supabaseCategories = await _supabaseService.getAllCategories();
       _categories = supabaseCategories.map(_fromSupabaseCategory).toList();
+
+      // Automatically purge archived categories older than 30 days
+      final now = DateTime.now();
+      final expiredArchived = _categories.where((c) {
+        if (!c.isArchived || c.archivedAt == null) return false;
+        return now.difference(c.archivedAt!).inDays >= 30;
+      }).toList();
+
+      for (final expired in expiredArchived) {
+        permanentlyDeleteCategory(expired.id).catchError((e) {
+          debugPrint('Auto-delete 30-day archived category failed for ${expired.id}: $e');
+          return null;
+        });
+      }
     } catch (e) {
       _error = 'Failed to load categories: $e';
       rethrow;

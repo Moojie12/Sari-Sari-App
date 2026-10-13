@@ -134,6 +134,8 @@ class _SignUpPageState extends State<SignUpPage> {
   }
 
   Future<void> _handleSignUp() async {
+    if (_isLoading) return;
+
     final firstName = _firstNameController.text;
     final middleInitial = _middleInitialController.text.trim().toUpperCase();
     final surname = _surnameController.text;
@@ -516,6 +518,7 @@ class _SignUpCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 7),
                       CustomTextField(
+                        enabled: !isLoading,
                         controller: firstNameController,
                         hint: 'First name',
                         icon: Icons.person_outline,
@@ -547,6 +550,7 @@ class _SignUpCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 7),
                       CustomTextField(
+                        enabled: !isLoading,
                         controller: middleInitialController,
                         hint: 'M.I.',
                         icon: Icons.short_text,
@@ -577,6 +581,7 @@ class _SignUpCard extends StatelessWidget {
             ),
             const SizedBox(height: 7),
             CustomTextField(
+              enabled: !isLoading,
               controller: surnameController,
               hint: 'Enter your lastname',
               icon: Icons.person_outline,
@@ -601,6 +606,7 @@ class _SignUpCard extends StatelessWidget {
             ),
             const SizedBox(height: 7),
             CustomTextField(
+              enabled: !isLoading,
               controller: emailController,
               hint: 'Enter your email',
               icon: Icons.email_outlined,
@@ -620,6 +626,7 @@ class _SignUpCard extends StatelessWidget {
             ),
             const SizedBox(height: 7),
             CustomTextField(
+              enabled: !isLoading,
               controller: phoneController,
               hint: 'Enter your phone number',
               icon: Icons.phone_outlined,
@@ -644,6 +651,7 @@ class _SignUpCard extends StatelessWidget {
             ),
             const SizedBox(height: 7),
             CustomTextField(
+              enabled: !isLoading,
               controller: passwordController,
               hint: 'Enter password',
               icon: Icons.lock_outline,
@@ -663,6 +671,7 @@ class _SignUpCard extends StatelessWidget {
             ),
             const SizedBox(height: 7),
             CustomTextField(
+              enabled: !isLoading,
               controller: confirmPasswordController,
               hint: 'Confirm password',
               icon: Icons.lock_outline,
@@ -688,30 +697,30 @@ class _SignUpCard extends StatelessWidget {
                     value: termsAccepted,
                     activeColor: AppColors.primaryOrange,
                     shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(4)),
-                    onChanged: (val) => onTermsAcceptedChanged?.call(val ?? false),
+                    onChanged: isLoading ? null : (val) => onTermsAcceptedChanged?.call(val ?? false),
                   ),
                 ),
                 const SizedBox(width: 8),
                 Expanded(
                   child: GestureDetector(
-                    onTap: () => onTermsAcceptedChanged?.call(!termsAccepted),
+                    onTap: isLoading ? null : () => onTermsAcceptedChanged?.call(!termsAccepted),
                     child: Wrap(
                       crossAxisAlignment: WrapCrossAlignment.center,
                       children: [
-                        const Text(
+                        Text(
                           'I agree to the ',
                           style: TextStyle(
                             fontSize: 12,
-                            color: AppColors.darkText,
+                            color: isLoading ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.darkText,
                           ),
                         ),
                         InkWell(
-                          onTap: onOpenTerms,
-                          child: const Text(
+                          onTap: isLoading ? null : onOpenTerms,
+                          child: Text(
                             'Terms & Conditions & App Permissions',
                             style: TextStyle(
                               fontSize: 12,
-                              color: AppColors.primaryOrange,
+                              color: isLoading ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.primaryOrange,
                               fontWeight: FontWeight.bold,
                               decoration: TextDecoration.underline,
                             ),
@@ -741,7 +750,7 @@ class _SignUpCard extends StatelessWidget {
 
             PrimaryButton(
               label: isLoading ? 'Creating Account...' : 'Sign Up',
-              onPressed: _signUpCardOnPressed,
+              onPressed: isLoading ? null : _signUpCardOnPressed,
               isLoading: isLoading,
             ),
             const SizedBox(height: 14),
@@ -758,16 +767,16 @@ class _SignUpCard extends StatelessWidget {
                     ),
                   ),
                   TextButton(
-                    onPressed: () => Navigator.pop(context),
+                    onPressed: isLoading ? null : () => Navigator.pop(context),
                     style: TextButton.styleFrom(
                       padding: EdgeInsets.zero,
                       minimumSize: const Size(0, 30),
                       tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     ),
-                    child: const Text(
-                      'Sign In',
+                    child: Text(
+                      'Login',
                       style: TextStyle(
-                        color: AppColors.primaryOrange,
+                        color: isLoading ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.primaryOrange,
                         fontSize: 12,
                         fontWeight: FontWeight.w600,
                       ),

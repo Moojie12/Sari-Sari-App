@@ -69,6 +69,46 @@ class NotificationDatabaseService {
     }
   }
 
+  /// Delete a customer notification from Firebase Realtime Database
+  Future<void> deleteCustomerNotification(String userId, String notifId) async {
+    if (userId.isEmpty || notifId.isEmpty) return;
+    try {
+      final db = _authService.database;
+      await db.ref().child('notifications/customers/$userId/$notifId').remove();
+      debugPrint('Deleted customer notification #$notifId from database');
+    } catch (e) {
+      debugPrint('Failed to delete customer notification: $e');
+    }
+  }
+
+  /// Delete multiple customer notifications from Firebase Realtime Database
+  Future<void> deleteCustomerNotifications(String userId, Iterable<String> notifIds) async {
+    if (userId.isEmpty || notifIds.isEmpty) return;
+    try {
+      final db = _authService.database;
+      final updates = <String, dynamic>{};
+      for (final id in notifIds) {
+        updates['notifications/customers/$userId/$id'] = null;
+      }
+      await db.ref().update(updates);
+      debugPrint('Deleted ${notifIds.length} customer notifications from database');
+    } catch (e) {
+      debugPrint('Failed to delete customer notifications: $e');
+    }
+  }
+
+  /// Clear all customer notifications from Firebase Realtime Database
+  Future<void> clearCustomerNotifications(String userId) async {
+    if (userId.isEmpty) return;
+    try {
+      final db = _authService.database;
+      await db.ref().child('notifications/customers/$userId').remove();
+      debugPrint('Cleared all customer notifications from database');
+    } catch (e) {
+      debugPrint('Failed to clear customer notifications: $e');
+    }
+  }
+
   /// Load existing customer notifications from Firebase Realtime Database
   Future<List<CustomerNotification>> loadCustomerNotifications(String userId) async {
     if (userId.isEmpty) return [];

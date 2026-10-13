@@ -6,6 +6,6 @@ class OwnerDb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const OwnerDashboard();
+    return OwnerDashboard(key: OwnerDashboard.dashboardKey);
   }
 }

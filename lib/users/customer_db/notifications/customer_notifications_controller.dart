@@ -15,6 +15,7 @@ class CustomerNotificationsController extends ChangeNotifier {
 
   final NotificationDatabaseService _dbService = NotificationDatabaseService.instance;
   final Set<String> _readIds = {};
+  final Set<String> _dismissedIds = {};
   final List<CustomerNotification> _notifications = [];
   bool _isLoading = false;
 
@@ -24,6 +25,7 @@ class CustomerNotificationsController extends ChangeNotifier {
 
   List<CustomerNotification> get notifications {
     return _notifications
+        .where((n) => !_dismissedIds.contains(n.id))
         .map((n) => n.copyWith(isRead: _readIds.contains(n.id) || n.isRead))
         .toList()
       ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
@@ -45,6 +47,7 @@ class CustomerNotificationsController extends ChangeNotifier {
         // Merge without duplicating
         final existingIds = _notifications.map((n) => n.id).toSet();
         for (final notif in dbNotifs) {
+          if (_dismissedIds.contains(notif.id)) continue;
           if (!existingIds.contains(notif.id)) {
             _notifications.add(notif);
           } else {
@@ -65,6 +68,7 @@ class CustomerNotificationsController extends ChangeNotifier {
             final existingIds = _notifications.map((n) => n.id).toSet();
             bool changed = false;
             for (final notif in realtimeNotifs) {
+              if (_dismissedIds.contains(notif.id)) continue;
               if (!existingIds.contains(notif.id)) {
                 _notifications.add(notif);
                 changed = true;
@@ -120,6 +124,58 @@ class CustomerNotificationsController extends ChangeNotifier {
     }
   }
 
+  /// Clear/delete all notifications that are already marked as read
+  void clearReadNotifications() {
+    final readNotifications = notifications.where((n) => n.isRead).toList();
+    final readIds = readNotifications.map((n) => n.id).toList();
+
+    for (final id in readIds) {
+      _dismissedIds.add(id);
+      _notifications.removeWhere((n) => n.id == id);
+    }
+    notifyListeners();
+
+    final userId = AuthService().currentUser?.uid;
+    if (userId != null && userId.isNotEmpty && readIds.isNotEmpty) {
+      _dbService.deleteCustomerNotifications(userId, readIds).catchError((e) {
+        debugPrint('Failed to delete customer notifications: $e');
+      });
+    }
+  }
+
+  /// Delete a single notification
+  void deleteNotification(String id) {
+    _notifications.removeWhere((n) => n.id == id);
+    _dismissedIds.add(id);
+    _readIds.add(id);
+    notifyListeners();
+
+    final userId = AuthService().currentUser?.uid;
+    if (userId != null && userId.isNotEmpty) {
+      _dbService.deleteCustomerNotification(userId, id).catchError((e) {
+        debugPrint('Failed to delete customer notification: $e');
+      });
+    }
+  }
+
+  /// Delete multiple notifications in batch
+  void deleteNotifications(Iterable<String> ids) {
+    final idList = ids.toList();
+    for (final id in idList) {
+      _notifications.removeWhere((n) => n.id == id);
+      _dismissedIds.add(id);
+      _readIds.add(id);
+    }
+    notifyListeners();
+
+    final userId = AuthService().currentUser?.uid;
+    if (userId != null && userId.isNotEmpty && idList.isNotEmpty) {
+      _dbService.deleteCustomerNotifications(userId, idList).catchError((e) {
+        debugPrint('Failed to delete customer notifications: $e');
+      });
+    }
+  }
+
   /// Add a notification for the customer and persist it to the database
   void addNotification({
     required CustomerNotificationType type,
@@ -151,6 +207,7 @@ class CustomerNotificationsController extends ChangeNotifier {
   void clear() {
     _notifications.clear();
     _readIds.clear();
+    _dismissedIds.clear();
     notifyListeners();
   }
 }

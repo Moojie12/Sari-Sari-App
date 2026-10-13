@@ -25,6 +25,7 @@ class EmployeeNotificationsController extends ChangeNotifier {
   final NotificationDatabaseService _dbService = NotificationDatabaseService.instance;
 
   final Set<String> _readIds = {};
+  final Set<String> _dismissedIds = {};
   final List<EmployeeNotification> _dynamicNotifications = [];
   final List<EmployeeNotification> _mockNotifications = [];
   bool _isLoading = false;
@@ -93,7 +94,10 @@ class EmployeeNotificationsController extends ChangeNotifier {
     final mock = _mockNotifications.map((n) => n.copyWith(isRead: _readIds.contains(n.id)));
     final dynamicNotifs = _dynamicNotifications.map((n) => n.copyWith(isRead: _readIds.contains(n.id)));
 
-    final all = [...derived, ...mock, ...dynamicNotifs]..sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    final all = [...derived, ...mock, ...dynamicNotifs]
+        .where((n) => !_dismissedIds.contains(n.id))
+        .toList()
+      ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
     return all;
   }
 
@@ -196,12 +200,26 @@ class EmployeeNotificationsController extends ChangeNotifier {
   /// Delete a single store notification
   void deleteNotification(String id) {
     _dynamicNotifications.removeWhere((n) => n.id == id);
+    _dismissedIds.add(id);
     _readIds.add(id);
     notifyListeners();
 
     _dbService.deleteStoreNotification(id).catchError((e) {
       debugPrint('Failed to delete store notification: $e');
     });
+  }
+
+  /// Delete multiple notifications in batch
+  void deleteNotifications(Iterable<String> ids) {
+    for (final id in ids) {
+      _dynamicNotifications.removeWhere((n) => n.id == id);
+      _dismissedIds.add(id);
+      _readIds.add(id);
+      _dbService.deleteStoreNotification(id).catchError((e) {
+        debugPrint('Failed to delete store notification: $e');
+      });
+    }
+    notifyListeners();
   }
 
   /// Clear all dynamic store notifications

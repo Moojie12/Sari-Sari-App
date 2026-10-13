@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -6,6 +7,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/services/dashboard_navigation_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/utils/exit_confirmation_dialog.dart';
+import '../../shared/tutorial/staff_tutorial_overlay.dart';
+import '../../shared/tutorial/staff_tutorial_service.dart';
 import 'employee_floating_nav_bar.dart';
 import 'employee_inventory_controller.dart';
 import 'home/employee_home_page.dart';
@@ -35,13 +38,14 @@ import 'profile/employee_profile_controller.dart';
 /// are kept in an [IndexedStack] so switching tabs does not rebuild or
 /// discard their state.
 class EmployeeDashboard extends StatefulWidget {
+  static final GlobalKey<EmployeeDashboardState> dashboardKey = GlobalKey<EmployeeDashboardState>();
   const EmployeeDashboard({super.key});
 
   @override
-  State<EmployeeDashboard> createState() => _EmployeeDashboardState();
+  State<EmployeeDashboard> createState() => EmployeeDashboardState();
 }
 
-class _EmployeeDashboardState extends State<EmployeeDashboard> {
+class EmployeeDashboardState extends State<EmployeeDashboard> {
   int _selectedIndex = 0;
 
   final _inventoryController = EmployeeInventoryController();
@@ -53,6 +57,24 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
   // Whether the floating nav bar is currently shown. Toggled by
   // [_handleScrollNotification] as the active tab's content scrolls.
   bool _isNavBarVisible = true;
+  bool _isTutorialActive = false;
+  Timer? _tutorialStartupTimer;
+
+  void startTutorial() {
+    if (_selectedIndex != 0) {
+      _onDestinationSelected(0);
+    }
+    setState(() {
+      _isNavBarVisible = true;
+      _isTutorialActive = true;
+    });
+  }
+
+  void dismissTutorial() {
+    setState(() {
+      _isTutorialActive = false;
+    });
+  }
 
   @override
   void initState() {
@@ -60,6 +82,17 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
     _restoreSavedTab();
     EmployeeProfileController.instance.loadProfile();
     DashboardNavigationController.instance.addListener(_handleNavigationRequest);
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      final seen = await StaffTutorialService.hasSeenTutorial(isOwner: false);
+      if (!seen && mounted) {
+        _tutorialStartupTimer = Timer(const Duration(milliseconds: 600), () {
+          if (mounted && !_isTutorialActive) {
+            startTutorial();
+          }
+        });
+      }
+    });
   }
 
   Future<void> _restoreSavedTab() async {
@@ -83,6 +116,7 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
 
   @override
   void dispose() {
+    _tutorialStartupTimer?.cancel();
     DashboardNavigationController.instance.removeListener(_handleNavigationRequest);
     _posController.dispose();
     super.dispose();
@@ -275,6 +309,14 @@ class _EmployeeDashboardState extends State<EmployeeDashboard> {
               ),
             ),
           ),
+          // Employee Interactive Onboarding Tutorial Overlay
+          if (_isTutorialActive)
+            Positioned.fill(
+              child: StaffTutorialOverlay(
+                isOwner: false,
+                onDismiss: dismissTutorial,
+              ),
+            ),
         ],
       ),
     ),

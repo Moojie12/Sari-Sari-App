@@ -100,6 +100,8 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
   }
 
   void _handleLogin() async {
+    if (_isLoading) return;
+
     setState(() {
       _adminIdError = null;
       _passwordError = null;
@@ -365,6 +367,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
             ),
             const SizedBox(height: 6),
             CustomTextField(
+              enabled: !_isLoading,
               controller: _adminIdController,
               hint: 'Enter admin ID or email',
               icon: Icons.person_outline_rounded,
@@ -385,6 +388,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
             ),
             const SizedBox(height: 6),
             CustomTextField(
+              enabled: !_isLoading,
               controller: _passwordController,
               hint: 'Enter password',
               icon: Icons.lock_outline_rounded,
@@ -410,19 +414,21 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                       shape: RoundedRectangleBorder(
                         borderRadius: BorderRadius.circular(4),
                       ),
-                      onChanged: (val) {
-                        setState(() => _rememberMe = val ?? true);
-                      },
+                      onChanged: _isLoading
+                          ? null
+                          : (val) {
+                              setState(() => _rememberMe = val ?? true);
+                            },
                     ),
                   ),
                   const SizedBox(width: 8),
                   GestureDetector(
-                    onTap: () => setState(() => _rememberMe = !(_rememberMe == true)),
-                    child: const Text(
+                    onTap: _isLoading ? null : () => setState(() => _rememberMe = !(_rememberMe == true)),
+                    child: Text(
                       'Remember me',
                       style: TextStyle(
                         fontSize: 12,
-                        color: AppColors.darkText,
+                        color: _isLoading ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.darkText,
                         fontWeight: FontWeight.w500,
                       ),
                     ),
@@ -431,23 +437,25 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
               ),
               Flexible(
                 child: TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (context) => const ForgotPasswordPage(),
-                      ),
-                    );
-                  },
+                  onPressed: _isLoading
+                      ? null
+                      : () {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const ForgotPasswordPage(),
+                            ),
+                          );
+                        },
                   style: TextButton.styleFrom(
                     padding: EdgeInsets.zero,
                     minimumSize: const Size(0, 30),
                     tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                   ),
-                  child: const Text(
+                  child: Text(
                     'Forgot password?',
                     style: TextStyle(
-                      color: AppColors.primaryOrange,
+                      color: _isLoading ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.primaryOrange,
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
@@ -462,7 +470,7 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
           // Login Button
           PrimaryButton(
             label: 'Login as Admin',
-            onPressed: _handleLogin,
+            onPressed: _isLoading ? null : _handleLogin,
             isLoading: _isLoading,
             height: isCompact ? 44 : 48,
           ),
@@ -475,20 +483,26 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
           // Quick Portal Navigation
           Center(
             child: TextButton.icon(
-              onPressed: () {
-                Navigator.pushReplacement(
-                  context,
-                  MaterialPageRoute(
-                    settings: const RouteSettings(name: '/login'),
-                    builder: (context) => const CustomerSessionGuard(),
-                  ),
-                );
-              },
-              icon: const Icon(Icons.storefront_rounded, size: 16, color: AppColors.primaryOrange),
-              label: const Text(
+              onPressed: _isLoading
+                  ? null
+                  : () {
+                      Navigator.pushReplacement(
+                        context,
+                        MaterialPageRoute(
+                          settings: const RouteSettings(name: '/login'),
+                          builder: (context) => const CustomerSessionGuard(),
+                        ),
+                      );
+                    },
+              icon: Icon(
+                Icons.storefront_rounded,
+                size: 16,
+                color: _isLoading ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.primaryOrange,
+              ),
+              label: Text(
                 'Customer, Employee & Owner Login',
                 style: TextStyle(
-                  color: AppColors.primaryOrange,
+                  color: _isLoading ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.primaryOrange,
                   fontSize: 12,
                   fontWeight: FontWeight.w600,
                 ),

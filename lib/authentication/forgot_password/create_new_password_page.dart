@@ -45,6 +45,8 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
   }
 
   Future<void> _handleSavePassword() async {
+    if (_isLoading) return;
+
     final password = _passwordController.text;
     final confirmPassword = _confirmPasswordController.text;
 
@@ -253,6 +255,7 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
             ),
             const SizedBox(height: 6),
             CustomTextField(
+              enabled: !_isLoading,
               controller: _passwordController,
               hint: 'Enter new password',
               icon: Icons.lock_outline_rounded,
@@ -283,6 +286,7 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
             ),
             const SizedBox(height: 6),
             CustomTextField(
+              enabled: !_isLoading,
               controller: _confirmPasswordController,
               hint: 'Confirm new password',
               icon: Icons.lock_clock_outlined,
@@ -300,7 +304,7 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
 
             PrimaryButton(
               label: _isLoading ? 'Updating...' : 'Save New Password',
-              onPressed: _handleSavePassword,
+              onPressed: _isLoading ? null : _handleSavePassword,
               isLoading: _isLoading,
               height: isCompact ? 44 : 48,
             ),
@@ -308,16 +312,16 @@ class _CreateNewPasswordPageState extends State<CreateNewPasswordPage> {
 
             Center(
               child: TextButton.icon(
-                onPressed: () => Navigator.popUntil(context, (route) => route.isFirst),
-                icon: const Icon(
+                onPressed: _isLoading ? null : () => Navigator.popUntil(context, (route) => route.isFirst),
+                icon: Icon(
                   Icons.arrow_back_rounded,
                   size: 16,
-                  color: AppColors.primaryOrange,
+                  color: _isLoading ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.primaryOrange,
                 ),
-                label: const Text(
+                label: Text(
                   'Back to Login',
                   style: TextStyle(
-                    color: AppColors.primaryOrange,
+                    color: _isLoading ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.primaryOrange,
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
                   ),

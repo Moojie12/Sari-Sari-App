@@ -22,10 +22,12 @@ class EmployeeEditProductPage extends StatefulWidget {
     super.key,
     required this.inventory,
     required this.product,
+    this.isDialog = false,
   });
 
   final EmployeeInventoryController inventory;
   final EmployeeProduct product;
+  final bool isDialog;
 
   @override
   State<EmployeeEditProductPage> createState() => _EmployeeEditProductPageState();
@@ -206,6 +208,8 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
   }
 
   void _save() async {
+    if (_isSaving) return;
+
     final name = _nameController.text.trim();
     final barcode = _barcodeController.text.trim();
     final thresholdText = _thresholdController.text.trim();
@@ -226,8 +230,8 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
     setState(() {
       if (name.isEmpty) {
         _nameError = 'Product name is required.';
-      } else if (name.length > 20) {
-        _nameError = 'Max 20 characters allowed.';
+      } else if (name.length > 50) {
+        _nameError = 'Max 50 characters allowed.';
       } else if (name.contains('  ')) {
         _nameError = 'Double spaces are not allowed.';
       } else {
@@ -378,6 +382,177 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
   Widget build(BuildContext context) {
     final categories = widget.inventory.categories.where((c) => c != 'All').toList();
 
+    if (widget.isDialog) {
+      final screenWidth = MediaQuery.of(context).size.width;
+      final dialogWidth = screenWidth < 720 ? screenWidth * 0.95 : 680.0;
+
+      return Dialog(
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        clipBehavior: Clip.antiAlias,
+        backgroundColor: Colors.white,
+        child: SizedBox(
+          width: dialogWidth,
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.90,
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Modal Header
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryOrange.withValues(alpha: 0.06),
+                    border: const Border(bottom: BorderSide(color: AppColors.borderColor)),
+                  ),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: AppColors.primaryOrange,
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: const Icon(Icons.edit_note, color: Colors.white, size: 22),
+                      ),
+                      const SizedBox(width: 12),
+                      const Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'Edit Product',
+                              style: TextStyle(
+                                fontSize: 17,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.darkText,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            Text(
+                              'Modify product details, pricing, and barcode',
+                              style: TextStyle(
+                                fontSize: 11,
+                                color: AppColors.secondaryText,
+                              ),
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        icon: const Icon(Icons.close, size: 20),
+                        onPressed: () => Navigator.pop(context),
+                        splashRadius: 20,
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
+                  ),
+                ),
+                // Modal Scrollable Body
+                Flexible(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 20),
+                    child: _buildFormContent(categories, showBottomButton: false),
+                  ),
+                ),
+                // Modal Footer
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
+                  decoration: const BoxDecoration(
+                    color: Color(0xFFF9FAFB),
+                    border: Border(top: BorderSide(color: AppColors.borderColor)),
+                  ),
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isNarrow = constraints.maxWidth < 360;
+                      if (isNarrow) {
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton(
+                                onPressed: () => Navigator.pop(context),
+                                style: OutlinedButton.styleFrom(
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                  side: const BorderSide(color: AppColors.borderColor),
+                                ),
+                                child: const Text(
+                                  'Cancel',
+                                  style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w600),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: ElevatedButton(
+                                onPressed: _isSaving ? null : _save,
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: AppColors.primaryOrange,
+                                  padding: const EdgeInsets.symmetric(vertical: 12),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                child: _isSaving
+                                    ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                    : const FittedBox(
+                                        fit: BoxFit.scaleDown,
+                                        child: Row(
+                                          mainAxisAlignment: MainAxisAlignment.center,
+                                          children: [
+                                            Icon(Icons.check, color: Colors.white, size: 18),
+                                            SizedBox(width: 6),
+                                            Text('Save Changes', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                                          ],
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ],
+                        );
+                      }
+                      return Row(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          OutlinedButton(
+                            onPressed: () => Navigator.pop(context),
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                              side: const BorderSide(color: AppColors.borderColor),
+                            ),
+                            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText, fontWeight: FontWeight.w600)),
+                          ),
+                          const SizedBox(width: 12),
+                          ElevatedButton.icon(
+                            onPressed: _isSaving ? null : _save,
+                            icon: _isSaving
+                                ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2))
+                                : const Icon(Icons.check, color: Colors.white, size: 18),
+                            label: Text(_isSaving ? 'Saving...' : 'Save Changes', style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                            style: ElevatedButton.styleFrom(
+                              backgroundColor: AppColors.primaryOrange,
+                              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                            ),
+                          ),
+                        ],
+                      );
+                    },
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+    }
+
     return Scaffold(
       backgroundColor: AppColors.lightBackground,
       appBar: AppBar(
@@ -388,12 +563,18 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
+        child: _buildFormContent(categories, showBottomButton: true),
+      ),
+    );
+  }
+
+  Widget _buildFormContent(List<String> categories, {required bool showBottomButton}) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
             Center(
               child: GestureDetector(
-                onTap: _pickImage,
+                onTap: _isSaving ? null : _pickImage,
                 child: Container(
                   width: 120,
                   height: 120,
@@ -444,10 +625,11 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
             const Text('Product Name *', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
             const SizedBox(height: 8),
             TextField(
+              enabled: !_isSaving,
               controller: _nameController,
-              maxLength: 20,
+              maxLength: 50,
               inputFormatters: [
-                NoDoubleSpaceAndMax20Formatter(maxLength: 20),
+                NoDoubleSpaceAndMax20Formatter(maxLength: 50),
               ],
               onChanged: (_) {
                 if (_nameError != null) setState(() => _nameError = null);
@@ -460,14 +642,22 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
               children: [
                 const Text('Category', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
                 GestureDetector(
-                  onTap: () => setState(() => _isAddingNewCategory = !_isAddingNewCategory),
-                  child: Text(_isAddingNewCategory ? 'Select Existing' : 'Add New', style: const TextStyle(color: AppColors.primaryOrange, fontSize: 12, fontWeight: FontWeight.bold)),
+                  onTap: _isSaving ? null : () => setState(() => _isAddingNewCategory = !_isAddingNewCategory),
+                  child: Text(
+                    _isAddingNewCategory ? 'Select Existing' : 'Add New',
+                    style: TextStyle(
+                      color: _isSaving ? AppColors.secondaryText : AppColors.primaryOrange,
+                      fontSize: 12,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
                 ),
               ],
             ),
             const SizedBox(height: 8),
             if (_isAddingNewCategory)
               TextField(
+                enabled: !_isSaving,
                 controller: _newCategoryController,
                 maxLength: 20,
                 inputFormatters: [
@@ -482,9 +672,11 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
               DropdownButtonFormField<String>(
                 initialValue: _category,
                 items: categories.map((category) => DropdownMenuItem(value: category, child: Text(category))).toList(),
-                onChanged: (value) {
-                  if (value != null) setState(() => _category = value);
-                },
+                onChanged: _isSaving
+                    ? null
+                    : (value) {
+                        if (value != null) setState(() => _category = value);
+                      },
                 decoration: _fieldDecoration(null),
               ),
             const SizedBox(height: 16),
@@ -522,6 +714,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                       Text(_isWeightBased ? 'Price per kg *' : 'Price per pc *', style: const TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
                       const SizedBox(height: 8),
                       TextField(
+                        enabled: !_isSaving,
                         controller: _sellingPriceController,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         inputFormatters: [
@@ -544,6 +737,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
             const Text('Low Stock Alert', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
             const SizedBox(height: 8),
             TextField(
+              enabled: !_isSaving,
               controller: _thresholdController,
               keyboardType: TextInputType.number,
               inputFormatters: [
@@ -588,9 +782,10 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
               children: [
                 Expanded(
                   child: TextField(
+                    enabled: !_isSaving,
                     controller: _barcodeController,
                     readOnly: !_isBarcodeEditingEnabled,
-                    onTap: _isBarcodeEditingEnabled ? null : () async {
+                    onTap: (_isBarcodeEditingEnabled || _isSaving) ? null : () async {
                       final confirmed = await _showBarcodeEditConfirmation();
                       if (confirmed == true) {
                         setState(() => _isBarcodeEditingEnabled = true);
@@ -606,11 +801,11 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                 if (_isBarcodeEditingEnabled) ...[
                   const SizedBox(width: 8),
                   Material(
-                    color: AppColors.primaryOrange,
+                    color: _isSaving ? AppColors.placeholderColor : AppColors.primaryOrange,
                     borderRadius: BorderRadius.circular(8),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(8),
-                      onTap: _onScanBarcode,
+                      onTap: _isSaving ? null : _onScanBarcode,
                       child: const SizedBox(width: 48, height: 48, child: Icon(Icons.qr_code_scanner, color: Colors.white)),
                     ),
                   ),
@@ -621,37 +816,37 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                     borderRadius: BorderRadius.circular(8),
                     child: InkWell(
                       borderRadius: BorderRadius.circular(8),
-                      onTap: _onScanBarcode,
+                      onTap: _isSaving ? null : _onScanBarcode,
                       child: const SizedBox(width: 48, height: 48, child: Icon(Icons.qr_code_scanner, color: AppColors.secondaryText)),
                     ),
                   ),
                 ],
               ],
             ),
-            const SizedBox(height: 32),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _isSaving ? null : _save,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryOrange,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+            if (showBottomButton) ...[
+              const SizedBox(height: 32),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _isSaving ? null : _save,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryOrange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: _isSaving
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                        )
+                      : const Text('Save Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
-                child: _isSaving
-                    ? const SizedBox(
-                        width: 20,
-                        height: 20,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
-                      )
-                    : const Text('Save Changes', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
               ),
-            ),
+            ],
           ],
-        ),
-      ),
-    );
+        );
   }
 
   InputDecoration _fieldDecoration(String? hint, {String? prefixText, String? errorText, Widget? suffixIcon, String? counterText}) {

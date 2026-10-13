@@ -35,6 +35,8 @@ class _CustomerChangePasswordPageState extends State<CustomerChangePasswordPage>
   }
 
   void _submit() async {
+    if (_isLoading) return;
+
     final current = _currentPasswordController.text;
     final newPassword = _newPasswordController.text;
     final confirm = _confirmPasswordController.text;
@@ -122,7 +124,7 @@ class _CustomerChangePasswordPageState extends State<CustomerChangePasswordPage>
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isLoading ? null : () => Navigator.pop(context),
         ),
         title: const Text(
           'Change Password',
@@ -141,6 +143,7 @@ class _CustomerChangePasswordPageState extends State<CustomerChangePasswordPage>
               ),
               const SizedBox(height: 20),
               CustomTextField(
+                enabled: !_isLoading,
                 hint: 'Current Password',
                 icon: Icons.lock_outline,
                 isPassword: true,
@@ -154,6 +157,7 @@ class _CustomerChangePasswordPageState extends State<CustomerChangePasswordPage>
               ),
               const SizedBox(height: 14),
               CustomTextField(
+                enabled: !_isLoading,
                 hint: 'New Password',
                 icon: Icons.lock_outline,
                 isPassword: true,
@@ -173,6 +177,7 @@ class _CustomerChangePasswordPageState extends State<CustomerChangePasswordPage>
               ),
               const SizedBox(height: 14),
               CustomTextField(
+                enabled: !_isLoading,
                 hint: 'Confirm New Password',
                 icon: Icons.lock_outline,
                 isPassword: true,
@@ -197,7 +202,7 @@ class _CustomerChangePasswordPageState extends State<CustomerChangePasswordPage>
                 label: _isLoading ? 'Updating...' : 'Update Password',
                 isLoading: _isLoading,
                 height: 48,
-                onPressed: _submit,
+                onPressed: _isLoading ? null : _submit,
               ),
             ],
           ),

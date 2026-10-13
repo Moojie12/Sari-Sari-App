@@ -83,7 +83,9 @@ class _EmployeeBatchDetailSheetState extends State<EmployeeBatchDetailSheet> {
                       style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText),
                     ),
                     const SizedBox(height: 4),
-                    Row(
+                    Wrap(
+                      crossAxisAlignment: WrapCrossAlignment.center,
+                      spacing: 4,
                       children: [
                         const Text('Barcode: ', style: TextStyle(color: AppColors.secondaryText, fontSize: 12)),
                         Text(

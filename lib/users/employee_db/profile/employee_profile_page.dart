@@ -15,6 +15,7 @@ import 'employee_profile_model.dart';
 import '../../owner_db/history/owner_history_page.dart';
 import '../../../shared/widgets/editable_profile_avatar.dart';
 import '../../../shared/widgets/terms_and_conditions_page.dart';
+import '../employee_dashboard.dart';
 
 /// Employee "Profile" tab: a menu into every Employee Profile feature —
 /// Profile Information, Edit Profile, Messages, Notifications, Change
@@ -186,6 +187,19 @@ class _EmployeeProfilePageState extends State<EmployeeProfilePage> {
                   ],
                 );
               },
+            ),
+            const SizedBox(height: 24),
+            _MenuCard(
+              children: [
+                _MenuTile(
+                  icon: Icons.help_outline_rounded,
+                  label: 'View Tutorial',
+                  isLast: true,
+                  onTap: () {
+                    EmployeeDashboard.dashboardKey.currentState?.startTutorial();
+                  },
+                ),
+              ],
             ),
             const SizedBox(height: 24),
             _MenuCard(

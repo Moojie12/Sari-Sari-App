@@ -35,6 +35,8 @@ import './sections/activity_section.dart';
 import './sections/archived_section.dart';
 import '../../users/employee_db/employee_inventory_controller.dart';
 import '../../users/employee_db/inventory/employee_archive_stock_dialog.dart';
+import '../../users/employee_db/inventory/employee_edit_product_page.dart';
+import '../../users/employee_db/inventory/employee_product_model.dart';
 
 class AdminDashboard extends StatefulWidget {
   const AdminDashboard({super.key});
@@ -415,6 +417,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                           fieldLabel('First Name *'),
                                           TextFormField(
                                             controller: firstNameController,
+                                            enabled: !isSubmitting,
                                             onChanged: (_) => setModalState(() {}),
                                             decoration: liveInputDecoration(
                                               icon: Icons.person_outline_rounded,
@@ -436,6 +439,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                           fieldLabel('M.I.'),
                                           TextFormField(
                                             controller: middleInitialController,
+                                            enabled: !isSubmitting,
                                             onChanged: (_) => setModalState(() {}),
                                             textCapitalization: TextCapitalization.characters,
                                             decoration: liveInputDecoration(
@@ -457,6 +461,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                 fieldLabel('Surname / Last Name *'),
                                 TextFormField(
                                   controller: surnameController,
+                                  enabled: !isSubmitting,
                                   onChanged: (_) => setModalState(() {}),
                                   decoration: liveInputDecoration(
                                     icon: Icons.badge_outlined,
@@ -473,6 +478,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                   fieldLabel('Email Address *'),
                                   TextFormField(
                                     controller: emailController,
+                                    enabled: !isSubmitting,
                                     onChanged: (_) => setModalState(() {}),
                                     keyboardType: TextInputType.emailAddress,
                                     decoration: liveInputDecoration(
@@ -487,6 +493,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                   fieldLabel('Phone Number *'),
                                   TextFormField(
                                     controller: phoneController,
+                                    enabled: !isSubmitting,
                                     onChanged: (_) => setModalState(() {}),
                                     keyboardType: TextInputType.phone,
                                     decoration: liveInputDecoration(
@@ -508,6 +515,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                             fieldLabel('Email Address *'),
                                             TextFormField(
                                               controller: emailController,
+                                              enabled: !isSubmitting,
                                               onChanged: (_) => setModalState(() {}),
                                               keyboardType: TextInputType.emailAddress,
                                               decoration: liveInputDecoration(
@@ -529,6 +537,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                             fieldLabel('Phone Number *'),
                                             TextFormField(
                                               controller: phoneController,
+                                              enabled: !isSubmitting,
                                               onChanged: (_) => setModalState(() {}),
                                               keyboardType: TextInputType.phone,
                                               decoration: liveInputDecoration(
@@ -577,12 +586,14 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                                 size: 18,
                                                 color: AppColors.placeholderColor,
                                               ),
-                                              onPressed: () => setModalState(() => showTempPassword = !showTempPassword),
+                                              onPressed: isSubmitting ? null : () => setModalState(() => showTempPassword = !showTempPassword),
                                               tooltip: showTempPassword ? 'Hide password' : 'Show password',
                                             ),
                                             IconButton(
                                               icon: const Icon(Icons.copy_rounded, size: 18, color: AppColors.primaryOrange),
-                                              onPressed: () {
+                                              onPressed: isSubmitting
+                                                  ? null
+                                                  : () {
                                                 Clipboard.setData(ClipboardData(text: tempPassword));
                                                 TopNotification.show(context, 'Temporary password copied to clipboard');
                                               },
@@ -624,11 +635,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                       ),
                                     );
                                   }).toList(),
-                                  onChanged: (val) {
-                                    if (val != null) {
-                                      setModalState(() => selectedRole = val);
-                                    }
-                                  },
+                                  onChanged: isSubmitting
+                                      ? null
+                                      : (val) {
+                                          if (val != null) {
+                                            setModalState(() => selectedRole = val);
+                                          }
+                                        },
                                 ),
                               ],
                             ),
@@ -989,18 +1002,62 @@ class _AdminDashboardState extends State<AdminDashboard> {
   Future<void> _showProductForm(BuildContext context, [AdminProduct? product]) async {
     if (!mounted) return;
 
-    final isEdit = product != null;
+    if (product != null) {
+      // Find or build corresponding EmployeeProduct for editing
+      var empProduct = EmployeeInventoryController.instance.findById(product.id);
+      if (empProduct == null) {
+        await EmployeeInventoryController.instance.reloadProducts();
+        if (!mounted) return;
+        empProduct = EmployeeInventoryController.instance.findById(product.id);
+      }
+
+      if (empProduct == null) {
+        final isWeightBased = product.unit.toLowerCase() == 'kg' || product.unit.toLowerCase() == 'de kilo';
+        empProduct = EmployeeProduct(
+          id: product.id,
+          name: product.name,
+          category: product.categoryName.isNotEmpty ? product.categoryName : product.categoryId,
+          price: product.price,
+          capital: product.cost,
+          unit: product.unit,
+          barcode: product.barcode,
+          image: product.image,
+          batches: const [],
+          lowStockThreshold: product.lowStockThreshold,
+          isWeightBased: isWeightBased,
+        );
+      }
+
+      if (!context.mounted) return;
+      await showDialog<bool>(
+        context: context,
+        builder: (dialogCtx) => EmployeeEditProductPage(
+          inventory: EmployeeInventoryController.instance,
+          product: empProduct!,
+          isDialog: true,
+        ),
+      );
+
+      if (mounted) {
+        await _productService.refresh();
+        await EmployeeInventoryController.instance.reloadProducts();
+        if (mounted) setState(() {});
+      }
+      return;
+    }
+
     final formKey = GlobalKey<FormState>();
-    final nameController = TextEditingController(text: product?.name ?? '');
-    final barcodeController = TextEditingController(text: product?.barcode ?? '');
-    final descriptionController = TextEditingController(text: product?.description ?? '');
-    final priceController = TextEditingController(text: product?.price != null ? product!.price.toString() : '');
-    final costController = TextEditingController(text: product?.cost != null ? product!.cost.toString() : '');
-    final quantityController = TextEditingController(text: product?.quantity != null ? product!.quantity.toString() : '1');
-    final thresholdController = TextEditingController(text: product?.lowStockThreshold != null ? product!.lowStockThreshold.round().clamp(0, 99).toString() : '5');
+    final nameController = TextEditingController(text: '');
+    final barcodeController = TextEditingController(text: '');
+    final descriptionController = TextEditingController(text: '');
+    final priceController = TextEditingController(text: '');
+    final costController = TextEditingController(text: '');
+    final quantityController = TextEditingController(text: '1');
+    final thresholdController = TextEditingController(text: '5');
 
     // Bulk Purchase Entry Calculator
     bool isBulkMode = false;
+    bool isSubmitting = false;
     final bulkPriceController = TextEditingController();
     final pcsPerBulkController = TextEditingController();
     final numberOfBulkController = TextEditingController();
@@ -1167,29 +1224,27 @@ class _AdminDashboardState extends State<AdminDashboard> {
                             color: AppColors.primaryOrange,
                             borderRadius: BorderRadius.circular(12),
                           ),
-                          child: Icon(
-                            isEdit ? Icons.edit_note : Icons.add_box_outlined,
+                          child: const Icon(
+                            Icons.add_box_outlined,
                             color: Colors.white,
                             size: 22,
                           ),
                         ),
                         const SizedBox(width: 14),
-                        Column(
+                        const Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              isEdit ? 'Edit Product' : 'Add Product',
-                              style: const TextStyle(
+                              'Add Product',
+                              style: TextStyle(
                                 fontSize: 18,
                                 fontWeight: FontWeight.bold,
                                 color: AppColors.darkText,
                               ),
                             ),
                             Text(
-                              isEdit
-                                  ? 'Modify details and stock settings'
-                                  : 'Fill in product details and initial inventory',
-                              style: const TextStyle(
+                              'Fill in product details and initial inventory',
+                              style: TextStyle(
                                 fontSize: 12,
                                 color: AppColors.secondaryText,
                               ),
@@ -1399,9 +1454,10 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                     children: [
                                       TextFormField(
                                         controller: nameController,
-                                        maxLength: 20,
+                                          enabled: !isSubmitting,
+                                        maxLength: 50,
                                         inputFormatters: [
-                                          NoDoubleSpaceAndMax20Formatter(maxLength: 20),
+                                          NoDoubleSpaceAndMax20Formatter(maxLength: 50),
                                         ],
                                         decoration: const InputDecoration(
                                           labelText: 'Product Name',
@@ -1411,7 +1467,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                         ),
                                         validator: (value) {
                                           if (value == null || value.trim().isEmpty) return 'Product name is required';
-                                          if (value.length > 20) return 'Max 20 characters allowed';
+                                          if (value.length > 50) return 'Max 50 characters allowed';
                                           if (value.contains('  ')) return 'Double spaces not allowed';
                                           return null;
                                         },
@@ -1440,7 +1496,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                                     )),
                                               ],
                                               validator: (value) => (value == null || value.isEmpty) ? 'Please select a category' : null,
-                                              onChanged: (val) => setDialogState(() => selectedCategoryId = val ?? ''),
+                                              onChanged: isSubmitting ? null : (val) => setDialogState(() => selectedCategoryId = val ?? ''),
                                             ),
                                           ),
                                           const SizedBox(width: 6),
@@ -1499,6 +1555,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                           Expanded(
                                             child: TextFormField(
                                               controller: barcodeController,
+                                                enabled: !isSubmitting,
                                               decoration: const InputDecoration(
                                                 labelText: 'Barcode',
                                                 hintText: 'Scan or type barcode',
@@ -1585,6 +1642,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                           Expanded(
                                             child: TextFormField(
                                               controller: priceController,
+                                                enabled: !isSubmitting,
                                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                               decoration: const InputDecoration(
                                                 labelText: 'Selling Price (₱)',
@@ -1602,6 +1660,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                           Expanded(
                                             child: TextFormField(
                                               controller: costController,
+                                                enabled: !isSubmitting,
                                               keyboardType: const TextInputType.numberWithOptions(decimal: true),
                                               decoration: const InputDecoration(
                                                 labelText: 'Capital / Cost (₱)',
@@ -1626,7 +1685,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                               controller: quantityController,
                                               keyboardType: TextInputType.numberWithOptions(decimal: isWeightBased),
                                               decoration: InputDecoration(
-                                                labelText: isEdit ? 'Current Stock' : 'Initial Stock',
+                                                labelText: 'Initial Stock',
                                                 hintText: isWeightBased ? 'e.g. 2.5' : 'e.g. 50',
                                                 suffixText: selectedUnit,
                                                 prefixIcon: const Icon(Icons.numbers_outlined, size: 20),
@@ -1645,6 +1704,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                           Expanded(
                                             child: TextFormField(
                                               controller: thresholdController,
+                                                enabled: !isSubmitting,
                                               keyboardType: TextInputType.number,
                                               inputFormatters: [
                                                 FilteringTextInputFormatter.digitsOnly,
@@ -1767,6 +1827,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                       // Description Field
                                       TextFormField(
                                         controller: descriptionController,
+                                          enabled: !isSubmitting,
                                         maxLines: 2,
                                         decoration: const InputDecoration(
                                           labelText: 'Description (Optional)',
@@ -1801,8 +1862,13 @@ class _AdminDashboardState extends State<AdminDashboard> {
                         ),
                         const SizedBox(width: 12),
                         ElevatedButton.icon(
-                          onPressed: () async {
-                            if (!formKey.currentState!.validate()) return;
+                          onPressed: isSubmitting
+                              ? null
+                              : () async {
+                                  if (isSubmitting) return;
+                                  if (!formKey.currentState!.validate()) return;
+
+                                  setDialogState(() => isSubmitting = true);
 
                             final price = double.tryParse(priceController.text.trim()) ?? 0.0;
                             final cost = double.tryParse(costController.text.trim()) ?? 0.0;
@@ -1821,7 +1887,7 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                   } else {
                                     try {
                                       final uploadedUrl = await SupabaseService().uploadProductImageFromPathOrBytes(
-                                        productId: isEdit ? product.id : (nameController.text.trim().isNotEmpty ? nameController.text.trim() : 'prod'),
+                                        productId: (nameController.text.trim().isNotEmpty ? nameController.text.trim() : 'prod'),
                                         filePath: trimmedPath,
                                       );
                                       if (uploadedUrl != null &&
@@ -1857,46 +1923,25 @@ class _AdminDashboardState extends State<AdminDashboard> {
                                 }
                               }
 
-                              final shouldClearImage = isImageChanged && (finalImageUrl == null || finalImageUrl.trim().isEmpty);
-
-                              String? error;
-                              if (isEdit) {
-                                error = await _productService.updateProduct(
-                                  id: product.id,
-                                  name: nameController.text.trim(),
-                                  barcode: barcodeController.text.trim(),
-                                  description: descriptionController.text.trim(),
-                                  price: price,
-                                  cost: cost,
-                                  quantity: qty,
-                                  unit: selectedUnit,
-                                  categoryId: selectedCategoryId,
-                                  expirationDate: expiryDate,
-                                  lowStockThreshold: threshold,
-                                  image: finalImageUrl,
-                                  clearImage: shouldClearImage,
-                                );
-                              } else {
-                                error = await _productService.createProduct(
-                                  name: nameController.text.trim(),
-                                  barcode: barcodeController.text.trim(),
-                                  description: descriptionController.text.trim(),
-                                  price: price,
-                                  cost: cost,
-                                  quantity: qty,
-                                  unit: selectedUnit,
-                                  categoryId: selectedCategoryId,
-                                  expirationDate: expiryDate,
-                                  lowStockThreshold: threshold,
-                                  image: finalImageUrl,
-                                );
-                              }
+                              final error = await _productService.createProduct(
+                                name: nameController.text.trim(),
+                                barcode: barcodeController.text.trim(),
+                                description: descriptionController.text.trim(),
+                                price: price,
+                                cost: cost,
+                                quantity: qty,
+                                unit: selectedUnit,
+                                categoryId: selectedCategoryId,
+                                expirationDate: expiryDate,
+                                lowStockThreshold: threshold,
+                                image: finalImageUrl,
+                              );
 
                               if (mounted && dialogContext.mounted) {
                                 if (error == null) {
                                   TopNotification.show(
                                     context,
-                                    'Product ${isEdit ? 'updated' : 'added'} successfully',
+                                    'Product added successfully',
                                   );
                                   Navigator.pop(dialogContext, true);
                                   await EmployeeInventoryController.instance.reloadProducts();
@@ -1909,11 +1954,21 @@ class _AdminDashboardState extends State<AdminDashboard> {
                               if (mounted && dialogContext.mounted) {
                                 TopNotification.show(context, 'Error: $e', isError: true);
                               }
+                            } finally {
+                              if (mounted && dialogContext.mounted) {
+                                setDialogState(() => isSubmitting = false);
+                              }
                             }
                           },
-                          icon: Icon(isEdit ? Icons.save_outlined : Icons.add, color: Colors.white, size: 18),
+                          icon: isSubmitting
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                )
+                              : const Icon(Icons.add, color: Colors.white, size: 18),
                           label: Text(
-                            isEdit ? 'Update Product' : 'Add Product',
+                            isSubmitting ? 'Adding Product...' : 'Add Product',
                             style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
                           ),
                           style: ElevatedButton.styleFrom(
@@ -2130,102 +2185,124 @@ class _AdminDashboardState extends State<AdminDashboard> {
     final nameController = TextEditingController(text: category?.name ?? '');
     final descriptionController = TextEditingController(text: category?.description ?? '');
 
+    bool isSubmitting = false;
+
     await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        title: Text(isEdit ? 'Edit Category' : 'Add Category'),
-        content: SingleChildScrollView(
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: 'Category Name',
-                    icon: Icon(Icons.category_outlined),
+      builder: (context) => StatefulBuilder(
+        builder: (dialogCtx, setDialogState) => AlertDialog(
+          title: Text(isEdit ? 'Edit Category' : 'Add Category'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: formKey,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: nameController,
+                    enabled: !isSubmitting,
+                    decoration: const InputDecoration(
+                      labelText: 'Category Name',
+                      icon: Icon(Icons.category_outlined),
+                    ),
+                    maxLength: 20,
+                    inputFormatters: [
+                      NoDoubleSpaceAndMax20Formatter(maxLength: 20),
+                    ],
+                    validator: (value) {
+                      if (value == null || value.trim().isEmpty) {
+                        return 'Please enter category name';
+                      }
+                      if (value.trim().length < 2) {
+                        return 'Category name must be at least 2 characters';
+                      }
+                      return null;
+                    },
                   ),
-                  maxLength: 20,
-                  inputFormatters: [
-                    NoDoubleSpaceAndMax20Formatter(maxLength: 20),
-                  ],
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'Please enter category name';
-                    }
-                    if (value.trim().length < 2) {
-                      return 'Category name must be at least 2 characters';
-                    }
-                    return null;
-                  },
-                ),
-                TextFormField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: 'Description (Optional)',
-                    icon: Icon(Icons.description_outlined),
+                  TextFormField(
+                    controller: descriptionController,
+                    enabled: !isSubmitting,
+                    decoration: const InputDecoration(
+                      labelText: 'Description (Optional)',
+                      icon: Icon(Icons.description_outlined),
+                    ),
+                    maxLines: 2,
                   ),
-                  maxLines: 2,
-                ),
-              ],
+                ],
+              ),
             ),
           ),
+          actions: [
+            TextButton(
+              onPressed: isSubmitting ? null : () => Navigator.pop(context, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: isSubmitting
+                  ? null
+                  : () async {
+                      if (isSubmitting) return;
+                      if (!formKey.currentState!.validate()) return;
+
+                      setDialogState(() => isSubmitting = true);
+                      try {
+                        final name = nameController.text.trim();
+                        final description = descriptionController.text.trim();
+
+                        String? result;
+                        if (isEdit) {
+                          result = await _categoryService.updateCategory(
+                            id: category.id,
+                            name: name,
+                            description: description,
+                          );
+                          await _productService.updateCategory(
+                            id: category.id,
+                            name: name,
+                            description: description,
+                          );
+                        } else {
+                          result = await _categoryService.createCategory(
+                            name: name,
+                            description: description,
+                          );
+                          await _productService.createCategory(
+                            name: name,
+                            description: description,
+                          );
+                        }
+
+                        if (mounted && context.mounted) {
+                          if (result == null) {
+                            TopNotification.show(
+                              context,
+                              isEdit ? 'Category updated successfully' : 'Category created successfully',
+                            );
+                            Navigator.pop(context, true);
+                            setState(() {});
+                          } else {
+                            TopNotification.show(context, result, isError: true);
+                          }
+                        }
+                      } finally {
+                        if (dialogCtx.mounted) {
+                          setDialogState(() => isSubmitting = false);
+                        }
+                      }
+                    },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primaryOrange,
+              ),
+              child: isSubmitting
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                    )
+                  : Text(isEdit ? 'Save' : 'Add'),
+            ),
+          ],
         ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text('Cancel'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (!formKey.currentState!.validate()) return;
-
-              final name = nameController.text.trim();
-              final description = descriptionController.text.trim();
-
-              String? result;
-              if (isEdit) {
-                result = await _categoryService.updateCategory(
-                  id: category.id,
-                  name: name,
-                  description: description,
-                );
-                await _productService.updateCategory(
-                  id: category.id,
-                  name: name,
-                  description: description,
-                );
-              } else {
-                result = await _categoryService.createCategory(
-                  name: name,
-                  description: description,
-                );
-                await _productService.createCategory(
-                  name: name,
-                  description: description,
-                );
-              }
-
-              if (mounted && context.mounted) {
-                if (result == null) {
-                  TopNotification.show(
-                    context,
-                    isEdit ? 'Category updated successfully' : 'Category created successfully',
-                  );
-                  Navigator.pop(context, true);
-                  setState(() {});
-                } else {
-                  TopNotification.show(context, result, isError: true);
-                }
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryOrange,
-            ),
-            child: Text(isEdit ? 'Save' : 'Add'),
-          ),
-        ],
       ),
     );
   }

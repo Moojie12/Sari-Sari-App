@@ -80,6 +80,7 @@ class _OwnerEditProfilePageState extends State<OwnerEditProfilePage> {
   }
 
   void _saveChanges() async {
+    if (_isSaving) return;
     final firstName = _firstNameController.text.trim();
     final middleInitial = _middleInitialController.text.trim();
     final lastName = _lastNameController.text.trim();
@@ -146,7 +147,7 @@ class _OwnerEditProfilePageState extends State<OwnerEditProfilePage> {
         elevation: 0,
         leading: IconButton(
           icon: const Icon(Icons.arrow_back, color: Colors.white),
-          onPressed: () => Navigator.pop(context),
+          onPressed: _isSaving ? null : () => Navigator.pop(context),
         ),
         title: const Text(
           'Edit Owner Profile',
@@ -169,11 +170,13 @@ class _OwnerEditProfilePageState extends State<OwnerEditProfilePage> {
                     return EditableProfileAvatar(
                       initials: _computedInitials,
                       photoPath: photoToDisplay,
-                      onPhotoChanged: (newPath) {
-                        setState(() {
-                          _previewPhotoPath = newPath ?? '';
-                        });
-                      },
+                      onPhotoChanged: _isSaving
+                          ? null
+                          : (newPath) {
+                              setState(() {
+                                _previewPhotoPath = newPath ?? '';
+                              });
+                            },
                       radius: 46,
                     );
                   },
@@ -223,6 +226,7 @@ class _OwnerEditProfilePageState extends State<OwnerEditProfilePage> {
                           hint: 'First Name',
                           icon: Icons.person_outline,
                           controller: _firstNameController,
+                          enabled: !_isSaving,
                         ),
                       ],
                     ),
@@ -246,6 +250,7 @@ class _OwnerEditProfilePageState extends State<OwnerEditProfilePage> {
                           hint: 'M.I.',
                           textAlign: TextAlign.center,
                           controller: _middleInitialController,
+                          enabled: !_isSaving,
                         ),
                       ],
                     ),
@@ -266,6 +271,7 @@ class _OwnerEditProfilePageState extends State<OwnerEditProfilePage> {
                 hint: 'Last Name',
                 icon: Icons.person_outline,
                 controller: _lastNameController,
+                enabled: !_isSaving,
               ),
               const SizedBox(height: 14),
               const Text(
@@ -282,6 +288,7 @@ class _OwnerEditProfilePageState extends State<OwnerEditProfilePage> {
                 icon: Icons.email_outlined,
                 keyboardType: TextInputType.emailAddress,
                 controller: _emailController,
+                enabled: !_isSaving,
               ),
               const SizedBox(height: 14),
               const Text(
@@ -298,12 +305,13 @@ class _OwnerEditProfilePageState extends State<OwnerEditProfilePage> {
                 icon: Icons.phone_outlined,
                 keyboardType: TextInputType.phone,
                 controller: _contactController,
+                enabled: !_isSaving,
               ),
               const SizedBox(height: 28),
               PrimaryButton(
-                label: 'Save Changes',
+                label: _isSaving ? 'Saving...' : 'Save Changes',
                 isLoading: _isSaving,
-                onPressed: _saveChanges,
+                onPressed: _isSaving ? null : _saveChanges,
               ),
             ],
           ),

@@ -117,6 +117,20 @@ class AdminProductService extends ChangeNotifier {
     try {
       final supabaseProducts = await _supabaseService.getProductsWithInventory();
       _products = supabaseProducts.map(_fromSupabaseProduct).toList();
+
+      // Automatically purge archived products older than 30 days
+      final now = DateTime.now();
+      final expiredArchived = _products.where((p) {
+        if (!p.isArchived || p.archivedAt == null) return false;
+        return now.difference(p.archivedAt!).inDays >= 30;
+      }).toList();
+
+      for (final expired in expiredArchived) {
+        permanentlyDeleteProduct(expired.id).catchError((e) {
+          debugPrint('Auto-delete 30-day archived product failed for ${expired.id}: $e');
+          return null;
+        });
+      }
     } catch (e) {
       _error = 'Failed to load products: $e';
       rethrow;
@@ -696,6 +710,7 @@ class AdminProductService extends ChangeNotifier {
       createdAt: data['created_at'] != null ? DateTime.tryParse(data['created_at'] as String) : null,
       updatedAt: data['updated_at'] != null ? DateTime.tryParse(data['updated_at'] as String) : null,
       isArchived: data['is_archived'] as bool? ?? false,
+      archivedAt: data['archived_at'] != null ? DateTime.tryParse(data['archived_at'] as String) : null,
     );
   }
 

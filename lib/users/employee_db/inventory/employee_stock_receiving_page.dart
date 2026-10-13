@@ -1304,9 +1304,9 @@ class _NewProductSheetState extends State<_NewProductSheet> {
               const SizedBox(height: 8),
               TextField(
                 controller: _nameController,
-                maxLength: 20,
+                maxLength: 50,
                 inputFormatters: [
-                  NoDoubleSpaceAndMax20Formatter(maxLength: 20),
+                  NoDoubleSpaceAndMax20Formatter(maxLength: 50),
                 ],
                 onChanged: (_) {
                   if (_nameError != null) setState(() => _nameError = null);

@@ -379,6 +379,8 @@ class _LoginCardFormState extends State<_LoginCardForm> {
   }
 
   void _handleLogin() async {
+    if (_isLoading) return;
+
     setState(() {
       _emailError = null;
       _passwordError = null;
@@ -529,6 +531,7 @@ class _LoginCardFormState extends State<_LoginCardForm> {
           ),
           const SizedBox(height: 7),
           CustomTextField(
+            enabled: !_isLoading,
             controller: _emailController,
             hint: 'Enter your email',
             icon: Icons.email_outlined,
@@ -548,6 +551,7 @@ class _LoginCardFormState extends State<_LoginCardForm> {
           ),
           const SizedBox(height: 7),
           CustomTextField(
+            enabled: !_isLoading,
             controller: _passwordController,
             hint: 'Enter your password',
             icon: Icons.lock_outline,
@@ -561,23 +565,25 @@ class _LoginCardFormState extends State<_LoginCardForm> {
         Align(
           alignment: Alignment.centerLeft,
           child: TextButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => const ForgotPasswordPage(),
-                ),
-              );
-            },
+            onPressed: _isLoading
+                ? null
+                : () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => const ForgotPasswordPage(),
+                      ),
+                    );
+                  },
             style: TextButton.styleFrom(
               padding: EdgeInsets.zero,
               minimumSize: const Size(0, 30),
               tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             ),
-            child: const Text(
+            child: Text(
               'Forgot password?',
               style: TextStyle(
-                color: AppColors.primaryOrange,
+                color: _isLoading ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.primaryOrange,
                 fontSize: 11,
                 fontWeight: FontWeight.w500,
               ),
@@ -587,7 +593,7 @@ class _LoginCardFormState extends State<_LoginCardForm> {
         const SizedBox(height: 10),
         PrimaryButton(
           label: 'Login',
-          onPressed: _handleLogin,
+          onPressed: _isLoading ? null : _handleLogin,
           isLoading: _isLoading,
         ),
         const SizedBox(height: 14),
@@ -604,23 +610,25 @@ class _LoginCardFormState extends State<_LoginCardForm> {
                 ),
               ),
               TextButton(
-                onPressed: () {
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => const SignUpPage(),
-                    ),
-                  );
-                },
+                onPressed: _isLoading
+                    ? null
+                    : () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const SignUpPage(),
+                          ),
+                        );
+                      },
                 style: TextButton.styleFrom(
                   padding: EdgeInsets.zero,
                   minimumSize: const Size(0, 30),
                   tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                 ),
-                child: const Text(
+                child: Text(
                   'Sign Up',
                   style: TextStyle(
-                    color: AppColors.primaryOrange,
+                    color: _isLoading ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.primaryOrange,
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
                   ),
