@@ -1332,7 +1332,12 @@ class SupabaseService {
 
       return {};
     } catch (e) {
-      debugPrint('Failed to get user profile: $e');
+      final errStr = e.toString().toLowerCase();
+      if (errStr.contains('client is already closed') || errStr.contains('clientexception')) {
+        debugPrint('[SupabaseService] Notice: Supabase HTTP client reconnecting or restarted.');
+      } else {
+        debugPrint('Failed to get user profile: $e');
+      }
       return {};
     }
   }

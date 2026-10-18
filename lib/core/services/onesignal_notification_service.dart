@@ -287,16 +287,36 @@ class OneSignalNotificationService {
     String? excludeUserId,
   }) async {
     if (!OneSignalConfig.canSendPush) {
-      debugPrint('[OneSignal] Cannot send push: REST API Key or App ID not configured in onesignal_config.dart');
+      debugPrint('[OneSignal] Push skipped: REST API Key not configured via --dart-define.');
       return false;
     }
 
     try {
       final url = Uri.parse('https://onesignal.com/api/v1/notifications');
-
-      // Build filters targeting owner, employee, and admin
-      // If excludeUserId is present, exclude that specific user from receiving the push
       final actorToExclude = excludeUserId ?? AuthService().currentUser?.uid;
+
+      // 1. Resolve all staff user IDs (Firebase UIDs) from Supabase profiles
+      final staffUids = <String>{};
+      try {
+        final profiles = await Supabase.instance.client
+            .from('profiles')
+            .select('firebase_uid, id, role')
+            .inFilter('role', ['owner', 'employee', 'admin']);
+        for (final p in profiles) {
+          final fUid = p['firebase_uid']?.toString();
+          if (fUid != null && fUid.isNotEmpty) staffUids.add(fUid);
+          final sId = p['id']?.toString();
+          if (sId != null && sId.isNotEmpty) staffUids.add(sId);
+        }
+      } catch (e) {
+        debugPrint('[OneSignal] Staff UID lookup note: $e');
+      }
+
+      if (actorToExclude != null && actorToExclude.isNotEmpty) {
+        staffUids.remove(actorToExclude);
+      }
+
+      // Build tag filters as fallback
       final filters = <Map<String, dynamic>>[];
       final roles = ['owner', 'employee', 'admin'];
       for (int i = 0; i < roles.length; i++) {
@@ -307,11 +327,11 @@ class OneSignalNotificationService {
         }
       }
 
-      final payload = {
+      final payload = <String, dynamic>{
         'app_id': OneSignalConfig.appId,
         'headings': {'en': title},
         'contents': {'en': body},
-        'filters': filters,
+        'target_channel': 'push',
         'data': {
           'type': type ?? 'staff_alert',
           'targetRole': 'staff',
@@ -321,6 +341,15 @@ class OneSignalNotificationService {
         'android_visibility': 1,
         'android_accent_color': 'FFEF820D',
       };
+
+      if (staffUids.isNotEmpty) {
+        payload['include_aliases'] = {
+          'external_id': staffUids.toList(),
+        };
+        payload['include_external_user_ids'] = staffUids.toList();
+      } else {
+        payload['filters'] = filters;
+      }
 
       final response = await http.post(
         url,

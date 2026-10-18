@@ -38,12 +38,7 @@ void main() async {
   
   await Supabase.initialize(
     url: 'https://njqqfijxklxtdqljzqrx.supabase.co',
-    publishableKey: supabaseAnonKey,
-    accessToken: () async {
-      final user = FirebaseAuth.instance.currentUser;
-      final _ = await user?.getIdToken();
-      return supabaseAnonKey;
-    },
+    anonKey: supabaseAnonKey,
   );
   // ignore: avoid_print
   print('Supabase initialized with URL: https://njqqfijxklxtdqljzqrx.supabase.co');

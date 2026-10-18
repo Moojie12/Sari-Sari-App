@@ -8,11 +8,14 @@ Future<bool> playWebAudioChime() async {
   if (!kIsWeb) return false;
   try {
     if (globalContext.has('playPosOrderChime')) {
-      final res = globalContext.callMethod<JSBoolean?>('playPosOrderChime'.toJS);
-      return res?.toDart ?? false;
+      final res = globalContext.callMethod('playPosOrderChime'.toJS);
+      if (res != null) {
+        if (res is JSBoolean) return res.toDart;
+        return true;
+      }
     }
   } catch (e) {
-    debugPrint('[Web Audio Chime Exception]: $e');
+    debugPrint('[Web Audio Chime Notice]: $e');
   }
   return false;
 }
