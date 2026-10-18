@@ -45,6 +45,58 @@
         return '';
       }
     };
+
+    // Synthesize a pleasant high-attention POS chime using Web Audio API
+    window.playPosOrderChime = function() {
+      try {
+        const AudioContext = window.AudioContext || window.webkitAudioContext;
+        if (!AudioContext) return false;
+        const ctx = new AudioContext();
+        if (ctx.state === 'suspended') {
+          ctx.resume();
+        }
+
+        const notes = [
+          { freq: 587.33, start: 0, duration: 0.18 },    // D5
+          { freq: 880.00, start: 0.16, duration: 0.20 },  // A5
+          { freq: 1174.66, start: 0.34, duration: 0.45 }  // D6
+        ];
+
+        notes.forEach(note => {
+          const osc = ctx.createOscillator();
+          const gain = ctx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(note.freq, ctx.currentTime + note.start);
+
+          gain.gain.setValueAtTime(0.001, ctx.currentTime + note.start);
+          gain.gain.exponentialRampToValueAtTime(0.35, ctx.currentTime + note.start + 0.03);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + note.start + note.duration);
+
+          osc.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc.start(ctx.currentTime + note.start);
+          osc.stop(ctx.currentTime + note.start + note.duration);
+        });
+        return true;
+      } catch (e) {
+        console.warn('Web Audio chime error:', e);
+        return false;
+      }
+    };
+
+    // Register Firebase Messaging Service Worker for background push notifications
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', function () {
+        navigator.serviceWorker.register('firebase-messaging-sw.js', { scope: '/' })
+          .then(function (registration) {
+            console.log('[FCM SW] Registered successfully with scope:', registration.scope);
+          })
+          .catch(function (error) {
+            console.warn('[FCM SW] Registration failed:', error);
+          });
+      });
+    }
   </script>
 </head>
 <body>

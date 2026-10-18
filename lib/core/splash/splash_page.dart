@@ -8,9 +8,13 @@ import '../../users/owner_db/owner_db.dart';
 import '../../users/employee_db/employee_db.dart';
 import '../../users/customer_db/customer_db.dart';
 import '../../core/services/auth_service.dart';
+import '../services/onesignal_notification_service.dart';
 
 class SplashPage extends StatefulWidget {
   const SplashPage({super.key});
+
+  /// Tracks whether the splash screen is currently mounted / in the navigation tree
+  static bool isCurrent = false;
 
   @override
   State<SplashPage> createState() => _SplashPageState();
@@ -20,10 +24,22 @@ class _SplashPageState extends State<SplashPage> {
   @override
   void initState() {
     super.initState();
+    SplashPage.isCurrent = true;
     _navigateToHome();
   }
 
+  @override
+  void dispose() {
+    SplashPage.isCurrent = false;
+    super.dispose();
+  }
+
   Future<void> _navigateToHome() async {
+    if (OneSignalNotificationService.instance.hasActiveNotificationOpen) {
+      debugPrint('[SplashPage] Navigation aborted: notification details is active.');
+      return;
+    }
+
     if (kIsWeb) {
       if (mounted) {
         Navigator.pushReplacement(
@@ -49,8 +65,13 @@ class _SplashPageState extends State<SplashPage> {
       }
     } catch (_) {}
 
+    if (OneSignalNotificationService.instance.hasActiveNotificationOpen) {
+      debugPrint('[SplashPage] Navigation aborted: notification details is active.');
+      return;
+    }
+
     await Future.delayed(const Duration(milliseconds: 500));
-    if (!mounted) return;
+    if (!mounted || OneSignalNotificationService.instance.hasActiveNotificationOpen) return;
 
     // Check if user is already logged in
     final user = AuthService().currentUser;
@@ -60,7 +81,7 @@ class _SplashPageState extends State<SplashPage> {
       final bool isDisabled = await AuthService().isUserDisabled(user.uid);
       if (isDisabled) {
         await AuthService().signOut();
-        if (mounted) {
+        if (mounted && !OneSignalNotificationService.instance.hasActiveNotificationOpen) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -76,7 +97,7 @@ class _SplashPageState extends State<SplashPage> {
         final bool isOwner = await AuthService().hasRole('owner');
         final bool isEmployee = await AuthService().hasRole('employee');
 
-        if (mounted) {
+        if (mounted && !OneSignalNotificationService.instance.hasActiveNotificationOpen) {
           if (isOwner) {
             Navigator.pushReplacement(
               context,
@@ -96,7 +117,7 @@ class _SplashPageState extends State<SplashPage> {
         }
       } catch (e) {
         // If there's an error checking roles, default to customer db
-        if (mounted) {
+        if (mounted && !OneSignalNotificationService.instance.hasActiveNotificationOpen) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const CustomerDb()),
@@ -105,7 +126,7 @@ class _SplashPageState extends State<SplashPage> {
       }
     } else {
       // User is not logged in, show main login page (for Owner, Employee, and Customer)
-      if (mounted) {
+      if (mounted && !OneSignalNotificationService.instance.hasActiveNotificationOpen) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(

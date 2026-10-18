@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/notification_database_service.dart';
+import '../../../core/services/onesignal_notification_service.dart';
 import 'customer_notification_model.dart';
 
 class CustomerNotificationsController extends ChangeNotifier {
@@ -182,7 +183,18 @@ class CustomerNotificationsController extends ChangeNotifier {
     required String title,
     required String message,
     String? userId,
+    String? orderId,
+    bool sendPush = true,
   }) {
+    // Deduplication check: Avoid adding multiple rapid duplicate notifications
+    if (_notifications.any((n) =>
+        n.title == title &&
+        n.message == message &&
+        n.timestamp.difference(DateTime.now()).inSeconds.abs() < 5)) {
+      debugPrint('[CustomerNotificationsController] Duplicate rapid notification ignored: $title');
+      return;
+    }
+
     final notification = CustomerNotification(
       id: 'cust_notif_${DateTime.now().millisecondsSinceEpoch}_${_notifications.length}',
       type: type,
@@ -200,6 +212,21 @@ class CustomerNotificationsController extends ChangeNotifier {
       _dbService.saveCustomerNotification(targetUserId, notification).catchError((e) {
         debugPrint('Failed to save customer notification: $e');
       });
+
+      // Do not send push notification to user if the action was triggered by the user themselves!
+      final currentUid = AuthService().currentUser?.uid;
+      final isOwnAction = currentUid != null && currentUid == targetUserId;
+
+      if (sendPush && !isOwnAction) {
+        OneSignalNotificationService.instance.sendCustomerNotification(
+          customerUserId: targetUserId,
+          title: title,
+          body: message,
+          orderId: orderId,
+          type: type.name,
+          excludeUserId: currentUid,
+        );
+      }
     }
   }
 

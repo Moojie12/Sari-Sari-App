@@ -53,6 +53,14 @@
         ".write": "auth != null"
       }
     },
+    "inventory": {
+      ".read": "auth != null",
+      ".write": "auth != null"
+    },
+    "products": {
+      ".read": true,
+      ".write": "auth != null"
+    },
     ".read": "auth != null",
     ".write": "auth != null"
   }

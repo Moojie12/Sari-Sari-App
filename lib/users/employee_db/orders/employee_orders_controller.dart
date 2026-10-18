@@ -1,10 +1,13 @@
+import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/delivery_tracking_service.dart';
 import '../../../core/services/local_database_service.dart';
+import '../../../core/services/pos_audio_service.dart';
 import '../../../core/services/supabase_service.dart';
+import '../../../shared/widgets/pos_new_order_overlay.dart';
 import '../../../admin/services/admin_audit_service.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
 import 'package:sari_sari/core/services/sale_deal_controller.dart';
@@ -13,6 +16,7 @@ import '../notifications/employee_notifications_controller.dart';
 import '../notifications/employee_notification_model.dart';
 import '../../customer_db/notifications/customer_notifications_controller.dart';
 import '../../customer_db/notifications/customer_notification_model.dart';
+import '../../../core/services/onesignal_notification_service.dart';
 
 class ProductDemand {
   final String productId;
@@ -41,6 +45,14 @@ class EmployeeOrderController extends ChangeNotifier {
 
   final EmployeeInventoryController _inventory = EmployeeInventoryController.instance;
   final SupabaseService _supabaseService = SupabaseService();
+
+  final DateTime _controllerStartTime = DateTime.now();
+  bool _isInitialSyncComplete = false;
+  final StreamController<CustomerOrder> _newOrderAlertController =
+      StreamController<CustomerOrder>.broadcast();
+
+  /// Stream of freshly incoming new orders for active POS & Admin screens
+  Stream<CustomerOrder> get onNewOrder => _newOrderAlertController.stream;
 
   RealtimeChannel? _realtimeChannel;
   final List<CustomerOrder> _orders = [];
@@ -146,6 +158,7 @@ class EmployeeOrderController extends ChangeNotifier {
 
     _orders.sort((a, b) => b.orderDate.compareTo(a.orderDate));
     _isLoading = false;
+    _isInitialSyncComplete = true;
     notifyListeners();
   }
 
@@ -260,6 +273,33 @@ class EmployeeOrderController extends ChangeNotifier {
             _orders.insert(0, order);
             _orders.sort((a, b) => b.orderDate.compareTo(a.orderDate));
             notifyListeners();
+
+            // Trigger real-time sound and interactive overlay alert for new live orders
+            final isRecentOrder = order.orderDate.isAfter(
+              _controllerStartTime.subtract(const Duration(minutes: 5)),
+            );
+            if (_isInitialSyncComplete && isRecentOrder) {
+              // STRICT ROLE CHECK: Only trigger in-app sound and POS overlay for Owner, Employee, and Admin!
+              // Customers MUST NEVER receive other customers' order notifications or alarms!
+              AuthService().getCurrentUserRole().then((role) {
+                final isStaffOrOwner = role == 'owner' || role == 'employee' || role == 'admin';
+                if (isStaffOrOwner) {
+                  PosAudioService.playOrderChime();
+                  PosNewOrderOverlay.showGlobal(order);
+                  _newOrderAlertController.add(order);
+
+                  EmployeeNotificationsController.instance.addNotification(
+                    type: EmployeeNotificationType.newOrder,
+                    title: 'New Order #${order.displayOrderId}',
+                    message: '${order.customerName.isNotEmpty ? order.customerName : "Customer"} placed an order for ₱${order.totalAmount.toStringAsFixed(2)}',
+                    orderId: order.orderId,
+                    sendPush: false,
+                  );
+                }
+              }).catchError((e) {
+                debugPrint('Role check error for order alert: $e');
+              });
+            }
           }
         }
       }, onError: (e) {
@@ -367,19 +407,24 @@ class EmployeeOrderController extends ChangeNotifier {
 
     _orders.insert(0, orderToSave);
     
-    // Add notification for employee / store
-    EmployeeNotificationsController.instance.addNotification(
-      type: EmployeeNotificationType.newOrder,
-      title: 'New Order Received',
-      message: 'New order #${orderToSave.orderId} from ${orderToSave.customerName} (₱${orderToSave.totalAmount.toStringAsFixed(2)}).',
-    );
-
-    // Add notification for customer
+    // Add notification for customer history (suppress push since customer placed the order)
     CustomerNotificationsController.instance.addNotification(
       type: CustomerNotificationType.orderUpdate,
       title: 'Order Placed',
       message: 'Your order #${orderToSave.orderId} (₱${orderToSave.totalAmount.toStringAsFixed(2)}) has been placed successfully.',
       userId: orderToSave.userId,
+      orderId: orderToSave.orderId,
+      sendPush: false,
+    );
+
+    // Dispatch instant OS push notification to Store Staff (Owner, Employee, Admin) via OneSignal
+    // Exclude the current user if this order was placed on POS by an employee
+    final currentUserId = AuthService().currentUser?.uid;
+    OneSignalNotificationService.instance.sendNewOrderNotificationToStaff(
+      orderId: orderToSave.orderId,
+      customerName: orderToSave.customerName,
+      totalAmount: orderToSave.totalAmount,
+      excludeUserId: currentUserId,
     );
 
     notifyListeners();
@@ -479,6 +524,8 @@ class EmployeeOrderController extends ChangeNotifier {
       type: EmployeeNotificationType.assignedTask,
       title: 'GCash Refund Details Submitted',
       message: 'Customer provided GCash details ($name - $phone) for Order #${oldOrder.orderId}.',
+      orderId: oldOrder.orderId,
+      sendPush: true,
     );
   }
 
@@ -512,6 +559,8 @@ class EmployeeOrderController extends ChangeNotifier {
       message:
           'Your GCash refund of ₱${oldOrder.totalAmount.toStringAsFixed(2)} for Order #${oldOrder.orderId} has been sent! View screenshot proof in Order Details.',
       userId: oldOrder.userId,
+      orderId: oldOrder.orderId,
+      sendPush: true,
     );
   }
 
@@ -611,8 +660,12 @@ class EmployeeOrderController extends ChangeNotifier {
       );
 
       final isCancelled = newStatus == OrderStatus.cancelled;
+      final currentUid = AuthService().currentUser?.uid;
+      final isCustomerActor = currentUid != null && currentUid == oldOrder.userId;
 
       // Add notification for employee
+      // Only send staff push if this action was triggered by the customer (e.g. order cancellation)
+      // If staff updated the order, staff does not need to receive a push notification for their own action
       EmployeeNotificationsController.instance.addNotification(
         type: EmployeeNotificationType.assignedTask,
         title: isCancelled ? 'Order Cancelled' : 'Order Status Updated',
@@ -621,6 +674,8 @@ class EmployeeOrderController extends ChangeNotifier {
                 ? 'Order #${oldOrder.orderId} was cancelled. Reason: $finalReason'
                 : 'Order #${oldOrder.orderId} was cancelled.')
             : 'Order #${oldOrder.orderId} status changed to ${newStatus.label}.',
+        orderId: oldOrder.orderId,
+        sendPush: isCustomerActor,
       );
 
       // Determine customer-friendly notification text
@@ -641,7 +696,7 @@ class EmployeeOrderController extends ChangeNotifier {
           break;
         case OrderStatus.readyForPickup:
           customerTitle = 'Ready for Pickup';
-          customerMessage = 'Your order #${oldOrder.orderId} is ready for pickup at the store.';
+          customerMessage = 'Your order #${oldOrder.orderId} is ready for pickup at the store!';
           break;
         case OrderStatus.outForDelivery:
           customerTitle = 'Out for Delivery';
@@ -668,11 +723,14 @@ class EmployeeOrderController extends ChangeNotifier {
       }
 
       // Add notification for customer
+      // Only send customer push if staff initiated the status change (not if customer cancelled it themselves)
       CustomerNotificationsController.instance.addNotification(
         type: CustomerNotificationType.orderUpdate,
         title: customerTitle,
         message: customerMessage,
         userId: oldOrder.userId,
+        orderId: oldOrder.orderId,
+        sendPush: !isCustomerActor,
       );
 
       // Cleanup: Remove product IDs from marked list if they are no longer in demand
@@ -758,6 +816,8 @@ class EmployeeOrderController extends ChangeNotifier {
       type: EmployeeNotificationType.assignedTask,
       title: 'Order Out for Delivery',
       message: 'Order #${updatedOrder.orderId} assigned to ${deliveryPerson.name} (${deliveryPerson.role}) is now out for delivery.',
+      orderId: updatedOrder.orderId,
+      sendPush: false, // Staff initiated this, do not buzz staff device
     );
 
     CustomerNotificationsController.instance.addNotification(
@@ -765,6 +825,8 @@ class EmployeeOrderController extends ChangeNotifier {
       title: 'Out for Delivery',
       message: '${deliveryPerson.name} (${deliveryPerson.role}) is on the way with your order #${updatedOrder.orderId}.',
       userId: updatedOrder.userId,
+      orderId: updatedOrder.orderId,
+      sendPush: true,
     );
 
     AdminAuditService().logUpdate(

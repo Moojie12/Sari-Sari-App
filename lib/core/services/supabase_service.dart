@@ -549,11 +549,26 @@ class SupabaseService {
         'updated_at': DateTime.now().toIso8601String(),
       };
 
-      final response = await _client
-          .from('orders')
-          .upsert(orderData, onConflict: 'order_number')
-          .select('id')
-          .single();
+      Map<String, dynamic> response;
+      try {
+        response = await _client
+            .from('orders')
+            .upsert(orderData, onConflict: 'order_number')
+            .select('id')
+            .single();
+      } catch (e) {
+        final errStr = e.toString().toLowerCase();
+        if (errStr.contains('payment_method') || errStr.contains('pgrst204')) {
+          final fallbackData = Map<String, dynamic>.from(orderData)..remove('payment_method');
+          response = await _client
+              .from('orders')
+              .upsert(fallbackData, onConflict: 'order_number')
+              .select('id')
+              .single();
+        } else {
+          rethrow;
+        }
+      }
 
       final dbOrderId = response['id'] as String;
 
@@ -611,20 +626,29 @@ class SupabaseService {
   Future<bool> updateOrderStatusInDb(String orderNumberOrDbId, String status, [String? paymentStatus, String? cancellationReason]) async {
     final nowIso = DateTime.now().toIso8601String();
 
-    Future<bool> tryUpdate(Map<String, dynamic> data) async {
-      final res = await _client
-          .from('orders')
-          .update(data)
-          .eq('order_number', orderNumberOrDbId)
-          .select('id');
-      if (res.isNotEmpty) return true;
+    final bool isUuid = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(orderNumberOrDbId);
 
-      final resById = await _client
-          .from('orders')
-          .update(data)
-          .eq('id', orderNumberOrDbId)
-          .select('id');
-      return resById.isNotEmpty;
+    Future<bool> tryUpdate(Map<String, dynamic> data) async {
+      try {
+        final res = await _client
+            .from('orders')
+            .update(data)
+            .eq('order_number', orderNumberOrDbId)
+            .select('id');
+        if (res.isNotEmpty) return true;
+      } catch (_) {}
+
+      if (isUuid) {
+        try {
+          final resById = await _client
+              .from('orders')
+              .update(data)
+              .eq('id', orderNumberOrDbId)
+              .select('id');
+          return resById.isNotEmpty;
+        } catch (_) {}
+      }
+      return false;
     }
 
     // 1. Attempt with status and optional payment_status
@@ -638,11 +662,10 @@ class SupabaseService {
       }
       if (cancellationReason != null && cancellationReason.isNotEmpty) {
         try {
-          final existing = await _client
-              .from('orders')
-              .select('order_notes')
-              .or('order_number.eq.$orderNumberOrDbId,id.eq.$orderNumberOrDbId')
-              .maybeSingle();
+          final query = _client.from('orders').select('order_notes');
+          final existing = isUuid
+              ? await query.or('order_number.eq.$orderNumberOrDbId,id.eq.$orderNumberOrDbId').maybeSingle()
+              : await query.eq('order_number', orderNumberOrDbId).maybeSingle();
 
           String notes = existing?['order_notes']?.toString() ?? '';
           notes = notes.replaceAll(RegExp(r'\[cancellation_reason:[^\]]+\]'), '').trim();
@@ -1983,9 +2006,6 @@ class SupabaseService {
   Future<Map<String, dynamic>?> insertAuditLog(Map<String, dynamic> auditData) async {
     try {
       final dataToInsert = Map<String, dynamic>.from(auditData);
-      if (!dataToInsert.containsKey('created_at') && dataToInsert.containsKey('timestamp')) {
-        dataToInsert['created_at'] = dataToInsert['timestamp'];
-      }
       final response = await _client
           .from('audit_logs')
           .insert(dataToInsert)
@@ -1993,16 +2013,15 @@ class SupabaseService {
           .maybeSingle();
       return response;
     } catch (e) {
-      debugPrint('Failed to insert audit log with select in Supabase: $e');
-      try {
-        final dataToInsert = Map<String, dynamic>.from(auditData);
-        if (!dataToInsert.containsKey('created_at') && dataToInsert.containsKey('timestamp')) {
-          dataToInsert['created_at'] = dataToInsert['timestamp'];
-        }
-        await _client.from('audit_logs').insert(dataToInsert);
-      } catch (e2) {
-        debugPrint('Fallback insertAuditLog also failed: $e2');
+      final errStr = e.toString().toLowerCase();
+      if (errStr.contains('created_at') || errStr.contains('pgrst204')) {
+        try {
+          final dataToInsert = Map<String, dynamic>.from(auditData)..remove('created_at');
+          await _client.from('audit_logs').insert(dataToInsert);
+          return null;
+        } catch (_) {}
       }
+      debugPrint('Notice inserting audit log in Supabase: $e');
       return null;
     }
   }

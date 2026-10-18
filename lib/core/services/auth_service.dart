@@ -7,7 +7,9 @@ import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import '../../firebase_options.dart';
 import 'connectivity_service.dart';
+import 'firebase_notification_service.dart';
 import 'local_database_service.dart';
+import 'onesignal_notification_service.dart';
 import 'supabase_service.dart';
 import 'sync_service.dart';
 
@@ -219,6 +221,21 @@ class AuthService {
         debugPrint('Warning: Failed to sync user data to Realtime Database after sign-in: $e');
       }
 
+      // Request permissions, retrieve FCM token, and save under user node in RTDB
+      try {
+        await FirebaseNotificationService.instance.requestPermissionAndSaveToken(firebaseUser.uid);
+      } catch (e) {
+        debugPrint('[AuthService] FCM token registration notice after login: $e');
+      }
+
+      // Tag user with OneSignal for targeted push notifications
+      try {
+        final role = await getCurrentUserRole();
+        await OneSignalNotificationService.instance.loginUser(firebaseUser.uid, role);
+      } catch (e) {
+        debugPrint('[AuthService] OneSignal registration notice after login: $e');
+      }
+
       logAnalyticsEvent('login', {'method': 'email'});
       return null; // Success!
     }
@@ -303,6 +320,16 @@ class AuthService {
         });
       } catch (_) {}
 
+      // Request permissions, retrieve FCM token, and save under user node in RTDB
+      try {
+        if (userCredential.user != null) {
+          await FirebaseNotificationService.instance.requestPermissionAndSaveToken(userCredential.user!.uid);
+          await OneSignalNotificationService.instance.loginUser(userCredential.user!.uid, accountRole);
+        }
+      } catch (e) {
+        debugPrint('[AuthService] Notification registration notice after sign up: $e');
+      }
+
       logAnalyticsEvent('sign_up', {'method': 'email'});
 
       return null; // Success in Firebase Auth
@@ -322,6 +349,18 @@ class AuthService {
     _lastSignedInEmail = null;
     final userId = currentUser?.uid;
     if (userId != null && userId.isNotEmpty) {
+      try {
+        await FirebaseNotificationService.instance.removeTokenForUser(userId);
+      } catch (e) {
+        debugPrint('[AuthService] Error clearing FCM token on logout: $e');
+      }
+
+      try {
+        await OneSignalNotificationService.instance.logoutUser();
+      } catch (e) {
+        debugPrint('[AuthService] Error logging out from OneSignal: $e');
+      }
+
       try {
         await SyncService.instance.flushQueue();
       } catch (e) {
@@ -859,6 +898,34 @@ class AuthService {
 
     // Default customer check if role is customer and not found elsewhere
     return targetRole == 'customer';
+  }
+
+  /// Returns the current user's role: 'owner', 'employee', 'admin', or 'customer'
+  Future<String> getCurrentUserRole() async {
+    final user = currentUser;
+    if (user == null) return 'guest';
+    final email = user.email?.toLowerCase().trim() ?? '';
+    if (email == 'owner@sarisari.com' || email == 'owner@gmail.com') return 'owner';
+    if (email == 'admin@sarisari.com' || email == 'admin@gmail.com') return 'admin';
+    if (email == 'employee@sarisari.com' || email == 'employee@gmail.com') return 'employee';
+
+    try {
+      final snapshot = await _database.ref().child('users/${user.uid}/role').get();
+      if (snapshot.exists && snapshot.value != null) {
+        final role = snapshot.value.toString().toLowerCase().trim();
+        if (role.isNotEmpty) return role;
+      }
+    } catch (_) {}
+
+    try {
+      final supaProfile = await SupabaseService().getOrCreateUserProfile(user.uid);
+      if (supaProfile['role'] != null) {
+        final role = supaProfile['role'].toString().toLowerCase().trim();
+        if (role.isNotEmpty) return role;
+      }
+    } catch (_) {}
+
+    return 'customer';
   }
 
   /// Get user's display name or email if name not set

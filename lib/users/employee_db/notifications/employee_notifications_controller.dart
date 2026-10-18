@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import '../../../core/services/auth_service.dart';
 import '../../../core/services/notification_database_service.dart';
+import '../../../core/services/onesignal_notification_service.dart';
 import '../employee_inventory_controller.dart';
 import 'employee_notification_model.dart';
 
@@ -240,7 +242,20 @@ class EmployeeNotificationsController extends ChangeNotifier {
     String? productId,
     String? productName,
     String? orderId,
+    bool sendPush = true,
   }) {
+    // Deduplication check: Avoid adding multiple notifications for the exact same order event or identical recent message
+    if (orderId != null && orderId.isNotEmpty) {
+      if (_dynamicNotifications.any((n) => n.orderId == orderId && n.title == title)) {
+        debugPrint('[EmployeeNotificationsController] Duplicate notification ignored for order #$orderId: $title');
+        return;
+      }
+    }
+    if (_dynamicNotifications.any((n) => n.title == title && n.message == message && n.timestamp.difference(DateTime.now()).inSeconds.abs() < 5)) {
+      debugPrint('[EmployeeNotificationsController] Duplicate rapid notification ignored: $title');
+      return;
+    }
+
     final newNotif = EmployeeNotification(
       id: 'store_notif_${DateTime.now().millisecondsSinceEpoch}_${_dynamicNotifications.length}',
       type: type,
@@ -258,6 +273,18 @@ class EmployeeNotificationsController extends ChangeNotifier {
     _dbService.saveStoreNotification(newNotif).catchError((e) {
       debugPrint('Failed to save store notification: $e');
     });
+
+    // Dispatch real push notification to Owner and Employee devices (excluding the actor)
+    if (sendPush) {
+      final currentUid = AuthService().currentUser?.uid;
+      OneSignalNotificationService.instance.sendStaffNotification(
+        title: title,
+        body: message,
+        orderId: orderId,
+        type: type.name,
+        excludeUserId: currentUid,
+      );
+    }
   }
 
   /// Clear in-memory notifications on logout

@@ -39,7 +39,7 @@ class CustomerOrderController extends ChangeNotifier {
 
   CustomerOrder? getOrderById(String orderId) {
     final userOrders = orders;
-    final index = userOrders.indexWhere((o) => o.orderId == orderId);
+    final index = userOrders.indexWhere((o) => o.orderId == orderId || o.displayOrderId == orderId);
     return index != -1 ? userOrders[index] : null;
   }
 

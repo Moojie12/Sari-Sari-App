@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -12,6 +13,8 @@ import 'package:sari_sari/core/services/ocr_service.dart';
 import '../../owner_db/profile/shop_settings_controller.dart';
 import '../employee_inventory_controller.dart';
 import '../inventory/employee_product_model.dart';
+import '../orders/employee_orders_controller.dart';
+import '../../customer_db/purchases/customer_order_model.dart';
 import '../profile/employee_profile_controller.dart';
 import 'employee_pos_controller.dart';
 import 'employee_receipt_page.dart';
@@ -48,6 +51,7 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
   final GlobalKey _cartBadgeKey = GlobalKey();
   late AnimationController _cartPulseController;
   late Animation<double> _cartScaleAnimation;
+  StreamSubscription<CustomerOrder>? _newOrderSub;
 
   @override
   void initState() {
@@ -63,10 +67,17 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
       parent: _cartPulseController,
       curve: Curves.easeInOut,
     ));
+
+    // Listen for live new orders arriving while active on POS screen
+    _newOrderSub = EmployeeOrderController.instance.onNewOrder.listen((order) {
+      if (!mounted) return;
+      setState(() {});
+    });
   }
 
   @override
   void dispose() {
+    _newOrderSub?.cancel();
     _cartPulseController.dispose();
     _searchController.dispose();
     super.dispose();

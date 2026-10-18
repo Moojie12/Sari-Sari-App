@@ -5,20 +5,28 @@ import '../purchases/customer_order_model.dart';
 import '../customer_dashboard.dart';
 
 import '../../../shared/utils/gcash_ocr_helper.dart';
+import '../tutorial/customer_tutorial_keys.dart';
 
 class CustomerOrderConfirmationPage extends StatelessWidget {
   const CustomerOrderConfirmationPage({super.key, required this.order});
   final CustomerOrder order;
 
   void _navigateToDashboard(BuildContext context, int tabIndex) {
-    Navigator.pushAndRemoveUntil(
-      context,
-      MaterialPageRoute(builder: (context) => const CustomerDb()),
-      (route) => false,
-    );
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      CustomerDashboard.dashboardKey.currentState?.switchTab(tabIndex);
-    });
+    CustomerTutorialKeys.reset();
+    if (Navigator.of(context).canPop()) {
+      Navigator.of(context).popUntil((route) => route.isFirst);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        CustomerDashboard.dashboardKey.currentState?.switchTab(tabIndex);
+      });
+    } else {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const CustomerDb()),
+      );
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        CustomerDashboard.dashboardKey.currentState?.switchTab(tabIndex);
+      });
+    }
   }
 
   @override

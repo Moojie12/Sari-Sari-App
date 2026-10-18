@@ -14,6 +14,7 @@ import 'users/employee_db/employee_db.dart';
 import 'users/customer_db/customer_db.dart';
 import 'core/services/auth_service.dart';
 import 'core/services/firebase_notification_service.dart';
+import 'core/services/onesignal_notification_service.dart';
 import 'core/theme/app_colors.dart';
 import 'shared/utils/top_notification.dart';
 
@@ -31,6 +32,9 @@ void main() async {
   
   // Initialize Firebase Cloud Messaging & Notifications
   await FirebaseNotificationService.instance.initialize();
+
+  // Initialize OneSignal Push Notifications
+  await OneSignalNotificationService.instance.initialize();
   
   await Supabase.initialize(
     url: 'https://njqqfijxklxtdqljzqrx.supabase.co',
@@ -150,10 +154,15 @@ class _AdminSessionGuardState extends State<AdminSessionGuard> {
       return;
     }
 
+    // Ensure FCM token is saved under user node in RTDB for notifications
+    FirebaseNotificationService.instance.saveTokenForUser(user.uid);
+
     // Check role and route accordingly
     final bool isOwner = await AuthService().hasRole('owner');
     final bool isAdmin = await AuthService().hasRole('admin');
     final bool isEmployee = await AuthService().hasRole('employee');
+    final String activeRole = isOwner ? 'owner' : (isAdmin ? 'admin' : (isEmployee ? 'employee' : 'customer'));
+    OneSignalNotificationService.instance.loginUser(user.uid, activeRole);
 
     if (mounted) {
       setState(() {
@@ -228,8 +237,13 @@ class _OwnerSessionGuardState extends State<OwnerSessionGuard> {
       return;
     }
 
+    // Ensure FCM token is saved under user node in RTDB for notifications
+    FirebaseNotificationService.instance.saveTokenForUser(user.uid);
+
     final bool isOwner = await AuthService().hasRole('owner');
     final bool isAdmin = await AuthService().hasRole('admin');
+    final String activeRole = isOwner ? 'owner' : (isAdmin ? 'admin' : 'owner');
+    OneSignalNotificationService.instance.loginUser(user.uid, activeRole);
 
     if (mounted) {
       setState(() {
@@ -305,8 +319,13 @@ class _CustomerSessionGuardState extends State<CustomerSessionGuard> {
       return;
     }
 
+    // Ensure FCM token is saved under user node in RTDB for notifications
+    FirebaseNotificationService.instance.saveTokenForUser(user.uid);
+
     final bool isOwner = await AuthService().hasRole('owner');
     final bool isEmployee = await AuthService().hasRole('employee');
+    final String activeRole = isOwner ? 'owner' : (isEmployee ? 'employee' : 'customer');
+    OneSignalNotificationService.instance.loginUser(user.uid, activeRole);
 
     if (mounted) {
       setState(() {
@@ -343,7 +362,7 @@ class SariSariApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      navigatorKey: FirebaseNotificationService.navigatorKey,
+      navigatorKey: OneSignalNotificationService.navigatorKey,
       debugShowCheckedModeBanner: false,
       title: 'Tindahan ni Eca Admin',
       theme: ThemeData(
