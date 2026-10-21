@@ -1,7 +1,12 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../users/employee_db/messages/employee_message_model.dart';
+import '../../users/employee_db/notifications/employee_notifications_controller.dart';
+import '../../users/employee_db/notifications/employee_notification_model.dart';
+import '../../users/customer_db/notifications/customer_notifications_controller.dart';
+import '../../users/customer_db/notifications/customer_notification_model.dart';
 import 'auth_service.dart';
+import 'onesignal_notification_service.dart';
 
 /// Database service dedicated to saving and streaming live chat messages
 /// in real-time via Firebase Realtime Database under `chats/`.
@@ -11,6 +16,8 @@ class ChatDatabaseService {
   factory ChatDatabaseService() => instance;
 
   final AuthService _authService = AuthService();
+  String? _lastSentFingerprint;
+  DateTime? _lastSentTimestamp;
 
   /// Save a message to Firebase Realtime Database at:
   /// `chats/$customerId/messages/$messageId`
@@ -21,7 +28,21 @@ class ChatDatabaseService {
     required String text,
     String? avatarUrl,
   }) async {
-    if (customerId.isEmpty || text.trim().isEmpty) return;
+    final cleanText = text.trim();
+    if (customerId.isEmpty || cleanText.isEmpty) return;
+
+    // Deduplication check: Avoid sending identical message within 1.5 seconds
+    final fingerprint = '$customerId|$sender|$cleanText';
+    final now = DateTime.now();
+    if (_lastSentFingerprint == fingerprint &&
+        _lastSentTimestamp != null &&
+        now.difference(_lastSentTimestamp!).inMilliseconds < 1500) {
+      debugPrint('[ChatDatabaseService] Duplicate rapid message blocked: $cleanText');
+      return;
+    }
+    _lastSentFingerprint = fingerprint;
+    _lastSentTimestamp = now;
+
     try {
       final db = _authService.database;
       final timestamp = DateTime.now();
@@ -31,7 +52,7 @@ class ChatDatabaseService {
       await messageRef.set({
         'id': msgId,
         'sender': sender,
-        'text': text.trim(),
+        'text': cleanText,
         'sentAt': timestamp.toIso8601String(),
         'isRead': false,
       });
@@ -51,8 +72,129 @@ class ChatDatabaseService {
       await metaRef.update(metaData);
 
       debugPrint('Live chat message sent to Firebase for customer $customerId by $sender');
+
+      // Trigger notification for the recipient without disrupting chat flow
+      final senderRole = sender.toLowerCase().trim();
+      if (senderRole == 'customer') {
+        _notifyStaffOfChatMessage(
+          customerId: customerId,
+          customerName: customerName,
+          text: text.trim(),
+        );
+      } else {
+        _notifyCustomerOfChatMessage(
+          customerId: customerId,
+          text: text.trim(),
+        );
+      }
     } catch (e) {
       debugPrint('Failed to send live chat message to database: $e');
+    }
+  }
+
+  void _notifyStaffOfChatMessage({
+    required String customerId,
+    required String customerName,
+    required String text,
+  }) {
+    try {
+      final displayName = customerName.isNotEmpty ? customerName : 'A customer';
+      final title = 'New message from $displayName';
+      final body = text.length > 80 ? '${text.substring(0, 77)}...' : text;
+
+      // Add to store in-app notifications
+      EmployeeNotificationsController.instance.addNotification(
+        type: EmployeeNotificationType.assignedTask,
+        title: title,
+        message: body,
+        sendPush: false,
+      );
+
+      // Send OneSignal push to all store staff
+      OneSignalNotificationService.instance.sendStaffNotification(
+        title: title,
+        body: body,
+        type: 'chat_message',
+        excludeUserId: customerId,
+        additionalData: {
+          'customerId': customerId,
+          'customerName': displayName,
+        },
+      );
+    } catch (e) {
+      debugPrint('[ChatDatabaseService] Note: Failed to notify staff of chat: $e');
+    }
+  }
+
+  void _notifyCustomerOfChatMessage({
+    required String customerId,
+    required String text,
+  }) {
+    try {
+      final title = 'New message from Store';
+      final body = text.length > 80 ? '${text.substring(0, 77)}...' : text;
+
+      // Add to customer in-app notifications
+      CustomerNotificationsController.instance.addNotification(
+        type: CustomerNotificationType.orderUpdate,
+        title: title,
+        message: body,
+        userId: customerId,
+        sendPush: false,
+      );
+
+      // Send OneSignal push to the customer
+      final currentStaffUid = AuthService().currentUser?.uid;
+      OneSignalNotificationService.instance.sendCustomerNotification(
+        customerUserId: customerId,
+        title: title,
+        body: body,
+        type: 'chat_message',
+        excludeUserId: currentStaffUid,
+        additionalData: {
+          'customerId': customerId,
+        },
+      );
+    } catch (e) {
+      debugPrint('[ChatDatabaseService] Note: Failed to notify customer of chat: $e');
+    }
+  }
+
+  /// Marks all messages from the other participant as read in Firebase Realtime Database
+  Future<void> markMessagesAsRead({
+    required String customerId,
+    required bool isEmployeeView,
+  }) async {
+    if (customerId.isEmpty) return;
+    try {
+      final db = _authService.database;
+      final ref = db.ref().child('chats/$customerId/messages');
+      final snapshot = await ref.get();
+      if (!snapshot.exists || snapshot.value == null) return;
+
+      final data = snapshot.value;
+      if (data is Map) {
+        final updates = <String, dynamic>{};
+        data.forEach((key, val) {
+          if (val is Map) {
+            final senderRole = val['sender']?.toString().toLowerCase() ?? 'customer';
+            final isThem = isEmployeeView
+                ? (senderRole == 'customer')
+                : (senderRole == 'employee' || senderRole == 'owner' || senderRole == 'staff');
+            final isRead = val['isRead'] == true;
+            if (isThem && !isRead) {
+              updates['$key/isRead'] = true;
+            }
+          }
+        });
+
+        if (updates.isNotEmpty) {
+          await ref.update(updates);
+          debugPrint('Marked ${updates.length} messages as read for customer $customerId in Firebase RTDB');
+        }
+      }
+    } catch (e) {
+      debugPrint('Failed to mark messages as read in database: $e');
     }
   }
 

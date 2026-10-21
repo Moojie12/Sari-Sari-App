@@ -5,6 +5,7 @@ import 'assign_delivery_person_sheet.dart';
 import 'employee_order_details_page.dart';
 import 'employee_orders_controller.dart';
 import '../../../shared/widgets/skeleton.dart';
+import '../../../shared/utils/top_notification.dart';
 
 class EmployeeOrdersPage extends StatefulWidget {
   const EmployeeOrdersPage({super.key, required this.controller});
@@ -946,12 +947,32 @@ class _OrderCard extends StatelessWidget {
             child: const Text('Keep Order', style: TextStyle(color: AppColors.secondaryText)),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               if (formKey.currentState!.validate()) {
                 final reason = reasonController.text.trim();
                 Navigator.pop(dialogContext);
-                controller.cancelOrder(order.orderId, reason: reason);
-                Navigator.pop(bottomSheetContext);
+                final success = await controller.cancelOrder(
+                  order.orderId,
+                  reason: reason,
+                  isStaff: true,
+                );
+                if (bottomSheetContext.mounted) {
+                  Navigator.pop(bottomSheetContext);
+                }
+                if (context.mounted) {
+                  if (success) {
+                    TopNotification.show(
+                      context,
+                      'Order #${order.displayOrderId} has been cancelled.',
+                    );
+                  } else {
+                    TopNotification.show(
+                      context,
+                      'Cannot cancel Order #${order.displayOrderId}.',
+                      isError: true,
+                    );
+                  }
+                }
               }
             },
             style: ElevatedButton.styleFrom(

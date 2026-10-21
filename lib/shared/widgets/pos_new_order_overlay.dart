@@ -3,9 +3,9 @@ import 'package:flutter/material.dart';
 import '../../core/services/firebase_notification_service.dart';
 import '../../core/services/pos_audio_service.dart';
 import '../../core/theme/app_colors.dart';
-import '../../users/customer_db/purchases/customer_order_model.dart';
-import '../../users/employee_db/orders/employee_order_details_page.dart';
-import '../../users/employee_db/orders/employee_orders_controller.dart';
+import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
+import 'package:sari_sari/users/employee_db/orders/employee_order_details_page.dart';
+import 'package:sari_sari/users/employee_db/orders/employee_orders_controller.dart';
 
 /// Interactive in-app overlay alert shown when a new order is received
 /// on the active POS and Admin screens.

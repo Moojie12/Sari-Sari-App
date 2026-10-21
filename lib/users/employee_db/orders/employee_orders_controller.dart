@@ -2,21 +2,22 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../../core/services/auth_service.dart';
-import '../../../core/services/delivery_tracking_service.dart';
-import '../../../core/services/local_database_service.dart';
-import '../../../core/services/pos_audio_service.dart';
-import '../../../core/services/supabase_service.dart';
-import '../../../shared/widgets/pos_new_order_overlay.dart';
-import '../../../admin/services/admin_audit_service.dart';
-import '../../customer_db/purchases/customer_order_model.dart';
+import 'package:sari_sari/core/services/auth_service.dart';
+import 'package:sari_sari/core/services/delivery_tracking_service.dart';
+import 'package:sari_sari/core/services/local_database_service.dart';
+import 'package:sari_sari/core/services/pos_audio_service.dart';
+import 'package:sari_sari/core/services/supabase_service.dart';
+import 'package:sari_sari/shared/widgets/pos_new_order_overlay.dart';
+import 'package:sari_sari/admin/services/admin_audit_service.dart';
+import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 import 'package:sari_sari/core/services/sale_deal_controller.dart';
-import '../employee_inventory_controller.dart';
-import '../notifications/employee_notifications_controller.dart';
-import '../notifications/employee_notification_model.dart';
-import '../../customer_db/notifications/customer_notifications_controller.dart';
-import '../../customer_db/notifications/customer_notification_model.dart';
-import '../../../core/services/onesignal_notification_service.dart';
+import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
+import 'package:sari_sari/users/employee_db/notifications/employee_notifications_controller.dart';
+import 'package:sari_sari/users/employee_db/notifications/employee_notification_model.dart';
+import 'package:sari_sari/users/customer_db/notifications/customer_notifications_controller.dart';
+import 'package:sari_sari/users/customer_db/notifications/customer_notification_model.dart';
+import 'package:sari_sari/core/services/onesignal_notification_service.dart';
+import 'package:sari_sari/core/services/stock_reservation_service.dart';
 
 class ProductDemand {
   final String productId;
@@ -72,6 +73,19 @@ class EmployeeOrderController extends ChangeNotifier {
   void addOrderForTesting(CustomerOrder order) {
     _orders.add(order);
     notifyListeners();
+  }
+
+  /// Look up an order by orderId or dbId
+  CustomerOrder? getOrderById(String orderId) {
+    final clean = orderId.replaceAll('#', '').trim();
+    for (final o in _orders) {
+      if (o.orderId == orderId ||
+          (o.dbId != null && o.dbId == orderId) ||
+          o.orderId.replaceAll('#', '').trim() == clean) {
+        return o;
+      }
+    }
+    return null;
   }
 
   List<CustomerOrder> get activeOrders => _orders
@@ -186,6 +200,9 @@ class EmployeeOrderController extends ChangeNotifier {
       final mergedRefNum = (order.paymentReferenceNumber != null && order.paymentReferenceNumber!.isNotEmpty)
           ? order.paymentReferenceNumber
           : existing.paymentReferenceNumber;
+      final mergedIsStockDeducted = order.status == OrderStatus.cancelled
+          ? false
+          : (order.isStockDeducted || existing.isStockDeducted);
 
       merged = order.copyWith(
         items: mergedItems,
@@ -195,6 +212,7 @@ class EmployeeOrderController extends ChangeNotifier {
         refundProofUrl: mergedProofUrl,
         refundStatus: mergedRefundStatus,
         paymentReferenceNumber: mergedRefNum,
+        isStockDeducted: mergedIsStockDeducted,
       );
       _orders[existingIndex] = merged;
     } else {
@@ -387,26 +405,20 @@ class EmployeeOrderController extends ChangeNotifier {
       // Collision safety: NEVER overwrite an existing order!
       final uniqueSuffix = DateTime.now().microsecondsSinceEpoch.toString().substring(8);
       final uniqueId = '${order.orderId}-$uniqueSuffix';
-      orderToSave = CustomerOrder(
-        orderId: uniqueId,
-        customerName: order.customerName,
-        orderDate: order.orderDate,
-        items: order.items,
-        orderType: order.orderType,
-        paymentMethod: order.paymentMethod,
-        paymentStatus: order.paymentStatus,
-        deliveryAddress: order.deliveryAddress,
-        subtotal: order.subtotal,
-        deliveryFee: order.deliveryFee,
-        totalAmount: order.totalAmount,
-        status: order.status,
-        userId: order.userId,
-        processedBy: order.processedBy,
-      );
+      orderToSave = order.copyWith(orderId: uniqueId);
     }
 
     _orders.insert(0, orderToSave);
     
+    // Add notification for employee / store
+    EmployeeNotificationsController.instance.addNotification(
+      type: EmployeeNotificationType.newOrder,
+      title: 'New Order #${orderToSave.displayOrderId}',
+      message: '${orderToSave.customerName.isNotEmpty ? orderToSave.customerName : "Customer"} placed an order for ₱${orderToSave.totalAmount.toStringAsFixed(2)}.',
+      orderId: orderToSave.orderId,
+      sendPush: false,
+    );
+
     // Add notification for customer history (suppress push since customer placed the order)
     CustomerNotificationsController.instance.addNotification(
       type: CustomerNotificationType.orderUpdate,
@@ -418,14 +430,16 @@ class EmployeeOrderController extends ChangeNotifier {
     );
 
     // Dispatch instant OS push notification to Store Staff (Owner, Employee, Admin) via OneSignal
-    // Exclude the current user if this order was placed on POS by an employee
-    final currentUserId = AuthService().currentUser?.uid;
-    OneSignalNotificationService.instance.sendNewOrderNotificationToStaff(
-      orderId: orderToSave.orderId,
-      customerName: orderToSave.customerName,
-      totalAmount: orderToSave.totalAmount,
-      excludeUserId: currentUserId,
-    );
+    // Dispatch for online customer orders (skip for local Walk-in POS sales already rung up by cashier)
+    final isWalkInPos = orderToSave.customerName == 'Walk-in' && orderToSave.status == OrderStatus.completed;
+    if (!isWalkInPos) {
+      OneSignalNotificationService.instance.sendNewOrderNotificationToStaff(
+        orderId: orderToSave.orderId,
+        customerName: orderToSave.customerName,
+        totalAmount: orderToSave.totalAmount,
+        excludeUserId: null, // Deliver to all staff devices
+      );
+    }
 
     notifyListeners();
 
@@ -461,26 +475,56 @@ class EmployeeOrderController extends ChangeNotifier {
       .toList();
 
   /// Cancel an order requested by the customer or employee/owner.
-  /// Strictly verifies that cancellation is ONLY permitted when the order is in [OrderStatus.pending].
+  /// Customers can only cancel when order is in [OrderStatus.pending].
+  /// Store staff (Owner, Employee, Admin) can cancel any active order (not completed and not already cancelled).
   Future<bool> cancelOrder(
     String orderId, {
     String? reason,
     String? gcashRefundName,
     String? gcashRefundNumber,
+    bool isStaff = false,
   }) async {
-    final index = _orders.indexWhere((o) => o.orderId == orderId);
+    final index = _orders.indexWhere((o) =>
+        o.orderId == orderId ||
+        (o.dbId != null && o.dbId == orderId) ||
+        o.orderId.replaceAll('#', '').trim() == orderId.replaceAll('#', '').trim());
     if (index == -1) {
       debugPrint('Cannot cancel order: #$orderId not found.');
       return false;
     }
 
     final currentOrder = _orders[index];
-    if (currentOrder.status != OrderStatus.pending) {
+
+    // Determine if caller is staff (Owner, Employee, Admin)
+    bool isCallerStaff = isStaff;
+    if (!isCallerStaff) {
+      try {
+        final role = await AuthService().getCurrentUserRole();
+        if (role == 'owner' || role == 'employee' || role == 'admin') {
+          isCallerStaff = true;
+        }
+      } catch (_) {}
+    }
+
+    // Completed or already cancelled orders cannot be cancelled
+    if (currentOrder.status == OrderStatus.completed ||
+        currentOrder.status == OrderStatus.cancelled) {
       debugPrint(
-        'Cannot cancel order #${currentOrder.orderId}: status is ${currentOrder.status.label}. Only pending orders can be cancelled.',
+        'Cannot cancel order #${currentOrder.orderId}: status is already ${currentOrder.status.label}.',
       );
       return false;
     }
+
+    // Customers are strictly permitted to cancel ONLY when order is in [OrderStatus.pending]
+    if (!isCallerStaff && currentOrder.status != OrderStatus.pending) {
+      debugPrint(
+        'Cannot cancel order #${currentOrder.orderId}: status is ${currentOrder.status.label}. Only pending orders can be cancelled by customers.',
+      );
+      return false;
+    }
+
+    // Release any active stock reservation back to available inventory
+    StockReservationService.instance.releaseReservation(currentOrder.orderId);
 
     final isGcash = currentOrder.paymentMethod == PaymentMethod.gCash ||
         currentOrder.paymentProofUrl != null ||
@@ -489,7 +533,7 @@ class EmployeeOrderController extends ChangeNotifier {
     final refundStatus = isGcash ? 'pending' : null;
 
     updateOrderStatus(
-      orderId,
+      currentOrder.orderId,
       OrderStatus.cancelled,
       cancellationReason: reason,
       gcashRefundName: gcashRefundName ?? currentOrder.gcashRefundName,
@@ -581,6 +625,74 @@ class EmployeeOrderController extends ChangeNotifier {
     _savePaymentReferenceToSupabase(updatedOrder);
   }
 
+  /// Checks whether live inventory has sufficient stock for all items in [order].
+  bool hasSufficientStock(CustomerOrder order) {
+    for (final item in order.items) {
+      if (item.productId.startsWith('deal_')) {
+        final dealId = item.productId.substring(5);
+        final deals = SaleDealController.instance.deals;
+        final dealIndex = deals.indexWhere((d) => d.id == dealId);
+        if (dealIndex >= 0) {
+          final deal = deals[dealIndex];
+          for (final dItem in deal.items) {
+            final prod = _inventory.findById(dItem.productId);
+            if (prod == null || prod.quantity < (dItem.quantity * item.quantity)) {
+              return false;
+            }
+          }
+        }
+      } else {
+        final prod = _inventory.findById(item.productId);
+        if (prod == null || prod.quantity < item.quantity) {
+          return false;
+        }
+      }
+    }
+    return true;
+  }
+
+  /// Deducts stock from inventory batches upon order confirmation.
+  void _deductOrderStock(CustomerOrder order) {
+    for (var item in order.items) {
+      if (item.productId.startsWith('deal_')) {
+        final dealId = item.productId.substring(5);
+        final deals = SaleDealController.instance.deals;
+        final dealIndex = deals.indexWhere((d) => d.id == dealId);
+        if (dealIndex >= 0) {
+          final deal = deals[dealIndex];
+          for (final dItem in deal.items) {
+            _inventory.adjustStock(dItem.productId, -(dItem.quantity * item.quantity).toDouble());
+          }
+        }
+      } else {
+        _inventory.adjustStock(item.productId, -item.quantity.toDouble());
+      }
+    }
+    // Release temporary checkout reservation so getAvailableSellableQuantity() does not double-subtract
+    StockReservationService.instance.releaseReservation(order.orderId);
+    debugPrint('Stock deducted for confirmed order #${order.orderId}');
+  }
+
+  /// Restores stock back to inventory batches when an already-confirmed order is cancelled.
+  void _restockOrderStock(CustomerOrder order) {
+    for (var item in order.items) {
+      if (item.productId.startsWith('deal_')) {
+        final dealId = item.productId.substring(5);
+        final deals = SaleDealController.instance.deals;
+        final dealIndex = deals.indexWhere((d) => d.id == dealId);
+        if (dealIndex >= 0) {
+          final deal = deals[dealIndex];
+          for (final dItem in deal.items) {
+            _inventory.adjustStock(dItem.productId, (dItem.quantity * item.quantity).toDouble());
+          }
+        }
+      } else {
+        _inventory.adjustStock(item.productId, item.quantity.toDouble());
+      }
+    }
+    debugPrint('Stock restored for cancelled order #${order.orderId}');
+  }
+
   void updateOrderStatus(
     String orderId,
     OrderStatus newStatus, {
@@ -591,37 +703,40 @@ class EmployeeOrderController extends ChangeNotifier {
     String? refundStatus,
     String? paymentReferenceNumber,
   }) {
-    final index = _orders.indexWhere((o) => o.orderId == orderId);
+    final index = _orders.indexWhere((o) =>
+        o.orderId == orderId ||
+        (o.dbId != null && o.dbId == orderId) ||
+        o.orderId.replaceAll('#', '').trim() == orderId.replaceAll('#', '').trim());
     if (index != -1) {
       final oldOrder = _orders[index];
 
-      // Deduct stock if order is completed and it wasn't already completed/cancelled
-      if (newStatus == OrderStatus.completed &&
-          oldOrder.status != OrderStatus.completed &&
-          oldOrder.status != OrderStatus.cancelled) {
-        for (var item in oldOrder.items) {
-          if (item.productId.startsWith('deal_')) {
-            final dealId = item.productId.substring(5);
-            final deals = SaleDealController.instance.deals;
-            final dealIndex = deals.indexWhere((d) => d.id == dealId);
-            if (dealIndex >= 0) {
-              final deal = deals[dealIndex];
-              for (final dItem in deal.items) {
-                _inventory.adjustStock(dItem.productId, -(dItem.quantity * item.quantity).toDouble());
-              }
-            }
-          } else {
-            _inventory.adjustStock(item.productId, -item.quantity.toDouble());
-          }
-        }
+      bool stockDeducted = oldOrder.isStockDeducted;
+
+      // 1. Deduct stock upon confirmation (or any active post-confirmation status) if not yet deducted
+      final isPostConfirmedActive = newStatus != OrderStatus.pending && newStatus != OrderStatus.cancelled;
+      if (isPostConfirmedActive && !stockDeducted) {
+        _deductOrderStock(oldOrder);
+        stockDeducted = true;
       }
 
-      // Restore promo quota if a pending order containing promo deals is cancelled
-      if (newStatus == OrderStatus.cancelled && oldOrder.status != OrderStatus.cancelled) {
-        for (var item in oldOrder.items) {
-          if (item.productId.startsWith('deal_')) {
-            final dealId = item.productId.substring(5);
-            SaleDealController.instance.restoreDealPurchase(dealId, item.quantity);
+      // 2. Cancellation handling: restock inventory if stock was previously deducted
+      if (newStatus == OrderStatus.cancelled) {
+        // Release reservation back to available inventory
+        StockReservationService.instance.releaseReservation(oldOrder.orderId);
+
+        // If stock was already deducted, RESTOCK it back into inventory
+        if (stockDeducted) {
+          _restockOrderStock(oldOrder);
+          stockDeducted = false;
+        }
+
+        // Restore promo quota if an order containing promo deals is cancelled
+        if (oldOrder.status != OrderStatus.cancelled) {
+          for (var item in oldOrder.items) {
+            if (item.productId.startsWith('deal_')) {
+              final dealId = item.productId.substring(5);
+              SaleDealController.instance.restoreDealPurchase(dealId, item.quantity);
+            }
           }
         }
       }
@@ -657,18 +772,27 @@ class EmployeeOrderController extends ChangeNotifier {
         refundProofUrl: finalProofUrl,
         refundStatus: finalRefundStatus,
         paymentReferenceNumber: finalRefNum,
+        isStockDeducted: stockDeducted,
       );
+
+      if (oldOrder.isStockDeducted != stockDeducted) {
+        _saveStockDeductedToSupabase(_orders[index]);
+      }
 
       final isCancelled = newStatus == OrderStatus.cancelled;
       final currentUid = AuthService().currentUser?.uid;
-      final isCustomerActor = currentUid != null && currentUid == oldOrder.userId;
+      final isCustomerActor = currentUid != null &&
+          oldOrder.userId != null &&
+          oldOrder.userId!.isNotEmpty &&
+          (currentUid == oldOrder.userId ||
+              OneSignalNotificationService.instance.currentUserRole == 'customer');
 
       // Add notification for employee
       // Only send staff push if this action was triggered by the customer (e.g. order cancellation)
       // If staff updated the order, staff does not need to receive a push notification for their own action
       EmployeeNotificationsController.instance.addNotification(
         type: EmployeeNotificationType.assignedTask,
-        title: isCancelled ? 'Order Cancelled' : 'Order Status Updated',
+        title: isCancelled ? 'Order Cancelled' : 'Order Status: ${newStatus.label}',
         message: isCancelled
             ? (finalReason != null && finalReason.isNotEmpty
                 ? 'Order #${oldOrder.orderId} was cancelled. Reason: $finalReason'
@@ -786,6 +910,12 @@ class EmployeeOrderController extends ChangeNotifier {
 
     final oldOrder = _orders[index];
 
+    bool stockDeducted = oldOrder.isStockDeducted;
+    if (!stockDeducted) {
+      _deductOrderStock(oldOrder);
+      stockDeducted = true;
+    }
+
     // Resolve destination coordinates
     final dest = destinationCoords ??
         (oldOrder.deliveryLatitude != null && oldOrder.deliveryLongitude != null
@@ -799,10 +929,15 @@ class EmployeeOrderController extends ChangeNotifier {
       deliveryPersonRole: deliveryPerson.role,
       deliveryLatitude: dest.latitude,
       deliveryLongitude: dest.longitude,
+      isStockDeducted: stockDeducted,
     );
 
     _orders[index] = updatedOrder;
     notifyListeners();
+
+    if (oldOrder.isStockDeducted != stockDeducted) {
+      _saveStockDeductedToSupabase(updatedOrder);
+    }
 
     // Start tracking in DeliveryTrackingService
     await DeliveryTrackingService.instance.startTrackingForOrder(
@@ -1065,6 +1200,31 @@ class EmployeeOrderController extends ChangeNotifier {
     }
   }
 
+  Future<void> _saveStockDeductedToSupabase(CustomerOrder order) async {
+    try {
+      final supaClient = _supabaseService.client;
+      final existing = await supaClient
+          .from('orders')
+          .select('order_notes')
+          .eq('order_number', order.orderId)
+          .maybeSingle();
+
+      String notes = existing?['order_notes']?.toString() ?? '';
+      notes = notes.replaceAll(RegExp(r'\[stock_deducted:[^\]]+\]'), '').trim();
+
+      final tag = '[stock_deducted: ${order.isStockDeducted}]';
+      final updatedNotes = notes.isEmpty ? tag : '$notes $tag';
+
+      await supaClient.from('orders').update({
+        'order_notes': updatedNotes,
+        'updated_at': DateTime.now().toIso8601String(),
+      }).eq('order_number', order.orderId);
+      debugPrint('Stock deducted status (${order.isStockDeducted}) synced to Supabase for #${order.orderId}');
+    } catch (e) {
+      debugPrint('Error syncing stock deducted to Supabase: $e');
+    }
+  }
+
   Future<void> _updateOrderStatusInFirebase(String orderId, OrderStatus newStatus, [CustomerOrder? order]) async {
     try {
       final db = AuthService().database;
@@ -1073,6 +1233,7 @@ class EmployeeOrderController extends ChangeNotifier {
         'updatedAt': DateTime.now().toIso8601String(),
       };
       if (order != null) {
+        updateData['isStockDeducted'] = order.isStockDeducted;
         if (order.cancellationReason != null) updateData['cancellationReason'] = order.cancellationReason;
         if (order.deliveryPersonId != null) updateData['deliveryPersonId'] = order.deliveryPersonId;
         if (order.deliveryPersonName != null) updateData['deliveryPersonName'] = order.deliveryPersonName;

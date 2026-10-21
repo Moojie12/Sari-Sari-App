@@ -2,7 +2,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'firebase_options.dart';
 import 'core/splash/splash_page.dart';
@@ -29,6 +28,13 @@ void main() async {
       options: DefaultFirebaseOptions.currentPlatform,
     );
   }
+
+  await Supabase.initialize(
+    url: 'https://njqqfijxklxtdqljzqrx.supabase.co',
+    anonKey: supabaseAnonKey,
+  );
+  // ignore: avoid_print
+  print('Supabase initialized with URL: https://njqqfijxklxtdqljzqrx.supabase.co');
   
   // Initialize Firebase Cloud Messaging & Notifications
   await FirebaseNotificationService.instance.initialize();
@@ -36,12 +42,6 @@ void main() async {
   // Initialize OneSignal Push Notifications
   await OneSignalNotificationService.instance.initialize();
   
-  await Supabase.initialize(
-    url: 'https://njqqfijxklxtdqljzqrx.supabase.co',
-    anonKey: supabaseAnonKey,
-  );
-  // ignore: avoid_print
-  print('Supabase initialized with URL: https://njqqfijxklxtdqljzqrx.supabase.co');
   runApp(const SariSariApp());
 }
 

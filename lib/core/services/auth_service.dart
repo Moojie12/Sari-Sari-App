@@ -6,6 +6,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_database/firebase_database.dart';
 import 'package:firebase_analytics/firebase_analytics.dart';
 import '../../firebase_options.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import 'connectivity_service.dart';
 import 'firebase_notification_service.dart';
 import 'local_database_service.dart';
@@ -373,6 +374,16 @@ class AuthService {
         debugPrint('[AuthService] Error clearing local tables on logout: $e');
       }
     }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('last_customer_tab');
+      await prefs.remove('last_employee_tab');
+      await prefs.remove('last_owner_tab');
+    } catch (e) {
+      debugPrint('[AuthService] Error clearing tab prefs on logout: $e');
+    }
+
     await _auth.signOut();
   }
 

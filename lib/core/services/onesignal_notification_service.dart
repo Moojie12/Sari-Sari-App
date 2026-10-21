@@ -6,9 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:onesignal_flutter/onesignal_flutter.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import '../../users/employee_db/notifications/employee_notifications_controller.dart';
 import '../../users/employee_db/notifications/employee_notification_model.dart';
-import '../../users/customer_db/notifications/customer_notifications_controller.dart';
 import '../../users/customer_db/notifications/customer_notification_model.dart';
 import '../../users/employee_db/notifications/employee_notification_details_page.dart';
 import '../../users/customer_db/notifications/customer_notification_details_page.dart';
@@ -16,15 +14,21 @@ import '../../users/employee_db/orders/employee_orders_controller.dart';
 import '../../users/employee_db/orders/employee_order_details_page.dart';
 import '../../users/customer_db/purchases/customer_order_controller.dart';
 import '../../users/customer_db/purchases/customer_order_details_page.dart';
-import '../../users/customer_db/purchases/customer_order_model.dart';
+import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 import '../../users/owner_db/owner_db.dart';
 import '../../users/employee_db/employee_db.dart';
 import '../../users/customer_db/customer_db.dart';
+import '../../users/customer_db/chat/customer_chat_page.dart';
+import '../../users/employee_db/messages/employee_chat_page.dart';
 import '../splash/splash_page.dart';
 import 'auth_service.dart';
 import 'firebase_notification_service.dart';
 import 'onesignal_config.dart';
 import 'pos_audio_service.dart';
+import 'package:firebase_core/firebase_core.dart';
+import 'package:firebase_database/firebase_database.dart';
+import 'package:permission_handler/permission_handler.dart';
+import '../../firebase_options.dart';
 
 class OneSignalNotificationService {
   OneSignalNotificationService._internal();
@@ -76,6 +80,16 @@ class OneSignalNotificationService {
       OneSignal.initialize(OneSignalConfig.appId);
 
       // 3. Request Notification Permission and Opt In
+      if (!kIsWeb && defaultTargetPlatform == TargetPlatform.android) {
+        try {
+          final permStatus = await Permission.notification.status;
+          if (!permStatus.isGranted) {
+            await Permission.notification.request();
+          }
+        } catch (pe) {
+          debugPrint('[OneSignal] Android permission_handler notice: $pe');
+        }
+      }
       final permission = await OneSignal.Notifications.requestPermission(true);
       await OneSignal.User.pushSubscription.optIn();
       debugPrint('[OneSignal] Notification permission granted: $permission, optedIn: ${OneSignal.User.pushSubscription.optedIn}');
@@ -95,8 +109,9 @@ class OneSignalNotificationService {
           data: data,
           isForeground: true,
         );
-        // Display the standard system notification even while app is in foreground
-        event.notification.display();
+        // Note: Do NOT call event.notification.display() here!
+        // In OneSignal Flutter 5.x, proceedWithWillDisplay() automatically displays
+        // the notification. Calling display() explicitly causes Android to show it twice!
       });
 
       // 6. Notification clicked / opened listener
@@ -172,9 +187,6 @@ class OneSignalNotificationService {
       await OneSignal.User.pushSubscription.optIn();
 
       debugPrint('[OneSignal] User tagged successfully: id=$userId, supabaseId=$supabaseProfileId, role=$cleanRole');
-
-      // Sync FCM push token to OneSignal player so notifications are delivered reliably
-      await syncPushSubscriptionToken(userId);
     } catch (e) {
       debugPrint('[OneSignal] Failed to login and tag user: $e');
     }
@@ -285,6 +297,7 @@ class OneSignalNotificationService {
     String? orderId,
     String? type,
     String? excludeUserId,
+    Map<String, dynamic>? additionalData,
   }) async {
     if (!OneSignalConfig.canSendPush) {
       debugPrint('[OneSignal] Push skipped: REST API Key not configured via --dart-define.');
@@ -300,56 +313,78 @@ class OneSignalNotificationService {
       try {
         final profiles = await Supabase.instance.client
             .from('profiles')
-            .select('firebase_uid, id, role')
+            .select('firebase_uid, role')
             .inFilter('role', ['owner', 'employee', 'admin']);
         for (final p in profiles) {
-          final fUid = p['firebase_uid']?.toString();
+          final fUid = p['firebase_uid']?.toString().trim();
           if (fUid != null && fUid.isNotEmpty) staffUids.add(fUid);
-          final sId = p['id']?.toString();
-          if (sId != null && sId.isNotEmpty) staffUids.add(sId);
         }
       } catch (e) {
-        debugPrint('[OneSignal] Staff UID lookup note: $e');
+        debugPrint('[OneSignal] Supabase staff lookup note: $e');
+      }
+
+      // 2. Also resolve all staff user IDs from Firebase Realtime Database
+      try {
+        final rtdbSnapshot = await FirebaseDatabase.instanceFor(
+          app: Firebase.app(),
+          databaseURL: DefaultFirebaseOptions.currentPlatform.databaseURL,
+        ).ref().child('users').get();
+        if (rtdbSnapshot.exists && rtdbSnapshot.value is Map) {
+          final usersMap = rtdbSnapshot.value as Map;
+          usersMap.forEach((key, val) {
+            if (val is Map) {
+              final r = val['role']?.toString().toLowerCase().trim();
+              if (r == 'owner' || r == 'employee' || r == 'admin') {
+                final uid = val['uid']?.toString().trim() ?? key.toString().trim();
+                if (uid.isNotEmpty) staffUids.add(uid);
+              }
+            }
+          });
+        }
+      } catch (e) {
+        debugPrint('[OneSignal] RTDB staff lookup note: $e');
       }
 
       if (actorToExclude != null && actorToExclude.isNotEmpty) {
         staffUids.remove(actorToExclude);
       }
 
-      // Build tag filters as fallback
+      // Build tag filters strictly targeting active staff devices
       final filters = <Map<String, dynamic>>[];
       final roles = ['owner', 'employee', 'admin'];
       for (int i = 0; i < roles.length; i++) {
         if (i > 0) filters.add({'operator': 'OR'});
         filters.add({'field': 'tag', 'key': 'role', 'relation': '=', 'value': roles[i]});
-        if (actorToExclude != null && actorToExclude.isNotEmpty) {
-          filters.add({'field': 'tag', 'key': 'userId', 'relation': '!=', 'value': actorToExclude});
-        }
       }
+      if (actorToExclude != null && actorToExclude.isNotEmpty) {
+        filters.add({'field': 'tag', 'key': 'userId', 'relation': '!=', 'value': actorToExclude});
+      }
+
+      final customerId = additionalData?['customerId']?.toString();
+      final collapseKey = (orderId != null && orderId.isNotEmpty)
+          ? 'order_$orderId'
+          : (customerId != null && customerId.isNotEmpty ? 'chat_$customerId' : 'staff_alert');
 
       final payload = <String, dynamic>{
         'app_id': OneSignalConfig.appId,
         'headings': {'en': title},
         'contents': {'en': body},
         'target_channel': 'push',
+        'filters': filters,
+        'collapse_id': collapseKey,
+        'android_group': collapseKey,
         'data': {
           'type': type ?? 'staff_alert',
           'targetRole': 'staff',
           ...?orderId != null ? {'orderId': orderId} : null,
+          ...?additionalData,
         },
         'priority': 10,
+        'existing_android_channel_id': 'orders_channel',
+        'android_sound': 'default',
         'android_visibility': 1,
         'android_accent_color': 'FFEF820D',
       };
-
-      if (staffUids.isNotEmpty) {
-        payload['include_aliases'] = {
-          'external_id': staffUids.toList(),
-        };
-        payload['include_external_user_ids'] = staffUids.toList();
-      } else {
-        payload['filters'] = filters;
-      }
 
       final response = await http.post(
         url,
@@ -385,68 +420,65 @@ class OneSignalNotificationService {
     String? orderId,
     String? type,
     String? excludeUserId,
+    Map<String, dynamic>? additionalData,
   }) async {
-    if (!OneSignalConfig.canSendPush || customerUserId.isEmpty) return false;
+    final cleanId = customerUserId.trim();
+    if (!OneSignalConfig.canSendPush || cleanId.isEmpty) return false;
 
-    // Collect all possible identifiers for this customer (Firebase UID and Supabase Profile UUID)
-    final targetIds = <String>{customerUserId};
-
-    // If customerUserId is a UUID (from Supabase orders table), resolve to Firebase UID
-    final isUuid = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(customerUserId);
+    // Resolve customerUserId to their primary Firebase UID (used as OneSignal external_id)
+    String targetFirebaseUid = cleanId;
+    final isUuid = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(cleanId);
     if (isUuid) {
       try {
         final profile = await Supabase.instance.client
             .from('profiles')
             .select('firebase_uid')
-            .eq('id', customerUserId)
+            .eq('id', cleanId)
             .maybeSingle();
-        final fUid = profile?['firebase_uid']?.toString();
+        final fUid = profile?['firebase_uid']?.toString().trim();
         if (fUid != null && fUid.isNotEmpty) {
-          targetIds.add(fUid);
-          debugPrint('[OneSignal] Resolved customer Supabase ID $customerUserId -> Firebase UID $fUid');
+          targetFirebaseUid = fUid;
+          debugPrint('[OneSignal] Resolved customer Supabase ID $cleanId -> Firebase UID $fUid');
         }
       } catch (e) {
         debugPrint('[OneSignal] Error resolving customer Supabase ID: $e');
       }
-    } else {
-      // If customerUserId is a Firebase UID, also resolve to Supabase Profile UUID
-      try {
-        final profile = await Supabase.instance.client
-            .from('profiles')
-            .select('id')
-            .eq('firebase_uid', customerUserId)
-            .maybeSingle();
-        final pId = profile?['id']?.toString();
-        if (pId != null && pId.isNotEmpty) {
-          targetIds.add(pId);
-        }
-      } catch (_) {}
     }
 
     // Do NOT send push notification to customer if they performed the action themselves!
     final actor = excludeUserId ?? AuthService().currentUser?.uid;
-    if (actor != null && targetIds.contains(actor)) {
-      debugPrint('[OneSignal] Suppressing customer push for own action on user $customerUserId');
+    if (actor != null && (actor == targetFirebaseUid || actor == cleanId)) {
+      debugPrint('[OneSignal] Suppressing customer push for own action on user $cleanId');
       return false;
     }
 
     try {
       final url = Uri.parse('https://onesignal.com/api/v1/notifications');
-      final payload = {
+      final customerCollapseKey = (orderId != null && orderId.isNotEmpty)
+          ? 'order_$orderId'
+          : 'chat_$targetFirebaseUid';
+
+      final payload = <String, dynamic>{
         'app_id': OneSignalConfig.appId,
         'headings': {'en': title},
         'contents': {'en': body},
         'include_aliases': {
-          'external_id': targetIds.toList(),
+          'external_id': [targetFirebaseUid],
         },
         'target_channel': 'push',
+        'collapse_id': customerCollapseKey,
+        'android_group': customerCollapseKey,
         'data': {
           'type': type ?? 'order_update',
           'targetRole': 'customer',
           ...?orderId != null ? {'orderId': orderId} : null,
+          ...?additionalData,
         },
         'priority': 10,
+        'existing_android_channel_id': 'orders_channel',
+        'android_sound': 'default',
         'android_visibility': 1,
+        'android_accent_color': 'FFEF820D',
       };
 
       final response = await http.post(
@@ -461,8 +493,9 @@ class OneSignalNotificationService {
       if (response.statusCode >= 200 && response.statusCode < 300) {
         final resData = jsonDecode(response.body);
         final notifId = resData['id'];
+        final recipients = resData['recipients'];
         final errors = resData['errors'];
-        debugPrint('[OneSignal] Customer push sent: id=$notifId, targets=$targetIds, errors=$errors');
+        debugPrint('[OneSignal] Customer push sent: id=$notifId, target=$targetFirebaseUid, recipients=$recipients, errors=$errors');
         return true;
       } else {
         debugPrint('[OneSignal] Error sending customer push: ${response.statusCode} - ${response.body}');
@@ -474,7 +507,7 @@ class OneSignalNotificationService {
     }
   }
 
-  /// Process incoming notification data payload and update in-app controllers
+  /// Process incoming notification data payload and trigger sound chimes
   void _processPushPayload({
     required String title,
     required String body,
@@ -483,7 +516,6 @@ class OneSignalNotificationService {
   }) {
     final typeStr = data?['type']?.toString().toLowerCase() ?? '';
     final targetRole = data?['targetRole']?.toString().toLowerCase() ?? '';
-    final orderId = data?['orderId']?.toString();
 
     // Check if receiver is store staff
     final isStaff = _currentUserRole == 'owner' ||
@@ -497,33 +529,14 @@ class OneSignalNotificationService {
       } else {
         PosAudioService.playAlertSound();
       }
-
-      EmployeeNotificationType type = EmployeeNotificationType.newOrder;
-      if (typeStr.contains('lowstock')) {
-        type = EmployeeNotificationType.lowStock;
-      } else if (typeStr.contains('outofstock')) {
-        type = EmployeeNotificationType.outOfStock;
-      }
-
-      EmployeeNotificationsController.instance.addNotification(
-        type: type,
-        title: title,
-        message: body,
-        orderId: orderId,
-        sendPush: false, // Prevent infinite loop of sending push
-      );
-    } else {
-      CustomerNotificationsController.instance.addNotification(
-        type: CustomerNotificationType.orderUpdate,
-        title: title,
-        message: body,
-        orderId: orderId,
-        sendPush: false, // Prevent infinite loop of sending push
-      );
     }
+    // Note: Do NOT call addNotification here!
+    // The database entry was already persisted by the sender, and the recipient's
+    // real-time stream (subscribeStoreNotifications / subscribeCustomerNotifications)
+    // automatically syncs it without creating duplicate records.
   }
 
-  /// Open corresponding order details (or fallback to notification details) when notification is tapped
+  /// Open corresponding order or chat details when notification is tapped
   void _handleNotificationPress({
     required String title,
     required String body,
@@ -538,16 +551,31 @@ class OneSignalNotificationService {
         return;
       }
 
+      final typeStr = data?['type']?.toString().toLowerCase() ?? '';
       final targetRole = data?['targetRole']?.toString().toLowerCase() ?? '';
       final isStaff = _currentUserRole == 'owner' ||
           _currentUserRole == 'employee' ||
           _currentUserRole == 'admin' ||
           targetRole == 'staff';
       final orderId = data?['orderId']?.toString();
+      final customerId = data?['customerId']?.toString();
+      final customerName = data?['customerName']?.toString() ?? 'Customer';
 
       Widget targetDetailsPage;
 
-      if (isStaff) {
+      if (typeStr == 'chat_message' || typeStr.contains('chat')) {
+        if (isStaff) {
+          final threadRecipientId = (customerId != null && customerId.isNotEmpty)
+              ? customerId
+              : (orderId ?? '');
+          targetDetailsPage = EmployeeChatPage(
+            recipientId: threadRecipientId,
+            recipientName: customerName,
+          );
+        } else {
+          targetDetailsPage = const CustomerChatPage();
+        }
+      } else if (isStaff) {
         CustomerOrder? matchedOrder;
         if (orderId != null && orderId.isNotEmpty) {
           // 1. Try to find the order in EmployeeOrderController memory

@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth_service.dart';
-import '../../users/customer_db/purchases/customer_order_model.dart';
+import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 
 /// Service for handling all Supabase database operations
 class SupabaseService {
@@ -530,6 +530,7 @@ class SupabaseService {
       if (order.paymentReferenceNumber != null && order.paymentReferenceNumber!.isNotEmpty) {
         notes.add('[payment_ref: ${order.paymentReferenceNumber}]');
       }
+      notes.add('[stock_deducted: ${order.isStockDeducted}]');
       final sellerNote = notes.join(' ');
 
       final orderData = <String, dynamic>{

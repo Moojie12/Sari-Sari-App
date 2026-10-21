@@ -41,6 +41,21 @@ class EmployeeMessagesPage extends StatelessWidget {
           'Messages',
           style: TextStyle(color: Colors.white, fontSize: 17, fontWeight: FontWeight.w600),
         ),
+        actions: [
+          ListenableBuilder(
+            listenable: controller,
+            builder: (context, _) {
+              if (controller.unreadCount == 0) return const SizedBox.shrink();
+              return TextButton(
+                onPressed: () => controller.markAllThreadsAsRead(),
+                child: const Text(
+                  'Mark all read',
+                  style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: ListenableBuilder(
         listenable: controller,
@@ -91,12 +106,19 @@ class EmployeeMessagesPage extends StatelessWidget {
                 borderRadius: BorderRadius.circular(16),
                 child: InkWell(
                   borderRadius: BorderRadius.circular(16),
-                  onTap: () => Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                      builder: (context) => EmployeeChatPage(recipientId: recipient.id),
-                    ),
-                  ),
+                  onTap: () async {
+                    controller.markAllRead(recipient.id);
+                    await Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (context) => EmployeeChatPage(
+                          recipientId: recipient.id,
+                          recipientName: recipient.name,
+                        ),
+                      ),
+                    );
+                    controller.markAllRead(recipient.id);
+                  },
                   child: Padding(
                     padding: const EdgeInsets.all(14),
                     child: Row(

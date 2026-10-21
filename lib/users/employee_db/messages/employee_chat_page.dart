@@ -48,6 +48,7 @@ class _EmployeeChatPageState extends State<EmployeeChatPage> {
       ).listen((liveMessages) {
         if (mounted) {
           _controller.updateThreadMessages(widget.recipientId, liveMessages);
+          _controller.markAllRead(widget.recipientId);
           WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
         }
       });
@@ -73,12 +74,22 @@ class _EmployeeChatPageState extends State<EmployeeChatPage> {
     );
   }
 
+  bool _isSending = false;
+
   void _send() {
     final text = _textController.text;
-    if (text.trim().isEmpty) return;
+    if (text.trim().isEmpty || _isSending) return;
+    _isSending = true;
     _controller.sendMessage(widget.recipientId, text);
     _textController.clear();
     WidgetsBinding.instance.addPostFrameCallback((_) => _scrollToBottom());
+    Future.delayed(const Duration(milliseconds: 600), () {
+      if (mounted) {
+        setState(() {
+          _isSending = false;
+        });
+      }
+    });
   }
 
   bool _isSameDay(DateTime a, DateTime b) {

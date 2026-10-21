@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:sari_sari/core/theme/app_colors.dart';
 import 'package:sari_sari/shared/utils/exit_confirmation_dialog.dart';
@@ -20,6 +19,8 @@ import 'package:sari_sari/users/customer_db/notifications/customer_notifications
 import 'package:sari_sari/users/customer_db/tutorial/customer_tutorial_keys.dart';
 import 'package:sari_sari/users/customer_db/tutorial/customer_tutorial_overlay.dart';
 import 'package:sari_sari/users/customer_db/tutorial/customer_tutorial_service.dart';
+import 'package:sari_sari/core/services/auth_service.dart';
+import 'package:sari_sari/core/services/onesignal_notification_service.dart';
 
 /// Main shell for the customer-facing side of the app.
 class CustomerDashboard extends StatefulWidget {
@@ -32,31 +33,12 @@ class CustomerDashboard extends StatefulWidget {
 
 class CustomerDashboardState extends State<CustomerDashboard> with TickerProviderStateMixin {
   int _selectedIndex = 0;
+  int get selectedIndex => _selectedIndex;
 
   void switchTab(int index) {
     if (index >= 0 && index < _pages.length) {
       setState(() => _selectedIndex = index);
-      _saveCurrentTab(index);
     }
-  }
-
-  Future<void> _restoreSavedTab() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedIndex = prefs.getInt('last_customer_tab');
-      if (savedIndex != null && savedIndex >= 0 && savedIndex < _pages.length && mounted) {
-        setState(() {
-          _selectedIndex = savedIndex;
-        });
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _saveCurrentTab(int index) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('last_customer_tab', index);
-    } catch (_) {}
   }
 
   // Using the singleton controllers (factory ensures we get the global instance)
@@ -91,8 +73,13 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
   @override
   void initState() {
     super.initState();
-    _restoreSavedTab();
     CustomerProfileController.instance.loadProfile();
+
+    final currentUser = AuthService().currentUser;
+    if (currentUser != null && currentUser.uid.isNotEmpty) {
+      OneSignalNotificationService.instance.loginUser(currentUser.uid, 'customer');
+    }
+
     _cartPulseController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 1500),
@@ -244,7 +231,6 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
   void _onDestinationSelected(int index) {
     if (index == _selectedIndex) return;
     setState(() => _selectedIndex = index);
-    _saveCurrentTab(index);
   }
 
   bool _handleScrollNotification(UserScrollNotification notification) {

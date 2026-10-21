@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/chat_database_service.dart';
+import '../notifications/customer_notifications_controller.dart';
 import '../../employee_db/messages/employee_message_model.dart';
 
 class CustomerChatController extends ChangeNotifier {
@@ -54,6 +55,7 @@ class CustomerChatController extends ChangeNotifier {
         _messages.clear();
         _messages.addAll(liveMessages);
         notifyListeners();
+        markAllAsRead();
       }, onError: (e) {
         debugPrint('Error streaming customer messages: $e');
       });
@@ -94,6 +96,26 @@ class CustomerChatController extends ChangeNotifier {
       }
     }
     if (changed) notifyListeners();
+
+    final customerId = effectiveCustomerId;
+    if (customerId.isNotEmpty) {
+      ChatDatabaseService.instance.markMessagesAsRead(
+        customerId: customerId,
+        isEmployeeView: false,
+      );
+    }
+
+    try {
+      final custNotifs = CustomerNotificationsController.instance.notifications;
+      for (final notif in custNotifs) {
+        final isChatNotif = notif.title.toLowerCase().contains('message') ||
+            notif.message.toLowerCase().contains('message') ||
+            notif.title.toLowerCase().contains('store');
+        if (!notif.isRead && isChatNotif) {
+          CustomerNotificationsController.instance.markAsRead(notif.id);
+        }
+      }
+    } catch (_) {}
   }
 
   bool _isThemUnread(EmployeeMessage m) => m.sender == MessageSender.them && !m.isRead;

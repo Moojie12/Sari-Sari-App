@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/theme/app_colors.dart';
 import '../../shared/utils/exit_confirmation_dialog.dart';
@@ -23,6 +22,8 @@ import 'package:sari_sari/users/employee_db/orders/employee_orders_page.dart';
 import 'package:sari_sari/users/employee_db/messages/employee_messages_controller.dart';
 import 'package:sari_sari/users/employee_db/notifications/employee_notifications_controller.dart';
 
+import 'package:sari_sari/core/services/auth_service.dart';
+import 'package:sari_sari/core/services/onesignal_notification_service.dart';
 import 'package:sari_sari/core/services/dashboard_navigation_controller.dart';
 import 'package:sari_sari/users/employee_db/inventory/employee_batch_detail_sheet.dart';
 import 'package:sari_sari/users/employee_db/inventory/employee_edit_product_page.dart';
@@ -39,6 +40,7 @@ class OwnerDashboard extends StatefulWidget {
 
 class OwnerDashboardState extends State<OwnerDashboard> {
   int _selectedIndex = 0;
+  int get selectedIndex => _selectedIndex;
   final _inventoryController = EmployeeInventoryController.instance;
   late final _posController = EmployeePosController(inventory: _inventoryController);
   final _ordersController = EmployeeOrderController.instance;
@@ -68,9 +70,13 @@ class OwnerDashboardState extends State<OwnerDashboard> {
   @override
   void initState() {
     super.initState();
-    _restoreSavedTab();
     OwnerProfileController.instance.loadProfile();
     DashboardNavigationController.instance.addListener(_handleNavigationRequest);
+
+    final currentUser = AuthService().currentUser;
+    if (currentUser != null && currentUser.uid.isNotEmpty) {
+      OneSignalNotificationService.instance.loginUser(currentUser.uid, 'owner');
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final seen = await StaffTutorialService.hasSeenTutorial(isOwner: true);
@@ -82,25 +88,6 @@ class OwnerDashboardState extends State<OwnerDashboard> {
         });
       }
     });
-  }
-
-  Future<void> _restoreSavedTab() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedIndex = prefs.getInt('last_owner_tab');
-      if (savedIndex != null && savedIndex >= 0 && savedIndex < 5 && mounted) {
-        setState(() {
-          _selectedIndex = savedIndex;
-        });
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _saveCurrentTab(int index) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('last_owner_tab', index);
-    } catch (_) {}
   }
 
   @override
@@ -195,7 +182,6 @@ class OwnerDashboardState extends State<OwnerDashboard> {
   void _onDestinationSelected(int index) {
     if (index == _selectedIndex) return;
     setState(() => _selectedIndex = index);
-    _saveCurrentTab(index);
   }
 
   bool _handleScrollNotification(UserScrollNotification notification) {

@@ -187,5 +187,80 @@ void main() {
       expect(active[1].orderId, 'SS-PRIO-002'); // Preparing is next
       expect(active[2].orderId, 'SS-PRIO-001'); // Pending is last
     });
+
+    test('Store Staff (Owner/Employee) CAN cancel active orders across lifecycle (confirmed, preparing, ready, outForDelivery)', () async {
+      final cancellableStatusesByStaff = [
+        OrderStatus.pending,
+        OrderStatus.confirmed,
+        OrderStatus.preparing,
+        OrderStatus.readyForShipment,
+        OrderStatus.readyForPickup,
+        OrderStatus.outForDelivery,
+      ];
+
+      for (final status in cancellableStatusesByStaff) {
+        final orderId = 'STAFF-CANCEL-${status.name.toUpperCase()}';
+        final order = createTestOrder(
+          orderId: orderId,
+          status: status,
+        );
+        sharedController.placeOrder(order);
+
+        expect(sharedController.orders.firstWhere((o) => o.orderId == orderId).status, status);
+
+        // Cancel as staff with a reason
+        final reason = 'Store out of stock for status ${status.label}';
+        final result = await sharedController.cancelOrder(
+          orderId,
+          reason: reason,
+          isStaff: true,
+        );
+
+        expect(result, isTrue, reason: 'Staff should be allowed to cancel order in ${status.label} status');
+
+        final updated = sharedController.orders.firstWhere((o) => o.orderId == orderId);
+        expect(updated.status, OrderStatus.cancelled);
+        expect(updated.cancellationReason, reason);
+      }
+    });
+
+    test('Staff cancellation notifies customer with cancellation reason', () async {
+      final orderId = 'STAFF-NOTIF-TEST-001';
+      final order = createTestOrder(orderId: orderId, status: OrderStatus.confirmed);
+      sharedController.placeOrder(order);
+
+      const cancelReason = 'Customer requested cancellation via phone call';
+      final result = await sharedController.cancelOrder(
+        orderId,
+        reason: cancelReason,
+        isStaff: true,
+      );
+
+      expect(result, isTrue);
+
+      // Verify the order is cancelled
+      final cancelledOrder = sharedController.orders.firstWhere((o) => o.orderId == orderId);
+      expect(cancelledOrder.status, OrderStatus.cancelled);
+      expect(cancelledOrder.cancellationReason, cancelReason);
+    });
+
+    test('Store Staff CANNOT cancel completed or already cancelled orders', () async {
+      final terminalStatuses = [OrderStatus.completed, OrderStatus.cancelled];
+
+      for (final status in terminalStatuses) {
+        final orderId = 'STAFF-TERMINAL-${status.name.toUpperCase()}';
+        final order = createTestOrder(orderId: orderId, status: status);
+        sharedController.placeOrder(order);
+
+        final result = await sharedController.cancelOrder(
+          orderId,
+          reason: 'Attempted cancel',
+          isStaff: true,
+        );
+
+        expect(result, isFalse, reason: 'Staff should not cancel ${status.label} order');
+        expect(sharedController.orders.firstWhere((o) => o.orderId == orderId).status, status);
+      }
+    });
   });
 }

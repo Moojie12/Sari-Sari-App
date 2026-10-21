@@ -195,6 +195,14 @@ class CustomerNotificationsController extends ChangeNotifier {
       return;
     }
 
+    final currentRole = OneSignalNotificationService.instance.currentUserRole;
+    final isCustomerUser = currentRole == 'customer' || currentRole == null;
+    final targetUserId = userId ?? (isCustomerUser ? AuthService().currentUser?.uid : null);
+    if (targetUserId == null || targetUserId.isEmpty) {
+      debugPrint('[CustomerNotificationsController] No customer userId target specified. Skipping.');
+      return;
+    }
+
     final notification = CustomerNotification(
       id: 'cust_notif_${DateTime.now().millisecondsSinceEpoch}_${_notifications.length}',
       type: type,
@@ -207,26 +215,23 @@ class CustomerNotificationsController extends ChangeNotifier {
     _notifications.insert(0, notification);
     notifyListeners();
 
-    final targetUserId = userId ?? AuthService().currentUser?.uid;
-    if (targetUserId != null && targetUserId.isNotEmpty) {
-      _dbService.saveCustomerNotification(targetUserId, notification).catchError((e) {
-        debugPrint('Failed to save customer notification: $e');
-      });
+    _dbService.saveCustomerNotification(targetUserId, notification).catchError((e) {
+      debugPrint('Failed to save customer notification: $e');
+    });
 
-      // Do not send push notification to user if the action was triggered by the user themselves!
-      final currentUid = AuthService().currentUser?.uid;
-      final isOwnAction = currentUid != null && currentUid == targetUserId;
+    // Do not send push notification to user if the action was triggered by the user themselves!
+    final currentUid = AuthService().currentUser?.uid;
+    final isOwnAction = currentUid != null && currentUid == targetUserId;
 
-      if (sendPush && !isOwnAction) {
-        OneSignalNotificationService.instance.sendCustomerNotification(
-          customerUserId: targetUserId,
-          title: title,
-          body: message,
-          orderId: orderId,
-          type: type.name,
-          excludeUserId: currentUid,
-        );
-      }
+    if (sendPush && !isOwnAction) {
+      OneSignalNotificationService.instance.sendCustomerNotification(
+        customerUserId: targetUserId,
+        title: title,
+        body: message,
+        orderId: orderId,
+        type: type.name,
+        excludeUserId: currentUid,
+      );
     }
   }
 

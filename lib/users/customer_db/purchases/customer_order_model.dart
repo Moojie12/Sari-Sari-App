@@ -127,6 +127,7 @@ class CustomerOrderItem {
   }
 }
 
+// Model class for customer orders.
 @immutable
 class CustomerOrder {
   const CustomerOrder({
@@ -157,6 +158,7 @@ class CustomerOrder {
     this.refundProofUrl,
     this.refundStatus,
     this.paymentProofUrl,
+    this.isStockDeducted = false,
   });
 
   final String orderId;
@@ -186,6 +188,7 @@ class CustomerOrder {
   final String? refundProofUrl;
   final String? refundStatus;
   final String? paymentProofUrl;
+  final bool isStockDeducted;
 
   String get formattedDate => '${orderDate.day}/${orderDate.month}/${orderDate.year}';
 
@@ -249,6 +252,7 @@ class CustomerOrder {
     String? refundProofUrl,
     String? refundStatus,
     String? paymentProofUrl,
+    bool? isStockDeducted,
   }) {
     return CustomerOrder(
       orderId: orderId ?? this.orderId,
@@ -278,6 +282,7 @@ class CustomerOrder {
       refundProofUrl: refundProofUrl ?? this.refundProofUrl,
       refundStatus: refundStatus ?? this.refundStatus,
       paymentProofUrl: paymentProofUrl ?? this.paymentProofUrl,
+      isStockDeducted: isStockDeducted ?? this.isStockDeducted,
     );
   }
 
@@ -311,6 +316,7 @@ class CustomerOrder {
       'refundProofUrl': refundProofUrl,
       'refundStatus': refundStatus,
       'paymentProofUrl': paymentProofUrl,
+      'isStockDeducted': isStockDeducted,
     };
   }
 
@@ -428,6 +434,10 @@ class CustomerOrder {
         map['paymentProofUrl']?.toString() ?? map['payment_proof_url']?.toString(),
         notes,
       ),
+      isStockDeducted: map['isStockDeducted'] == true ||
+          map['is_stock_deducted'] == true ||
+          _parseIsStockDeducted(notes) ||
+          (map['status'] != null && map['status'] != 'pending' && map['status'] != 'cancelled'),
     );
   }
 
@@ -520,8 +530,16 @@ class CustomerOrder {
         map['payment_proof_url']?.toString() ?? map['paymentProofUrl']?.toString(),
         notes,
       ),
+      isStockDeducted: _parseIsStockDeducted(notes) ||
+          (map['status'] != null && map['status'] != 'pending' && map['status'] != 'cancelled'),
     );
   }
+}
+
+bool _parseIsStockDeducted(String? orderNotes) {
+  if (orderNotes == null) return false;
+  final match = RegExp(r'\[stock_deducted:\s*(true|false)\]', caseSensitive: false).firstMatch(orderNotes);
+  return match != null && match.group(1)?.toLowerCase() == 'true';
 }
 
 class _DeliveryPersonInfo {

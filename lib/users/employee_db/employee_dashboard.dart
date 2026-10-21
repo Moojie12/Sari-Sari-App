@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../core/services/dashboard_navigation_controller.dart';
 import '../../core/theme/app_colors.dart';
@@ -27,6 +26,8 @@ import 'pos/employee_pos_controller.dart';
 import 'pos/employee_pos_page.dart';
 import 'profile/employee_profile_page.dart';
 import 'profile/employee_profile_controller.dart';
+import '../../core/services/auth_service.dart';
+import '../../core/services/onesignal_notification_service.dart';
 
 /// Main shell for the employee-facing (Cashier / Inventory Staff) side of
 /// the app.
@@ -47,6 +48,7 @@ class EmployeeDashboard extends StatefulWidget {
 
 class EmployeeDashboardState extends State<EmployeeDashboard> {
   int _selectedIndex = 0;
+  int get selectedIndex => _selectedIndex;
 
   final _inventoryController = EmployeeInventoryController();
   late final _posController = EmployeePosController(inventory: _inventoryController);
@@ -79,9 +81,13 @@ class EmployeeDashboardState extends State<EmployeeDashboard> {
   @override
   void initState() {
     super.initState();
-    _restoreSavedTab();
     EmployeeProfileController.instance.loadProfile();
     DashboardNavigationController.instance.addListener(_handleNavigationRequest);
+
+    final currentUser = AuthService().currentUser;
+    if (currentUser != null && currentUser.uid.isNotEmpty) {
+      OneSignalNotificationService.instance.loginUser(currentUser.uid, 'employee');
+    }
 
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       final seen = await StaffTutorialService.hasSeenTutorial(isOwner: false);
@@ -93,25 +99,6 @@ class EmployeeDashboardState extends State<EmployeeDashboard> {
         });
       }
     });
-  }
-
-  Future<void> _restoreSavedTab() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      final savedIndex = prefs.getInt('last_employee_tab');
-      if (savedIndex != null && savedIndex >= 0 && savedIndex < 5 && mounted) {
-        setState(() {
-          _selectedIndex = savedIndex;
-        });
-      }
-    } catch (_) {}
-  }
-
-  Future<void> _saveCurrentTab(int index) async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
-      await prefs.setInt('last_employee_tab', index);
-    } catch (_) {}
   }
 
   @override
@@ -230,7 +217,6 @@ class EmployeeDashboardState extends State<EmployeeDashboard> {
   void _onDestinationSelected(int index) {
     if (index == _selectedIndex) return;
     setState(() => _selectedIndex = index);
-    _saveCurrentTab(index);
   }
 
   bool _handleScrollNotification(UserScrollNotification notification) {

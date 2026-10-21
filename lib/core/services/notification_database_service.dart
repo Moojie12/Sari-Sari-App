@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../users/customer_db/notifications/customer_notification_model.dart';
 import '../../users/employee_db/notifications/employee_notification_model.dart';
 import 'auth_service.dart';
@@ -19,23 +20,57 @@ class NotificationDatabaseService {
 
   /// Save a customer notification to Firebase Realtime Database at:
   /// `notifications/customers/$userId/$notifId`
+  /// Automatically resolves between Firebase UID and Supabase Profile UUID so that
+  /// notifications are saved to both paths and the customer never misses a notification.
   Future<void> saveCustomerNotification(
     String userId,
     CustomerNotification notification,
   ) async {
     if (userId.isEmpty) return;
+
+    final targetUserIds = <String>{userId};
+    final isUuid = RegExp(r'^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$').hasMatch(userId);
+
+    try {
+      if (isUuid) {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('firebase_uid')
+            .eq('id', userId)
+            .maybeSingle();
+        final fUid = profile?['firebase_uid']?.toString();
+        if (fUid != null && fUid.isNotEmpty) {
+          targetUserIds.add(fUid);
+        }
+      } else {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('id')
+            .eq('firebase_uid', userId)
+            .maybeSingle();
+        final sId = profile?['id']?.toString();
+        if (sId != null && sId.isNotEmpty) {
+          targetUserIds.add(sId);
+        }
+      }
+    } catch (_) {}
+
     try {
       final db = _authService.database;
-      final ref = db.ref().child('notifications/customers/$userId/${notification.id}');
-      await ref.set({
+      final payload = {
         'id': notification.id,
         'type': notification.type.name,
         'title': notification.title,
         'message': notification.message,
         'timestamp': notification.timestamp.toIso8601String(),
         'isRead': notification.isRead,
-      });
-      debugPrint('Saved customer notification #${notification.id} to database for user $userId');
+      };
+
+      for (final tId in targetUserIds) {
+        final ref = db.ref().child('notifications/customers/$tId/${notification.id}');
+        await ref.set(payload);
+        debugPrint('Saved customer notification #${notification.id} to database for user $tId');
+      }
     } catch (e) {
       debugPrint('Failed to save customer notification to database: $e');
     }

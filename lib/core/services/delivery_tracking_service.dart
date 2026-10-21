@@ -6,7 +6,7 @@ import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'auth_service.dart';
 import 'supabase_service.dart';
-import '../../users/customer_db/purchases/customer_order_model.dart';
+import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 
 class DeliveryPerson {
   const DeliveryPerson({

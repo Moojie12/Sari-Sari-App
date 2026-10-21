@@ -160,13 +160,15 @@ void main() {
         ),
       );
 
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       expect(find.text("₱ 50.00"), findsOneWidget);
 
       // Tap on TODAY'S SALES card
       await tester.tap(find.text("TODAY'S SALES"));
-      await tester.pumpAndSettle();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
 
       // Verify navigated to OwnerReportDetailScreen (Daily Revenue Summary)
       expect(find.text('Daily Revenue Summary'), findsOneWidget);

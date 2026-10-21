@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:permission_handler/permission_handler.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/widgets/custom_text_field.dart';
 import '../../shared/widgets/primary_button.dart';
@@ -487,6 +488,13 @@ class _LoginCardFormState extends State<_LoginCardForm> {
     } else {
       destination = const CustomerDb();
     }
+
+    try {
+      final prefs = await SharedPreferences.getInstance();
+      await prefs.remove('last_customer_tab');
+      await prefs.remove('last_employee_tab');
+      await prefs.remove('last_owner_tab');
+    } catch (_) {}
 
     if (mounted) {
       Navigator.pushReplacement(

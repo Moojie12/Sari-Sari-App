@@ -383,6 +383,7 @@ class EmployeePosController extends ChangeNotifier {
       userId: userId,
       processedBy: sellerLabel,
       paymentReferenceNumber: paymentReferenceNumber,
+      isStockDeducted: true,
     );
     EmployeeOrderController.instance.placeOrder(posOrder);
 

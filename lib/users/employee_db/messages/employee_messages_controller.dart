@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../../core/services/auth_service.dart';
 import '../../../core/services/chat_database_service.dart';
+import '../notifications/employee_notifications_controller.dart';
 import '../orders/employee_orders_controller.dart';
 import 'employee_message_model.dart';
 
@@ -229,21 +230,80 @@ class EmployeeMessagesController extends ChangeNotifier {
 
   void markAllRead(String recipientId) {
     final index = _threads.indexWhere((t) => t.recipient.id == recipientId);
-    if (index < 0) return;
+    if (index >= 0) {
+      final thread = _threads[index];
+      var changed = false;
+      final updatedMessages = thread.messages.map((m) {
+        if (m.sender == MessageSender.them && !m.isRead) {
+          changed = true;
+          return m.copyWith(isRead: true);
+        }
+        return m;
+      }).toList();
 
-    final thread = _threads[index];
-    var changed = false;
-    final updatedMessages = thread.messages.map((m) {
-      if (m.sender == MessageSender.them && !m.isRead) {
-        changed = true;
-        return m.copyWith(isRead: true);
+      if (changed) {
+        _threads[index] = thread.copyWith(messages: updatedMessages);
+        notifyListeners();
       }
-      return m;
-    }).toList();
 
-    if (changed) {
-      _threads[index] = thread.copyWith(messages: updatedMessages);
+      // Automatically mark any pending in-app chat notifications from this customer as read
+      try {
+        final storeNotifs = EmployeeNotificationsController.instance.notifications;
+        for (final notif in storeNotifs) {
+          final isChatNotif = notif.title.toLowerCase().contains('message') ||
+              notif.message.toLowerCase().contains('message') ||
+              (thread.recipient.name.isNotEmpty &&
+                  notif.title.toLowerCase().contains(thread.recipient.name.toLowerCase()));
+          if (!notif.isRead && isChatNotif) {
+            EmployeeNotificationsController.instance.markAsRead(notif.id);
+          }
+        }
+      } catch (_) {}
+    }
+
+    // Persist read status to Firebase Realtime Database so badges update on all listeners
+    ChatDatabaseService.instance.markMessagesAsRead(
+      customerId: recipientId,
+      isEmployeeView: true,
+    );
+  }
+
+  /// Marks all chat threads and their messages as read
+  void markAllThreadsAsRead() {
+    bool anyChanged = false;
+    for (int i = 0; i < _threads.length; i++) {
+      final thread = _threads[i];
+      if (thread.unreadCount > 0) {
+        final updated = thread.messages.map((m) {
+          if (m.sender == MessageSender.them && !m.isRead) {
+            return m.copyWith(isRead: true);
+          }
+          return m;
+        }).toList();
+        _threads[i] = thread.copyWith(messages: updated);
+        anyChanged = true;
+
+        ChatDatabaseService.instance.markMessagesAsRead(
+          customerId: thread.recipient.id,
+          isEmployeeView: true,
+        );
+      }
+    }
+
+    if (anyChanged) {
       notifyListeners();
     }
+
+    // Also mark any chat notifications as read
+    try {
+      final storeNotifs = EmployeeNotificationsController.instance.notifications;
+      for (final notif in storeNotifs) {
+        final isChatNotif = notif.title.toLowerCase().contains('message') ||
+            notif.message.toLowerCase().contains('message');
+        if (!notif.isRead && isChatNotif) {
+          EmployeeNotificationsController.instance.markAsRead(notif.id);
+        }
+      }
+    } catch (_) {}
   }
 }

@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
 import '../../../core/services/delivery_tracking_service.dart';
 import '../../../core/theme/app_colors.dart';
+import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/osm_delivery_map.dart';
 import '../../../shared/widgets/product_image.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
@@ -266,12 +267,32 @@ class EmployeeOrderDetailsPage extends StatelessWidget {
             child: const Text('Keep Order', style: TextStyle(color: AppColors.secondaryText)),
           ),
           ElevatedButton(
-            onPressed: () {
+            onPressed: () async {
               if (formKey.currentState!.validate()) {
                 final reason = reasonController.text.trim();
                 Navigator.pop(dialogContext);
-                controller.cancelOrder(order.orderId, reason: reason);
-                Navigator.pop(bottomSheetContext);
+                final success = await controller.cancelOrder(
+                  order.orderId,
+                  reason: reason,
+                  isStaff: true,
+                );
+                if (bottomSheetContext.mounted) {
+                  Navigator.pop(bottomSheetContext);
+                }
+                if (context.mounted) {
+                  if (success) {
+                    TopNotification.show(
+                      context,
+                      'Order #${order.displayOrderId} has been cancelled.',
+                    );
+                  } else {
+                    TopNotification.show(
+                      context,
+                      'Cannot cancel Order #${order.displayOrderId}.',
+                      isError: true,
+                    );
+                  }
+                }
               }
             },
             style: ElevatedButton.styleFrom(

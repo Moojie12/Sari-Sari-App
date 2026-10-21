@@ -246,12 +246,19 @@ class EmployeeNotificationsController extends ChangeNotifier {
   }) {
     // Deduplication check: Avoid adding multiple notifications for the exact same order event or identical recent message
     if (orderId != null && orderId.isNotEmpty) {
-      if (_dynamicNotifications.any((n) => n.orderId == orderId && n.title == title)) {
+      if (_dynamicNotifications.any((n) =>
+          n.orderId == orderId &&
+          (type == EmployeeNotificationType.newOrder
+              ? n.type == EmployeeNotificationType.newOrder
+              : (n.title == title && n.message == message)))) {
         debugPrint('[EmployeeNotificationsController] Duplicate notification ignored for order #$orderId: $title');
         return;
       }
     }
-    if (_dynamicNotifications.any((n) => n.title == title && n.message == message && n.timestamp.difference(DateTime.now()).inSeconds.abs() < 5)) {
+    if (_dynamicNotifications.any((n) =>
+        n.title == title &&
+        n.message == message &&
+        n.timestamp.difference(DateTime.now()).inSeconds.abs() < 5)) {
       debugPrint('[EmployeeNotificationsController] Duplicate rapid notification ignored: $title');
       return;
     }

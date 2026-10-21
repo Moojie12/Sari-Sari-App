@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:sari_sari/core/theme/app_colors.dart';
+import 'package:sari_sari/core/services/dashboard_navigation_controller.dart';
 import 'package:sari_sari/core/services/sale_deal_controller.dart';
+import 'package:sari_sari/core/theme/app_colors.dart';
+import 'package:sari_sari/shared/widgets/home_products_preview_section.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
 import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
 import 'package:sari_sari/users/employee_db/orders/employee_orders_controller.dart';
@@ -283,6 +285,7 @@ class OwnerHomePage extends StatelessWidget {
                                 value: '$lowStock',
                                 icon: Icons.trending_down,
                                 color: Colors.orange,
+                                onTap: onOpenInventory,
                               ),
                             ),
                             Container(width: 1, height: 40, color: AppColors.borderColor.withValues(alpha: 0.5)),
@@ -292,6 +295,7 @@ class OwnerHomePage extends StatelessWidget {
                                 value: '$outOfStock',
                                 icon: Icons.remove_shopping_cart_outlined,
                                 color: Colors.red,
+                                onTap: onOpenInventory,
                               ),
                             ),
                           ],
@@ -325,6 +329,18 @@ class OwnerHomePage extends StatelessWidget {
                   ),
 
                   const SizedBox(height: 28),
+
+                  // --- Store Items & Stock Overview ---
+                  HomeProductsPreviewSection(
+                    products: inventory.products,
+                    isLoading: inventory.isProductsLoading,
+                    onOpenInventory: onOpenInventory,
+                    onSelectProduct: (product) {
+                      DashboardNavigationController.instance.navigateToInventory(openProductDetail: product);
+                    },
+                  ),
+
+                  const SizedBox(height: 28),
                   const OwnerAnalyticsSection(),
 
                   const SizedBox(height: 100), // Space for nav bar
@@ -344,48 +360,54 @@ class _StatTile extends StatelessWidget {
     required this.value,
     required this.icon,
     required this.color,
+    this.onTap,
   });
   final String label;
   final String value;
   final IconData icon;
   final Color color;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.all(16),
-      child: Row(
-        children: [
-          Container(
-            padding: const EdgeInsets.all(8),
-            decoration: BoxDecoration(
-              color: color.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(16),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(icon, color: color, size: 18),
             ),
-            child: Icon(icon, color: color, size: 18),
-          ),
-          const SizedBox(width: 12),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                value,
-                style: const TextStyle(
-                  color: AppColors.darkText,
-                  fontSize: 18,
-                  fontWeight: FontWeight.bold,
+            const SizedBox(width: 12),
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  value,
+                  style: const TextStyle(
+                    color: AppColors.darkText,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
                 ),
-              ),
-              Text(
-                label,
-                style: const TextStyle(
-                  color: AppColors.secondaryText,
-                  fontSize: 11,
+                Text(
+                  label,
+                  style: const TextStyle(
+                    color: AppColors.secondaryText,
+                    fontSize: 11,
+                  ),
                 ),
-              ),
-            ],
-          ),
-        ],
+              ],
+            ),
+          ],
+        ),
       ),
     );
   }

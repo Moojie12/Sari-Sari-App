@@ -58,12 +58,23 @@ class _SplashPageState extends State<SplashPage> {
       }
     } catch (_) {}
 
-    try {
-      final locStatus = await Permission.locationWhenInUse.status;
-      if (locStatus.isDenied) {
-        await Permission.locationWhenInUse.request();
+    if (!kIsWeb) {
+      try {
+        final notifStatus = await Permission.notification.status;
+        if (!notifStatus.isGranted) {
+          await Permission.notification.request();
+        }
+      } catch (e) {
+        debugPrint('[SplashPage] Notification permission request error: $e');
       }
-    } catch (_) {}
+
+      try {
+        final locStatus = await Permission.locationWhenInUse.status;
+        if (locStatus.isDenied) {
+          await Permission.locationWhenInUse.request();
+        }
+      } catch (_) {}
+    }
 
     if (OneSignalNotificationService.instance.hasActiveNotificationOpen) {
       debugPrint('[SplashPage] Navigation aborted: notification details is active.');
@@ -94,8 +105,12 @@ class _SplashPageState extends State<SplashPage> {
 
       // Check role and go to appropriate database (works for both web and mobile)
       try {
-        final bool isOwner = await AuthService().hasRole('owner');
-        final bool isEmployee = await AuthService().hasRole('employee');
+        final role = await AuthService().getCurrentUserRole();
+        // Ensure OneSignal registration and role tags are active on device
+        OneSignalNotificationService.instance.loginUser(user.uid, role);
+
+        final bool isOwner = role == 'owner';
+        final bool isEmployee = role == 'employee';
 
         if (mounted && !OneSignalNotificationService.instance.hasActiveNotificationOpen) {
           if (isOwner) {
