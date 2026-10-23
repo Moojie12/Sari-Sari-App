@@ -246,6 +246,19 @@ CREATE TABLE IF NOT EXISTS public.audit_logs (
   CONSTRAINT audit_logs_pkey PRIMARY KEY (id)
 );
 
+-- Rate Limit Events (Security & Rate Limiting)
+CREATE TABLE IF NOT EXISTS public.rate_limit_events (
+  id uuid NOT NULL DEFAULT gen_random_uuid(),
+  identifier text NOT NULL,
+  action_type text NOT NULL,
+  attempt_timestamp timestamp with time zone DEFAULT now(),
+  lockout_until timestamp with time zone,
+  created_at timestamp with time zone DEFAULT now(),
+  CONSTRAINT rate_limit_events_pkey PRIMARY KEY (id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_rate_limit_events_identifier ON public.rate_limit_events(identifier, action_type);
+
 -- 3. FUNCTIONS & RPCS
 
 -- Atomic Sale Transaction Function

@@ -234,7 +234,7 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
         },
       ),
     );
-    if (created != null) {
+    if (created != null && created.batches.isNotEmpty) {
       final lastBatch = created.batches.last;
       _showSuccessDialog(created.name, [
         StockReceivingResult(
@@ -242,6 +242,16 @@ class _EmployeeAddProductPageState extends State<EmployeeAddProductPage> {
           productId: created.id,
           batchId: lastBatch.id,
           batchQuantity: lastBatch.quantity,
+          totalStock: created.quantity,
+        )
+      ]);
+    } else if (created != null) {
+      _showSuccessDialog(created.name, [
+        StockReceivingResult(
+          outcome: StockReceivingOutcome.newProduct,
+          productId: created.id,
+          batchId: 'new-batch',
+          batchQuantity: 0.0,
           totalStock: created.quantity,
         )
       ]);
@@ -1659,9 +1669,11 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
         notes: bulkNotes,
       );
 
+      final updatedProduct = widget.inventory.findById(product.id) ?? product;
+
       if (!mounted) return;
       TopNotification.show(context, 'New product "$name" created.');
-      Navigator.pop(context, product);
+      Navigator.pop(context, updatedProduct);
     } catch (e) {
       debugPrint('Error saving new product: $e');
       if (mounted) {

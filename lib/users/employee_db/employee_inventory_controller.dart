@@ -408,7 +408,6 @@ class EmployeeInventoryController extends ChangeNotifier {
           'is_archived': false,
         };
         await _supabaseService.addProduct(productData);
-        await _loadProducts();
       } catch (e) {
         debugPrint('Error saving product to Supabase: $e');
       } finally {
