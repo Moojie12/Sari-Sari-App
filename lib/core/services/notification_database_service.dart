@@ -220,6 +220,7 @@ class NotificationDatabaseService {
         if (notification.productId != null) 'productId': notification.productId,
         if (notification.productName != null) 'productName': notification.productName,
         if (notification.orderId != null) 'orderId': notification.orderId,
+        if (notification.customerId != null) 'customerId': notification.customerId,
       });
       debugPrint('Saved store notification #${notification.id} to database');
     } catch (e) {
@@ -408,6 +409,7 @@ class NotificationDatabaseService {
         productId: map['productId']?.toString(),
         productName: map['productName']?.toString(),
         orderId: map['orderId']?.toString(),
+        customerId: map['customerId']?.toString(),
       );
     } catch (e) {
       debugPrint('Error parsing employee notification: $e');

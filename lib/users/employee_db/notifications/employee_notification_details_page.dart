@@ -6,6 +6,11 @@ import '../employee_inventory_controller.dart';
 import '../inventory/employee_product_model.dart';
 import 'employee_notification_model.dart';
 import 'employee_notifications_page.dart';
+import '../messages/employee_chat_page.dart';
+import '../messages/employee_messages_page.dart';
+import '../orders/employee_order_details_page.dart';
+import '../orders/employee_orders_controller.dart';
+import '../../owner_db/refunds/owner_refunds_page.dart';
 
 class EmployeeNotificationDetailsPage extends StatelessWidget {
   const EmployeeNotificationDetailsPage({
@@ -241,13 +246,11 @@ class EmployeeNotificationDetailsPage extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // Go to Inventory Button if product matched
+            // Contextual Action Buttons
             if (matchingProduct != null) ...[
               ElevatedButton.icon(
                 onPressed: () {
-                  if (Navigator.canPop(context)) {
-                    Navigator.pop(context);
-                  }
+                  if (Navigator.canPop(context)) Navigator.pop(context);
                   Future.microtask(() {
                     DashboardNavigationController.instance.navigateToInventory(
                       openProductDetail: matchingProduct,
@@ -263,43 +266,122 @@ class EmployeeNotificationDetailsPage extends StatelessWidget {
                   backgroundColor: AppColors.primaryOrange,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 2,
                 ),
               ),
               const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: () => Navigator.pop(context),
-                style: OutlinedButton.styleFrom(
-                  foregroundColor: AppColors.secondaryText,
-                  side: BorderSide(color: Colors.grey.shade300),
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+            ] else if (notification.title.toLowerCase().contains('message') ||
+                notification.message.toLowerCase().contains('message')) ...[
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  String senderName = '';
+                  final match = RegExp(r'message from\s+(.+)', caseSensitive: false).firstMatch(notification.title);
+                  if (match != null) senderName = match.group(1)?.trim() ?? '';
+                  final targetId = notification.customerId ?? senderName;
+                  if (targetId.isNotEmpty) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => EmployeeChatPage(
+                          recipientId: targetId,
+                          recipientName: senderName.isNotEmpty ? senderName : 'Customer',
+                        ),
+                      ),
+                    );
+                  } else {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => const EmployeeMessagesPage(viewerRole: 'Staff')),
+                    );
+                  }
+                },
+                icon: const Icon(Icons.chat_bubble_outline, size: 20),
+                label: const Text(
+                  'Open Conversation in Chat',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                 ),
-                child: const Text('Close'),
-              ),
-            ] else ...[
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryOrange,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 2,
                 ),
-                child: const Text(
-                  'Done / Close',
+              ),
+              const SizedBox(height: 12),
+            ] else if (notification.type == EmployeeNotificationType.newOrder ||
+                notification.title.toLowerCase().contains('order') ||
+                notification.message.toLowerCase().contains('order')) ...[
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  final matchingOrder = findOrderForNotification(notification, EmployeeOrderController.instance);
+                  if (matchingOrder != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => EmployeeOrderDetailsPage(
+                          order: matchingOrder,
+                          controller: EmployeeOrderController.instance,
+                        ),
+                      ),
+                    );
+                  } else {
+                    DashboardNavigationController.instance.navigateToOrders();
+                  }
+                },
+                icon: const Icon(Icons.receipt_long_outlined, size: 20),
+                label: const Text(
+                  'View Order Details',
                   style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
                 ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryOrange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 2,
+                ),
               ),
+              const SizedBox(height: 12),
+            ] else if (notification.title.toLowerCase().contains('refund') ||
+                notification.message.toLowerCase().contains('refund')) ...[
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const OwnerRefundsPage()),
+                  );
+                },
+                icon: const Icon(Icons.assignment_return_rounded, size: 20),
+                label: const Text(
+                  'Go to GCash Refunds',
+                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                ),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryOrange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 2,
+                ),
+              ),
+              const SizedBox(height: 12),
             ],
+
+            OutlinedButton(
+              onPressed: () => Navigator.pop(context),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.secondaryText,
+                side: BorderSide(color: Colors.grey.shade300),
+                padding: const EdgeInsets.symmetric(vertical: 14),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+              child: const Text('Close'),
+            ),
           ],
         ),
       ),

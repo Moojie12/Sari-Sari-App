@@ -334,7 +334,7 @@ class _OsmDeliveryMapState extends State<OsmDeliveryMap> {
                 // 1. Customer Destination Marker
                 Marker(
                   point: widget.destinationLocation,
-                  width: 140,
+                  width: 160,
                   height: 72,
                   alignment: Alignment.topCenter,
                   child: Column(

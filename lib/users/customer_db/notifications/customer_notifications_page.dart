@@ -3,6 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:sari_sari/core/theme/app_colors.dart';
 import 'package:sari_sari/shared/widgets/skeleton.dart';
 import 'customer_notification_details_page.dart';
+import '../chat/customer_chat_page.dart';
+import '../customer_dashboard.dart';
+import '../purchases/customer_order_controller.dart';
+import '../purchases/customer_order_details_page.dart';
+import '../purchases/customer_order_model.dart';
 import 'customer_notification_model.dart';
 import 'customer_notifications_controller.dart';
 
@@ -321,6 +326,95 @@ class _CustomerNotificationsPageState extends State<CustomerNotificationsPage> {
                       }
 
                       _controller.markAsRead(notification.id);
+
+                      final titleLower = notification.title.toLowerCase();
+                      final messageLower = notification.message.toLowerCase();
+
+                      // 1. CHAT / MESSAGE: "New message from Store" or contains "message" / "chat"
+                      if (titleLower.contains('message') ||
+                          titleLower.contains('chat') ||
+                          messageLower.contains('message') ||
+                          messageLower.contains('chat')) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const CustomerChatPage(),
+                          ),
+                        );
+                        return;
+                      }
+
+                      // 2. ORDER UPDATE: Order Status Update, Delivery Tracking, Ready for Pickup
+                      if (notification.type == CustomerNotificationType.orderUpdate ||
+                          titleLower.contains('order') ||
+                          messageLower.contains('order') ||
+                          messageLower.contains('delivery') ||
+                          messageLower.contains('pickup') ||
+                          messageLower.contains('preparing')) {
+                        final orders = CustomerOrderController.instance.orders;
+                        CustomerOrder? matchedOrder;
+
+                        final combined = '${notification.title} ${notification.message}';
+                        final ordMatch = RegExp(r'ORD-[A-Za-z0-9\-]+', caseSensitive: false).firstMatch(combined);
+                        if (ordMatch != null) {
+                          final extractedId = ordMatch.group(0)!.toUpperCase();
+                          for (final order in orders) {
+                            if (order.orderId.toUpperCase() == extractedId ||
+                                order.displayOrderId.toUpperCase() == extractedId ||
+                                order.orderId.toUpperCase().contains(extractedId) ||
+                                extractedId.contains(order.orderId.toUpperCase())) {
+                              matchedOrder = order;
+                              break;
+                            }
+                          }
+                        }
+
+                        if (matchedOrder == null) {
+                          for (final order in orders) {
+                            if (order.orderId.isNotEmpty && combined.contains(order.orderId)) {
+                              matchedOrder = order;
+                              break;
+                            }
+                            if (order.displayOrderId.isNotEmpty && combined.contains(order.displayOrderId)) {
+                              matchedOrder = order;
+                              break;
+                            }
+                          }
+                        }
+
+                        if (matchedOrder != null) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => CustomerOrderDetailsPage(order: matchedOrder!),
+                            ),
+                          );
+                          return;
+                        } else {
+                          // Switch tab directly to My Purchases
+                          CustomerDashboard.dashboardKey.currentState?.switchTab(2);
+                          return;
+                        }
+                      }
+
+                      // 3. PROMOTIONS / DISCOUNTS / SALE
+                      if (notification.type == CustomerNotificationType.promotion ||
+                          titleLower.contains('promo') ||
+                          titleLower.contains('discount') ||
+                          titleLower.contains('sale') ||
+                          messageLower.contains('promo') ||
+                          messageLower.contains('discount')) {
+                        CustomerDashboard.dashboardKey.currentState?.switchTab(0);
+                        return;
+                      }
+
+                      // 4. SECURITY / ACCOUNT
+                      if (notification.type == CustomerNotificationType.security) {
+                        CustomerDashboard.dashboardKey.currentState?.switchTab(3);
+                        return;
+                      }
+
+                      // 5. Fallback to CustomerNotificationDetailsPage
                       Navigator.push(
                         context,
                         MaterialPageRoute(

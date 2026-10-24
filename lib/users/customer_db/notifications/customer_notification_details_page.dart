@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:sari_sari/core/theme/app_colors.dart';
 import '../customer_dashboard.dart';
 import 'customer_notification_model.dart';
+import '../chat/customer_chat_page.dart';
+import '../purchases/customer_order_controller.dart';
+import '../purchases/customer_order_details_page.dart';
 
 class CustomerNotificationDetailsPage extends StatelessWidget {
   const CustomerNotificationDetailsPage({
@@ -159,58 +162,79 @@ class CustomerNotificationDetailsPage extends StatelessWidget {
             const SizedBox(height: 24),
 
             // Contextual Action Buttons
-            if (notification.type == CustomerNotificationType.orderUpdate)
-              ElevatedButton.icon(
-                onPressed: () {
-                  Navigator.pop(context); // Close details
-                  final state = CustomerDashboard.dashboardKey.currentState;
-                  if (state != null) {
-                    state.switchTab(2); // Switch to My Purchases tab
-                  }
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryOrange,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  elevation: 2,
-                ),
-                icon: const Icon(Icons.shopping_bag_outlined),
-                label: const Text(
-                  'View My Orders',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
-                ),
-              )
-            else if (notification.type == CustomerNotificationType.promotion)
+            if (notification.title.toLowerCase().contains('message') ||
+                notification.message.toLowerCase().contains('message')) ...[
               ElevatedButton.icon(
                 onPressed: () {
                   Navigator.pop(context);
-                  final state = CustomerDashboard.dashboardKey.currentState;
-                  if (state != null) {
-                    state.switchTab(0); // Switch to Home tab
-                  }
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const CustomerChatPage()),
+                  );
                 },
+                icon: const Icon(Icons.chat_bubble_outline),
+                label: const Text('Reply in Chat', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
                 style: ElevatedButton.styleFrom(
                   backgroundColor: AppColors.primaryOrange,
                   foregroundColor: Colors.white,
                   padding: const EdgeInsets.symmetric(vertical: 14),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(12),
-                  ),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   elevation: 2,
                 ),
-                icon: const Icon(Icons.storefront),
-                label: const Text(
-                  'Shop Now',
-                  style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 12),
+            ] else if (notification.type == CustomerNotificationType.orderUpdate ||
+                notification.title.toLowerCase().contains('order') ||
+                notification.message.toLowerCase().contains('order')) ...[
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  final orders = CustomerOrderController.instance.orders;
+                  final combined = '${notification.title} ${notification.message}';
+                  final ordMatch = RegExp(r'ORD-[A-Za-z0-9\-]+', caseSensitive: false).firstMatch(combined);
+                  final extractedId = ordMatch?.group(0)?.toUpperCase();
+                  final matchedOrder = orders.where((o) =>
+                      (extractedId != null && (o.orderId.toUpperCase() == extractedId || o.displayOrderId.toUpperCase() == extractedId)) ||
+                      (o.orderId.isNotEmpty && combined.contains(o.orderId))).firstOrNull;
+
+                  if (matchedOrder != null) {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(builder: (_) => CustomerOrderDetailsPage(order: matchedOrder)),
+                    );
+                  } else {
+                    CustomerDashboard.dashboardKey.currentState?.switchTab(2);
+                  }
+                },
+                icon: const Icon(Icons.shopping_bag_outlined),
+                label: const Text('View Order Details', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryOrange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 2,
                 ),
               ),
-
-            if (notification.type == CustomerNotificationType.orderUpdate ||
-                notification.type == CustomerNotificationType.promotion)
               const SizedBox(height: 12),
+            ] else if (notification.type == CustomerNotificationType.promotion) ...[
+              ElevatedButton.icon(
+                onPressed: () {
+                  Navigator.pop(context);
+                  CustomerDashboard.dashboardKey.currentState?.switchTab(0);
+                },
+                icon: const Icon(Icons.storefront),
+                label: const Text('Shop Deals', style: TextStyle(fontSize: 15, fontWeight: FontWeight.bold)),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryOrange,
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  elevation: 2,
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
 
             OutlinedButton(
               onPressed: () => Navigator.pop(context),
@@ -218,14 +242,9 @@ class CustomerNotificationDetailsPage extends StatelessWidget {
                 foregroundColor: AppColors.darkText,
                 padding: const EdgeInsets.symmetric(vertical: 14),
                 side: BorderSide(color: Colors.grey.withValues(alpha: 0.3)),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
-                ),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               ),
-              child: const Text(
-                'Close',
-                style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
-              ),
+              child: const Text('Close', style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600)),
             ),
           ],
         ),

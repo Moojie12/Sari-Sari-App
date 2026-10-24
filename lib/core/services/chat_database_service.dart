@@ -107,6 +107,7 @@ class ChatDatabaseService {
         type: EmployeeNotificationType.assignedTask,
         title: title,
         message: body,
+        customerId: customerId,
         sendPush: false,
       );
 
