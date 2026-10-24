@@ -23,26 +23,28 @@ const String supabaseAnonKey =
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
-  if (Firebase.apps.isEmpty) {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-  }
+  // Initialize core backends concurrently for fastest cold start
+  await Future.wait([
+    if (Firebase.apps.isEmpty)
+      Firebase.initializeApp(
+        options: DefaultFirebaseOptions.currentPlatform,
+      ),
+    Supabase.initialize(
+      url: 'https://njqqfijxklxtdqljzqrx.supabase.co',
+      anonKey: supabaseAnonKey,
+    ),
+  ]);
 
-  await Supabase.initialize(
-    url: 'https://njqqfijxklxtdqljzqrx.supabase.co',
-    anonKey: supabaseAnonKey,
-  );
-  // ignore: avoid_print
-  print('Supabase initialized with URL: https://njqqfijxklxtdqljzqrx.supabase.co');
-  
-  // Initialize Firebase Cloud Messaging & Notifications
-  await FirebaseNotificationService.instance.initialize();
-
-  // Initialize OneSignal Push Notifications
-  await OneSignalNotificationService.instance.initialize();
-  
+  // Launch UI immediately so the user never sees a stalled screen
   runApp(const SariSariApp());
+
+  // Initialize push notification services asynchronously in background without blocking UI
+  FirebaseNotificationService.instance.initialize().catchError((e) {
+    debugPrint('[FCM] Background init notice: $e');
+  });
+  OneSignalNotificationService.instance.initialize().catchError((e) {
+    debugPrint('[OneSignal] Background init notice: $e');
+  });
 }
 
 bool _isAdminRoute(String? route) {
@@ -363,6 +365,7 @@ class SariSariApp extends StatelessWidget {
       theme: ThemeData(
         useMaterial3: true,
         fontFamily: 'Roboto',
+        scaffoldBackgroundColor: Colors.white,
         colorScheme: ColorScheme.fromSeed(
           seedColor: const Color(0xFFEF820D),
         ),

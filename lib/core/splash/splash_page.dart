@@ -59,30 +59,19 @@ class _SplashPageState extends State<SplashPage> {
     } catch (_) {}
 
     if (!kIsWeb) {
-      try {
-        final notifStatus = await Permission.notification.status;
-        if (!notifStatus.isGranted) {
-          await Permission.notification.request();
-        }
-      } catch (e) {
-        debugPrint('[SplashPage] Notification permission request error: $e');
-      }
-
-      try {
-        final locStatus = await Permission.locationWhenInUse.status;
-        if (locStatus.isDenied) {
-          await Permission.locationWhenInUse.request();
-        }
-      } catch (_) {}
+      // Non-blocking permission check so user enters app instantly
+      Permission.notification.status.then((status) {
+        if (!status.isGranted) Permission.notification.request();
+      }).catchError((_) {});
+      Permission.locationWhenInUse.status.then((status) {
+        if (status.isDenied) Permission.locationWhenInUse.request();
+      }).catchError((_) {});
     }
 
     if (OneSignalNotificationService.instance.hasActiveNotificationOpen) {
       debugPrint('[SplashPage] Navigation aborted: notification details is active.');
       return;
     }
-
-    await Future.delayed(const Duration(milliseconds: 500));
-    if (!mounted || OneSignalNotificationService.instance.hasActiveNotificationOpen) return;
 
     // Check if user is already logged in
     final user = AuthService().currentUser;
