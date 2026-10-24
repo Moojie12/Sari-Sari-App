@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:latlong2/latlong.dart';
+import '../../../core/constants/laguna_bounds.dart';
 import '../../../core/services/delivery_tracking_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/widgets/osm_delivery_map.dart';
@@ -35,17 +36,18 @@ class _CustomerDeliveryTrackingWidgetState extends State<CustomerDeliveryTrackin
   Future<void> _initTracking() async {
     // 1. Resolve destination
     if (widget.order.deliveryLatitude != null && widget.order.deliveryLongitude != null) {
-      _destPos = LatLng(widget.order.deliveryLatitude!, widget.order.deliveryLongitude!);
+      _destPos = LagunaBounds.clamp(LatLng(widget.order.deliveryLatitude!, widget.order.deliveryLongitude!));
     } else {
-      _destPos = await _trackingService.geocodeAddress(widget.order.deliveryAddress);
+      final res = await _trackingService.geocodeAddress(widget.order.deliveryAddress);
+      _destPos = LagunaBounds.clamp(res);
     }
 
     // 2. Read cached tracking if available
     final cached = _trackingService.getCachedTracking(widget.order.orderId);
     if (cached != null) {
       _trackingData = cached;
-      _riderPos = cached.riderLatLng;
-      _destPos = cached.destinationLatLng;
+      _riderPos = LagunaBounds.clamp(cached.riderLatLng);
+      _destPos = LagunaBounds.clamp(cached.destinationLatLng);
     } else {
       _riderPos = DeliveryTrackingService.storeLocation;
     }
@@ -57,8 +59,8 @@ class _CustomerDeliveryTrackingWidgetState extends State<CustomerDeliveryTrackin
       if (data != null && mounted) {
         setState(() {
           _trackingData = data;
-          _riderPos = data.riderLatLng;
-          _destPos = data.destinationLatLng;
+          _riderPos = LagunaBounds.clamp(data.riderLatLng);
+          _destPos = LagunaBounds.clamp(data.destinationLatLng);
         });
       }
     });
@@ -371,16 +373,16 @@ class _CustomerFullScreenMapPageState extends State<_CustomerFullScreenMapPage> 
   @override
   void initState() {
     super.initState();
-    _riderPos = widget.initialRiderPos;
-    _destPos = widget.initialDestPos;
+    _riderPos = LagunaBounds.clamp(widget.initialRiderPos);
+    _destPos = LagunaBounds.clamp(widget.initialDestPos);
     _trackingData = widget.initialTracking;
 
     _trackingSub = _trackingService.streamTracking(widget.order.orderId).listen((data) {
       if (data != null && mounted) {
         setState(() {
           _trackingData = data;
-          _riderPos = data.riderLatLng;
-          _destPos = data.destinationLatLng;
+          _riderPos = LagunaBounds.clamp(data.riderLatLng);
+          _destPos = LagunaBounds.clamp(data.destinationLatLng);
         });
       }
     });

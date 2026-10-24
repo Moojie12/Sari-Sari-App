@@ -145,9 +145,10 @@ class _OsmDeliveryMapState extends State<OsmDeliveryMap> {
   }
 
   void _recenterNavigation() {
+    final safeRider = LagunaBounds.clamp(widget.riderLocation);
     final heading = _getHeadingAngle();
     final rotation = (360.0 - heading) % 360.0;
-    _mapController.moveAndRotate(widget.riderLocation, 17.5, rotation);
+    _mapController.moveAndRotate(safeRider, 17.5, rotation);
   }
 
   Future<void> _fetchRoadRoute() async {
@@ -207,11 +208,20 @@ class _OsmDeliveryMapState extends State<OsmDeliveryMap> {
       if (p.longitude > east) east = p.longitude;
     }
 
+    final safeRider = LagunaBounds.clamp(widget.riderLocation);
+    final safeDest = LagunaBounds.clamp(widget.destinationLocation);
+
     // Include rider and destination specifically
-    south = math.min(south, math.min(widget.riderLocation.latitude, widget.destinationLocation.latitude));
-    north = math.max(north, math.max(widget.riderLocation.latitude, widget.destinationLocation.latitude));
-    west = math.min(west, math.min(widget.riderLocation.longitude, widget.destinationLocation.longitude));
-    east = math.max(east, math.max(widget.riderLocation.longitude, widget.destinationLocation.longitude));
+    south = math.min(south, math.min(safeRider.latitude, safeDest.latitude));
+    north = math.max(north, math.max(safeRider.latitude, safeDest.latitude));
+    west = math.min(west, math.min(safeRider.longitude, safeDest.longitude));
+    east = math.max(east, math.max(safeRider.longitude, safeDest.longitude));
+
+    // Clamp bounds strictly within Laguna boundaries
+    south = south.clamp(LagunaBounds.minLat, LagunaBounds.maxLat);
+    north = north.clamp(LagunaBounds.minLat, LagunaBounds.maxLat);
+    west = west.clamp(LagunaBounds.minLng, LagunaBounds.maxLng);
+    east = east.clamp(LagunaBounds.minLng, LagunaBounds.maxLng);
 
     final bounds = LatLngBounds(
       LatLng(south, west),
@@ -238,24 +248,26 @@ class _OsmDeliveryMapState extends State<OsmDeliveryMap> {
   }
 
   void _centerOnRider() {
-    _mapController.move(widget.riderLocation, 15.5);
+    _mapController.move(LagunaBounds.clamp(widget.riderLocation), 15.5);
   }
 
   void _centerOnDestination() {
-    _mapController.move(widget.destinationLocation, 15.5);
+    _mapController.move(LagunaBounds.clamp(widget.destinationLocation), 15.5);
   }
 
   @override
   Widget build(BuildContext context) {
-    // Initial center between rider and destination
-    final centerLat = (widget.riderLocation.latitude + widget.destinationLocation.latitude) / 2;
-    final centerLng = (widget.riderLocation.longitude + widget.destinationLocation.longitude) / 2;
-    final center = LatLng(centerLat, centerLng);
+    // Strictly clamp rider and destination within Laguna Province boundaries
+    final safeRider = LagunaBounds.clamp(widget.riderLocation);
+    final safeDest = LagunaBounds.clamp(widget.destinationLocation);
+    final centerLat = (safeRider.latitude + safeDest.latitude) / 2;
+    final centerLng = (safeRider.longitude + safeDest.longitude) / 2;
+    final center = LagunaBounds.clamp(LatLng(centerLat, centerLng));
 
     final isOwner = widget.riderRole.trim().toLowerCase() == 'owner';
     final activeRoute = _routePoints.isNotEmpty
         ? _routePoints
-        : [widget.riderLocation, widget.destinationLocation];
+        : [safeRider, safeDest];
 
     final heading = _getHeadingAngle();
     double currentCamRot = 0.0;
@@ -275,10 +287,16 @@ class _OsmDeliveryMapState extends State<OsmDeliveryMap> {
             initialZoom: widget.initialZoom,
             minZoom: LagunaBounds.defaultMinZoom,
             maxZoom: LagunaBounds.defaultMaxZoom,
-            cameraConstraint: CameraConstraint.containCenter(bounds: LagunaBounds.bounds),
+            cameraConstraint: const CameraConstraint.unconstrained(),
             interactionOptions: InteractionOptions(
               flags: widget.interactive ? InteractiveFlag.all : InteractiveFlag.none,
             ),
+            onPositionChanged: (camera, hasGesture) {
+              if (hasGesture && !LagunaBounds.contains(camera.center)) {
+                final clamped = LagunaBounds.clamp(camera.center);
+                _mapController.move(clamped, camera.zoom);
+              }
+            },
             onMapEvent: (event) {
               if (event is MapEventRotate || event is MapEventMove) {
                 if (mounted) setState(() {});
@@ -333,7 +351,7 @@ class _OsmDeliveryMapState extends State<OsmDeliveryMap> {
               markers: [
                 // 1. Customer Destination Marker
                 Marker(
-                  point: widget.destinationLocation,
+                  point: safeDest,
                   width: 160,
                   height: 72,
                   alignment: Alignment.topCenter,
@@ -382,7 +400,7 @@ class _OsmDeliveryMapState extends State<OsmDeliveryMap> {
 
                 // 2. Assigned Delivery Person Marker (Shows clear heading arrow along the road!)
                 Marker(
-                  point: widget.riderLocation,
+                  point: safeRider,
                   width: 170,
                   height: 100,
                   rotate: true,

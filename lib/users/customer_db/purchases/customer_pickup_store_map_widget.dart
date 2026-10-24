@@ -126,8 +126,14 @@ class _CustomerPickupStoreMapWidgetState extends State<CustomerPickupStoreMapWid
                       initialZoom: 16.0,
                       minZoom: LagunaBounds.defaultMinZoom,
                       maxZoom: LagunaBounds.defaultMaxZoom,
-                      cameraConstraint: CameraConstraint.containCenter(bounds: LagunaBounds.bounds),
+                      cameraConstraint: const CameraConstraint.unconstrained(),
                       interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
+                      onPositionChanged: (camera, hasGesture) {
+                        if (hasGesture && !LagunaBounds.contains(camera.center)) {
+                          final clamped = LagunaBounds.clamp(camera.center);
+                          _mapController.move(clamped, camera.zoom);
+                        }
+                      },
                     ),
                     children: [
                       TileLayer(
@@ -345,7 +351,7 @@ class _FullScreenStoreMapPage extends StatelessWidget {
               initialZoom: 16.5,
               minZoom: LagunaBounds.defaultMinZoom,
               maxZoom: LagunaBounds.defaultMaxZoom,
-              cameraConstraint: CameraConstraint.containCenter(bounds: LagunaBounds.bounds),
+              cameraConstraint: const CameraConstraint.unconstrained(),
             ),
             children: [
               TileLayer(

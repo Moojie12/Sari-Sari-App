@@ -308,8 +308,14 @@ class _LagunaAddressMapPickerState extends State<LagunaAddressMapPicker> {
                   initialZoom: 15.0,
                   minZoom: LagunaBounds.defaultMinZoom,
                   maxZoom: LagunaBounds.defaultMaxZoom,
-                  cameraConstraint: CameraConstraint.containCenter(bounds: LagunaBounds.bounds),
+                  cameraConstraint: const CameraConstraint.unconstrained(),
                   interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
+                  onPositionChanged: (camera, hasGesture) {
+                    if (hasGesture && !LagunaBounds.contains(camera.center)) {
+                      final clamped = LagunaBounds.clamp(camera.center);
+                      _mapController.move(clamped, camera.zoom);
+                    }
+                  },
                   onTap: (tapPosition, point) {
                     if (LagunaBounds.contains(point)) {
                       _onPinPlaced(point);
@@ -672,8 +678,14 @@ class _FullScreenMapPickerPageState extends State<_FullScreenMapPickerPage> {
               initialZoom: 16.0,
               minZoom: LagunaBounds.defaultMinZoom,
               maxZoom: LagunaBounds.defaultMaxZoom,
-              cameraConstraint: CameraConstraint.containCenter(bounds: LagunaBounds.bounds),
+              cameraConstraint: const CameraConstraint.unconstrained(),
               interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
+              onPositionChanged: (camera, hasGesture) {
+                if (hasGesture && !LagunaBounds.contains(camera.center)) {
+                  final clamped = LagunaBounds.clamp(camera.center);
+                  _mapController.move(clamped, camera.zoom);
+                }
+              },
               onTap: (tapPosition, point) {
                 if (LagunaBounds.contains(point)) {
                   setState(() {

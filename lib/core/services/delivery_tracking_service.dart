@@ -110,15 +110,23 @@ class DeliveryTrackingData {
   };
 
   factory DeliveryTrackingData.fromMap(Map<dynamic, dynamic> map) {
+    final rawRiderLat = (map['riderLatitude'] as num?)?.toDouble() ?? 14.3122;
+    final rawRiderLng = (map['riderLongitude'] as num?)?.toDouble() ?? 121.1114;
+    final clampedRider = LagunaBounds.clamp(LatLng(rawRiderLat, rawRiderLng));
+
+    final rawDestLat = (map['destinationLatitude'] as num?)?.toDouble() ?? 14.3150;
+    final rawDestLng = (map['destinationLongitude'] as num?)?.toDouble() ?? 121.1180;
+    final clampedDest = LagunaBounds.clamp(LatLng(rawDestLat, rawDestLng));
+
     return DeliveryTrackingData(
       orderId: map['orderId']?.toString() ?? '',
       deliveryPersonId: map['deliveryPersonId']?.toString() ?? '',
       deliveryPersonName: map['deliveryPersonName']?.toString() ?? 'Assigned Rider',
       deliveryPersonRole: map['deliveryPersonRole']?.toString() ?? 'Employee',
-      riderLatitude: (map['riderLatitude'] as num?)?.toDouble() ?? 14.3122,
-      riderLongitude: (map['riderLongitude'] as num?)?.toDouble() ?? 121.1114,
-      destinationLatitude: (map['destinationLatitude'] as num?)?.toDouble() ?? 14.3150,
-      destinationLongitude: (map['destinationLongitude'] as num?)?.toDouble() ?? 121.1180,
+      riderLatitude: clampedRider.latitude,
+      riderLongitude: clampedRider.longitude,
+      destinationLatitude: clampedDest.latitude,
+      destinationLongitude: clampedDest.longitude,
       destinationAddress: map['destinationAddress']?.toString() ?? 'Delivery Address',
       status: map['status']?.toString() ?? 'outForDelivery',
       isTrackingActive: map['isTrackingActive'] == true,
@@ -416,10 +424,11 @@ class DeliveryTrackingService {
     LatLng? destinationCoords,
   }) async {
     // Resolve destination coordinates if not provided
-    final dest = destinationCoords ??
+    final rawDest = destinationCoords ??
         (order.deliveryLatitude != null && order.deliveryLongitude != null
             ? LatLng(order.deliveryLatitude!, order.deliveryLongitude!)
             : await geocodeAddress(order.deliveryAddress));
+    final dest = LagunaBounds.clamp(rawDest);
 
     // Initial rider location starts near the store
     final initialRiderLat = storeLocation.latitude;
@@ -469,14 +478,15 @@ class DeliveryTrackingService {
     required double latitude,
     required double longitude,
   }) async {
+    final clampedRider = LagunaBounds.clamp(LatLng(latitude, longitude));
     final existing = _trackingCache[orderId];
     final updated = DeliveryTrackingData(
       orderId: orderId,
       deliveryPersonId: existing?.deliveryPersonId ?? '',
       deliveryPersonName: existing?.deliveryPersonName ?? 'Assigned Rider',
       deliveryPersonRole: existing?.deliveryPersonRole ?? 'Employee',
-      riderLatitude: latitude,
-      riderLongitude: longitude,
+      riderLatitude: clampedRider.latitude,
+      riderLongitude: clampedRider.longitude,
       destinationLatitude: existing?.destinationLatitude ?? storeLocation.latitude,
       destinationLongitude: existing?.destinationLongitude ?? storeLocation.longitude,
       destinationAddress: existing?.destinationAddress ?? '',
@@ -492,8 +502,8 @@ class DeliveryTrackingService {
     try {
       final db = _authService.database;
       await db.ref().child('delivery_tracking/$orderId').update({
-        'riderLatitude': latitude,
-        'riderLongitude': longitude,
+        'riderLatitude': clampedRider.latitude,
+        'riderLongitude': clampedRider.longitude,
         'updatedAt': DateTime.now().toIso8601String(),
         'isTrackingActive': true,
       });
