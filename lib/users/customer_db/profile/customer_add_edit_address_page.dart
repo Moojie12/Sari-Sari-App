@@ -1,8 +1,12 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:latlong2/latlong.dart';
+import '../../../core/constants/laguna_bounds.dart';
 import '../../../core/services/laguna_location_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
+import '../../../shared/widgets/laguna_address_map_picker.dart';
 import 'customer_address_controller.dart';
 import 'customer_address_model.dart';
 
@@ -22,6 +26,12 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
   String _selectedType = 'Home';
   late final TextEditingController _customTypeController;
 
+  // Search Address input (Laguna Only)
+  final TextEditingController _searchController = TextEditingController();
+  List<LagunaGeocodedPlace> _searchSuggestions = [];
+  bool _isSearching = false;
+  Timer? _searchDebounce;
+
   // Laguna Location API state
   final LagunaLocationService _locationService = LagunaLocationService.instance;
   List<LagunaCity> _cities = [];
@@ -35,8 +45,16 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
   String? _cityLoadError;
   String? _barangayLoadError;
 
-  // Street / House / Landmark details
+  // Street / Postal Code / Region details
   late final TextEditingController _streetDetailsController;
+  late final TextEditingController _postalCodeController;
+  final String _region = 'Region IV-A (CALABARZON)';
+  final String _province = 'Laguna';
+
+  // Map & Pin Coordinates
+  late LatLng _currentLocation;
+  bool _isPinConfirmed = false;
+
   bool _isDefault = false;
   AutovalidateMode _autovalidateMode = AutovalidateMode.disabled;
 
@@ -54,11 +72,23 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
         _customTypeController = TextEditingController(text: existing.type);
       }
       _streetDetailsController = TextEditingController(text: existing.streetDetails ?? '');
+      _postalCodeController = TextEditingController(text: existing.postalCode ?? LagunaBounds.getPostalCode(existing.city) ?? '');
       _isDefault = existing.isDefault;
+
+      if (existing.latitude != null && existing.longitude != null) {
+        _currentLocation = LatLng(existing.latitude!, existing.longitude!);
+        _isPinConfirmed = true;
+      } else {
+        _currentLocation = LagunaBounds.defaultCenter;
+        _isPinConfirmed = false;
+      }
     } else {
       _selectedType = 'Home';
       _customTypeController = TextEditingController();
       _streetDetailsController = TextEditingController();
+      _postalCodeController = TextEditingController();
+      _currentLocation = LagunaBounds.defaultCenter;
+      _isPinConfirmed = false;
       _isDefault = CustomerAddressController.instance.addresses.isEmpty;
     }
 
@@ -67,8 +97,11 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
 
   @override
   void dispose() {
+    _searchDebounce?.cancel();
+    _searchController.dispose();
     _customTypeController.dispose();
     _streetDetailsController.dispose();
+    _postalCodeController.dispose();
     super.dispose();
   }
 
@@ -101,7 +134,12 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
         }
 
         if (matchedCity != null) {
-          _onCityChanged(matchedCity, initialBarangayCode: existing.barangayCode, initialBarangayName: existing.barangay);
+          _onCityChanged(
+            matchedCity,
+            initialBarangayCode: existing.barangayCode,
+            initialBarangayName: existing.barangay,
+            moveMap: existing.latitude == null,
+          );
         }
       }
     } catch (e) {
@@ -113,16 +151,38 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
     }
   }
 
-  Future<void> _onCityChanged(LagunaCity? city, {String? initialBarangayCode, String? initialBarangayName}) async {
+  Future<void> _onCityChanged(
+    LagunaCity? city, {
+    String? initialBarangayCode,
+    String? initialBarangayName,
+    bool moveMap = true,
+  }) async {
     if (city == null) return;
 
+    final postalCode = LagunaBounds.getPostalCode(city.name);
     setState(() {
       _selectedCity = city;
       _selectedBarangay = null;
       _barangays = [];
       _isLoadingBarangays = true;
       _barangayLoadError = null;
+      if (postalCode != null && (_postalCodeController.text.trim().isEmpty || _postalCodeController.text.length != 4)) {
+        _postalCodeController.text = postalCode;
+      }
     });
+
+    if (moveMap) {
+      // Search city location
+      final query = '${city.name}, Laguna, Philippines';
+      LagunaBounds.searchLaguna(query).then((results) {
+        if (mounted && results.isNotEmpty) {
+          setState(() {
+            _currentLocation = results.first.location;
+            _isPinConfirmed = false;
+          });
+        }
+      });
+    }
 
     try {
       final barangays = await _locationService.getBarangays(city.code);
@@ -151,6 +211,114 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
     }
   }
 
+  void _onBarangayChanged(LagunaBarangay? barangay) {
+    if (barangay == null) return;
+    setState(() {
+      _selectedBarangay = barangay;
+      _isPinConfirmed = false;
+    });
+
+    if (_selectedCity != null) {
+      final query = '${barangay.name}, ${_selectedCity!.name}, Laguna, Philippines';
+      LagunaBounds.searchLaguna(query).then((results) {
+        if (mounted && results.isNotEmpty) {
+          setState(() {
+            _currentLocation = results.first.location;
+          });
+        }
+      });
+    }
+  }
+
+  void _onSearchQueryChanged(String query) {
+    _searchDebounce?.cancel();
+    if (query.trim().length < 3) {
+      if (_searchSuggestions.isNotEmpty) {
+        setState(() => _searchSuggestions = []);
+      }
+      return;
+    }
+
+    _searchDebounce = Timer(const Duration(milliseconds: 400), () async {
+      setState(() => _isSearching = true);
+      final results = await LagunaBounds.searchLaguna(query);
+      if (mounted) {
+        setState(() {
+          _isSearching = false;
+          _searchSuggestions = results;
+        });
+      }
+    });
+  }
+
+  void _selectSearchSuggestion(LagunaGeocodedPlace place) {
+    FocusScope.of(context).unfocus();
+    _searchSuggestions.clear();
+    _searchController.clear();
+
+    setState(() {
+      _currentLocation = place.location;
+      _isPinConfirmed = false;
+      if (place.street != null && place.street!.isNotEmpty) {
+        _streetDetailsController.text = place.street!;
+      }
+      if (place.postalCode != null && place.postalCode!.isNotEmpty) {
+        _postalCodeController.text = place.postalCode!;
+      }
+    });
+
+    // Try to match city from suggestion
+    if (place.city != null && _cities.isNotEmpty) {
+      final cleanCity = place.city!.toLowerCase().replaceAll('city of ', '').trim();
+      final matchedCity = _cities.where((c) {
+        final cClean = c.name.toLowerCase().replaceAll('city of ', '').trim();
+        return cClean == cleanCity || cClean.contains(cleanCity) || cleanCity.contains(cClean);
+      }).firstOrNull;
+
+      if (matchedCity != null) {
+        _onCityChanged(
+          matchedCity,
+          initialBarangayName: place.barangay,
+          moveMap: false,
+        );
+      }
+    }
+
+    TopNotification.show(
+      context,
+      'Location selected on map. Please confirm your pin location below.',
+    );
+  }
+
+  void _onLocationConfirmedFromPicker(LatLng location, LagunaGeocodedPlace? details) {
+    setState(() {
+      _currentLocation = location;
+      _isPinConfirmed = true;
+
+      if (details != null) {
+        if (details.street != null && details.street!.isNotEmpty && _streetDetailsController.text.trim().isEmpty) {
+          _streetDetailsController.text = details.street!;
+        }
+        if (details.postalCode != null && details.postalCode!.isNotEmpty) {
+          _postalCodeController.text = details.postalCode!;
+        }
+
+        // Match city if not already selected
+        if (_selectedCity == null && details.city != null && _cities.isNotEmpty) {
+          final cleanCity = details.city!.toLowerCase().replaceAll('city of ', '').trim();
+          final matchedCity = _cities.where((c) {
+            final cClean = c.name.toLowerCase().replaceAll('city of ', '').trim();
+            return cClean == cleanCity || cClean.contains(cleanCity) || cleanCity.contains(cClean);
+          }).firstOrNull;
+
+          if (matchedCity != null) {
+            _onCityChanged(matchedCity, initialBarangayName: details.barangay, moveMap: false);
+          }
+        }
+      }
+    });
+  }
+
   String _buildFormattedAddress() {
     final parts = <String>[];
     final street = _streetDetailsController.text.trim();
@@ -163,7 +331,10 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
     if (_selectedCity != null) {
       parts.add(_selectedCity!.name);
     }
-    parts.add('Laguna');
+    parts.add(_province);
+    if (_postalCodeController.text.trim().isNotEmpty) {
+      parts.add(_postalCodeController.text.trim());
+    }
     parts.add('Philippines');
 
     return parts.join(', ');
@@ -180,12 +351,32 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
     }
 
     if (_selectedCity == null) {
-      TopNotification.show(context, 'Please select your City / Municipality', isError: true);
+      TopNotification.show(context, 'Please select your City / Municipality in Laguna', isError: true);
       return;
     }
 
     if (_selectedBarangay == null) {
       TopNotification.show(context, 'Please select your Barangay', isError: true);
+      return;
+    }
+
+    // Strict Laguna boundary validation
+    if (!LagunaBounds.contains(_currentLocation)) {
+      TopNotification.show(
+        context,
+        'The selected map location is outside Laguna province. Please move the pin within Laguna.',
+        isError: true,
+      );
+      return;
+    }
+
+    // Require customer to confirm final pin location
+    if (!_isPinConfirmed) {
+      TopNotification.show(
+        context,
+        'Please confirm your exact pin location on the map before saving.',
+        isError: true,
+      );
       return;
     }
 
@@ -199,11 +390,38 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
           isEditing ? 'Confirm Address Update' : 'Confirm New Address',
           style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText),
         ),
-        content: Text(
-          isEditing
-              ? 'Are you sure you want to save changes to this address?'
-              : 'Are you sure you want to add this new delivery address?',
-          style: const TextStyle(color: AppColors.darkText),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              isEditing
+                  ? 'Are you sure you want to save changes to this delivery address?'
+                  : 'Are you sure you want to add this new delivery address with the confirmed map pin?',
+              style: const TextStyle(color: AppColors.darkText),
+            ),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.green.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(color: Colors.green.shade200),
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.check_circle, size: 16, color: Colors.green),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      'Confirmed Coordinates: ${_currentLocation.latitude.toStringAsFixed(4)}, ${_currentLocation.longitude.toStringAsFixed(4)} (Laguna)',
+                      style: TextStyle(fontSize: 11, color: Colors.green.shade900, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -232,6 +450,7 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
         : _selectedType;
 
     final street = _streetDetailsController.text.trim();
+    final postal = _postalCodeController.text.trim();
     final fullAddress = _buildFormattedAddress();
 
     if (widget.address == null) {
@@ -239,12 +458,16 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
         id: DateTime.now().millisecondsSinceEpoch.toString(),
         type: type,
         address: fullAddress,
-        province: LagunaLocationService.provinceName,
+        region: _region,
+        province: _province,
         city: _selectedCity!.name,
         cityCode: _selectedCity!.code,
         barangay: _selectedBarangay!.name,
         barangayCode: _selectedBarangay!.code,
         streetDetails: street.isNotEmpty ? street : null,
+        postalCode: postal.isNotEmpty ? postal : null,
+        latitude: _currentLocation.latitude,
+        longitude: _currentLocation.longitude,
         isDefault: _isDefault,
       );
       CustomerAddressController.instance.addAddress(newAddress);
@@ -253,12 +476,16 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
       final updated = widget.address!.copyWith(
         type: type,
         address: fullAddress,
-        province: LagunaLocationService.provinceName,
+        region: _region,
+        province: _province,
         city: _selectedCity!.name,
         cityCode: _selectedCity!.code,
         barangay: _selectedBarangay!.name,
         barangayCode: _selectedBarangay!.code,
         streetDetails: street.isNotEmpty ? street : null,
+        postalCode: postal.isNotEmpty ? postal : null,
+        latitude: _currentLocation.latitude,
+        longitude: _currentLocation.longitude,
         isDefault: _isDefault,
       );
       CustomerAddressController.instance.updateAddress(updated);
@@ -311,7 +538,7 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: const [
                           Text(
-                            'Coverage Scope: Laguna, Philippines',
+                            'Coverage Scope: Laguna, Philippines Only',
                             style: TextStyle(
                               color: AppColors.darkText,
                               fontWeight: FontWeight.bold,
@@ -320,7 +547,7 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
                           ),
                           SizedBox(height: 2),
                           Text(
-                            'Exclusive to all towns and cities in Laguna using the official PSGC Location API.',
+                            'Delivery addresses and map locations are strictly restricted to the province of Laguna.',
                             style: TextStyle(
                               color: AppColors.secondaryText,
                               fontSize: 11,
@@ -333,6 +560,103 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
                 ),
               ),
               const SizedBox(height: 20),
+
+              // Search Laguna Addresses Bar
+              const Text('Search Address / Landmark (Laguna)',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText)),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _searchController,
+                onChanged: _onSearchQueryChanged,
+                decoration: InputDecoration(
+                  hintText: 'e.g. Balibago, SM Santa Rosa, Pacita Complex',
+                  filled: true,
+                  fillColor: Colors.white,
+                  prefixIcon: const Icon(Icons.search, color: AppColors.primaryOrange),
+                  suffixIcon: _isSearching
+                      ? const Padding(
+                          padding: EdgeInsets.all(12),
+                          child: SizedBox(
+                            width: 14,
+                            height: 14,
+                            child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryOrange),
+                          ),
+                        )
+                      : (_searchController.text.isNotEmpty
+                          ? IconButton(
+                              icon: const Icon(Icons.clear, size: 18),
+                              onPressed: () {
+                                _searchController.clear();
+                                setState(() => _searchSuggestions = []);
+                              },
+                            )
+                          : null),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.borderColor),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+                  ),
+                ),
+              ),
+
+              // Suggestions dropdown list
+              if (_searchSuggestions.isNotEmpty) ...[
+                const SizedBox(height: 4),
+                Container(
+                  constraints: const BoxConstraints(maxHeight: 220),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.borderColor),
+                    boxShadow: [
+                      BoxShadow(color: Colors.black.withValues(alpha: 0.08), blurRadius: 6, offset: const Offset(0, 2)),
+                    ],
+                  ),
+                  child: ListView.separated(
+                    shrinkWrap: true,
+                    itemCount: _searchSuggestions.length,
+                    separatorBuilder: (_, __) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      final item = _searchSuggestions[index];
+                      return ListTile(
+                        dense: true,
+                        leading: const Icon(Icons.location_on, color: AppColors.primaryOrange, size: 18),
+                        title: Text(item.displayName, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
+                        subtitle: Text(
+                          '${item.city ?? 'Laguna'} • ${item.location.latitude.toStringAsFixed(4)}, ${item.location.longitude.toStringAsFixed(4)}',
+                          style: const TextStyle(fontSize: 10, color: AppColors.secondaryText),
+                        ),
+                        onTap: () => _selectSearchSuggestion(item),
+                      );
+                    },
+                  ),
+                ),
+              ],
+
+              const SizedBox(height: 20),
+
+              // Interactive OpenStreetMap Location Picker
+              LagunaAddressMapPicker(
+                initialLocation: _currentLocation,
+                isConfirmed: _isPinConfirmed,
+                onLocationChanged: (loc) {
+                  setState(() {
+                    _currentLocation = loc;
+                    _isPinConfirmed = false;
+                  });
+                },
+                onLocationConfirmed: _onLocationConfirmedFromPicker,
+                title: 'Delivery Map Location Picker',
+                pinLabel: 'Delivery Destination',
+                pinIcon: Icons.home_filled,
+                height: 280,
+              ),
+
+              const SizedBox(height: 24),
 
               // 1. Address Type Dropdown
               const Text('Address Type / Label',
@@ -393,14 +717,6 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
                     ),
-                    errorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.redAccent),
-                    ),
-                    focusedErrorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
-                    ),
                   ),
                   validator: (v) {
                     if (_selectedType == 'Other') {
@@ -410,9 +726,6 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
                       if (v.trim().length < 2) {
                         return 'Label must be at least 2 characters';
                       }
-                      if (v.trim().length > 30) {
-                        return 'Label must not exceed 30 characters';
-                      }
                     }
                     return null;
                   },
@@ -420,54 +733,55 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
               ],
               const SizedBox(height: 20),
 
-              // 2. Province (Locked to Laguna)
-              const Text('Province',
-                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText)),
-              const SizedBox(height: 8),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                decoration: BoxDecoration(
-                  color: const Color(0xFFF1F1F1),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.borderColor),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.location_on, color: AppColors.primaryOrange, size: 20),
-                    const SizedBox(width: 12),
-                    const Expanded(
-                      child: Text(
-                        'Laguna, Region IV-A (CALABARZON), Philippines',
-                        style: TextStyle(
-                          color: AppColors.darkText,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
+              // 2. Region & Province (Locked to Laguna)
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Region', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText)),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F5F5),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.borderColor),
+                          ),
+                          child: const Text('Region IV-A (CALABARZON)',
+                              style: TextStyle(color: AppColors.darkText, fontSize: 13, fontWeight: FontWeight.w600)),
                         ),
-                      ),
+                      ],
                     ),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-                      decoration: BoxDecoration(
-                        color: Colors.green.shade50,
-                        borderRadius: BorderRadius.circular(6),
-                        border: Border.all(color: Colors.green.shade300),
-                      ),
-                      child: Text(
-                        'Fixed Scope',
-                        style: TextStyle(
-                          color: Colors.green.shade800,
-                          fontSize: 10,
-                          fontWeight: FontWeight.bold,
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text('Province', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText)),
+                        const SizedBox(height: 8),
+                        Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                          decoration: BoxDecoration(
+                            color: const Color(0xFFF5F5F5),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: AppColors.borderColor),
+                          ),
+                          child: const Text('Laguna',
+                              style: TextStyle(color: AppColors.darkText, fontSize: 13, fontWeight: FontWeight.w600)),
                         ),
-                      ),
+                      ],
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
               const SizedBox(height: 20),
 
-              // 3. City / Municipality Dropdown (via API)
+              // 3. City / Municipality Dropdown
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -507,7 +821,7 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
                 DropdownButtonFormField<LagunaCity>(
                   value: _selectedCity,
                   isExpanded: true,
-                  hint: Text(_isLoadingCities ? 'Fetching list from API...' : 'Select City / Municipality'),
+                  hint: Text(_isLoadingCities ? 'Fetching Laguna cities...' : 'Select City / Municipality'),
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: Colors.white,
@@ -520,14 +834,6 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
-                    ),
-                    errorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.redAccent),
-                    ),
-                    focusedErrorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
                     ),
                   ),
                   items: _cities.map((city) {
@@ -545,11 +851,11 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
                       _onCityChanged(city);
                     }
                   },
-                  validator: (v) => v == null ? 'Please select your City or Municipality' : null,
+                  validator: (v) => v == null ? 'Please select City or Municipality' : null,
                 ),
               const SizedBox(height: 20),
 
-              // 4. Barangay Dropdown (via API)
+              // 4. Barangay Dropdown
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
@@ -592,7 +898,7 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
                   hint: Text(
                     _selectedCity == null
                         ? 'Select City / Municipality first'
-                        : (_isLoadingBarangays ? 'Fetching barangays from API...' : 'Select Barangay'),
+                        : (_isLoadingBarangays ? 'Fetching barangays...' : 'Select Barangay'),
                   ),
                   decoration: InputDecoration(
                     filled: true,
@@ -607,14 +913,6 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
                       borderRadius: BorderRadius.circular(12),
                       borderSide: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
                     ),
-                    errorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.redAccent),
-                    ),
-                    focusedErrorBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
-                    ),
                   ),
                   items: _barangays.map((b) {
                     return DropdownMenuItem<LagunaBarangay>(
@@ -626,25 +924,14 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
                       ),
                     );
                   }).toList(),
-                  onChanged: _selectedCity == null || _isLoadingBarangays
-                      ? null
-                      : (b) {
-                          setState(() {
-                            _selectedBarangay = b;
-                          });
-                        },
-                  validator: (v) => v == null ? 'Please select your Barangay' : null,
+                  onChanged: _selectedCity == null || _isLoadingBarangays ? null : _onBarangayChanged,
+                  validator: (v) => v == null ? 'Please select Barangay' : null,
                 ),
               const SizedBox(height: 20),
 
-              // 5. House / Unit No. & Street / Landmark
+              // 5. Street / House No. & Postal Code Row
               const Text('House No., Street Name, or Landmark',
                   style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText)),
-              const SizedBox(height: 4),
-              const Text(
-                'Additional information for delivery rider (e.g. Blk 4 Lot 10, Amber St., in front of store)',
-                style: TextStyle(color: AppColors.secondaryText, fontSize: 12),
-              ),
               const SizedBox(height: 8),
               TextFormField(
                 controller: _streetDetailsController,
@@ -664,27 +951,44 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
                     borderRadius: BorderRadius.circular(12),
                     borderSide: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
                   ),
-                  errorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.redAccent),
-                  ),
-                  focusedErrorBorder: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(12),
-                    borderSide: const BorderSide(color: Colors.redAccent, width: 1.5),
-                  ),
                 ),
                 validator: (v) {
                   if (v == null || v.trim().isEmpty) {
-                    return 'Please enter house no., street name, or landmark';
+                    return 'Please enter street, house no., or landmark';
                   }
-                  if (v.trim().length < 5) {
-                    return 'Address details must be at least 5 characters long';
-                  }
-                  if (v.trim().length > 120) {
-                    return 'Address details must not exceed 120 characters';
+                  if (v.trim().length < 3) {
+                    return 'Street details must be at least 3 characters';
                   }
                   return null;
                 },
+                onChanged: (_) => setState(() {}),
+              ),
+              const SizedBox(height: 12),
+
+              // Postal Code
+              const Text('Postal Code',
+                  style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText)),
+              const SizedBox(height: 8),
+              TextFormField(
+                controller: _postalCodeController,
+                keyboardType: TextInputType.number,
+                maxLength: 4,
+                inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                decoration: InputDecoration(
+                  hintText: 'e.g. 4026',
+                  filled: true,
+                  fillColor: Colors.white,
+                  prefixIcon: const Icon(Icons.markunread_mailbox_outlined, color: AppColors.primaryOrange),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(12), borderSide: BorderSide.none),
+                  enabledBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.borderColor),
+                  ),
+                  focusedBorder: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                    borderSide: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+                  ),
+                ),
                 onChanged: (_) => setState(() {}),
               ),
               const SizedBox(height: 20),
@@ -714,6 +1018,11 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
                         _buildFormattedAddress(),
                         style: const TextStyle(fontWeight: FontWeight.w600, color: AppColors.darkText, fontSize: 13),
                       ),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Map Coordinates: ${_currentLocation.latitude.toStringAsFixed(5)}, ${_currentLocation.longitude.toStringAsFixed(5)}',
+                        style: TextStyle(fontSize: 11, color: _isPinConfirmed ? Colors.green.shade700 : Colors.amber.shade900, fontWeight: FontWeight.bold),
+                      ),
                     ],
                   ),
                 ),
@@ -731,7 +1040,7 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
                   const Text('Set as default delivery address', style: TextStyle(color: AppColors.secondaryText)),
                 ],
               ),
-              const SizedBox(height: 32),
+              const SizedBox(height: 24),
 
               // 8. Submit Button
               SizedBox(

@@ -4,6 +4,8 @@ import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import '../constants/laguna_bounds.dart';
+import '../../users/owner_db/profile/shop_settings_controller.dart';
 import 'auth_service.dart';
 import 'supabase_service.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
@@ -205,8 +207,22 @@ class DeliveryTrackingService {
   final Map<String, StreamSubscription<Position>> _gpsSubscriptions = {};
   final Map<String, RoadRouteResult> _roadRouteCache = {};
 
-  // Store coordinates (Santa Rosa, Laguna)
-  static const LatLng storeLocation = LatLng(14.3122, 121.1114);
+  // Store coordinates (Santa Rosa, Laguna by default, dynamic from ShopSettingsController)
+  static const LatLng defaultStoreLocation = LatLng(14.3122, 121.1114);
+  static LatLng get storeLocation {
+    try {
+      return ShopSettingsController.instance.storeLocation;
+    } catch (_) {
+      return defaultStoreLocation;
+    }
+  }
+  static String get storeAddress {
+    try {
+      return ShopSettingsController.instance.storeAddress;
+    } catch (_) {
+      return 'Doctor Zavalla Street, Malusak, Santa Rosa, Laguna, 4026';
+    }
+  }
 
   // Pre-configured coordinates for Laguna cities/municipalities
   static const Map<String, LatLng> _lagunaCityCoords = {
@@ -260,7 +276,7 @@ class DeliveryTrackingService {
     try {
       final query = address.contains('Laguna') ? address : '$address, Laguna, Philippines';
       final uri = Uri.parse(
-        'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(query)}&format=json&limit=1',
+        'https://nominatim.openstreetmap.org/search?q=${Uri.encodeComponent(query)}&format=json&addressdetails=1&countrycodes=ph&viewbox=120.95,14.60,121.65,13.95&bounded=1&limit=1',
       );
       final response = await http.get(uri, headers: {
         'User-Agent': 'TindahanNiEca-DeliveryTracker/1.0 (sarisari@delivery.ph)',
@@ -273,8 +289,11 @@ class DeliveryTrackingService {
           final lat = double.tryParse(first['lat']?.toString() ?? '');
           final lon = double.tryParse(first['lon']?.toString() ?? '');
           if (lat != null && lon != null) {
-            debugPrint('[DeliveryTracking] Nominatim resolved $address -> $lat, $lon');
-            return LatLng(lat, lon);
+            final pt = LatLng(lat, lon);
+            if (LagunaBounds.contains(pt)) {
+              debugPrint('[DeliveryTracking] Nominatim resolved $address -> $lat, $lon');
+              return pt;
+            }
           }
         }
       }

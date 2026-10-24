@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import '../../core/services/delivery_tracking_service.dart';
 import '../../core/theme/app_colors.dart';
+import '../../core/constants/laguna_bounds.dart';
 
 class OsmDeliveryMap extends StatefulWidget {
   const OsmDeliveryMap({
@@ -272,8 +273,9 @@ class _OsmDeliveryMapState extends State<OsmDeliveryMap> {
           options: MapOptions(
             initialCenter: center,
             initialZoom: widget.initialZoom,
-            minZoom: 5.0,
-            maxZoom: 18.0,
+            minZoom: LagunaBounds.defaultMinZoom,
+            maxZoom: LagunaBounds.defaultMaxZoom,
+            cameraConstraint: CameraConstraint.containCenter(bounds: LagunaBounds.bounds),
             interactionOptions: InteractionOptions(
               flags: widget.interactive ? InteractiveFlag.all : InteractiveFlag.none,
             ),

@@ -8,6 +8,7 @@ import '../../employee_db/orders/employee_orders_controller.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_model.dart';
 import 'customer_order_controller.dart';
 import 'customer_delivery_tracking_widget.dart';
+import 'customer_pickup_store_map_widget.dart';
 
 class CustomerOrderDetailsPage extends StatelessWidget {
   const CustomerOrderDetailsPage({super.key, required this.order});
@@ -43,6 +44,10 @@ class CustomerOrderDetailsPage extends StatelessWidget {
                 if (currentOrder.status == OrderStatus.outForDelivery) ...[
                   const SizedBox(height: 24),
                   CustomerDeliveryTrackingWidget(order: currentOrder),
+                ],
+                if (currentOrder.orderType == OrderType.pickup && currentOrder.status == OrderStatus.readyForPickup) ...[
+                  const SizedBox(height: 24),
+                  CustomerPickupStoreMapWidget(order: currentOrder),
                 ],
                 const SizedBox(height: 24),
                 const Text('Products', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),

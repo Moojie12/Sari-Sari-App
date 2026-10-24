@@ -61,6 +61,8 @@ class _CustomerAddressPageState extends State<CustomerAddressPage> {
                 child: _AddressCard(
                   type: a.type,
                   address: a.address,
+                  latitude: a.latitude,
+                  longitude: a.longitude,
                   isDefault: a.isDefault,
                   onEdit: () {
                     Navigator.push(
@@ -113,10 +115,11 @@ class _CustomerAddressPageState extends State<CustomerAddressPage> {
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                 ),
               ),
+              const SizedBox(height: 40),
             ],
           ),
-        );
-      },
+          );
+        },
       ),
     );
   }
@@ -126,6 +129,8 @@ class _AddressCard extends StatelessWidget {
   const _AddressCard({
     required this.type,
     required this.address,
+    this.latitude,
+    this.longitude,
     required this.isDefault,
     required this.onEdit,
     required this.onDelete,
@@ -133,6 +138,8 @@ class _AddressCard extends StatelessWidget {
 
   final String type;
   final String address;
+  final double? latitude;
+  final double? longitude;
   final bool isDefault;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -199,6 +206,19 @@ class _AddressCard extends StatelessWidget {
               height: 1.5,
             ),
           ),
+          if (latitude != null && longitude != null) ...[
+            const SizedBox(height: 8),
+            Row(
+              children: [
+                const Icon(Icons.pin_drop, size: 14, color: Colors.green),
+                const SizedBox(width: 4),
+                Text(
+                  'Map Pin: ${latitude!.toStringAsFixed(4)}, ${longitude!.toStringAsFixed(4)} (Laguna)',
+                  style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontWeight: FontWeight.w600),
+                ),
+              ],
+            ),
+          ],
           const SizedBox(height: 16),
           const Divider(),
           Row(

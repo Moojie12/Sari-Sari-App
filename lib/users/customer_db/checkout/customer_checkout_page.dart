@@ -172,7 +172,9 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       return;
     }
     try {
-      final destCoords = await DeliveryTrackingService.instance.geocodeAddress(_selectedAddress!.address);
+      final destCoords = (_selectedAddress!.latitude != null && _selectedAddress!.longitude != null)
+          ? LatLng(_selectedAddress!.latitude!, _selectedAddress!.longitude!)
+          : await DeliveryTrackingService.instance.geocodeAddress(_selectedAddress!.address);
       final storeLoc = DeliveryTrackingService.storeLocation;
       final distMeters = Geolocator.distanceBetween(
         storeLoc.latitude,
@@ -399,8 +401,14 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
     );
 
     LatLng? destCoords;
-    if (_orderType == OrderType.delivery && _selectedAddress?.address != null) {
-      destCoords = await DeliveryTrackingService.instance.geocodeAddress(_selectedAddress!.address);
+    if (_orderType == OrderType.delivery && _selectedAddress != null) {
+      if (_selectedAddress!.latitude != null && _selectedAddress!.longitude != null) {
+        destCoords = LatLng(_selectedAddress!.latitude!, _selectedAddress!.longitude!);
+      } else {
+        destCoords = await DeliveryTrackingService.instance.geocodeAddress(_selectedAddress!.address);
+      }
+    } else if (_orderType == OrderType.pickup) {
+      destCoords = ShopSettingsController.instance.storeLocation;
     }
 
     final String? finalRefNumber = _paymentMethod == PaymentMethod.gCash
@@ -417,7 +425,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       orderType: _orderType,
       paymentMethod: _paymentMethod,
       paymentStatus: _paymentMethod == PaymentMethod.cashOnDelivery ? PaymentStatus.unpaid : PaymentStatus.paid,
-      deliveryAddress: _orderType == OrderType.delivery ? _selectedAddress?.address : null,
+      deliveryAddress: _orderType == OrderType.delivery ? _selectedAddress?.address : ShopSettingsController.instance.storeAddress,
       subtotal: widget.cartController.totalAmount,
       deliveryFee: _orderType == OrderType.delivery ? _deliveryFee : 0,
       totalAmount: _total,

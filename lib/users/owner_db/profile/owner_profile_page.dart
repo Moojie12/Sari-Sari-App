@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import 'package:sari_sari/shared/utils/top_notification.dart';
 import 'owner_profile_controller.dart';
 import 'owner_edit_profile_page.dart';
+import 'owner_store_address_page.dart';
 import '../../employee_db/profile/employee_profile_model.dart';
 import '../../employee_db/profile/employee_change_password_page.dart';
 import '../../employee_db/messages/employee_messages_controller.dart';
@@ -112,7 +113,121 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
               ],
             ),
             const SizedBox(height: 28),
-            const Text('Updates', style: TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold)),
+            const Text('Store Address', style: TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            ListenableBuilder(
+              listenable: ShopSettingsController.instance,
+              builder: (context, _) {
+                final settings = ShopSettingsController.instance;
+                return Container(
+                  padding: const EdgeInsets.all(18),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.05),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: const Icon(Icons.storefront, color: AppColors.primaryOrange, size: 24),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Tindahan ni Eca',
+                                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.darkText),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  'Laguna Scope • Official Store Location',
+                                  style: TextStyle(fontSize: 11, color: Colors.green.shade800, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: const Color(0xFFF9F9F9),
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: AppColors.borderColor),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Icon(Icons.location_on, size: 16, color: AppColors.primaryOrange),
+                                const SizedBox(width: 6),
+                                Expanded(
+                                  child: Text(
+                                    settings.storeAddress,
+                                    style: const TextStyle(fontSize: 13, color: AppColors.darkText, fontWeight: FontWeight.w500),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 6),
+                            Row(
+                              children: [
+                                const Icon(Icons.pin_drop, size: 14, color: Colors.green),
+                                const SizedBox(width: 6),
+                                Text(
+                                  'Pin: ${settings.storeLatitude.toStringAsFixed(4)}, ${settings.storeLongitude.toStringAsFixed(4)} (Laguna)',
+                                  style: TextStyle(fontSize: 11, fontFamily: 'monospace', color: Colors.green.shade900, fontWeight: FontWeight.w600),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                      ),
+                      const SizedBox(height: 14),
+                      SizedBox(
+                        width: double.infinity,
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(builder: (context) => const OwnerStoreAddressPage()),
+                          ),
+                          icon: const Icon(Icons.edit_location_alt_outlined, size: 18),
+                          label: const Text('Manage Store Address & Map Pin', style: TextStyle(fontWeight: FontWeight.bold)),
+                          style: OutlinedButton.styleFrom(
+                            foregroundColor: AppColors.primaryOrange,
+                            side: const BorderSide(color: AppColors.primaryOrange),
+                            padding: const EdgeInsets.symmetric(vertical: 12),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            const SizedBox(height: 28),
+            const Text('Updates' , style: TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             ListenableBuilder(
               listenable: Listenable.merge([messagesController, notificationsController]),
