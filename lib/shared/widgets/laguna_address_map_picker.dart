@@ -84,6 +84,27 @@ class _LagunaAddressMapPickerState extends State<LagunaAddressMapPicker> {
     _reverseGeocodePreview(newLocation);
   }
 
+    Future<void> _onPinPlaced(LatLng point) async {
+    setState(() {
+      _currentLocation = point;
+      _isReverseGeocoding = true;
+      _isConfirmed = true;
+    });
+    widget.onLocationChanged(point);
+
+    final place = await LagunaBounds.reverseGeocode(point);
+    if (!mounted) return;
+
+    setState(() {
+      _isReverseGeocoding = false;
+      if (place != null) {
+        _resolvedAddressPreview = place.displayName;
+      }
+    });
+
+    widget.onLocationConfirmed(point, place);
+  }
+
   Future<void> _reverseGeocodePreview(LatLng point) async {
     setState(() => _isReverseGeocoding = true);
     final place = await LagunaBounds.reverseGeocode(point);
@@ -206,42 +227,44 @@ class _LagunaAddressMapPickerState extends State<LagunaAddressMapPicker> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Header with status badge
+        // Minimalist header with status indicator (No overflow)
         Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Row(
-              children: [
-                Icon(widget.pinIcon, size: 18, color: AppColors.primaryOrange),
-                const SizedBox(width: 6),
-                Text(
-                  widget.title,
-                  style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.darkText),
-                ),
-              ],
+            Icon(widget.pinIcon, size: 18, color: AppColors.primaryOrange),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                widget.title,
+                style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.darkText),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
+            const SizedBox(width: 8),
             Container(
               padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
               decoration: BoxDecoration(
-                color: _isConfirmed ? Colors.green.shade50 : Colors.amber.shade50,
+                color: _isConfirmed ? Colors.green.shade50 : const Color(0xFFFFF3E0),
                 borderRadius: BorderRadius.circular(6),
-                border: Border.all(color: _isConfirmed ? Colors.green.shade300 : Colors.amber.shade400),
+                border: Border.all(
+                  color: _isConfirmed ? Colors.green.shade300 : AppColors.primaryOrange.withValues(alpha: 0.4),
+                ),
               ),
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Icon(
-                    _isConfirmed ? Icons.check_circle : Icons.error_outline,
-                    size: 13,
-                    color: _isConfirmed ? Colors.green.shade700 : Colors.amber.shade800,
+                    _isConfirmed ? Icons.check_circle : Icons.touch_app,
+                    size: 11,
+                    color: _isConfirmed ? Colors.green.shade700 : AppColors.primaryOrange,
                   ),
                   const SizedBox(width: 4),
                   Text(
-                    _isConfirmed ? 'Location Confirmed' : 'Action Required: Confirm Pin',
+                    _isConfirmed ? 'Pinned' : 'Tap Map',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      color: _isConfirmed ? Colors.green.shade800 : Colors.amber.shade900,
+                      color: _isConfirmed ? Colors.green.shade800 : AppColors.primaryOrange,
                     ),
                   ),
                 ],
@@ -289,12 +312,7 @@ class _LagunaAddressMapPickerState extends State<LagunaAddressMapPicker> {
                   interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
                   onTap: (tapPosition, point) {
                     if (LagunaBounds.contains(point)) {
-                      setState(() {
-                        _currentLocation = point;
-                        _isConfirmed = false;
-                      });
-                      widget.onLocationChanged(point);
-                      _reverseGeocodePreview(point);
+                      _onPinPlaced(point);
                     } else {
                       TopNotification.show(
                         context,
@@ -335,7 +353,7 @@ class _LagunaAddressMapPickerState extends State<LagunaAddressMapPicker> {
                             }
                           },
                           onPanEnd: (_) {
-                            _reverseGeocodePreview(_currentLocation);
+                            _onPinPlaced(_currentLocation);
                           },
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
@@ -494,25 +512,31 @@ class _LagunaAddressMapPickerState extends State<LagunaAddressMapPicker> {
 
         const SizedBox(height: 10),
 
-        // Confirm Pin Location Button
+        // Sleek minimalist confirmation button
         SizedBox(
           width: double.infinity,
-          child: ElevatedButton.icon(
+          height: 38,
+          child: OutlinedButton.icon(
             onPressed: _confirmCurrentPin,
             icon: Icon(
-              _isConfirmed ? Icons.check_circle : Icons.pin_drop,
-              size: 18,
+              _isConfirmed ? Icons.check_circle : Icons.pin_drop_outlined,
+              size: 16,
+              color: _isConfirmed ? Colors.green.shade700 : AppColors.primaryOrange,
             ),
             label: Text(
-              _isConfirmed ? 'PIN LOCATION CONFIRMED (TAP TO RE-CONFIRM)' : 'CONFIRM PIN LOCATION',
-              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+              _isConfirmed ? 'Pin Location Confirmed' : 'Confirm Selected Pin',
+              style: TextStyle(
+                fontWeight: FontWeight.w600,
+                fontSize: 12,
+                color: _isConfirmed ? Colors.green.shade800 : AppColors.primaryOrange,
+              ),
             ),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: _isConfirmed ? Colors.green.shade600 : AppColors.primaryOrange,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(vertical: 12),
-              elevation: 0,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+            style: OutlinedButton.styleFrom(
+              backgroundColor: _isConfirmed ? Colors.green.shade50 : Colors.white,
+              side: BorderSide(
+                color: _isConfirmed ? Colors.green.shade300 : AppColors.primaryOrange,
+              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
             ),
           ),
         ),

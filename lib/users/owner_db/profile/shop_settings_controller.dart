@@ -62,6 +62,7 @@ class ShopSettingsController extends ChangeNotifier {
   String get storeStreet => _storeStreet;
   String get storePostalCode => _storePostalCode;
   bool get hasCustomStoreAddress => _hasCustomStoreAddress;
+  bool get isStoreAddressConfigured => _storeAddress.isNotEmpty;
 
   void _initAndListen() {
     _loadFromLocalCache();

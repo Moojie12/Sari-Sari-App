@@ -193,8 +193,19 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
         matchedBarangay = barangays.where((b) => b.code == initialBarangayCode).firstOrNull;
       }
       if (matchedBarangay == null && initialBarangayName != null) {
-        matchedBarangay = barangays.where((b) =>
-            b.name.toLowerCase() == initialBarangayName.toLowerCase()).firstOrNull;
+        final cleanTarget = initialBarangayName.toLowerCase()
+            .replaceAll('barangay', '')
+            .replaceAll('brgy.', '')
+            .replaceAll('brgy', '')
+            .trim();
+        matchedBarangay = barangays.where((b) {
+          final bClean = b.name.toLowerCase()
+              .replaceAll('barangay', '')
+              .replaceAll('brgy.', '')
+              .replaceAll('brgy', '')
+              .trim();
+          return bClean == cleanTarget || bClean.contains(cleanTarget) || cleanTarget.contains(bClean);
+        }).firstOrNull;
       }
 
       setState(() {
@@ -296,18 +307,24 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
       _isPinConfirmed = true;
 
       if (details != null) {
-        if (details.street != null && details.street!.isNotEmpty && _streetDetailsController.text.trim().isEmpty) {
+        if (details.street != null && details.street!.isNotEmpty) {
           _streetDetailsController.text = details.street!;
+        } else if (details.displayName.isNotEmpty) {
+          final parts = details.displayName.split(',');
+          if (parts.isNotEmpty) {
+            _streetDetailsController.text = parts.first.trim();
+          }
         }
+
         if (details.postalCode != null && details.postalCode!.isNotEmpty) {
           _postalCodeController.text = details.postalCode!;
         }
 
-        // Match city if not already selected
-        if (_selectedCity == null && details.city != null && _cities.isNotEmpty) {
-          final cleanCity = details.city!.toLowerCase().replaceAll('city of ', '').trim();
+        // Auto-match city
+        if (details.city != null && _cities.isNotEmpty) {
+          final cleanCity = details.city!.toLowerCase().replaceAll('city of ', '').replaceAll('city', '').trim();
           final matchedCity = _cities.where((c) {
-            final cClean = c.name.toLowerCase().replaceAll('city of ', '').trim();
+            final cClean = c.name.toLowerCase().replaceAll('city of ', '').replaceAll('city', '').trim();
             return cClean == cleanCity || cClean.contains(cleanCity) || cleanCity.contains(cClean);
           }).firstOrNull;
 
@@ -520,46 +537,7 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Scope banner
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                decoration: BoxDecoration(
-                  color: AppColors.primaryOrange.withValues(alpha: 0.08),
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.2)),
-                ),
-                child: Row(
-                  children: [
-                    const Icon(Icons.verified_outlined, color: AppColors.primaryOrange, size: 22),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: const [
-                          Text(
-                            'Coverage Scope: Laguna, Philippines Only',
-                            style: TextStyle(
-                              color: AppColors.darkText,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
-                            ),
-                          ),
-                          SizedBox(height: 2),
-                          Text(
-                            'Delivery addresses and map locations are strictly restricted to the province of Laguna.',
-                            style: TextStyle(
-                              color: AppColors.secondaryText,
-                              fontSize: 11,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
+              
 
               // Search Laguna Addresses Bar
               const Text('Search Address / Landmark (Laguna)',
@@ -733,53 +711,33 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
               ],
               const SizedBox(height: 20),
 
-              // 2. Region & Province (Locked to Laguna)
-              Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Region', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText)),
-                        const SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF5F5F5),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.borderColor),
-                          ),
-                          child: const Text('Region IV-A (CALABARZON)',
-                              style: TextStyle(color: AppColors.darkText, fontSize: 13, fontWeight: FontWeight.w600)),
+              // 2. Region & Province (Minimalist)
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                decoration: BoxDecoration(
+                  color: const Color(0xFFF7F7F7),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: AppColors.borderColor),
+                ),
+                child: Row(
+                  children: const [
+                    Icon(Icons.location_on_outlined, size: 16, color: AppColors.primaryOrange),
+                    SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Region IV-A (CALABARZON) • Laguna',
+                        style: TextStyle(
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                          color: AppColors.darkText,
                         ),
-                      ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text('Province', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.darkText)),
-                        const SizedBox(height: 8),
-                        Container(
-                          width: double.infinity,
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-                          decoration: BoxDecoration(
-                            color: const Color(0xFFF5F5F5),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(color: AppColors.borderColor),
-                          ),
-                          child: const Text('Laguna',
-                              style: TextStyle(color: AppColors.darkText, fontSize: 13, fontWeight: FontWeight.w600)),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+                  ],
+                ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
 
               // 3. City / Municipality Dropdown
               Row(

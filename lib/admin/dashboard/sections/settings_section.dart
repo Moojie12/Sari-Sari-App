@@ -7,6 +7,7 @@ import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/terms_and_conditions_page.dart';
 import '../../../shared/widgets/product_image.dart';
 import '../../../users/owner_db/profile/shop_settings_controller.dart';
+import '../../../users/owner_db/profile/owner_store_address_page.dart';
 import '../../services/admin_product_service.dart';
 import '../../../shared/utils/gcash_ocr_helper.dart';
 
@@ -144,6 +145,49 @@ class _SettingsSectionState extends State<SettingsSection> {
                                 ),
                               ],
                             ),
+                            const SizedBox(height: 20),
+                            Row(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Expanded(
+                                  child: _SimpleSettingCard(
+                                    icon: Icons.storefront_rounded,
+                                    title: 'Store Address & Location',
+                                    subtitle: 'Store location used for pickup and Laguna delivery calculations',
+                                    currentValue: settings.storeCity.isNotEmpty
+                                        ? '${settings.storeCity}, Laguna'
+                                        : 'Not Configured',
+                                    isValueActive: settings.isStoreAddressConfigured,
+                                    buttonLabel: 'Manage Store Address',
+                                    onTap: () => Navigator.push(
+                                      context,
+                                      MaterialPageRoute(
+                                        builder: (context) => const OwnerStoreAddressPage(),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 20),
+                                Expanded(
+                                  child: _SimpleSettingCard(
+                                    icon: Icons.gavel_rounded,
+                                    title: 'Terms & App Permissions',
+                                    subtitle: 'Review privacy policies, terms of use, and device camera permissions',
+                                    currentValue: 'View Policy',
+                                    isValueActive: false,
+                                    buttonLabel: 'View Policy & Terms',
+                                    onTap: () {
+                                      Navigator.push(
+                                        context,
+                                        MaterialPageRoute(
+                                          builder: (context) => const TermsAndConditionsPage(),
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                ),
+                              ],
+                            ),
                           ] else ...[
                             _SimpleSettingCard(
                               icon: Icons.qr_code_2_rounded,
@@ -186,25 +230,41 @@ class _SettingsSectionState extends State<SettingsSection> {
                               buttonLabel: 'Set Expiry Days',
                               onTap: () => _showExpiryConfigDialog(context),
                             ),
-                          ],
-                          const SizedBox(height: 24),
-                          // Additional Legal Card
-                          _SimpleSettingCard(
-                            icon: Icons.gavel_rounded,
-                            title: 'Terms & App Permissions',
-                            subtitle: 'Review privacy policies, terms of use, and device camera permissions',
-                            currentValue: 'View Policy',
-                            isValueActive: false,
-                            buttonLabel: 'View Policy & Terms',
-                            onTap: () {
-                              Navigator.push(
+                            const SizedBox(height: 16),
+                            _SimpleSettingCard(
+                              icon: Icons.storefront_rounded,
+                              title: 'Store Address & Location',
+                              subtitle: 'Store location used for pickup and Laguna delivery calculations',
+                              currentValue: settings.storeCity.isNotEmpty
+                                  ? '${settings.storeCity}, Laguna'
+                                  : 'Not Configured',
+                              isValueActive: settings.isStoreAddressConfigured,
+                              buttonLabel: 'Manage Store Address',
+                              onTap: () => Navigator.push(
                                 context,
                                 MaterialPageRoute(
-                                  builder: (context) => const TermsAndConditionsPage(),
+                                  builder: (context) => const OwnerStoreAddressPage(),
                                 ),
-                              );
-                            },
-                          ),
+                              ),
+                            ),
+                            const SizedBox(height: 16),
+                            _SimpleSettingCard(
+                              icon: Icons.gavel_rounded,
+                              title: 'Terms & App Permissions',
+                              subtitle: 'Review privacy policies, terms of use, and device camera permissions',
+                              currentValue: 'View Policy',
+                              isValueActive: false,
+                              buttonLabel: 'View Policy & Terms',
+                              onTap: () {
+                                Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => const TermsAndConditionsPage(),
+                                  ),
+                                );
+                              },
+                            ),
+                          ],
                         ],
                       );
                     },
