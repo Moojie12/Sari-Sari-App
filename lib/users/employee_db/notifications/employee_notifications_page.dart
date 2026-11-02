@@ -7,6 +7,12 @@ import '../employee_inventory_controller.dart';
 import '../inventory/employee_product_model.dart';
 import '../orders/employee_orders_controller.dart';
 import 'employee_notification_details_page.dart';
+import '../messages/employee_chat_page.dart';
+import '../messages/employee_message_model.dart';
+import '../messages/employee_messages_controller.dart';
+import '../messages/employee_messages_page.dart';
+import '../orders/employee_order_details_page.dart';
+import '../../owner_db/refunds/owner_refunds_page.dart';
 import 'employee_notification_model.dart';
 import 'employee_notifications_controller.dart';
 import '../../../shared/widgets/skeleton.dart';
@@ -71,16 +77,33 @@ CustomerOrder? findOrderForNotification(
   // 1. Explicit orderId
   if (notification.orderId != null && notification.orderId!.isNotEmpty) {
     for (final order in orders) {
-      if (order.orderId == notification.orderId) return order;
+      if (order.orderId == notification.orderId || order.displayOrderId == notification.orderId) {
+        return order;
+      }
     }
   }
 
-  // 2. Search orderId inside message or title
-  final message = notification.message;
-  final title = notification.title;
+  // 2. Search ORD-... regex in title or message
+  final combined = '${notification.title} ${notification.message}';
+  final ordMatch = RegExp(r'ORD-[A-Za-z0-9\-]+', caseSensitive: false).firstMatch(combined);
+  if (ordMatch != null) {
+    final extractedId = ordMatch.group(0)!.toUpperCase();
+    for (final order in orders) {
+      if (order.orderId.toUpperCase() == extractedId ||
+          order.displayOrderId.toUpperCase() == extractedId ||
+          order.orderId.toUpperCase().contains(extractedId) ||
+          extractedId.contains(order.orderId.toUpperCase())) {
+        return order;
+      }
+    }
+  }
 
+  // 3. Search exact order id inside message or title
   for (final order in orders) {
-    if (order.orderId.isNotEmpty && (message.contains(order.orderId) || title.contains(order.orderId))) {
+    if (order.orderId.isNotEmpty && combined.contains(order.orderId)) {
+      return order;
+    }
+    if (order.displayOrderId.isNotEmpty && combined.contains(order.displayOrderId)) {
       return order;
     }
   }
@@ -398,7 +421,72 @@ class _EmployeeNotificationsPageState extends State<EmployeeNotificationsPage> {
 
                       _controller.markAsRead(notification.id);
 
-                      // 1. Try product match
+                      final titleLower = notification.title.toLowerCase();
+                      final messageLower = notification.message.toLowerCase();
+
+                      // 1. CHAT / MESSAGE: "New message from <Name>" or contains "message" / "chat"
+                      if (titleLower.contains('message') ||
+                          titleLower.contains('chat') ||
+                          messageLower.contains('sent you a message') ||
+                          messageLower.contains('chat message')) {
+                        // Extract customer name if in title: "New message from Cyrus O. Nocum"
+                        String senderName = '';
+                        final match = RegExp(r'message from\s+(.+)', caseSensitive: false).firstMatch(notification.title);
+                        if (match != null) {
+                          senderName = match.group(1)?.trim() ?? '';
+                        }
+
+                        // Try finding in active chat threads
+                        ChatThread? matchedThread;
+                        final threads = EmployeeMessagesController.instance.threads;
+                        if (notification.customerId != null && notification.customerId!.isNotEmpty) {
+                          matchedThread = threads.where((t) => t.recipient.id == notification.customerId).firstOrNull;
+                        }
+                        if (matchedThread == null && senderName.isNotEmpty && threads.isNotEmpty) {
+                          final sLower = senderName.toLowerCase();
+                          matchedThread = threads.where((t) {
+                            final rLower = t.recipient.name.toLowerCase();
+                            return rLower == sLower || rLower.contains(sLower) || sLower.contains(rLower);
+                          }).firstOrNull;
+                        }
+
+                        final targetRecipientId = matchedThread?.recipient.id ?? notification.customerId ?? senderName;
+                        final targetRecipientName = matchedThread?.recipient.name ?? (senderName.isNotEmpty ? senderName : 'Customer');
+
+                        if (targetRecipientId.isNotEmpty) {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => EmployeeChatPage(
+                                recipientId: targetRecipientId,
+                                recipientName: targetRecipientName,
+                              ),
+                            ),
+                          );
+                          return;
+                        } else {
+                          Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (context) => const EmployeeMessagesPage(viewerRole: 'Staff'),
+                            ),
+                          );
+                          return;
+                        }
+                      }
+
+                      // 2. GCash REFUND NOTIFICATION
+                      if (titleLower.contains('refund') || messageLower.contains('refund')) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => const OwnerRefundsPage(),
+                          ),
+                        );
+                        return;
+                      }
+
+                      // 3. PRODUCT / INVENTORY MATCH
                       final matchingProduct = findProductForNotification(
                         notification,
                         EmployeeInventoryController.instance,
@@ -416,25 +504,52 @@ class _EmployeeNotificationsPageState extends State<EmployeeNotificationsPage> {
                         return;
                       }
 
-                      // 2. Try order match
+                      // 4. ORDER MATCH
                       final matchingOrder = findOrderForNotification(
                         notification,
                         EmployeeOrderController.instance,
                       );
 
                       if (matchingOrder != null) {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                            builder: (context) => EmployeeOrderDetailsPage(
+                              order: matchingOrder,
+                              controller: EmployeeOrderController.instance,
+                            ),
+                          ),
+                        );
+                        return;
+                      }
+
+                      // 5. Generic ORDER notification
+                      if (notification.type == EmployeeNotificationType.newOrder ||
+                          titleLower.contains('order') ||
+                          messageLower.contains('order')) {
                         if (Navigator.canPop(context)) {
                           Navigator.pop(context);
                         }
                         Future.microtask(() {
-                          DashboardNavigationController.instance.navigateToOrders(
-                            openOrderDetail: matchingOrder,
-                          );
+                          DashboardNavigationController.instance.navigateToOrders();
                         });
                         return;
                       }
 
-                      // 3. Fallback to details page
+                      // 6. Generic INVENTORY alert
+                      if (notification.type == EmployeeNotificationType.lowStock ||
+                          notification.type == EmployeeNotificationType.outOfStock ||
+                          notification.type == EmployeeNotificationType.expiring) {
+                        if (Navigator.canPop(context)) {
+                          Navigator.pop(context);
+                        }
+                        Future.microtask(() {
+                          DashboardNavigationController.instance.navigateToInventory();
+                        });
+                        return;
+                      }
+
+                      // 7. Fallback to details page
                       Navigator.push(
                         context,
                         MaterialPageRoute(

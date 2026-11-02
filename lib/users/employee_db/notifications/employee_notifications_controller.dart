@@ -242,6 +242,7 @@ class EmployeeNotificationsController extends ChangeNotifier {
     String? productId,
     String? productName,
     String? orderId,
+    String? customerId,
     bool sendPush = true,
   }) {
     // Deduplication check: Avoid adding multiple notifications for the exact same order event or identical recent message
@@ -271,6 +272,7 @@ class EmployeeNotificationsController extends ChangeNotifier {
       productId: productId,
       productName: productName,
       orderId: orderId,
+      customerId: customerId,
       timestamp: DateTime.now(),
       isRead: false,
     );

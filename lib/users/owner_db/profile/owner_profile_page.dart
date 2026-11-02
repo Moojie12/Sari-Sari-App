@@ -8,6 +8,7 @@ import '../../../core/theme/app_colors.dart';
 import 'package:sari_sari/shared/utils/top_notification.dart';
 import 'owner_profile_controller.dart';
 import 'owner_edit_profile_page.dart';
+import 'owner_store_address_page.dart';
 import '../../employee_db/profile/employee_profile_model.dart';
 import '../../employee_db/profile/employee_change_password_page.dart';
 import '../../employee_db/messages/employee_messages_controller.dart';
@@ -111,8 +112,9 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
                 ),
               ],
             ),
+            
             const SizedBox(height: 28),
-            const Text('Updates', style: TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold)),
+            const Text('Updates' , style: TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             ListenableBuilder(
               listenable: Listenable.merge([messagesController, notificationsController]),
@@ -213,8 +215,16 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
                 _MenuTile(
                   icon: Icons.timer_outlined,
                   label: 'Expiry Monitoring Config',
-                  isLast: true,
                   onTap: () => _showExpiryConfigDialog(context),
+                ),
+                _MenuTile(
+                  icon: Icons.storefront_outlined,
+                  label: 'Store Address & Location',
+                  isLast: true,
+                  onTap: () => Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => const OwnerStoreAddressPage()),
+                  ),
                 ),
               ],
             ),

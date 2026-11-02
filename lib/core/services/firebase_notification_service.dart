@@ -8,6 +8,18 @@ import '../../users/customer_db/notifications/customer_notification_details_page
 import '../../users/customer_db/notifications/customer_notification_model.dart';
 import '../../users/customer_db/notifications/customer_notifications_controller.dart';
 import '../../users/employee_db/notifications/employee_notification_details_page.dart';
+import '../../users/customer_db/chat/customer_chat_page.dart';
+import '../../users/customer_db/customer_dashboard.dart';
+import '../../users/customer_db/purchases/customer_order_controller.dart';
+import '../../users/customer_db/purchases/customer_order_details_page.dart';
+import '../../users/employee_db/employee_inventory_controller.dart';
+import '../../users/employee_db/messages/employee_chat_page.dart';
+import '../../users/employee_db/messages/employee_messages_page.dart';
+import '../../users/employee_db/notifications/employee_notifications_page.dart';
+import '../../users/employee_db/orders/employee_order_details_page.dart';
+import '../../users/employee_db/orders/employee_orders_controller.dart';
+import '../../users/owner_db/refunds/owner_refunds_page.dart';
+import 'dashboard_navigation_controller.dart';
 import '../../users/employee_db/notifications/employee_notification_model.dart';
 import '../../users/employee_db/notifications/employee_notifications_controller.dart';
 import 'auth_service.dart';
@@ -329,24 +341,111 @@ class FirebaseNotificationService {
   /// Navigate to Customer Notification Details Screen
   void navigateToCustomerNotificationDetails(CustomerNotification notification) {
     final state = navigatorKey.currentState;
-    if (state != null) {
-      state.push(
-        MaterialPageRoute(
-          builder: (_) => CustomerNotificationDetailsPage(notification: notification),
-        ),
-      );
+    if (state == null) return;
+
+    final titleLower = notification.title.toLowerCase();
+    final messageLower = notification.message.toLowerCase();
+
+    // 1. Chat
+    if (titleLower.contains('message') || titleLower.contains('chat') || messageLower.contains('message')) {
+      state.push(MaterialPageRoute(builder: (_) => const CustomerChatPage()));
+      return;
     }
+
+    // 2. Order
+    if (notification.type == CustomerNotificationType.orderUpdate || titleLower.contains('order') || messageLower.contains('order')) {
+      final orders = CustomerOrderController.instance.orders;
+      final combined = '${notification.title} ${notification.message}';
+      final ordMatch = RegExp(r'ORD-[A-Za-z0-9\-]+', caseSensitive: false).firstMatch(combined);
+      final extractedId = ordMatch?.group(0)?.toUpperCase();
+      final matchedOrder = orders.where((o) =>
+          (extractedId != null && (o.orderId.toUpperCase() == extractedId || o.displayOrderId.toUpperCase() == extractedId)) ||
+          (o.orderId.isNotEmpty && combined.contains(o.orderId))).firstOrNull;
+
+      if (matchedOrder != null) {
+        state.push(MaterialPageRoute(builder: (_) => CustomerOrderDetailsPage(order: matchedOrder)));
+        return;
+      } else {
+        CustomerDashboard.dashboardKey.currentState?.switchTab(2);
+        return;
+      }
+    }
+
+    // 3. Promo
+    if (notification.type == CustomerNotificationType.promotion) {
+      CustomerDashboard.dashboardKey.currentState?.switchTab(0);
+      return;
+    }
+
+    state.push(
+      MaterialPageRoute(builder: (_) => CustomerNotificationDetailsPage(notification: notification)),
+    );
   }
 
   /// Navigate to Employee Notification Details Screen
   void navigateToEmployeeNotificationDetails(EmployeeNotification notification) {
     final state = navigatorKey.currentState;
-    if (state != null) {
-      state.push(
-        MaterialPageRoute(
-          builder: (_) => EmployeeNotificationDetailsPage(notification: notification),
-        ),
-      );
+    if (state == null) return;
+
+    final titleLower = notification.title.toLowerCase();
+    final messageLower = notification.message.toLowerCase();
+
+    // 1. Chat
+    if (titleLower.contains('message') || titleLower.contains('chat') || messageLower.contains('message')) {
+      String senderName = '';
+      final match = RegExp(r'message from\s+(.+)', caseSensitive: false).firstMatch(notification.title);
+      if (match != null) senderName = match.group(1)?.trim() ?? '';
+      final targetId = notification.customerId ?? senderName;
+
+      if (targetId.isNotEmpty) {
+        state.push(MaterialPageRoute(
+          builder: (_) => EmployeeChatPage(recipientId: targetId, recipientName: senderName.isNotEmpty ? senderName : 'Customer'),
+        ));
+        return;
+      } else {
+        state.push(MaterialPageRoute(builder: (_) => const EmployeeMessagesPage(viewerRole: 'Staff')));
+        return;
+      }
     }
+
+    // 2. Refund
+    if (titleLower.contains('refund') || messageLower.contains('refund')) {
+      state.push(MaterialPageRoute(builder: (_) => const OwnerRefundsPage()));
+      return;
+    }
+
+    // 3. Product match
+    final matchingProduct = findProductForNotification(notification, EmployeeInventoryController.instance);
+    if (matchingProduct != null) {
+      DashboardNavigationController.instance.navigateToInventory(openProductDetail: matchingProduct);
+      return;
+    }
+
+    // 4. Order match
+    final matchingOrder = findOrderForNotification(notification, EmployeeOrderController.instance);
+    if (matchingOrder != null) {
+      state.push(MaterialPageRoute(
+        builder: (_) => EmployeeOrderDetailsPage(order: matchingOrder, controller: EmployeeOrderController.instance),
+      ));
+      return;
+    }
+
+    // 5. Generic order
+    if (notification.type == EmployeeNotificationType.newOrder || titleLower.contains('order') || messageLower.contains('order')) {
+      DashboardNavigationController.instance.navigateToOrders();
+      return;
+    }
+
+    // 6. Generic inventory
+    if (notification.type == EmployeeNotificationType.lowStock ||
+        notification.type == EmployeeNotificationType.outOfStock ||
+        notification.type == EmployeeNotificationType.expiring) {
+      DashboardNavigationController.instance.navigateToInventory();
+      return;
+    }
+
+    state.push(
+      MaterialPageRoute(builder: (_) => EmployeeNotificationDetailsPage(notification: notification)),
+    );
   }
 }

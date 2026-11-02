@@ -55,6 +55,7 @@ class EmployeeNotification {
     this.productId,
     this.productName,
     this.orderId,
+    this.customerId,
     this.isRead = false,
   });
 
@@ -66,6 +67,7 @@ class EmployeeNotification {
   final String? productId;
   final String? productName;
   final String? orderId;
+  final String? customerId;
   final bool isRead;
 
   EmployeeNotification copyWith({
@@ -73,6 +75,7 @@ class EmployeeNotification {
     String? productId,
     String? productName,
     String? orderId,
+    String? customerId,
   }) {
     return EmployeeNotification(
       id: id,
@@ -83,6 +86,7 @@ class EmployeeNotification {
       productId: productId ?? this.productId,
       productName: productName ?? this.productName,
       orderId: orderId ?? this.orderId,
+      customerId: customerId ?? this.customerId,
       isRead: isRead ?? this.isRead,
     );
   }
