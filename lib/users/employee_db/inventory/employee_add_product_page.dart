@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -6,6 +7,8 @@ import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../core/services/auth_service.dart';
+import '../../../core/services/scale_bluetooth_service.dart';
+import 'package:bluetooth_classic/models/device.dart';
 import '../../../core/services/supabase_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/barcode_generator.dart';
@@ -1290,6 +1293,10 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
   String? _imagePath;
   bool _isWeightBased = false;
   bool _isReadingFromScale = false;
+  bool _isTaringScale = false;
+  bool _isScaleConnected = false;
+  bool _isConnectingScale = false;
+  Timer? _scaleTimeoutTimer;
   late String _category =
   widget.inventory.categories.where((c) => c != 'All').isNotEmpty
       ? widget.inventory.categories.firstWhere((c) => c != 'All')
@@ -1304,7 +1311,19 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
   String? _categoryError;
 
   @override
+  void initState() {
+    super.initState();
+    _initScaleBluetooth();
+  }
+
+  @override
   void dispose() {
+    _scaleTimeoutTimer?.cancel();
+    final scale = ScaleBluetoothService.instance;
+    scale.onWeightReceived = null;
+    scale.onTared = null;
+    scale.onConnectionChanged = null;
+
     _nameController.dispose();
     _barcodeController.dispose();
     _priceController.dispose();
@@ -1373,29 +1392,445 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
     });
   }
 
-  /// Simulation for reading from ESP32 Scale.
-  /// Replace this with actual Bluetooth/WebSocket logic later.
+  void _initScaleBluetooth() {
+    final scale = ScaleBluetoothService.instance;
+    _isScaleConnected = scale.isConnected;
+
+    scale.onWeightReceived = (weight, isLocked) {
+      _scaleTimeoutTimer?.cancel();
+      if (!mounted) return;
+      setState(() {
+        _quantityController.text = weight.toStringAsFixed(2);
+        _isReadingFromScale = false;
+        _quantityError = null;
+      });
+      TopNotification.show(
+        context,
+        'Weight captured: ${weight.toStringAsFixed(2)} kg ${isLocked ? "[LOCKED]" : ""}',
+      );
+    };
+
+    scale.onTared = () {
+      _scaleTimeoutTimer?.cancel();
+      if (!mounted) return;
+      setState(() {
+        _quantityController.text = '0.00';
+        _isTaringScale = false;
+        _quantityError = null;
+      });
+      TopNotification.show(context, 'Scale tared to 0.00 kg');
+    };
+
+    scale.onConnectionChanged = (connected) {
+      if (!mounted) return;
+      setState(() => _isScaleConnected = connected);
+    };
+  }
+
+  /// Request actual live weight from ESP32 Scale via Bluetooth
   Future<void> _captureWeightFromScale() async {
+    final scale = ScaleBluetoothService.instance;
+    if (!scale.isConnected) {
+      TopNotification.show(context, 'Please connect to the scale via Bluetooth first!');
+      return;
+    }
+
     setState(() => _isReadingFromScale = true);
-    
-    // Simulating delay for hardware response
-    await Future.delayed(const Duration(seconds: 2));
-    
-    if (!mounted) return;
-    
-    // Simulate a weight reading (e.g., 2.45 kg)
-    // In production, this would come from your ESP32
-    final simulatedWeight = 1.0 + (DateTime.now().millisecond % 500) / 100.0;
-    
-    setState(() {
-      _quantityController.text = simulatedWeight.toStringAsFixed(2);
-      _isReadingFromScale = false;
-      _quantityError = null;
+
+    // Timeout fallback: if no reply after 4 seconds, stop loading and warn user
+    _scaleTimeoutTimer?.cancel();
+    _scaleTimeoutTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted && _isReadingFromScale) {
+        setState(() => _isReadingFromScale = false);
+        TopNotification.show(context, 'Scale did not respond. Check Bluetooth connection.');
+      }
     });
 
-    if (mounted) {
-      TopNotification.show(context, 'Weight captured from scale: ${simulatedWeight.toStringAsFixed(2)} kg');
+    final sent = await scale.requestWeight();
+    if (!sent && mounted) {
+      _scaleTimeoutTimer?.cancel();
+      setState(() => _isReadingFromScale = false);
+      TopNotification.show(context, 'Failed to request weight from scale.');
     }
+  }
+
+  /// Tare the scale to 0.00 kg via Bluetooth
+  Future<void> _tareScale() async {
+    final scale = ScaleBluetoothService.instance;
+    if (!scale.isConnected) {
+      TopNotification.show(context, 'Please connect to the scale via Bluetooth first!');
+      return;
+    }
+
+    setState(() => _isTaringScale = true);
+
+    // Timeout fallback: if no reply after 4 seconds, stop loading and warn user
+    _scaleTimeoutTimer?.cancel();
+    _scaleTimeoutTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted && _isTaringScale) {
+        setState(() => _isTaringScale = false);
+        TopNotification.show(context, 'Scale did not respond to Tare command.');
+      }
+    });
+
+    final sent = await scale.sendTare();
+    if (!sent && mounted) {
+      _scaleTimeoutTimer?.cancel();
+      setState(() => _isTaringScale = false);
+      TopNotification.show(context, 'Failed to tare scale. Please try again.');
+    }
+  }
+
+  /// Open the interactive Bluetooth scale picker modal
+  Future<void> _toggleScaleConnection() async {
+    await _showScaleBluetoothModal();
+  }
+
+  Future<void> _showScaleBluetoothModal() async {
+    final scale = ScaleBluetoothService.instance;
+    List<Device> devices = [];
+    bool isLoadingDevices = true;
+    String? localError;
+    bool isConnecting = false;
+
+    await showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.white,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) {
+        return StatefulBuilder(
+          builder: (modalContext, setModalState) {
+            if (isLoadingDevices) {
+              scale.getPairedDevices().then((list) {
+                if (!modalContext.mounted) return;
+                setModalState(() {
+                  devices = list;
+                  isLoadingDevices = false;
+                });
+              }).catchError((e) {
+                if (!modalContext.mounted) return;
+                setModalState(() {
+                  localError = e.toString();
+                  isLoadingDevices = false;
+                });
+              });
+            }
+
+            Device? scaleDevice;
+            for (final d in devices) {
+              final n = (d.name ?? '').toLowerCase();
+              if (d.name == 'Timbangan_Ni_Eca' ||
+                  d.name == 'SmartScale_IoT' ||
+                  n.contains('timbangan') ||
+                  n.contains('smartscale')) {
+                scaleDevice = d;
+                break;
+              }
+            }
+
+            return SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(20, 16, 20, 24),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    // Header
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Row(
+                          children: [
+                            Container(
+                              padding: const EdgeInsets.all(8),
+                              decoration: BoxDecoration(
+                                color: _isScaleConnected
+                                    ? Colors.teal.withAlpha(30)
+                                    : AppColors.primaryOrange.withAlpha(30),
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                              child: Icon(
+                                _isScaleConnected
+                                    ? Icons.bluetooth_connected
+                                    : Icons.bluetooth_searching,
+                                color: _isScaleConnected ? Colors.teal : AppColors.primaryOrange,
+                                size: 24,
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                const Text(
+                                  'Bluetooth Scale',
+                                  style: TextStyle(
+                                    fontSize: 18,
+                                    fontWeight: FontWeight.bold,
+                                    color: AppColors.darkText,
+                                  ),
+                                ),
+                                Text(
+                                  _isScaleConnected
+                                      ? 'Connected: ${scale.connectedDeviceName ?? "Timbangan Ni Eca"}'
+                                      : 'Find & Connect to Timbangan Ni Eca',
+                                  style: TextStyle(
+                                    fontSize: 12,
+                                    color: _isScaleConnected ? Colors.teal : AppColors.secondaryText,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close, color: AppColors.secondaryText),
+                          onPressed: () => Navigator.pop(ctx),
+                        ),
+                      ],
+                    ),
+                    const Divider(height: 24),
+
+                    // Main Content
+                    if (isLoadingDevices) ...[
+                      const Center(
+                        child: Padding(
+                          padding: EdgeInsets.symmetric(vertical: 30),
+                          child: Column(
+                            children: [
+                              CircularProgressIndicator(color: AppColors.primaryOrange),
+                              SizedBox(height: 12),
+                              Text(
+                                'Searching paired devices for Timbangan Ni Eca...',
+                                style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ] else if (localError != null) ...[
+                      Container(
+                        padding: const EdgeInsets.all(12),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade50,
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        child: Text(localError!, style: TextStyle(color: Colors.red.shade700, fontSize: 13)),
+                      ),
+                    ] else ...[
+                      // Found Timbangan Ni Eca
+                      if (scaleDevice != null) ...[
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: _isScaleConnected ? Colors.teal.shade50 : Colors.orange.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: _isScaleConnected ? Colors.teal : AppColors.primaryOrange,
+                              width: 1.5,
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.scale,
+                                    color: _isScaleConnected ? Colors.teal : AppColors.primaryOrange,
+                                    size: 24,
+                                  ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          scaleDevice.name ?? 'Timbangan_Ni_Eca',
+                                          style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                        ),
+                                        Text(
+                                          scaleDevice.address,
+                                          style: const TextStyle(fontSize: 12, color: AppColors.secondaryText),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                    decoration: BoxDecoration(
+                                      color: _isScaleConnected ? Colors.teal : Colors.orange,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      _isScaleConnected ? 'CONNECTED' : 'FOUND',
+                                      style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 16),
+                              SizedBox(
+                                width: double.infinity,
+                                height: 44,
+                                child: ElevatedButton.icon(
+                                  style: ElevatedButton.styleFrom(
+                                    backgroundColor: _isScaleConnected ? Colors.red.shade600 : AppColors.primaryOrange,
+                                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                  ),
+                                  icon: isConnecting
+                                      ? const SizedBox(
+                                          width: 18,
+                                          height: 18,
+                                          child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white),
+                                        )
+                                      : Icon(
+                                          _isScaleConnected ? Icons.bluetooth_disabled : Icons.bluetooth_connected,
+                                          color: Colors.white,
+                                        ),
+                                  label: Text(
+                                    isConnecting
+                                        ? 'Connecting...'
+                                        : (_isScaleConnected ? 'Disconnect Scale' : 'Connect to Timbangan Ni Eca'),
+                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                  ),
+                                  onPressed: isConnecting
+                                      ? null
+                                      : () async {
+                                          if (_isScaleConnected) {
+                                            scale.disconnect();
+                                            setModalState(() {});
+                                            setState(() => _isScaleConnected = false);
+                                            TopNotification.show(context, 'Scale disconnected.');
+                                          } else {
+                                            setModalState(() => isConnecting = true);
+                                            final err = await scale.connectToDevice(scaleDevice!);
+                                            if (!modalContext.mounted) return;
+                                            setModalState(() => isConnecting = false);
+                                            setState(() => _isScaleConnected = scale.isConnected);
+                                            if (err != null) {
+                                              TopNotification.show(modalContext, err);
+                                            } else {
+                                              TopNotification.show(modalContext, 'Connected to Timbangan Ni Eca!');
+                                              await Future.delayed(const Duration(milliseconds: 600));
+                                              if (modalContext.mounted) Navigator.pop(ctx);
+                                            }
+                                          }
+                                        },
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ] else ...[
+                        // Not paired yet in phone settings
+                        Container(
+                          padding: const EdgeInsets.all(16),
+                          decoration: BoxDecoration(
+                            color: Colors.amber.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(color: Colors.amber.shade400),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const Row(
+                                children: [
+                                  Icon(Icons.warning_amber_rounded, color: Colors.amber, size: 22),
+                                  SizedBox(width: 8),
+                                  Text(
+                                    '"Timbangan_Ni_Eca" Not Found',
+                                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              const Text(
+                                'Make sure the weighing scale is ON and paired in your phone\'s Bluetooth Settings.',
+                                style: TextStyle(fontSize: 12, color: AppColors.darkText),
+                              ),
+                              const SizedBox(height: 12),
+                              OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppColors.primaryOrange,
+                                  side: const BorderSide(color: AppColors.primaryOrange),
+                                ),
+                                icon: const Icon(Icons.refresh, size: 16),
+                                label: const Text('Refresh Paired Devices'),
+                                onPressed: () {
+                                  setModalState(() => isLoadingDevices = true);
+                                },
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+
+                      // Other paired devices
+                      if (devices.isNotEmpty) ...[
+                        const SizedBox(height: 16),
+                        ExpansionTile(
+                          tilePadding: EdgeInsets.zero,
+                          title: Text(
+                            'All Paired Devices (${devices.length})',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.labelText,
+                            ),
+                          ),
+                          children: devices.map((d) {
+                            final isTarget = d.name == 'Timbangan_Ni_Eca';
+                            return ListTile(
+                              dense: true,
+                              contentPadding: EdgeInsets.zero,
+                              leading: Icon(
+                                isTarget ? Icons.scale : Icons.bluetooth,
+                                color: isTarget ? AppColors.primaryOrange : AppColors.secondaryText,
+                              ),
+                              title: Text(
+                                d.name ?? 'Unknown Device',
+                                style: TextStyle(fontWeight: isTarget ? FontWeight.bold : FontWeight.normal),
+                              ),
+                              subtitle: Text(d.address, style: const TextStyle(fontSize: 11)),
+                              trailing: ElevatedButton(
+                                style: ElevatedButton.styleFrom(
+                                  backgroundColor: isTarget ? AppColors.primaryOrange : Colors.grey.shade300,
+                                  foregroundColor: isTarget ? Colors.white : Colors.black87,
+                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                                ),
+                                onPressed: isConnecting
+                                    ? null
+                                    : () async {
+                                        setModalState(() => isConnecting = true);
+                                        final err = await scale.connectToDevice(d);
+                                        if (!modalContext.mounted) return;
+                                        setModalState(() => isConnecting = false);
+                                        setState(() => _isScaleConnected = scale.isConnected);
+                                        if (err != null) {
+                                          TopNotification.show(modalContext, err);
+                                        } else {
+                                          TopNotification.show(modalContext, 'Connected to ${d.name ?? "device"}!');
+                                          Navigator.pop(ctx);
+                                        }
+                                      },
+                                child: const Text('Connect', style: TextStyle(fontSize: 11)),
+                              ),
+                            );
+                          }).toList(),
+                        ),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
   }
 
   Future<void> _pickExpiryManually() async {
@@ -1491,6 +1926,16 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
     if (widget.onExpiryScan != null) {
       final date = await widget.onExpiryScan!();
       if (date != null) setState(() => _expiryDate = date);
+    } else {
+      final input = await Navigator.of(context).push<String>(
+        MaterialPageRoute(builder: (context) => const ExpiryDateScannerScreen()),
+      );
+      if (input != null && input.isNotEmpty) {
+        final date = DateTime.tryParse(input);
+        if (date != null) {
+          setState(() => _expiryDate = DateTime(date.year, date.month, date.day));
+        }
+      }
     }
   }
 
@@ -2121,25 +2566,113 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
                     ),
                   ),
                   if (_isWeightBased) ...[
-                    const SizedBox(width: 8),
-                    Material(
-                      color: _isSaving ? AppColors.placeholderColor : AppColors.primaryOrange,
-                      borderRadius: BorderRadius.circular(8),
-                      child: InkWell(
+                    const SizedBox(width: 6),
+                    // 1. Bluetooth Connection Button
+                    Tooltip(
+                      message: _isScaleConnected ? 'Scale Connected' : 'Connect to Scale',
+                      child: Material(
+                        color: _isSaving
+                            ? AppColors.placeholderColor
+                            : (_isScaleConnected ? Colors.teal : AppColors.primaryOrange),
                         borderRadius: BorderRadius.circular(8),
-                        onTap: (_isReadingFromScale || _isSaving) ? null : _captureWeightFromScale,
-                        child: SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: _isReadingFromScale
-                              ? const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)))
-                              : const Icon(Icons.scale, color: Colors.white),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: (_isSaving || _isConnectingScale) ? null : _toggleScaleConnection,
+                          child: SizedBox(
+                            width: 42,
+                            height: 48,
+                            child: _isConnectingScale
+                                ? const Center(child: SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)))
+                                : Icon(
+                                    _isScaleConnected ? Icons.bluetooth_connected : Icons.bluetooth,
+                                    color: Colors.white,
+                                    size: 20,
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // 2. Tare (Zero) Button
+                    Tooltip(
+                      message: 'Tare (Zero)',
+                      child: Material(
+                        color: _isSaving ? AppColors.placeholderColor : AppColors.primaryOrange,
+                        borderRadius: BorderRadius.circular(8),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: (_isTaringScale || _isSaving) ? null : _tareScale,
+                          child: SizedBox(
+                            width: 42,
+                            height: 48,
+                            child: _isTaringScale
+                                ? const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)))
+                                : const Center(
+                                    child: Text(
+                                      'T',
+                                      style: TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    // 3. Weight Capture Button
+                    Tooltip(
+                      message: 'Get Weight',
+                      child: Material(
+                        color: _isSaving ? AppColors.placeholderColor : AppColors.primaryOrange,
+                        borderRadius: BorderRadius.circular(8),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(8),
+                          onTap: (_isReadingFromScale || _isSaving) ? null : _captureWeightFromScale,
+                          child: SizedBox(
+                            width: 42,
+                            height: 48,
+                            child: _isReadingFromScale
+                                ? const Center(child: SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)))
+                                : const Icon(Icons.scale, color: Colors.white, size: 20),
+                          ),
                         ),
                       ),
                     ),
                   ],
                 ],
               ),
+              if (_isWeightBased) ...[
+                const SizedBox(height: 6),
+                GestureDetector(
+                  onTap: _toggleScaleConnection,
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: _isScaleConnected ? Colors.teal : Colors.grey.shade400,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        _isScaleConnected
+                            ? 'Scale Connected: ${ScaleBluetoothService.instance.connectedDeviceName ?? "Timbangan Ni Eca"}'
+                            : 'Scale Disconnected (Tap Bluetooth icon to connect)',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: _isScaleConnected ? Colors.teal.shade700 : AppColors.secondaryText,
+                          fontWeight: _isScaleConnected ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 14),
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,

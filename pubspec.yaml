@@ -62,7 +62,7 @@ dependencies:
   latlong2: ^0.10.1
   flutter_tts: ^4.2.5
   onesignal_flutter: ^5.7.1
-
+  bluetooth_classic: ^0.0.4
 dev_dependencies:
   flutter_test:
     sdk: flutter

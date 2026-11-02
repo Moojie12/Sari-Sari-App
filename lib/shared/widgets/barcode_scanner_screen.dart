@@ -1,3 +1,5 @@
+export 'expiry_date_scanner_screen.dart';
+
 import 'package:flutter/material.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -51,18 +53,6 @@ class BarcodeScannerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return const _ScannerScreen(purpose: _ScanPurpose.productBarcode);
-  }
-}
-
-/// Scanner used to read a product's printed expiry-date code (Add Product's
-/// batch step). Same visual theme as [BarcodeScannerScreen], distinguished
-/// by title, icon, and a squarer frame.
-class ExpiryDateScannerScreen extends StatelessWidget {
-  const ExpiryDateScannerScreen({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return const _ScannerScreen(purpose: _ScanPurpose.expiryDate);
   }
 }
 

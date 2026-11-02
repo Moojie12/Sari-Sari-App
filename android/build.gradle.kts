@@ -19,6 +19,14 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 
+subprojects {
+    plugins.withId("com.android.library") {
+        extensions.findByType(com.android.build.api.variant.LibraryAndroidComponentsExtension::class.java)?.finalizeDsl { ext ->
+            ext.compileSdk = 37
+        }
+    }
+}
+
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)
 }
