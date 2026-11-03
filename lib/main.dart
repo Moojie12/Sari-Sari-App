@@ -22,18 +22,28 @@ const String supabaseAnonKey =
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  // Initialize core backends concurrently for fastest cold start
-  await Future.wait([
-    if (Firebase.apps.isEmpty)
-      Firebase.initializeApp(
-        options: DefaultFirebaseOptions.currentPlatform,
+
+  // Log Flutter framework errors and prevent silent crashes
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    debugPrint('[FlutterError] ${details.exceptionAsString()}');
+  };
+
+  // Gracefully handle backend init so UI is guaranteed to run even if offline or network fails
+  try {
+    await Future.wait([
+      if (Firebase.apps.isEmpty)
+        Firebase.initializeApp(
+          options: DefaultFirebaseOptions.currentPlatform,
+        ),
+      Supabase.initialize(
+        url: 'https://njqqfijxklxtdqljzqrx.supabase.co',
+        anonKey: supabaseAnonKey,
       ),
-    Supabase.initialize(
-      url: 'https://njqqfijxklxtdqljzqrx.supabase.co',
-      anonKey: supabaseAnonKey,
-    ),
-  ]);
+    ]);
+  } catch (e, stack) {
+    debugPrint('[Init] Core backend initialization error: $e\n$stack');
+  }
 
   // Launch UI immediately so the user never sees a stalled screen
   runApp(const SariSariApp());

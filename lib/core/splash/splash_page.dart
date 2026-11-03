@@ -25,7 +25,11 @@ class _SplashPageState extends State<SplashPage> {
   void initState() {
     super.initState();
     SplashPage.isCurrent = true;
-    _navigateToHome();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _navigateToHome();
+      }
+    });
   }
 
   @override
@@ -67,6 +71,10 @@ class _SplashPageState extends State<SplashPage> {
         if (status.isDenied) Permission.locationWhenInUse.request();
       }).catchError((_) {});
     }
+
+    // Give splash screen a moment to display and guarantee frame is fully painted
+    await Future.delayed(const Duration(milliseconds: 600));
+    if (!mounted) return;
 
     if (OneSignalNotificationService.instance.hasActiveNotificationOpen) {
       debugPrint('[SplashPage] Navigation aborted: notification details is active.');
