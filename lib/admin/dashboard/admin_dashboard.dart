@@ -1867,6 +1867,15 @@ class _AdminDashboardState extends State<AdminDashboard> {
                               : () async {
                                   if (isSubmitting) return;
                                   if (!formKey.currentState!.validate()) return;
+                                  if (imagePath == null || imagePath!.trim().isEmpty) {
+                                    ScaffoldMessenger.of(dialogContext).showSnackBar(
+                                      const SnackBar(
+                                        content: Text('Product photo is required. Please add a photo.'),
+                                        backgroundColor: Colors.red,
+                                      ),
+                                    );
+                                    return;
+                                  }
 
                                   setDialogState(() => isSubmitting = true);
 

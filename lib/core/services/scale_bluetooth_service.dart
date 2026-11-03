@@ -5,7 +5,7 @@ import 'package:bluetooth_classic/models/device.dart';
 import 'package:flutter/foundation.dart';
 import 'package:permission_handler/permission_handler.dart';
 
-class ScaleBluetoothService {
+class ScaleBluetoothService extends ChangeNotifier {
   ScaleBluetoothService._() {
     _initStreams();
   }
@@ -18,9 +18,13 @@ class ScaleBluetoothService {
   bool _isConnected = false;
   String? _connectedDeviceName;
   String _incomingBuffer = '';
+  double? _lastWeight;
+  bool _lastIsLocked = false;
 
   bool get isConnected => _isConnected;
   String? get connectedDeviceName => _connectedDeviceName;
+  double? get lastWeight => _lastWeight;
+  bool get lastIsLocked => _lastIsLocked;
 
   Function(double weight, bool isLocked)? onWeightReceived;
   Function()? onTared;
@@ -37,10 +41,12 @@ class ScaleBluetoothService {
         debugPrint('Bluetooth device status event: $status');
         if (status == Device.connected) {
           _isConnected = true;
+          notifyListeners();
           onConnectionChanged?.call(true);
         } else if (status == Device.disconnected) {
           _isConnected = false;
           _connectedDeviceName = null;
+          notifyListeners();
           onConnectionChanged?.call(false);
         }
       }, onError: (e) {
@@ -98,6 +104,7 @@ class ScaleBluetoothService {
       if (success) {
         _isConnected = true;
         _connectedDeviceName = device.name ?? 'Timbangan_Ni_Eca';
+        notifyListeners();
         onConnectionChanged?.call(true);
         debugPrint('Connected successfully to ${device.name}!');
         return null; // Success!
@@ -191,8 +198,14 @@ class ScaleBluetoothService {
       if (json.containsKey('weight')) {
         final double weight = (json['weight'] as num).toDouble();
         final bool isLocked = json['isLocked'] == true;
+        _lastWeight = weight;
+        _lastIsLocked = isLocked;
+        notifyListeners();
         onWeightReceived?.call(weight, isLocked);
       } else if (json['status'] == 'TARED') {
+        _lastWeight = 0.0;
+        _lastIsLocked = false;
+        notifyListeners();
         onTared?.call();
       }
     } catch (e) {
@@ -205,6 +218,9 @@ class ScaleBluetoothService {
 
     // 1. Check if tare response
     if (line.toUpperCase().contains('TARED')) {
+      _lastWeight = 0.0;
+      _lastIsLocked = false;
+      notifyListeners();
       onTared?.call();
       return;
     }
@@ -212,6 +228,9 @@ class ScaleBluetoothService {
     // 2. Try direct number parse e.g. "78.14"
     var weight = double.tryParse(line);
     if (weight != null) {
+      _lastWeight = weight;
+      _lastIsLocked = true;
+      notifyListeners();
       onWeightReceived?.call(weight, true);
       return;
     }
@@ -223,6 +242,9 @@ class ScaleBluetoothService {
       weight = double.tryParse(match.group(1)!);
       if (weight != null) {
         final isLocked = line.toLowerCase().contains('locked":true');
+        _lastWeight = weight;
+        _lastIsLocked = isLocked;
+        notifyListeners();
         onWeightReceived?.call(weight, isLocked);
       }
     }
@@ -261,13 +283,16 @@ class ScaleBluetoothService {
     } catch (e) {
       debugPrint('Error disconnecting bluetooth: $e');
     }
+    notifyListeners();
     onConnectionChanged?.call(false);
   }
 
   /// Clean up streams if service is destroyed
+  @override
   void dispose() {
     disconnect();
     _dataSubscription?.cancel();
     _statusSubscription?.cancel();
+    super.dispose();
   }
 }
