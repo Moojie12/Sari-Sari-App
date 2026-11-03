@@ -1,8 +1,11 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../../core/services/scale_bluetooth_service.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
+import '../../../shared/widgets/scale_bluetooth_modal.dart';
 import '../inventory/employee_batch_model.dart';
 import '../inventory/employee_expiry_badge.dart';
 import '../inventory/employee_product_model.dart';
@@ -34,16 +37,111 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
 
   bool get _skipSelection => _validBatches.length <= 1;
 
+  bool _isReadingFromScale = false;
+  bool _isTaringScale = false;
+  Timer? _scaleTimeoutTimer;
+
   @override
   void initState() {
     super.initState();
     _quantityController = TextEditingController(
       text: widget.product.isWeightBased ? '1.0' : '1',
     );
+    if (widget.product.isWeightBased) {
+      _initScale();
+    }
+  }
+
+  void _initScale() {
+    final scale = ScaleBluetoothService.instance;
+    scale.onWeightReceived = (weight, isLocked) {
+      _scaleTimeoutTimer?.cancel();
+      if (!mounted) return;
+      setState(() {
+        _quantityController.text = weight.toStringAsFixed(2);
+        _isReadingFromScale = false;
+      });
+      TopNotification.show(
+        context,
+        'Weight captured: ${weight.toStringAsFixed(2)} kg ${isLocked ? "[LOCKED]" : ""}',
+      );
+    };
+
+    scale.onTared = () {
+      _scaleTimeoutTimer?.cancel();
+      if (!mounted) return;
+      setState(() {
+        _quantityController.text = '0.00';
+        _isTaringScale = false;
+      });
+      TopNotification.show(context, 'Scale tared to 0.00 kg');
+    };
+
+    scale.onConnectionChanged = (connected) {
+      if (!mounted) return;
+      setState(() {});
+    };
+  }
+
+  Future<void> _captureWeightFromScale() async {
+    final scale = ScaleBluetoothService.instance;
+    if (!scale.isConnected) {
+      TopNotification.show(context, 'Please connect to the scale via Bluetooth first!');
+      await showScaleBluetoothModal(context, onConnectionChanged: () => setState(() {}));
+      return;
+    }
+
+    setState(() => _isReadingFromScale = true);
+
+    _scaleTimeoutTimer?.cancel();
+    _scaleTimeoutTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted && _isReadingFromScale) {
+        setState(() => _isReadingFromScale = false);
+        TopNotification.show(context, 'Scale did not respond. Check Bluetooth connection.');
+      }
+    });
+
+    final sent = await scale.requestWeight();
+    if (!sent && mounted) {
+      _scaleTimeoutTimer?.cancel();
+      setState(() => _isReadingFromScale = false);
+      TopNotification.show(context, 'Failed to request weight from scale.');
+    }
+  }
+
+  Future<void> _tareScale() async {
+    final scale = ScaleBluetoothService.instance;
+    if (!scale.isConnected) {
+      TopNotification.show(context, 'Please connect to the scale via Bluetooth first!');
+      await showScaleBluetoothModal(context, onConnectionChanged: () => setState(() {}));
+      return;
+    }
+
+    setState(() => _isTaringScale = true);
+
+    _scaleTimeoutTimer?.cancel();
+    _scaleTimeoutTimer = Timer(const Duration(seconds: 4), () {
+      if (mounted && _isTaringScale) {
+        setState(() => _isTaringScale = false);
+        TopNotification.show(context, 'Scale did not respond to Tare command.');
+      }
+    });
+
+    final sent = await scale.sendTare();
+    if (!sent && mounted) {
+      _scaleTimeoutTimer?.cancel();
+      setState(() => _isTaringScale = false);
+      TopNotification.show(context, 'Failed to tare scale. Please try again.');
+    }
   }
 
   @override
   void dispose() {
+    _scaleTimeoutTimer?.cancel();
+    final scale = ScaleBluetoothService.instance;
+    scale.onWeightReceived = null;
+    scale.onTared = null;
+    scale.onConnectionChanged = null;
     _quantityController.dispose();
     super.dispose();
   }
@@ -182,43 +280,79 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
                     Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        // 1. Bluetooth Connection Button
                         Tooltip(
-                          message: 'Arduino Weighing Scale',
-                          child: InkWell(
-                            onTap: () {
-                              TopNotification.show(
-                                context,
-                                'Arduino Scale: Reading weight...',
-                              );
-                            },
+                          message: ScaleBluetoothService.instance.isConnected ? 'Scale Connected' : 'Connect to Scale',
+                          child: Material(
+                            color: ScaleBluetoothService.instance.isConnected ? Colors.teal : AppColors.primaryOrange,
                             borderRadius: BorderRadius.circular(8),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
-                              decoration: BoxDecoration(
-                                color: AppColors.lightPeach,
-                                borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.3)),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: () => showScaleBluetoothModal(context, onConnectionChanged: () => setState(() {})),
+                              child: SizedBox(
+                                width: 38,
+                                height: 42,
+                                child: Icon(
+                                  ScaleBluetoothService.instance.isConnected ? Icons.bluetooth_connected : Icons.bluetooth,
+                                  color: Colors.white,
+                                  size: 18,
+                                ),
                               ),
-                              child: const Row(
-                                children: [
-                                  Icon(Icons.scale, size: 18, color: AppColors.primaryOrange),
-                                  SizedBox(width: 4),
-                                  Text(
-                                    'Scale',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      fontWeight: FontWeight.bold,
-                                      color: AppColors.primaryOrange,
-                                    ),
-                                  ),
-                                ],
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // 2. Tare (Zero) Button
+                        Tooltip(
+                          message: 'Tare (Zero)',
+                          child: Material(
+                            color: AppColors.primaryOrange,
+                            borderRadius: BorderRadius.circular(8),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: _isTaringScale ? null : _tareScale,
+                              child: SizedBox(
+                                width: 38,
+                                height: 42,
+                                child: _isTaringScale
+                                    ? const Center(child: SizedBox(width: 14, height: 14, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)))
+                                    : const Center(
+                                        child: Text(
+                                          'T',
+                                          style: TextStyle(
+                                            color: Colors.white,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 15,
+                                          ),
+                                        ),
+                                      ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 6),
+                        // 3. Weight Capture Button
+                        Tooltip(
+                          message: 'Get Weight from Scale',
+                          child: Material(
+                            color: AppColors.primaryOrange,
+                            borderRadius: BorderRadius.circular(8),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(8),
+                              onTap: _isReadingFromScale ? null : _captureWeightFromScale,
+                              child: SizedBox(
+                                width: 38,
+                                height: 42,
+                                child: _isReadingFromScale
+                                    ? const Center(child: SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white)))
+                                    : const Icon(Icons.scale, color: Colors.white, size: 18),
                               ),
                             ),
                           ),
                         ),
                         const SizedBox(width: 8),
                         SizedBox(
-                          width: 110,
+                          width: 105,
                           child: TextField(
                             controller: _quantityController,
                             keyboardType: const TextInputType.numberWithOptions(decimal: true),
@@ -230,7 +364,7 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
                             decoration: InputDecoration(
                               suffixText: ' kg',
                               isDense: true,
-                              contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 12),
+                              contentPadding: const EdgeInsets.symmetric(vertical: 10, horizontal: 10),
                               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
                             ),
                           ),
@@ -275,6 +409,35 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
                     ),
                 ],
               ),
+              if (widget.product.isWeightBased) ...[
+                const SizedBox(height: 6),
+                GestureDetector(
+                  onTap: () => showScaleBluetoothModal(context, onConnectionChanged: () => setState(() {})),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: ScaleBluetoothService.instance.isConnected ? Colors.teal : Colors.grey.shade400,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        ScaleBluetoothService.instance.isConnected
+                            ? 'Scale Connected: ${ScaleBluetoothService.instance.connectedDeviceName ?? "Timbangan Ni Eca"}'
+                            : 'Scale Disconnected (Tap Bluetooth to connect)',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: ScaleBluetoothService.instance.isConnected ? Colors.teal.shade700 : AppColors.secondaryText,
+                          fontWeight: ScaleBluetoothService.instance.isConnected ? FontWeight.w600 : FontWeight.normal,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
               const SizedBox(height: 4),
               Text(
                 'Max ${widget.product.isWeightBased ? _selected.quantity.toStringAsFixed(2) : _selected.quantity.toInt()} $unitStr available in this batch',

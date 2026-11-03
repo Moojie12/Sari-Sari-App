@@ -25,13 +25,28 @@ class EmployeeInventoryPage extends StatefulWidget {
 
 class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
   final _searchController = TextEditingController();
+  final _scrollController = ScrollController();
   String _searchQuery = '';
   String _selectedCategory = 'All';
   bool _lowStockOnly = false;
+  static const int _itemsPerPage = 12;
+  int _currentPage = 1;
+
+  void _onPageChanged(int page) {
+    setState(() => _currentPage = page);
+    if (_scrollController.hasClients) {
+      _scrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    }
+  }
 
   @override
   void dispose() {
     _searchController.dispose();
+    _scrollController.dispose();
     super.dispose();
   }
 
@@ -133,63 +148,82 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
           listenable: widget.inventory,
           builder: (context, _) {
             final products = _filter(widget.inventory.products);
-            return CustomScrollView(
-              slivers: [
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        const Text(
-                          'Inventory',
-                          style: TextStyle(
-                              color: AppColors.darkText, fontSize: 28, fontWeight: FontWeight.bold),
+            final int totalPages = (products.length / _itemsPerPage).ceil().clamp(1, 9999);
+            if (_currentPage > totalPages) {
+              _currentPage = totalPages;
+            }
+            final int startIndex = (_currentPage - 1) * _itemsPerPage;
+            final pagedProducts = products.skip(startIndex).take(_itemsPerPage).toList();
+
+            return Stack(
+              alignment: Alignment.bottomCenter,
+              children: [
+                CustomScrollView(
+                  controller: _scrollController,
+                  slivers: [
+                    SliverToBoxAdapter(
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                          children: [
+                            const Text(
+                              'Inventory',
+                              style: TextStyle(
+                                  color: AppColors.darkText, fontSize: 28, fontWeight: FontWeight.bold),
+                            ),
+                            ElevatedButton.icon(
+                              onPressed: _openAddProduct,
+                              icon: const Icon(Icons.add_box_outlined, size: 18),
+                              label: const Text('Add Product'),
+                              style: ElevatedButton.styleFrom(
+                                backgroundColor: AppColors.primaryOrange,
+                                foregroundColor: Colors.white,
+                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                              ),
+                            ),
+                          ],
                         ),
-                        ElevatedButton.icon(
-                          onPressed: _openAddProduct,
-                          icon: const Icon(Icons.add_box_outlined, size: 18),
-                          label: const Text('Add Product'),
-                          style: ElevatedButton.styleFrom(
-                            backgroundColor: AppColors.primaryOrange,
-                            foregroundColor: Colors.white,
-                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                          ),
-                        ),
-                      ],
+                      ),
                     ),
-                  ),
+                    SliverToBoxAdapter(child: _buildSearchBar()),
+                    SliverToBoxAdapter(child: _buildFilters()),
+                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                    if (widget.inventory.isProductsLoading && widget.inventory.products.isEmpty)
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                        sliver: SliverList.separated(
+                          itemCount: 5,
+                          separatorBuilder: (context, index) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) => const InventoryItemSkeleton(),
+                        ),
+                      )
+                    else if (products.isEmpty)
+                      SliverToBoxAdapter(child: _buildEmptyState())
+                    else
+                      SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                        sliver: SliverList.separated(
+                          itemCount: pagedProducts.length,
+                          separatorBuilder: (context, index) => const SizedBox(height: 12),
+                          itemBuilder: (context, index) {
+                            final product = pagedProducts[index];
+                            return _InventoryItemCard(
+                              product: product,
+                              onTap: () => _openBatchDetail(product),
+                            );
+                          },
+                        ),
+                      ),
+                    SliverToBoxAdapter(child: SizedBox(height: totalPages > 1 ? 160 : 100)),
+                  ],
                 ),
-                SliverToBoxAdapter(child: _buildSearchBar()),
-                SliverToBoxAdapter(child: _buildFilters()),
-                const SliverToBoxAdapter(child: SizedBox(height: 8)),
-                if (widget.inventory.isProductsLoading && widget.inventory.products.isEmpty)
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                    sliver: SliverList.separated(
-                      itemCount: 5,
-                      separatorBuilder: (context, index) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) => const InventoryItemSkeleton(),
-                    ),
-                  )
-                else if (products.isEmpty)
-                  SliverToBoxAdapter(child: _buildEmptyState())
-                else
-                  SliverPadding(
-                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                    sliver: SliverList.separated(
-                      itemCount: products.length,
-                      separatorBuilder: (context, index) => const SizedBox(height: 12),
-                      itemBuilder: (context, index) {
-                        final product = products[index];
-                        return _InventoryItemCard(
-                          product: product,
-                          onTap: () => _openBatchDetail(product),
-                        );
-                      },
-                    ),
+                if (totalPages > 1)
+                  Positioned(
+                    bottom: 100,
+                    child: _buildFloatingPagination(totalPages),
                   ),
               ],
             );
@@ -204,7 +238,10 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
       child: TextField(
         controller: _searchController,
-        onChanged: (value) => setState(() => _searchQuery = value),
+        onChanged: (value) => setState(() {
+          _searchQuery = value;
+          _currentPage = 1;
+        }),
         style: const TextStyle(fontSize: 14),
         decoration: InputDecoration(
           hintText: 'Search by name or barcode...',
@@ -258,7 +295,10 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
           FilterChip(
             label: const Text('Low / Out of Stock'),
             selected: _lowStockOnly,
-            onSelected: (value) => setState(() => _lowStockOnly = value),
+            onSelected: (value) => setState(() {
+              _lowStockOnly = value;
+              _currentPage = 1;
+            }),
             showCheckmark: false,
             labelStyle: TextStyle(
               color: _lowStockOnly ? Colors.white : AppColors.secondaryText,
@@ -285,7 +325,10 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
                 label: Text(category),
                 selected: isSelected,
                 showCheckmark: false,
-                onSelected: (_) => setState(() => _selectedCategory = category),
+                onSelected: (_) => setState(() {
+                  _selectedCategory = category;
+                  _currentPage = 1;
+                }),
                 labelStyle: TextStyle(
                   color: isSelected ? Colors.white : AppColors.secondaryText,
                   fontSize: 12,
@@ -320,6 +363,92 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
           Text('No products found',
               style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.6))),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFloatingPagination(int totalPages) {
+    return Material(
+      elevation: 6,
+      shadowColor: Colors.black.withValues(alpha: 0.18),
+      borderRadius: BorderRadius.circular(30),
+      color: Colors.white,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(30),
+          border: Border.all(
+            color: AppColors.borderColor.withValues(alpha: 0.6),
+            width: 1,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            IconButton(
+              icon: const Icon(Icons.chevron_left_rounded),
+              iconSize: 22,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              splashRadius: 18,
+              color: _currentPage > 1 ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
+              onPressed: _currentPage > 1
+                  ? () => _onPageChanged(_currentPage - 1)
+                  : null,
+            ),
+            const SizedBox(width: 2),
+            ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 180),
+              child: SingleChildScrollView(
+                scrollDirection: Axis.horizontal,
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: List.generate(totalPages, (index) {
+                    final page = index + 1;
+                    final isSelected = page == _currentPage;
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 2),
+                      child: InkWell(
+                        onTap: () => _onPageChanged(page),
+                        borderRadius: BorderRadius.circular(16),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 180),
+                          width: 30,
+                          height: 30,
+                          decoration: BoxDecoration(
+                            shape: BoxShape.circle,
+                            color: isSelected ? AppColors.primaryOrange : Colors.transparent,
+                          ),
+                          alignment: Alignment.center,
+                          child: Text(
+                            '$page',
+                            style: TextStyle(
+                              color: isSelected ? Colors.white : AppColors.darkText,
+                              fontSize: 12,
+                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                            ),
+                          ),
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+            ),
+            const SizedBox(width: 2),
+            IconButton(
+              icon: const Icon(Icons.chevron_right_rounded),
+              iconSize: 22,
+              padding: EdgeInsets.zero,
+              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+              splashRadius: 18,
+              color: _currentPage < totalPages ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
+              onPressed: _currentPage < totalPages
+                  ? () => _onPageChanged(_currentPage + 1)
+                  : null,
+            ),
+          ],
+        ),
       ),
     );
   }
