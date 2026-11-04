@@ -296,3 +296,4 @@ class ScaleBluetoothService extends ChangeNotifier {
     super.dispose();
   }
 }
+

@@ -155,75 +155,77 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
             final int startIndex = (_currentPage - 1) * _itemsPerPage;
             final pagedProducts = products.skip(startIndex).take(_itemsPerPage).toList();
 
-            return Stack(
-              alignment: Alignment.bottomCenter,
-              children: [
-                CustomScrollView(
-                  controller: _scrollController,
-                  slivers: [
-                    SliverToBoxAdapter(
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
-                        child: Row(
-                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                          children: [
-                            const Text(
-                              'Inventory',
-                              style: TextStyle(
-                                  color: AppColors.darkText, fontSize: 28, fontWeight: FontWeight.bold),
-                            ),
-                            ElevatedButton.icon(
-                              onPressed: _openAddProduct,
-                              icon: const Icon(Icons.add_box_outlined, size: 18),
-                              label: const Text('Add Product'),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: AppColors.primaryOrange,
-                                foregroundColor: Colors.white,
-                                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-                                textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
-                                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                              ),
-                            ),
-                          ],
+            return CustomScrollView(
+              controller: _scrollController,
+              slivers: [
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(24, 16, 24, 4),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text(
+                          'Inventory',
+                          style: TextStyle(
+                              color: AppColors.darkText, fontSize: 28, fontWeight: FontWeight.bold),
                         ),
+                        ElevatedButton.icon(
+                          onPressed: _openAddProduct,
+                          icon: const Icon(Icons.add_box_outlined, size: 18),
+                          label: const Text('Add Product'),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.primaryOrange,
+                            foregroundColor: Colors.white,
+                            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                            textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                SliverToBoxAdapter(child: _buildSearchBar()),
+                SliverToBoxAdapter(child: _buildFilters()),
+                const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                if (widget.inventory.isProductsLoading && widget.inventory.products.isEmpty)
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
+                    sliver: SliverList.separated(
+                      itemCount: 5,
+                      separatorBuilder: (context, index) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) => const InventoryItemSkeleton(),
+                    ),
+                  )
+                else if (products.isEmpty)
+                  SliverToBoxAdapter(child: _buildEmptyState())
+                else
+                  SliverPadding(
+                    padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
+                    sliver: SliverList.separated(
+                      itemCount: pagedProducts.length,
+                      separatorBuilder: (context, index) => const SizedBox(height: 12),
+                      itemBuilder: (context, index) {
+                        final product = pagedProducts[index];
+                        return _InventoryItemCard(
+                          product: product,
+                          onTap: () => _openBatchDetail(product),
+                        );
+                      },
+                    ),
+                  ),
+                if (totalPages > 1)
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.only(top: 16, bottom: 100),
+                      child: Center(
+                        child: _buildPagination(totalPages),
                       ),
                     ),
-                    SliverToBoxAdapter(child: _buildSearchBar()),
-                    SliverToBoxAdapter(child: _buildFilters()),
-                    const SliverToBoxAdapter(child: SizedBox(height: 8)),
-                    if (widget.inventory.isProductsLoading && widget.inventory.products.isEmpty)
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 24),
-                        sliver: SliverList.separated(
-                          itemCount: 5,
-                          separatorBuilder: (context, index) => const SizedBox(height: 12),
-                          itemBuilder: (context, index) => const InventoryItemSkeleton(),
-                        ),
-                      )
-                    else if (products.isEmpty)
-                      SliverToBoxAdapter(child: _buildEmptyState())
-                    else
-                      SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-                        sliver: SliverList.separated(
-                          itemCount: pagedProducts.length,
-                          separatorBuilder: (context, index) => const SizedBox(height: 12),
-                          itemBuilder: (context, index) {
-                            final product = pagedProducts[index];
-                            return _InventoryItemCard(
-                              product: product,
-                              onTap: () => _openBatchDetail(product),
-                            );
-                          },
-                        ),
-                      ),
-                    SliverToBoxAdapter(child: SizedBox(height: totalPages > 1 ? 160 : 100)),
-                  ],
-                ),
-                if (totalPages > 1)
-                  Positioned(
-                    bottom: 100,
-                    child: _buildFloatingPagination(totalPages),
+                  )
+                else
+                  const SliverToBoxAdapter(
+                    child: SizedBox(height: 100),
                   ),
               ],
             );
@@ -367,88 +369,90 @@ class _EmployeeInventoryPageState extends State<EmployeeInventoryPage> {
     );
   }
 
-  Widget _buildFloatingPagination(int totalPages) {
-    return Material(
-      elevation: 6,
-      shadowColor: Colors.black.withValues(alpha: 0.18),
-      borderRadius: BorderRadius.circular(30),
-      color: Colors.white,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(
-            color: AppColors.borderColor.withValues(alpha: 0.6),
-            width: 1,
-          ),
+  Widget _buildPagination(int totalPages) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(
+          color: AppColors.borderColor.withValues(alpha: 0.6),
+          width: 1,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.chevron_left_rounded),
-              iconSize: 22,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              splashRadius: 18,
-              color: _currentPage > 1 ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
-              onPressed: _currentPage > 1
-                  ? () => _onPageChanged(_currentPage - 1)
-                  : null,
-            ),
-            const SizedBox(width: 2),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 180),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: List.generate(totalPages, (index) {
-                    final page = index + 1;
-                    final isSelected = page == _currentPage;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: InkWell(
-                        onTap: () => _onPageChanged(page),
-                        borderRadius: BorderRadius.circular(16),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          width: 30,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isSelected ? AppColors.primaryOrange : Colors.transparent,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            '$page',
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : AppColors.darkText,
-                              fontSize: 12,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                            ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left_rounded),
+            iconSize: 22,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            splashRadius: 18,
+            color: _currentPage > 1 ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
+            onPressed: _currentPage > 1
+                ? () => _onPageChanged(_currentPage - 1)
+                : null,
+          ),
+          const SizedBox(width: 2),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 180),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(totalPages, (index) {
+                  final page = index + 1;
+                  final isSelected = page == _currentPage;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: InkWell(
+                      onTap: () => _onPageChanged(page),
+                      borderRadius: BorderRadius.circular(16),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isSelected ? AppColors.primaryOrange : Colors.transparent,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '$page',
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : AppColors.darkText,
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                           ),
                         ),
                       ),
-                    );
-                  }),
-                ),
+                    ),
+                  );
+                }),
               ),
             ),
-            const SizedBox(width: 2),
-            IconButton(
-              icon: const Icon(Icons.chevron_right_rounded),
-              iconSize: 22,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              splashRadius: 18,
-              color: _currentPage < totalPages ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
-              onPressed: _currentPage < totalPages
-                  ? () => _onPageChanged(_currentPage + 1)
-                  : null,
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 2),
+          IconButton(
+            icon: const Icon(Icons.chevron_right_rounded),
+            iconSize: 22,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            splashRadius: 18,
+            color: _currentPage < totalPages ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
+            onPressed: _currentPage < totalPages
+                ? () => _onPageChanged(_currentPage + 1)
+                : null,
+          ),
+        ],
       ),
     );
   }

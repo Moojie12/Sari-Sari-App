@@ -277,76 +277,78 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
 
         return Scaffold(
           backgroundColor: Colors.transparent,
-          body: Stack(
-            alignment: Alignment.bottomCenter,
-            children: [
-              CustomScrollView(
-                controller: _scrollController,
-                slivers: [
-                  SliverToBoxAdapter(child: _buildTitle(context)),
-                  SliverToBoxAdapter(child: _buildWelcomeSection(context)),
-                  SliverToBoxAdapter(child: _buildActiveOrder(context)),
-                  SliverToBoxAdapter(child: _buildSearchBar(context)),
-                  SliverToBoxAdapter(child: _buildCategories(context)),
-                  if (!_isFiltering && !_isLoading)
-                    SliverToBoxAdapter(child: _buildOnSaleProducts(context)),
-                  if (!_isFiltering && _isLoading)
-                    SliverToBoxAdapter(child: _buildOnSaleSkeletons()),
-                  SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
-                      child: Text(
-                        _isFiltering ? 'Search Results' : 'All Products',
-                        style: const TextStyle(
-                          color: AppColors.darkText,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
+          body: CustomScrollView(
+            controller: _scrollController,
+            slivers: [
+              SliverToBoxAdapter(child: _buildTitle(context)),
+              SliverToBoxAdapter(child: _buildWelcomeSection(context)),
+              SliverToBoxAdapter(child: _buildActiveOrder(context)),
+              SliverToBoxAdapter(child: _buildSearchBar(context)),
+              SliverToBoxAdapter(child: _buildCategories(context)),
+              if (!_isFiltering && !_isLoading)
+                SliverToBoxAdapter(child: _buildOnSaleProducts(context)),
+              if (!_isFiltering && _isLoading)
+                SliverToBoxAdapter(child: _buildOnSaleSkeletons()),
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
+                  child: Text(
+                    _isFiltering ? 'Search Results' : 'All Products',
+                    style: const TextStyle(
+                      color: AppColors.darkText,
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  if ((_isLoading || EmployeeInventoryController.instance.isProductsLoading) && pagedProducts.isEmpty)
-                    _buildGridSkeletons()
-                  else if (pagedProducts.isEmpty)
-                    SliverToBoxAdapter(child: _buildEmptyState(context))
-                  else
-                    SliverPadding(
-                      padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
-                      sliver: SliverGrid(
-                        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
-                          mainAxisSpacing: 14,
-                          crossAxisSpacing: 14,
-                          childAspectRatio: 0.65,
-                        ),
-                        delegate: SliverChildBuilderDelegate(
-                          (context, index) {
-                            final product = pagedProducts[index];
-                            final activeDeals = SaleDealController.instance.activeDeals;
-                            final onSale = _onSaleProducts;
-                            final firstInStock = pagedProducts.indexWhere((p) => !p.isOutOfStock);
-                            final targetIdx = firstInStock != -1 ? firstInStock : 0;
-                            final shouldAttachKey = activeDeals.isEmpty && onSale.isEmpty && index == targetIdx;
-                            return CustomerProductCard(
-                              key: index == 0 ? CustomerTutorialKeys.firstProductCardKey : null,
-                              addToCartKey: shouldAttachKey ? CustomerTutorialKeys.addToCartKey : null,
-                              product: product,
-                              onTap: () => _openProductDetails(product),
-                              onAddToCart: () => _addToCart(product),
-                              onAddToCartWithPosition: (pos) => _addToCart(product, pos),
-                            );
-                          },
-                          childCount: pagedProducts.length,
-                        ),
-                      ),
-                    ),
-                  SliverToBoxAdapter(child: SizedBox(height: totalPages > 1 ? 160 : 100)),
-                ],
+                ),
               ),
+              if ((_isLoading || EmployeeInventoryController.instance.isProductsLoading) && pagedProducts.isEmpty)
+                _buildGridSkeletons()
+              else if (pagedProducts.isEmpty)
+                SliverToBoxAdapter(child: _buildEmptyState(context))
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
+                  sliver: SliverGrid(
+                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: 2,
+                      mainAxisSpacing: 14,
+                      crossAxisSpacing: 14,
+                      childAspectRatio: 0.65,
+                    ),
+                    delegate: SliverChildBuilderDelegate(
+                      (context, index) {
+                        final product = pagedProducts[index];
+                        final activeDeals = SaleDealController.instance.activeDeals;
+                        final onSale = _onSaleProducts;
+                        final firstInStock = pagedProducts.indexWhere((p) => !p.isOutOfStock);
+                        final targetIdx = firstInStock != -1 ? firstInStock : 0;
+                        final shouldAttachKey = activeDeals.isEmpty && onSale.isEmpty && index == targetIdx;
+                        return CustomerProductCard(
+                          key: index == 0 ? CustomerTutorialKeys.firstProductCardKey : null,
+                          addToCartKey: shouldAttachKey ? CustomerTutorialKeys.addToCartKey : null,
+                          product: product,
+                          onTap: () => _openProductDetails(product),
+                          onAddToCart: () => _addToCart(product),
+                          onAddToCartWithPosition: (pos) => _addToCart(product, pos),
+                        );
+                      },
+                      childCount: pagedProducts.length,
+                    ),
+                  ),
+                ),
               if (totalPages > 1)
-                Positioned(
-                  bottom: 96,
-                  child: _buildFloatingPagination(totalPages),
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 16, bottom: 100),
+                    child: Center(
+                      child: _buildPagination(totalPages),
+                    ),
+                  ),
+                )
+              else
+                const SliverToBoxAdapter(
+                  child: SizedBox(height: 100),
                 ),
             ],
           ),
@@ -515,88 +517,90 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     );
   }
 
-  Widget _buildFloatingPagination(int totalPages) {
-    return Material(
-      elevation: 6,
-      shadowColor: Colors.black.withValues(alpha: 0.18),
-      borderRadius: BorderRadius.circular(30),
-      color: Colors.white,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-        decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(30),
-          border: Border.all(
-            color: AppColors.borderColor.withValues(alpha: 0.6),
-            width: 1,
-          ),
+  Widget _buildPagination(int totalPages) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(
+          color: AppColors.borderColor.withValues(alpha: 0.6),
+          width: 1,
         ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            IconButton(
-              icon: const Icon(Icons.chevron_left_rounded),
-              iconSize: 22,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              splashRadius: 18,
-              color: _currentPage > 1 ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
-              onPressed: _currentPage > 1
-                  ? () => _onPageSelected(_currentPage - 1)
-                  : null,
-            ),
-            const SizedBox(width: 2),
-            ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 180),
-              child: SingleChildScrollView(
-                scrollDirection: Axis.horizontal,
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: List.generate(totalPages, (index) {
-                    final page = index + 1;
-                    final isSelected = page == _currentPage;
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 2),
-                      child: InkWell(
-                        onTap: () => _onPageSelected(page),
-                        borderRadius: BorderRadius.circular(16),
-                        child: AnimatedContainer(
-                          duration: const Duration(milliseconds: 180),
-                          width: 30,
-                          height: 30,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: isSelected ? AppColors.primaryOrange : Colors.transparent,
-                          ),
-                          alignment: Alignment.center,
-                          child: Text(
-                            '$page',
-                            style: TextStyle(
-                              color: isSelected ? Colors.white : AppColors.darkText,
-                              fontSize: 12,
-                              fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                            ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left_rounded),
+            iconSize: 22,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            splashRadius: 18,
+            color: _currentPage > 1 ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
+            onPressed: _currentPage > 1
+                ? () => _onPageSelected(_currentPage - 1)
+                : null,
+          ),
+          const SizedBox(width: 2),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 180),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(totalPages, (index) {
+                  final page = index + 1;
+                  final isSelected = page == _currentPage;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: InkWell(
+                      onTap: () => _onPageSelected(page),
+                      borderRadius: BorderRadius.circular(16),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isSelected ? AppColors.primaryOrange : Colors.transparent,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '$page',
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : AppColors.darkText,
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
                           ),
                         ),
                       ),
-                    );
-                  }),
-                ),
+                    ),
+                  );
+                }),
               ),
             ),
-            const SizedBox(width: 2),
-            IconButton(
-              icon: const Icon(Icons.chevron_right_rounded),
-              iconSize: 22,
-              padding: EdgeInsets.zero,
-              constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              splashRadius: 18,
-              color: _currentPage < totalPages ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
-              onPressed: _currentPage < totalPages
-                  ? () => _onPageSelected(_currentPage + 1)
-                  : null,
-            ),
-          ],
-        ),
+          ),
+          const SizedBox(width: 2),
+          IconButton(
+            icon: const Icon(Icons.chevron_right_rounded),
+            iconSize: 22,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            splashRadius: 18,
+            color: _currentPage < totalPages ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
+            onPressed: _currentPage < totalPages
+                ? () => _onPageSelected(_currentPage + 1)
+                : null,
+          ),
+        ],
       ),
     );
   }
