@@ -2,9 +2,8 @@
 <resources>
     <!-- Theme applied to the Android Window while the process is starting -->
     <style name="LaunchTheme" parent="@android:style/Theme.Light.NoTitleBar">
-        <item name="android:windowDisablePreview">true</item>
-        <item name="android:windowIsTranslucent">true</item>
-        <item name="android:windowBackground">@android:color/transparent</item>
+        <!-- Show splash background on activity. Automatically removed when Flutter engine draws first frame -->
+        <item name="android:windowBackground">@drawable/launch_background</item>
     </style>
     <!-- Theme applied to the Android Window as soon as the process has started -->
     <style name="NormalTheme" parent="@android:style/Theme.Light.NoTitleBar">

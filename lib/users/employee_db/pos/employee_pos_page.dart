@@ -3,13 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
 
-import '../../../core/services/scale_bluetooth_service.dart';
 import '../../../core/theme/app_colors.dart';
 import 'package:sari_sari/models/sale_deal_model.dart';
 import 'package:sari_sari/core/services/sale_deal_controller.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
-import '../../../shared/widgets/scale_bluetooth_modal.dart';
 import '../../../shared/utils/gcash_ocr_helper.dart';
 import 'package:sari_sari/core/services/ocr_service.dart';
 import '../../owner_db/profile/shop_settings_controller.dart';
@@ -47,22 +45,8 @@ class EmployeePosPage extends StatefulWidget {
 
 class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderStateMixin {
   final _searchController = TextEditingController();
-  final _gridScrollController = ScrollController();
   String _searchQuery = '';
   String _selectedCategory = 'All';
-  static const int _itemsPerPage = 12;
-  int _currentPage = 1;
-
-  void _onPageChanged(int page) {
-    setState(() => _currentPage = page);
-    if (_gridScrollController.hasClients) {
-      _gridScrollController.animateTo(
-        0,
-        duration: const Duration(milliseconds: 250),
-        curve: Curves.easeOut,
-      );
-    }
-  }
 
   final GlobalKey _cartBadgeKey = GlobalKey();
   late AnimationController _cartPulseController;
@@ -96,7 +80,6 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
     _newOrderSub?.cancel();
     _cartPulseController.dispose();
     _searchController.dispose();
-    _gridScrollController.dispose();
     super.dispose();
   }
 
@@ -147,7 +130,8 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
     if (cartBox == null) return;
 
     final Offset endOffset = cartBox.localToGlobal(cartBox.size.center(Offset.zero));
-    final overlayState = Overlay.of(context);
+    final OverlayState? overlayState = Overlay.of(context);
+    if (overlayState == null) return;
 
     late OverlayEntry overlayEntry;
     final AnimationController flyController = AnimationController(
@@ -345,12 +329,6 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
 
             final products = _filteredProducts;
             final totalCount = activeDeals.length + products.length;
-            final int totalPages = (totalCount / _itemsPerPage).ceil().clamp(1, 9999);
-            if (_currentPage > totalPages) {
-              _currentPage = totalPages;
-            }
-            final int startIndex = (_currentPage - 1) * _itemsPerPage;
-            final int pagedCount = (totalCount - startIndex).clamp(0, _itemsPerPage);
 
             return Column(
               children: [
@@ -361,53 +339,30 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
                 Expanded(
                   child: totalCount == 0
                       ? _buildEmptyState()
-                      : CustomScrollView(
-                          controller: _gridScrollController,
-                          slivers: [
-                            SliverPadding(
-                              padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
-                              sliver: SliverGrid(
-                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                  crossAxisCount: 2,
-                                  mainAxisSpacing: 14,
-                                  crossAxisSpacing: 14,
-                                  childAspectRatio: 0.85,
-                                ),
-                                delegate: SliverChildBuilderDelegate(
-                                  (context, index) {
-                                    final globalIndex = startIndex + index;
-                                    if (globalIndex < activeDeals.length) {
-                                      final deal = activeDeals[globalIndex];
-                                      return _PosSaleDealCard(
-                                        deal: deal,
-                                        onTapWithPosition: (pos) => _addSaleDealToCart(deal, pos),
-                                      );
-                                    }
+                      : GridView.builder(
+                          padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
+                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                            crossAxisCount: 2,
+                            mainAxisSpacing: 14,
+                            crossAxisSpacing: 14,
+                            childAspectRatio: 0.85,
+                          ),
+                          itemCount: totalCount,
+                          itemBuilder: (context, index) {
+                            if (index < activeDeals.length) {
+                              final deal = activeDeals[index];
+                              return _PosSaleDealCard(
+                                deal: deal,
+                                onTapWithPosition: (pos) => _addSaleDealToCart(deal, pos),
+                              );
+                            }
 
-                                    final product = products[globalIndex - activeDeals.length];
-                                    return _PosProductCard(
-                                      product: product,
-                                      onTapWithPosition: (pos) => _addToCart(product, pos),
-                                    );
-                                  },
-                                  childCount: pagedCount,
-                                ),
-                              ),
-                            ),
-                            if (totalPages > 1)
-                              SliverToBoxAdapter(
-                                child: Padding(
-                                  padding: const EdgeInsets.only(top: 8, bottom: 100),
-                                  child: Center(
-                                    child: _buildPagination(totalPages),
-                                  ),
-                                ),
-                              )
-                            else
-                              const SliverToBoxAdapter(
-                                child: SizedBox(height: 100),
-                              ),
-                          ],
+                            final product = products[index - activeDeals.length];
+                            return _PosProductCard(
+                              product: product,
+                              onTapWithPosition: (pos) => _addToCart(product, pos),
+                            );
+                          },
                         ),
                 ),
               ],
@@ -556,10 +511,7 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
       padding: const EdgeInsets.fromLTRB(24, 12, 24, 12),
       child: TextField(
         controller: _searchController,
-        onChanged: (value) => setState(() {
-          _searchQuery = value;
-          _currentPage = 1;
-        }),
+        onChanged: (value) => setState(() => _searchQuery = value),
         style: const TextStyle(fontSize: 14),
         decoration: InputDecoration(
           hintText: 'Search or scan barcode...',
@@ -568,63 +520,9 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
             fontSize: 14,
           ),
           prefixIcon: const Icon(Icons.search, color: AppColors.secondaryText),
-          suffixIcon: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              ListenableBuilder(
-                listenable: ScaleBluetoothService.instance,
-                builder: (context, _) {
-                  final isConnected = ScaleBluetoothService.instance.isConnected;
-                  return Tooltip(
-                    message: isConnected
-                        ? 'Scale Connected: ${ScaleBluetoothService.instance.connectedDeviceName ?? "Timbangan Ni Eca"}'
-                        : 'Connect Bluetooth Scale',
-                    child: InkWell(
-                      borderRadius: BorderRadius.circular(20),
-                      onTap: () => showScaleBluetoothModal(context),
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
-                        margin: const EdgeInsets.only(right: 4),
-                        decoration: BoxDecoration(
-                          color: isConnected
-                              ? Colors.teal.withValues(alpha: 0.12)
-                              : Colors.grey.withValues(alpha: 0.1),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: isConnected
-                                ? Colors.teal.withValues(alpha: 0.4)
-                                : Colors.transparent,
-                          ),
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              Icons.scale,
-                              size: 18,
-                              color: isConnected ? Colors.teal : AppColors.secondaryText,
-                            ),
-                            const SizedBox(width: 4),
-                            Container(
-                              width: 6,
-                              height: 6,
-                              decoration: BoxDecoration(
-                                shape: BoxShape.circle,
-                                color: isConnected ? Colors.teal : Colors.grey.shade400,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-              IconButton(
-                icon: const Icon(Icons.qr_code_scanner, color: AppColors.primaryOrange),
-                onPressed: _openBarcodeScanner,
-              ),
-            ],
+          suffixIcon: IconButton(
+            icon: const Icon(Icons.qr_code_scanner, color: AppColors.primaryOrange),
+            onPressed: _openBarcodeScanner,
           ),
           filled: true,
           fillColor: Colors.white,
@@ -667,10 +565,7 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
             label: Text(category),
             selected: isSelected,
             showCheckmark: false,
-            onSelected: (_) => setState(() {
-              _selectedCategory = category;
-              _currentPage = 1;
-            }),
+            onSelected: (_) => setState(() => _selectedCategory = category),
             labelStyle: TextStyle(
               color: isSelected ? Colors.white : AppColors.secondaryText,
               fontSize: 12,
@@ -688,94 +583,6 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
             ),
           );
         },
-      ),
-    );
-  }
-
-  Widget _buildPagination(int totalPages) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(
-          color: AppColors.borderColor.withValues(alpha: 0.6),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.chevron_left_rounded),
-            iconSize: 22,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            splashRadius: 18,
-            color: _currentPage > 1 ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
-            onPressed: _currentPage > 1
-                ? () => _onPageChanged(_currentPage - 1)
-                : null,
-          ),
-          const SizedBox(width: 2),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 180),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: List.generate(totalPages, (index) {
-                  final page = index + 1;
-                  final isSelected = page == _currentPage;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: InkWell(
-                      onTap: () => _onPageChanged(page),
-                      borderRadius: BorderRadius.circular(16),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isSelected ? AppColors.primaryOrange : Colors.transparent,
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '$page',
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : AppColors.darkText,
-                            fontSize: 12,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ),
-          ),
-          const SizedBox(width: 2),
-          IconButton(
-            icon: const Icon(Icons.chevron_right_rounded),
-            iconSize: 22,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            splashRadius: 18,
-            color: _currentPage < totalPages ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
-            onPressed: _currentPage < totalPages
-                ? () => _onPageChanged(_currentPage + 1)
-                : null,
-          ),
-        ],
       ),
     );
   }
@@ -1477,52 +1284,6 @@ class _QuantityStepperState extends State<_QuantityStepper> {
     _controller.text = _formatQuantity(parsed);
   }
 
-  bool _isReadingScale = false;
-
-  Future<void> _readWeightFromScale() async {
-    final scale = ScaleBluetoothService.instance;
-    if (!scale.isConnected) {
-      TopNotification.show(context, 'Please connect to the scale via Bluetooth first!');
-      await showScaleBluetoothModal(context);
-      return;
-    }
-
-    setState(() => _isReadingScale = true);
-    final prevCallback = scale.onWeightReceived;
-    Timer? timeoutTimer;
-
-    timeoutTimer = Timer(const Duration(seconds: 4), () {
-      if (mounted && _isReadingScale) {
-        setState(() => _isReadingScale = false);
-        scale.onWeightReceived = prevCallback;
-        TopNotification.show(context, 'Scale did not respond. Check Bluetooth connection.');
-      }
-    });
-
-    scale.onWeightReceived = (weight, isLocked) {
-      timeoutTimer?.cancel();
-      scale.onWeightReceived = prevCallback;
-      if (!mounted) return;
-      setState(() {
-        _isReadingScale = false;
-        _controller.text = _formatQuantity(weight);
-      });
-      widget.onQuantityChanged(weight);
-      TopNotification.show(
-        context,
-        'Weight updated: ${weight.toStringAsFixed(2)} kg ${isLocked ? "[LOCKED]" : ""}',
-      );
-    };
-
-    final sent = await scale.requestWeight();
-    if (!sent && mounted) {
-      timeoutTimer.cancel();
-      scale.onWeightReceived = prevCallback;
-      setState(() => _isReadingScale = false);
-      TopNotification.show(context, 'Failed to request weight from scale.');
-    }
-  }
-
   @override
   Widget build(BuildContext context) {
     return Row(
@@ -1530,9 +1291,11 @@ class _QuantityStepperState extends State<_QuantityStepper> {
       children: [
         if (widget.isWeightBased) ...[
           Tooltip(
-            message: 'Get Weight from Scale',
+            message: 'Arduino Weighing Scale',
             child: InkWell(
-              onTap: _isReadingScale ? null : _readWeightFromScale,
+              onTap: () {
+                TopNotification.show(context, 'Arduino Scale: Reading weight...');
+              },
               borderRadius: BorderRadius.circular(6),
               child: Container(
                 padding: const EdgeInsets.all(6),
@@ -1541,13 +1304,7 @@ class _QuantityStepperState extends State<_QuantityStepper> {
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.3)),
                 ),
-                child: _isReadingScale
-                    ? const SizedBox(
-                        width: 14,
-                        height: 14,
-                        child: CircularProgressIndicator(strokeWidth: 2, color: AppColors.primaryOrange),
-                      )
-                    : const Icon(Icons.scale, size: 14, color: AppColors.primaryOrange),
+                child: const Icon(Icons.scale, size: 14, color: AppColors.primaryOrange),
               ),
             ),
           ),
@@ -1733,7 +1490,6 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
       );
 
       if (proceedWithoutRef != true) return;
-      if (!mounted) return;
     }
 
     final change = amountPaid - total;

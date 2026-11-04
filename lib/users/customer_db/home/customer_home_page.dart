@@ -42,7 +42,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   String _selectedCategory = 'All';
   bool _isLoading = true;
 
-  static const int _itemsPerPage = 12;
+  static const int _itemsPerPage = 20;
   int _currentPage = 1;
 
   @override
@@ -306,7 +306,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                 _buildGridSkeletons()
               else if (pagedProducts.isEmpty)
                 SliverToBoxAdapter(child: _buildEmptyState(context))
-              else
+              else ...[
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
                   sliver: SliverGrid(
@@ -337,19 +337,12 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                     ),
                   ),
                 ),
-              if (totalPages > 1)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.only(top: 16, bottom: 100),
-                    child: Center(
-                      child: _buildPagination(totalPages),
-                    ),
+                if (totalPages > 1)
+                  SliverToBoxAdapter(
+                    child: _buildPagination(totalPages),
                   ),
-                )
-              else
-                const SliverToBoxAdapter(
-                  child: SizedBox(height: 100),
-                ),
+              ],
+              const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           ),
         );
@@ -518,84 +511,55 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   }
 
   Widget _buildPagination(int totalPages) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(
-          color: AppColors.borderColor.withValues(alpha: 0.6),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 10, 24, 24),
       child: Row(
-        mainAxisSize: MainAxisSize.min,
+        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          IconButton(
-            icon: const Icon(Icons.chevron_left_rounded),
-            iconSize: 22,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            splashRadius: 18,
-            color: _currentPage > 1 ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
+          _PageButton(
+            icon: Icons.chevron_left,
             onPressed: _currentPage > 1
                 ? () => _onPageSelected(_currentPage - 1)
                 : null,
           ),
-          const SizedBox(width: 2),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 180),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: List.generate(totalPages, (index) {
-                  final page = index + 1;
-                  final isSelected = page == _currentPage;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: InkWell(
-                      onTap: () => _onPageSelected(page),
-                      borderRadius: BorderRadius.circular(16),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isSelected ? AppColors.primaryOrange : Colors.transparent,
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '$page',
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : AppColors.darkText,
-                            fontSize: 12,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                          ),
-                        ),
-                      ),
+          const SizedBox(width: 8),
+          ...List.generate(totalPages, (index) {
+            final page = index + 1;
+            final isSelected = page == _currentPage;
+            return Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 4),
+              child: InkWell(
+                onTap: () => _onPageSelected(page),
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  width: 32,
+                  height: 32,
+                  decoration: BoxDecoration(
+                    color: isSelected ? AppColors.primaryOrange : Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(
+                      color: isSelected
+                          ? AppColors.primaryOrange
+                          : AppColors.borderColor.withValues(alpha: 0.5),
                     ),
-                  );
-                }),
+                  ),
+                  alignment: Alignment.center,
+                  child: Text(
+                    '$page',
+                    style: TextStyle(
+                      color: isSelected ? Colors.white : AppColors.darkText,
+                      fontSize: 13,
+                      fontWeight:
+                          isSelected ? FontWeight.bold : FontWeight.w500,
+                    ),
+                  ),
+                ),
               ),
-            ),
-          ),
-          const SizedBox(width: 2),
-          IconButton(
-            icon: const Icon(Icons.chevron_right_rounded),
-            iconSize: 22,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            splashRadius: 18,
-            color: _currentPage < totalPages ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
+            );
+          }),
+          const SizedBox(width: 8),
+          _PageButton(
+            icon: Icons.chevron_right,
             onPressed: _currentPage < totalPages
                 ? () => _onPageSelected(_currentPage + 1)
                 : null,
@@ -908,6 +872,42 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         delegate: SliverChildBuilderDelegate(
           (context, index) => const ProductCardSkeleton(),
           childCount: 4,
+        ),
+      ),
+    );
+  }
+}
+
+class _PageButton extends StatelessWidget {
+  const _PageButton({required this.icon, required this.onPressed});
+
+  final IconData icon;
+  final VoidCallback? onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(8),
+      child: InkWell(
+        onTap: onPressed,
+        borderRadius: BorderRadius.circular(8),
+        child: Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: Border.all(
+              color: AppColors.borderColor.withValues(alpha: 0.5),
+            ),
+          ),
+          child: Icon(
+            icon,
+            size: 18,
+            color: onPressed == null
+                ? AppColors.placeholderColor
+                : AppColors.darkText,
+          ),
         ),
       ),
     );
