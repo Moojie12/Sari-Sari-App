@@ -306,7 +306,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                 _buildGridSkeletons()
               else if (pagedProducts.isEmpty)
                 SliverToBoxAdapter(child: _buildEmptyState(context))
-              else ...[
+              else
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(24, 0, 24, 12),
                   sliver: SliverGrid(
@@ -337,12 +337,17 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                     ),
                   ),
                 ),
-                if (totalPages > 1)
-                  SliverToBoxAdapter(
-                    child: _buildPagination(totalPages),
+              if (totalPages > 1)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.only(top: 16, bottom: 100),
+                    child: Center(
+                      child: _buildPagination(totalPages),
+                    ),
                   ),
-              ],
-              const SliverToBoxAdapter(child: SizedBox(height: 100)),
+                )
+              else
+                const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           ),
         );

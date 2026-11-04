@@ -45,8 +45,22 @@ class EmployeePosPage extends StatefulWidget {
 
 class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderStateMixin {
   final _searchController = TextEditingController();
+  final _gridScrollController = ScrollController();
   String _searchQuery = '';
   String _selectedCategory = 'All';
+  static const int _itemsPerPage = 12;
+  int _currentPage = 1;
+
+  void _onPageChanged(int page) {
+    setState(() => _currentPage = page);
+    if (_gridScrollController.hasClients) {
+      _gridScrollController.animateTo(
+        0,
+        duration: const Duration(milliseconds: 250),
+        curve: Curves.easeOut,
+      );
+    }
+  }
 
   final GlobalKey _cartBadgeKey = GlobalKey();
   late AnimationController _cartPulseController;
@@ -80,6 +94,7 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
     _newOrderSub?.cancel();
     _cartPulseController.dispose();
     _searchController.dispose();
+    _gridScrollController.dispose();
     super.dispose();
   }
 
@@ -329,6 +344,12 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
 
             final products = _filteredProducts;
             final totalCount = activeDeals.length + products.length;
+            final int totalPages = (totalCount / _itemsPerPage).ceil().clamp(1, 9999);
+            if (_currentPage > totalPages) {
+              _currentPage = totalPages;
+            }
+            final int startIndex = (_currentPage - 1) * _itemsPerPage;
+            final int pagedCount = (totalCount - startIndex).clamp(0, _itemsPerPage);
 
             return Column(
               children: [
@@ -339,30 +360,53 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
                 Expanded(
                   child: totalCount == 0
                       ? _buildEmptyState()
-                      : GridView.builder(
-                          padding: const EdgeInsets.fromLTRB(24, 4, 24, 12),
-                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                            crossAxisCount: 2,
-                            mainAxisSpacing: 14,
-                            crossAxisSpacing: 14,
-                            childAspectRatio: 0.85,
-                          ),
-                          itemCount: totalCount,
-                          itemBuilder: (context, index) {
-                            if (index < activeDeals.length) {
-                              final deal = activeDeals[index];
-                              return _PosSaleDealCard(
-                                deal: deal,
-                                onTapWithPosition: (pos) => _addSaleDealToCart(deal, pos),
-                              );
-                            }
+                      : CustomScrollView(
+                          controller: _gridScrollController,
+                          slivers: [
+                            SliverPadding(
+                              padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
+                              sliver: SliverGrid(
+                                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                                  crossAxisCount: 2,
+                                  mainAxisSpacing: 14,
+                                  crossAxisSpacing: 14,
+                                  childAspectRatio: 0.85,
+                                ),
+                                delegate: SliverChildBuilderDelegate(
+                                  (context, index) {
+                                    final globalIndex = startIndex + index;
+                                    if (globalIndex < activeDeals.length) {
+                                      final deal = activeDeals[globalIndex];
+                                      return _PosSaleDealCard(
+                                        deal: deal,
+                                        onTapWithPosition: (pos) => _addSaleDealToCart(deal, pos),
+                                      );
+                                    }
 
-                            final product = products[index - activeDeals.length];
-                            return _PosProductCard(
-                              product: product,
-                              onTapWithPosition: (pos) => _addToCart(product, pos),
-                            );
-                          },
+                                    final product = products[globalIndex - activeDeals.length];
+                                    return _PosProductCard(
+                                      product: product,
+                                      onTapWithPosition: (pos) => _addToCart(product, pos),
+                                    );
+                                  },
+                                  childCount: pagedCount,
+                                ),
+                              ),
+                            ),
+                            if (totalPages > 1)
+                              SliverToBoxAdapter(
+                                child: Padding(
+                                  padding: const EdgeInsets.only(top: 8, bottom: 100),
+                                  child: Center(
+                                    child: _buildPagination(totalPages),
+                                  ),
+                                ),
+                              )
+                            else
+                              const SliverToBoxAdapter(
+                                child: SizedBox(height: 100),
+                              ),
+                          ],
                         ),
                 ),
               ],
@@ -598,6 +642,94 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
           Text('No products found',
               style: TextStyle(
                   color: AppColors.secondaryText.withValues(alpha: 0.6))),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPagination(int totalPages) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(30),
+        border: Border.all(
+          color: AppColors.borderColor.withValues(alpha: 0.6),
+          width: 1,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.04),
+            blurRadius: 6,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.chevron_left_rounded),
+            iconSize: 22,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            splashRadius: 18,
+            color: _currentPage > 1 ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
+            onPressed: _currentPage > 1
+                ? () => _onPageChanged(_currentPage - 1)
+                : null,
+          ),
+          const SizedBox(width: 2),
+          ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 180),
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: List.generate(totalPages, (index) {
+                  final page = index + 1;
+                  final isSelected = page == _currentPage;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 2),
+                    child: InkWell(
+                      onTap: () => _onPageChanged(page),
+                      borderRadius: BorderRadius.circular(16),
+                      child: AnimatedContainer(
+                        duration: const Duration(milliseconds: 180),
+                        width: 30,
+                        height: 30,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: isSelected ? AppColors.primaryOrange : Colors.transparent,
+                        ),
+                        alignment: Alignment.center,
+                        child: Text(
+                          '$page',
+                          style: TextStyle(
+                            color: isSelected ? Colors.white : AppColors.darkText,
+                            fontSize: 12,
+                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                }),
+              ),
+            ),
+          ),
+          const SizedBox(width: 2),
+          IconButton(
+            icon: const Icon(Icons.chevron_right_rounded),
+            iconSize: 22,
+            padding: EdgeInsets.zero,
+            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
+            splashRadius: 18,
+            color: _currentPage < totalPages ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
+            onPressed: _currentPage < totalPages
+                ? () => _onPageChanged(_currentPage + 1)
+                : null,
+          ),
         ],
       ),
     );
