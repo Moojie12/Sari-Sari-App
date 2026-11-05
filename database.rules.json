@@ -1,49 +1,58 @@
 {
   "rules": {
     "users": {
-      ".read": true,
+      ".read": "auth != null",
       "$uid": {
-        ".read": true,
-        ".write": true
+        ".read": "auth != null",
+        ".write": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'owner' || root.child('users').child(auth.uid).child('role').val() == 'admin' || !data.exists())"
       }
     },
     "notifications": {
       ".read": "auth != null",
-      ".write": "auth != null",
       "customers": {
         "$uid": {
-          ".read": "auth != null",
+          ".read": "auth != null && (auth.uid == $uid || root.child('users').child(auth.uid).child('role').val() == 'owner' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'employee')",
           ".write": "auth != null"
         }
       },
       "store": {
-        ".read": "auth != null",
+        ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'owner' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'employee')",
         ".write": "auth != null"
       }
     },
     "orders": {
       ".read": "auth != null",
-      ".write": "auth != null"
+      ".write": "auth != null",
+      "$orderId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
     },
     "chats": {
-      ".read": "auth != null",
-      ".write": "auth != null",
       "$customerId": {
-        ".read": "auth != null",
-        ".write": "auth != null",
+        ".read": "auth != null && (auth.uid == $customerId || root.child('users').child(auth.uid).child('role').val() == 'owner' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'employee')",
+        ".write": "auth != null && (auth.uid == $customerId || root.child('users').child(auth.uid).child('role').val() == 'owner' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'employee')",
         "messages": {
-          ".read": "auth != null",
-          ".write": "auth != null"
+          ".read": "auth != null && (auth.uid == $customerId || root.child('users').child(auth.uid).child('role').val() == 'owner' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'employee')",
+          ".write": "auth != null && (auth.uid == $customerId || root.child('users').child(auth.uid).child('role').val() == 'owner' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'employee')"
         },
         "meta": {
-          ".read": "auth != null",
-          ".write": "auth != null"
+          ".read": "auth != null && (auth.uid == $customerId || root.child('users').child(auth.uid).child('role').val() == 'owner' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'employee')",
+          ".write": "auth != null && (auth.uid == $customerId || root.child('users').child(auth.uid).child('role').val() == 'owner' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'employee')"
         }
       }
     },
+    "products": {
+      ".read": true,
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'owner' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'employee')"
+    },
     "sale_deals": {
       ".read": true,
-      ".write": "auth != null"
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'owner' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'employee')"
+    },
+    "inventory": {
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'owner' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'employee')",
+      ".write": "auth != null && (root.child('users').child(auth.uid).child('role').val() == 'owner' || root.child('users').child(auth.uid).child('role').val() == 'admin' || root.child('users').child(auth.uid).child('role').val() == 'employee')"
     },
     "delivery_tracking": {
       ".read": "auth != null",
@@ -52,16 +61,6 @@
         ".read": "auth != null",
         ".write": "auth != null"
       }
-    },
-    "inventory": {
-      ".read": "auth != null",
-      ".write": "auth != null"
-    },
-    "products": {
-      ".read": true,
-      ".write": "auth != null"
-    },
-    ".read": "auth != null",
-    ".write": "auth != null"
+    }
   }
 }

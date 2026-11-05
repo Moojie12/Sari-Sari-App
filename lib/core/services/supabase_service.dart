@@ -1387,8 +1387,6 @@ class SupabaseService {
       if (updates.containsKey('contact_number')) mappedUpdates['phone'] = updates['contact_number'];
       if (updates.containsKey('role')) mappedUpdates['role'] = updates['role'];
       if (updates.containsKey('status')) mappedUpdates['status'] = updates['status'];
-      if (updates.containsKey('password')) mappedUpdates['password'] = updates['password'];
-      if (updates.containsKey('previousPassword')) mappedUpdates['previous_password'] = updates['previousPassword'];
       if (updates.containsKey('avatarUrl')) mappedUpdates['avatar_url'] = updates['avatarUrl'];
       if (updates.containsKey('avatar_url')) mappedUpdates['avatar_url'] = updates['avatar_url'];
       if (updates.containsKey('photoPath')) mappedUpdates['avatar_url'] = updates['photoPath'];
@@ -1427,8 +1425,6 @@ class SupabaseService {
       } catch (e) {
         // Fallback if password or previous_password column does not exist in Supabase schema cache
         final fallback = Map<String, dynamic>.from(mappedUpdates);
-        fallback.remove('password');
-        fallback.remove('previous_password');
         response = await _client
             .from('profiles')
             .upsert(fallback, onConflict: 'firebase_uid')

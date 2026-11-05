@@ -864,7 +864,7 @@ class AdminController extends ChangeNotifier {
         phone: phone,
         role: role,
         status: status,
-        password: 'password123',
+        password: null,
         createdAt: now.subtract(Duration(days: daysAgo)),
         updatedAt: now.subtract(Duration(days: daysAgo ~/ 2)),
         isArchived: archived,

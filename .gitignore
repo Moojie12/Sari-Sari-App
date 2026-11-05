@@ -63,3 +63,10 @@ node_modules/
 .widget_preview/
 .agentbridge/
 tindahan-ni-eca-7af5e4c1ed81.json
+
+# Android Release Signing Keys & Secrets
+android/key.properties
+**/android/key.properties
+*.jks
+*.keystore
+*.p12

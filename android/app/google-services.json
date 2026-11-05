@@ -10,6 +10,25 @@
       "client_info": {
         "mobilesdk_app_id": "1:709594394959:android:2bd5f4e63b9bf2327c153a",
         "android_client_info": {
+          "package_name": "com.tindahannieca.app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyAkPm_c-56XbbBrDyGRDhTMXFL3HBbCWzI"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    },
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:709594394959:android:2bd5f4e63b9bf2327c153a",
+        "android_client_info": {
           "package_name": "com.example.sari_sari"
         }
       },

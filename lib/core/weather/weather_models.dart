@@ -181,13 +181,12 @@ class OpenWeatherMapService implements WeatherService {
   }) : apiKey = apiKey ?? primaryApiKey;
 
   /// 🔑 Primary API Key (Key 1):
-  static const String primaryApiKey = 'd79e8c79c2e34aae5d40f120ea8128bc';
+  /// OpenWeatherMap API key retrieved securely from environment.
+  static const String primaryApiKey = String.fromEnvironment('WEATHER_API_KEY');
 
   /// 🔑 Secondary API Key (Key 2 - Fallback 1):
-  static const String secondaryApiKey = 'bee412661955200faa841b0a7e10ea0b';
 
   /// 🔑 Tertiary API Key (Key 3 - Fallback 2):
-  static const String tertiaryApiKey = '266b30ed96d0b435509a7b3392278ebe';
 
   final String apiKey;
   final String city;
@@ -198,12 +197,6 @@ class OpenWeatherMapService implements WeatherService {
     if (apiKey.isNotEmpty) keys.add(apiKey);
     if (primaryApiKey.isNotEmpty && !keys.contains(primaryApiKey)) {
       keys.add(primaryApiKey);
-    }
-    if (secondaryApiKey.isNotEmpty && !keys.contains(secondaryApiKey)) {
-      keys.add(secondaryApiKey);
-    }
-    if (tertiaryApiKey.isNotEmpty && !keys.contains(tertiaryApiKey)) {
-      keys.add(tertiaryApiKey);
     }
 
     return keys
@@ -324,11 +317,10 @@ class OpenWeatherMapService implements WeatherService {
             hourlyForecast: _generateHourlyForecast(condition, temp),
           );
         } else {
-          debugPrint(
-              'OpenWeatherMap API key ($key) returned status code ${response.statusCode}: ${response.body}. Trying next fallback key...');
+          debugPrint('OpenWeatherMap API returned status code ${response.statusCode}. Trying next fallback...');
         }
       } catch (e) {
-        debugPrint('OpenWeatherMap request with key ($key) failed: $e');
+        debugPrint('OpenWeatherMap request failed: $e');
       }
     }
 

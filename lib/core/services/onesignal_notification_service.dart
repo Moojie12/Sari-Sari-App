@@ -194,7 +194,7 @@ class OneSignalNotificationService {
 
   /// Ensure device FCM token is properly registered and subscribed with OneSignal player
   Future<void> syncPushSubscriptionToken(String userId) async {
-    if (kIsWeb || !OneSignalConfig.canSendPush || userId.isEmpty) return;
+    if (kIsWeb || userId.isEmpty) return;
 
     try {
       await OneSignal.User.pushSubscription.optIn();

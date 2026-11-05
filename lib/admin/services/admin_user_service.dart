@@ -690,8 +690,6 @@ class AdminUserService extends ChangeNotifier {
         data['photo_url']?.toString() ??
         data['photoPath']?.toString();
 
-    final String? rawPassword = data['password']?.toString();
-    final passwordVal = rawPassword?.trim();
 
     return AdminUser(
       id: id,
@@ -702,7 +700,7 @@ class AdminUserService extends ChangeNotifier {
       phone: phone,
       role: role,
       status: status,
-      password: passwordVal,
+      password: null,
       createdAt: createdAt,
       updatedAt: updatedAt,
       isArchived: isArchived,
@@ -748,7 +746,6 @@ class AdminUserService extends ChangeNotifier {
     final archivedAt = _parseDateTime(data['archived_at'] ?? data['archivedAt']);
     final archivedBy = data['archived_by']?.toString() ?? data['archivedBy']?.toString();
     final photoUrl = data['avatar_url']?.toString() ?? data['photo_url']?.toString() ?? data['photoUrl']?.toString();
-    final passwordVal = data['password']?.toString();
 
     return AdminUser(
       id: id,
@@ -759,7 +756,7 @@ class AdminUserService extends ChangeNotifier {
       phone: phone,
       role: role,
       status: status,
-      password: passwordVal,
+      password: null,
       createdAt: createdAt,
       updatedAt: updatedAt,
       isArchived: isArchived,
