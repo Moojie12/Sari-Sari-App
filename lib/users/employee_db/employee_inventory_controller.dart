@@ -289,6 +289,12 @@ class EmployeeInventoryController extends ChangeNotifier {
       }
     } catch (e) {
       debugPrint('Error loading products from Supabase: $e');
+    }
+
+    try {
+      await _loadArchivedStock();
+    } catch (e) {
+      debugPrint('Error loading archived stock: $e');
     } finally {
       _productsLoading = false;
       notifyListeners();
@@ -336,6 +342,100 @@ class EmployeeInventoryController extends ChangeNotifier {
       lowStockThreshold: (data['low_stock_threshold'] as num?)?.toDouble() ?? 10.0,
       isWeightBased: data['is_weight_based'] as bool? ?? false,
     );
+  }
+
+  /// Loads historical archived stock transactions (consumables and wastage) from Supabase
+  Future<void> _loadArchivedStock() async {
+    try {
+      final records = await _supabaseService.getArchivedStockTransactions();
+      final items = <ArchivedStockItem>[];
+      for (final row in records) {
+        final id = row['id']?.toString() ?? "arc_${row['created_at']}";
+        final prodId = row['product_id']?.toString() ?? '';
+        final prod = row['products'] as Map<String, dynamic>?;
+        final batchMap = row['product_batches'] as Map<String, dynamic>?;
+
+        final type = row['transaction_type']?.toString().toLowerCase();
+        final isConsumable = type == 'consumable';
+        final reason = isConsumable
+            ? StockRemovalReason.consumable
+            : StockRemovalReason.wastage;
+
+        final qty = (row['quantity'] as num?)?.toDouble() ?? 0.0;
+        final unitPrice = (row['unit_price'] as num?)?.toDouble() ??
+            (prod?['capital'] as num?)?.toDouble() ??
+            0.0;
+        final totalAmount = (row['total_amount'] as num?)?.toDouble();
+        final capitalCost = (totalAmount != null && totalAmount > 0)
+            ? totalAmount
+            : (unitPrice * qty);
+
+        final prodPrice = (prod?['price'] as num?)?.toDouble() ?? 0.0;
+        final revenue = isConsumable ? 0.0 : (prodPrice * qty);
+        final profit = isConsumable ? -capitalCost : (revenue - capitalCost);
+
+        String? consumedBy = row['issued_to']?.toString();
+        final notes = row['notes']?.toString();
+        if ((consumedBy == null || consumedBy.isEmpty) && notes != null) {
+          final match =
+              RegExp(r'by\s+(.+)$', caseSensitive: false).firstMatch(notes);
+          if (match != null) {
+            consumedBy = match.group(1)?.trim();
+          }
+        }
+
+        DateTime archivedAt = DateTime.now();
+        if (row['transaction_date'] != null) {
+          archivedAt =
+              DateTime.tryParse(row['transaction_date'].toString()) ??
+                  archivedAt;
+        } else if (row['created_at'] != null) {
+          archivedAt =
+              DateTime.tryParse(row['created_at'].toString()) ?? archivedAt;
+        }
+
+        DateTime? expiryDate;
+        if (batchMap?['expiry_date'] != null) {
+          expiryDate = DateTime.tryParse(batchMap!['expiry_date'].toString());
+        }
+
+        String productName = prod?['name']?.toString() ?? '';
+        if (productName.isEmpty && prodId.isNotEmpty) {
+          final localProd = _products.where((p) => p.id == prodId);
+          if (localProd.isNotEmpty) {
+            productName = localProd.first.name;
+          }
+        }
+        if (productName.isEmpty) {
+          productName = 'Unknown Product';
+        }
+
+        items.add(ArchivedStockItem(
+          id: id,
+          productId: prodId,
+          productName: productName,
+          batchId: row['product_batch_id']?.toString() ??
+              batchMap?['batch_number']?.toString() ??
+              'Batch',
+          quantity: qty,
+          archivedAt: archivedAt,
+          category: prod?['category']?.toString(),
+          expiryDate: expiryDate,
+          image: prod?['image']?.toString() ?? prod?['image_url']?.toString(),
+          capital: capitalCost,
+          revenue: revenue,
+          profit: profit,
+          reason: reason,
+          consumedBy: consumedBy,
+        ));
+      }
+
+      _archivedStock.clear();
+      _archivedStock.addAll(items);
+      notifyListeners();
+    } catch (e) {
+      debugPrint('Error loading archived stock: $e');
+    }
   }
 
   /// Reloads products from Supabase (useful for pull-to-refresh)
@@ -594,6 +694,7 @@ class EmployeeInventoryController extends ChangeNotifier {
       'quantity': actualQuantity,
       'unit_price': product.capital,
       'total_amount': capitalCost,
+      'issued_to': consumedBy,
       'notes': 'Archived from mobile app (${reason.label})${consumedBy != null ? ' by $consumedBy' : ''}',
     }).catchError((e) {
       debugPrint('Error logging archive transaction: $e');
@@ -686,11 +787,29 @@ class EmployeeInventoryController extends ChangeNotifier {
       debugPrint('Error restoring product in Supabase: $e');
       return <String, dynamic>{};
     });
+
+    _supabaseService.client
+        .from('inventory_transactions')
+        .delete()
+        .eq('id', item.id)
+        .catchError((e) {
+      debugPrint('Error deleting restored transaction in Supabase: $e');
+      return <Map<String, dynamic>>[];
+    });
   }
 
   void deleteArchivedStock(String archivedId) {
     _archivedStock.removeWhere((a) => a.id == archivedId);
     notifyListeners();
+
+    _supabaseService.client
+        .from('inventory_transactions')
+        .delete()
+        .eq('id', archivedId)
+        .catchError((e) {
+      debugPrint('Error deleting archived transaction in Supabase: $e');
+      return <Map<String, dynamic>>[];
+    });
   }
 
   void deleteProduct(String productId) {

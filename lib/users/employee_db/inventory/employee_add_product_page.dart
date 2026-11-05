@@ -1765,7 +1765,7 @@ class _ManualProductInfoSheetState extends State<_ManualProductInfoSheet> {
         capital: capital!,
         unit: _isWeightBased ? 'kg' : 'pcs',
         barcode: finalBarcode,
-        image: finalImageUrl,
+        image: finalImageUrl ?? _imagePath,
         isWeightBased: _isWeightBased,
       );
 

@@ -53,6 +53,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
   String? _capitalError;
   String? _barcodeError;
   String? _categoryError;
+  String? _imageError;
   bool _isBarcodeEditingEnabled = false;
 
   final ImagePicker _picker = ImagePicker();
@@ -131,7 +132,10 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                   title: const Text('Remove Photo', style: TextStyle(color: Colors.red)),
                   onTap: () {
                     Navigator.pop(sheetContext);
-                    setState(() => _imagePath = null);
+                    setState(() {
+                      _imagePath = null;
+                      _imageError = 'Product photo is required.';
+                    });
                   },
                 ),
               const SizedBox(height: 8),
@@ -159,6 +163,7 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
         if (confirmedPath != null) {
           setState(() {
             _imagePath = confirmedPath;
+            _imageError = null;
           });
           if (mounted) {
             TopNotification.show(
@@ -278,8 +283,24 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
         currentProductId: widget.product.id,
         isBarcodeTaken: widget.inventory.isBarcodeTaken,
       );
+
+      if (_imagePath == null || _imagePath!.trim().isEmpty) {
+        _imageError = 'Product photo is required.';
+      } else {
+        _imageError = null;
+      }
     });
-    if (_nameError != null || _categoryError != null || _priceError != null || _capitalError != null || _barcodeError != null) return;
+    if (_nameError != null ||
+        _categoryError != null ||
+        _priceError != null ||
+        _capitalError != null ||
+        _barcodeError != null ||
+        _imageError != null) {
+      if (_imageError != null) {
+        TopNotification.show(context, 'Please add a product photo before saving.', isError: true);
+      }
+      return;
+    }
     if (category.isEmpty) return;
 
     final confirmed = await showDialog<bool>(
@@ -348,7 +369,6 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
         widget.inventory.addCategory(category, currentUserId);
       }
 
-      final shouldClearImage = (_imagePath == null || _imagePath!.trim().isEmpty) && widget.product.image != null;
 
       widget.inventory.updateProduct(
         productId: widget.product.id,
@@ -357,10 +377,10 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
         price: price!,
         capital: capital!,
         barcode: barcode,
-        image: finalImageUrl,
+        image: finalImageUrl ?? _imagePath,
         lowStockThreshold: threshold,
         isWeightBased: _isWeightBased,
-        clearImage: shouldClearImage,
+        clearImage: false,
       );
 
       if (!mounted) return;
@@ -581,7 +601,10 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: AppColors.borderColor),
+                    border: Border.all(
+                      color: _imageError != null ? Colors.red : AppColors.borderColor,
+                      width: _imageError != null ? 2.0 : 1.0,
+                    ),
                     boxShadow: [
                       BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 10),
                     ],
@@ -618,6 +641,26 @@ class _EmployeeEditProductPageState extends State<EmployeeEditProductPage> {
                       ],
                     ),
                   ),
+                ),
+              ),
+            ),
+            if (_imageError != null) ...[
+              const SizedBox(height: 6),
+              Center(
+                child: Text(
+                  _imageError!,
+                  style: const TextStyle(color: Colors.red, fontSize: 12),
+                ),
+              ),
+            ],
+            const SizedBox(height: 6),
+            Center(
+              child: Text(
+                _imagePath != null ? 'Photo added' : 'Product Photo (Required *)',
+                style: TextStyle(
+                  color: _imagePath != null ? Colors.teal : AppColors.primaryOrange,
+                  fontSize: 12,
+                  fontWeight: FontWeight.bold,
                 ),
               ),
             ),

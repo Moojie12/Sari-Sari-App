@@ -58,10 +58,8 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   }
 
   void _simulateLoading() async {
-    if (EmployeeInventoryController.instance.isProductsLoading) {
-      setState(() => _isLoading = true);
-      await Future.delayed(const Duration(milliseconds: 200));
-    }
+    setState(() => _isLoading = true);
+    await Future.delayed(const Duration(milliseconds: 250));
     if (mounted) {
       setState(() => _isLoading = false);
     }
@@ -276,6 +274,10 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
             .take(_itemsPerPage)
             .toList();
 
+        final bool isProductsLoading =
+            (_isLoading || EmployeeInventoryController.instance.isProductsLoading) &&
+                EmployeeInventoryController.instance.products.isEmpty;
+
         return Scaffold(
           backgroundColor: Colors.transparent,
           body: CustomScrollView(
@@ -286,10 +288,10 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
               SliverToBoxAdapter(child: _buildActiveOrder(context)),
               SliverToBoxAdapter(child: _buildSearchBar(context)),
               SliverToBoxAdapter(child: _buildCategories(context)),
-              if (!_isFiltering && !_isLoading)
-                SliverToBoxAdapter(child: _buildOnSaleProducts(context)),
-              if (!_isFiltering && _isLoading)
+              if (!_isFiltering && isProductsLoading)
                 SliverToBoxAdapter(child: _buildOnSaleSkeletons()),
+              if (!_isFiltering && !isProductsLoading)
+                SliverToBoxAdapter(child: _buildOnSaleProducts(context)),
               SliverToBoxAdapter(
                 child: Padding(
                   padding: const EdgeInsets.fromLTRB(24, 20, 24, 12),
@@ -303,7 +305,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                   ),
                 ),
               ),
-              if ((_isLoading || EmployeeInventoryController.instance.isProductsLoading) && pagedProducts.isEmpty)
+              if (isProductsLoading && pagedProducts.isEmpty)
                 _buildGridSkeletons()
               else if (pagedProducts.isEmpty)
                 SliverToBoxAdapter(child: _buildEmptyState(context))
@@ -791,13 +793,41 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Padding(
-            padding: EdgeInsets.symmetric(horizontal: 24),
-            child: Skeleton(height: 20, width: 140),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            child: Row(
+              children: [
+                const Text(
+                  'On Sale Deals & Promos',
+                  style: TextStyle(
+                    color: AppColors.darkText,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  decoration: BoxDecoration(
+                    color: Colors.red.shade50,
+                    borderRadius: BorderRadius.circular(8),
+                    border: Border.all(color: Colors.red.shade200),
+                  ),
+                  child: Text(
+                    'HOT DEALS',
+                    style: TextStyle(
+                      color: Colors.red.shade700,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
           SizedBox(
-            height: 230,
+            height: 240,
             child: ListView.separated(
               scrollDirection: Axis.horizontal,
               padding: const EdgeInsets.symmetric(horizontal: 24),
@@ -853,8 +883,11 @@ class _SaleDealCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final image = deal.effectiveImage;
+    final isInventoryLoading =
+        EmployeeInventoryController.instance.isProductsLoading ||
+            EmployeeInventoryController.instance.products.isEmpty;
     final availableStock = CustomerCartController.instance.getAvailableDealStock(deal);
-    final isSoldOut = deal.isSoldOut || availableStock <= 0;
+    final isSoldOut = !isInventoryLoading && (deal.isSoldOut || availableStock <= 0);
 
     return Material(
       color: Colors.white,
@@ -1213,8 +1246,11 @@ class SaleDealDetailsSheet extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final image = deal.effectiveImage;
+    final isInventoryLoading =
+        EmployeeInventoryController.instance.isProductsLoading ||
+            EmployeeInventoryController.instance.products.isEmpty;
     final availableStock = CustomerCartController.instance.getAvailableDealStock(deal);
-    final isSoldOut = deal.isSoldOut || availableStock <= 0;
+    final isSoldOut = !isInventoryLoading && (deal.isSoldOut || availableStock <= 0);
 
     return Container(
       decoration: const BoxDecoration(

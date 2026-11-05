@@ -1295,6 +1295,21 @@ class SupabaseService {
     }
   }
 
+  /// Get archived stock transactions (consumables and wastage)
+  Future<List<Map<String, dynamic>>> getArchivedStockTransactions() async {
+    try {
+      final response = await _client
+          .from('inventory_transactions')
+          .select('*, products!left(*), product_batches!left(*)')
+          .inFilter('transaction_type', ['consumable', 'wastage'])
+          .order('created_at', ascending: false);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      debugPrint('Error fetching archived stock transactions: $e');
+      return [];
+    }
+  }
+
   // =============================================
   // USER PROFILE OPERATIONS
   // =============================================

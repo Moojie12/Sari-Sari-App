@@ -15,6 +15,7 @@ import '../../../shared/utils/text_formatters.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/barcode_scanner_screen.dart';
 import '../../../shared/widgets/product_image.dart';
+import '../../../shared/widgets/product_image_crop_dialog.dart';
 import '../employee_inventory_controller.dart';
 import 'employee_product_model.dart';
 
@@ -1045,6 +1046,8 @@ class _NewProductSheetState extends State<_NewProductSheet> {
   String? _priceError;
   String? _barcodeError;
   String? _categoryError;
+  String? _imageError;
+  final ImagePicker _picker = ImagePicker();
 
   @override
   void dispose() {
@@ -1160,8 +1163,23 @@ class _NewProductSheetState extends State<_NewProductSheet> {
         barcode: _barcodeController.text,
         isBarcodeTaken: widget.inventory.isBarcodeTaken,
       );
+
+      if (_imagePath == null || _imagePath!.trim().isEmpty) {
+        _imageError = 'Product photo is required.';
+      } else {
+        _imageError = null;
+      }
     });
-    if (_nameError != null || _categoryError != null || _priceError != null || _barcodeError != null) return;
+    if (_nameError != null ||
+        _categoryError != null ||
+        _priceError != null ||
+        _barcodeError != null ||
+        _imageError != null) {
+      if (_imageError != null) {
+        TopNotification.show(context, 'Please add a product photo before saving.', isError: true);
+      }
+      return;
+    }
     if (category.isEmpty) return;
 
     if (_isAddingNewCategory) {
@@ -1217,7 +1235,7 @@ class _NewProductSheetState extends State<_NewProductSheet> {
       price: price!,
       capital: price,
       barcode: barcode,
-      image: finalImageUrl,
+      image: finalImageUrl ?? _imagePath,
     );
 
     if (product == null) {
@@ -1230,9 +1248,94 @@ class _NewProductSheetState extends State<_NewProductSheet> {
   }
 
   Future<void> _pickImage() async {
-    setState(() {
-      _imagePath = 'assets/products/placeholder.png';
-    });
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppColors.cardWhite,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (sheetContext) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              const SizedBox(height: 12),
+              Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.borderColor,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Padding(
+                padding: EdgeInsets.symmetric(horizontal: 20),
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: Text(
+                    'Product Photo',
+                    style: TextStyle(color: AppColors.darkText, fontSize: 16, fontWeight: FontWeight.bold),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 8),
+              ListTile(
+                leading: const Icon(Icons.photo_camera_outlined, color: AppColors.primaryOrange),
+                title: const Text('Take Photo'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _processImagePick(ImageSource.camera);
+                },
+              ),
+              ListTile(
+                leading: const Icon(Icons.photo_library_outlined, color: AppColors.primaryOrange),
+                title: const Text('Choose from Gallery'),
+                onTap: () {
+                  Navigator.pop(sheetContext);
+                  _processImagePick(ImageSource.gallery);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  Future<void> _processImagePick(ImageSource source) async {
+    try {
+      final picked = await _picker.pickImage(
+        source: source,
+        maxWidth: 1200,
+        imageQuality: 85,
+      );
+      if (picked != null) {
+        if (!mounted) return;
+        final confirmedPath = await showProductImageCropDialog(
+          context: context,
+          xfile: picked,
+        );
+
+        if (confirmedPath != null) {
+          setState(() {
+            _imagePath = confirmedPath;
+            _imageError = null;
+          });
+          if (mounted) {
+            TopNotification.show(
+              context,
+              'Photo saved',
+            );
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        TopNotification.show(context, "Couldn't access image. Please check app permissions.", isError: true);
+      }
+    }
   }
 
   @override
@@ -1265,7 +1368,10 @@ class _NewProductSheetState extends State<_NewProductSheet> {
                     decoration: BoxDecoration(
                       color: AppColors.lightPeach,
                       borderRadius: BorderRadius.circular(16),
-                      border: Border.all(color: AppColors.borderColor),
+                      border: Border.all(
+                        color: _imageError != null ? Colors.red : AppColors.borderColor,
+                        width: _imageError != null ? 2.0 : 1.0,
+                      ),
                     ),
                     child: _imagePath == null
                         ? const Column(
@@ -1278,8 +1384,33 @@ class _NewProductSheetState extends State<_NewProductSheet> {
                     )
                         : ClipRRect(
                       borderRadius: BorderRadius.circular(16),
-                      child: const Icon(Icons.image, size: 50, color: AppColors.primaryOrange),
+                      child: ProductImage(
+                        image: _imagePath,
+                        width: 100,
+                        height: 100,
+                        borderRadius: 16,
+                      ),
                     ),
+                  ),
+                ),
+              ),
+              if (_imageError != null) ...[
+                const SizedBox(height: 6),
+                Center(
+                  child: Text(
+                    _imageError!,
+                    style: const TextStyle(color: Colors.red, fontSize: 12),
+                  ),
+                ),
+              ],
+              const SizedBox(height: 6),
+              Center(
+                child: Text(
+                  _imagePath != null ? 'Photo added' : 'Product Photo (Required *)',
+                  style: TextStyle(
+                    color: _imagePath != null ? Colors.teal : AppColors.primaryOrange,
+                    fontSize: 12,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
