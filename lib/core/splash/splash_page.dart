@@ -36,14 +36,13 @@ class _SplashPageState extends State<SplashPage> {
   void dispose() {
     SplashPage.isCurrent = false;
     super.dispose();
+    // After splash is unmounted and dashboard is mounted, trigger any pending notification navigation
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      OneSignalNotificationService.instance.checkAndOpenPendingNotification();
+    });
   }
 
   Future<void> _navigateToHome() async {
-    if (OneSignalNotificationService.instance.hasActiveNotificationOpen) {
-      debugPrint('[SplashPage] Navigation aborted: notification details is active.');
-      return;
-    }
-
     if (kIsWeb) {
       if (mounted) {
         Navigator.pushReplacement(
@@ -76,11 +75,6 @@ class _SplashPageState extends State<SplashPage> {
     await Future.delayed(const Duration(milliseconds: 600));
     if (!mounted) return;
 
-    if (OneSignalNotificationService.instance.hasActiveNotificationOpen) {
-      debugPrint('[SplashPage] Navigation aborted: notification details is active.');
-      return;
-    }
-
     // Check if user is already logged in
     final user = AuthService().currentUser;
 
@@ -89,7 +83,7 @@ class _SplashPageState extends State<SplashPage> {
       final bool isDisabled = await AuthService().isUserDisabled(user.uid);
       if (isDisabled) {
         await AuthService().signOut();
-        if (mounted && !OneSignalNotificationService.instance.hasActiveNotificationOpen) {
+        if (mounted) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(
@@ -109,27 +103,24 @@ class _SplashPageState extends State<SplashPage> {
         final bool isOwner = role == 'owner';
         final bool isEmployee = role == 'employee';
 
-        if (mounted && !OneSignalNotificationService.instance.hasActiveNotificationOpen) {
+        if (mounted) {
+          Widget targetDb;
           if (isOwner) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const OwnerDb()),
-            );
+            targetDb = const OwnerDb();
           } else if (isEmployee) {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const EmployeeDb()),
-            );
+            targetDb = const EmployeeDb();
           } else {
-            Navigator.pushReplacement(
-              context,
-              MaterialPageRoute(builder: (context) => const CustomerDb()),
-            );
+            targetDb = const CustomerDb();
           }
+
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (context) => targetDb),
+          );
         }
       } catch (e) {
         // If there's an error checking roles, default to customer db
-        if (mounted && !OneSignalNotificationService.instance.hasActiveNotificationOpen) {
+        if (mounted) {
           Navigator.pushReplacement(
             context,
             MaterialPageRoute(builder: (context) => const CustomerDb()),
@@ -138,7 +129,7 @@ class _SplashPageState extends State<SplashPage> {
       }
     } else {
       // User is not logged in, show main login page (for Owner, Employee, and Customer)
-      if (mounted && !OneSignalNotificationService.instance.hasActiveNotificationOpen) {
+      if (mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(

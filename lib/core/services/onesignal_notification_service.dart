@@ -536,26 +536,78 @@ class OneSignalNotificationService {
     // automatically syncs it without creating duplicate records.
   }
 
+  Map<String, dynamic>? _pendingNotificationData;
+  String? _pendingNotificationTitle;
+  String? _pendingNotificationBody;
+
+  bool get hasPendingNotification => _pendingNotificationData != null;
+
+  /// Called after splash screen completes so pending notifications from a cold start
+  /// are opened directly on top of the mounted user dashboard.
+  void checkAndOpenPendingNotification() {
+    if (_pendingNotificationData == null) return;
+    final data = _pendingNotificationData;
+    final title = _pendingNotificationTitle ?? 'Notification';
+    final body = _pendingNotificationBody ?? '';
+
+    _pendingNotificationData = null;
+    _pendingNotificationTitle = null;
+    _pendingNotificationBody = null;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _navigateToTargetDetails(title: title, body: body, data: data);
+    });
+  }
+
   /// Open corresponding order or chat details when notification is tapped
   void _handleNotificationPress({
     required String title,
     required String body,
     Map<String, dynamic>? data,
   }) {
+    debugPrint('[OneSignal] Notification press received: title=$title, data=$data, splashIsCurrent=${SplashPage.isCurrent}');
+
+    // If app is currently on SplashPage or navigator is not ready yet, queue it so splash can finish its initial route transition
+    if (SplashPage.isCurrent || navigatorKey.currentState == null) {
+      debugPrint('[OneSignal] Cold start detected. Queuing notification to open after splash transition.');
+      _pendingNotificationData = data ?? <String, dynamic>{};
+      _pendingNotificationTitle = title;
+      _pendingNotificationBody = body;
+      return;
+    }
+
+    // Otherwise app is already on a dashboard, navigate immediately
+    _navigateToTargetDetails(title: title, body: body, data: data);
+  }
+
+  Future<void> _navigateToTargetDetails({
+    required String title,
+    required String body,
+    Map<String, dynamic>? data,
+  }) async {
+    final nav = navigatorKey.currentState;
+    if (nav == null) {
+      debugPrint('[OneSignal] Navigation aborted: navigatorKey.currentState is null');
+      return;
+    }
+
     hasActiveNotificationOpen = true;
 
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
-      final nav = navigatorKey.currentState;
-      if (nav == null) {
-        hasActiveNotificationOpen = false;
-        return;
-      }
-
+    try {
       final typeStr = data?['type']?.toString().toLowerCase() ?? '';
       final targetRole = data?['targetRole']?.toString().toLowerCase() ?? '';
-      final isStaff = _currentUserRole == 'owner' ||
-          _currentUserRole == 'employee' ||
-          _currentUserRole == 'admin' ||
+
+      // Resolve role if not yet known in memory
+      String? activeRole = _currentUserRole;
+      if (activeRole == null && AuthService().currentUser != null) {
+        try {
+          activeRole = await AuthService().getCurrentUserRole();
+        } catch (_) {}
+      }
+
+      final isStaff = activeRole == 'owner' ||
+          activeRole == 'employee' ||
+          activeRole == 'admin' ||
           targetRole == 'staff';
       final orderId = data?['orderId']?.toString();
       final customerId = data?['customerId']?.toString();
@@ -578,14 +630,12 @@ class OneSignalNotificationService {
       } else if (isStaff) {
         CustomerOrder? matchedOrder;
         if (orderId != null && orderId.isNotEmpty) {
-          // 1. Try to find the order in EmployeeOrderController memory
           try {
             matchedOrder = EmployeeOrderController.instance.orders.firstWhere(
               (o) => o.orderId == orderId || o.displayOrderId == orderId,
             );
           } catch (_) {}
 
-          // 2. If not found in memory, fetch directly from Firebase Realtime Database
           if (matchedOrder == null) {
             try {
               final snapshot = await AuthService().database.ref().child('orders/$orderId').get();
@@ -604,7 +654,6 @@ class OneSignalNotificationService {
             controller: EmployeeOrderController.instance,
           );
         } else {
-          // Fallback: Show Employee Notification Details
           final notif = EmployeeNotification(
             id: 'onesignal_${DateTime.now().millisecondsSinceEpoch}',
             type: EmployeeNotificationType.newOrder,
@@ -616,7 +665,6 @@ class OneSignalNotificationService {
           targetDetailsPage = EmployeeNotificationDetailsPage(notification: notif);
         }
       } else {
-        // Customer Role: Navigate directly to Customer Order Details
         CustomerOrder? matchedOrder;
         if (orderId != null && orderId.isNotEmpty) {
           matchedOrder = CustomerOrderController.instance.getOrderById(orderId);
@@ -628,7 +676,7 @@ class OneSignalNotificationService {
                 matchedOrder = CustomerOrder.fromMap(snapshot.value as Map);
               }
             } catch (e) {
-              debugPrint('[OneSignal] Error fetching order for customer press: $e');
+              debugPrint('[OneSignal] Error fetching customer order: $e');
             }
           }
         }
@@ -636,7 +684,6 @@ class OneSignalNotificationService {
         if (matchedOrder != null) {
           targetDetailsPage = CustomerOrderDetailsPage(order: matchedOrder);
         } else {
-          // Fallback: Show Customer Notification Details
           final notif = CustomerNotification(
             id: 'onesignal_${DateTime.now().millisecondsSinceEpoch}',
             type: CustomerNotificationType.orderUpdate,
@@ -648,35 +695,13 @@ class OneSignalNotificationService {
         }
       }
 
-      // If splash screen is currently active (e.g. app launched cold or from background restart),
-      // replace the root with the appropriate user Dashboard and push details on top.
-      // This prevents SplashPage timers from evicting detailsPage, and pressing back returns cleanly to dashboard!
-      if (SplashPage.isCurrent) {
-        Widget rootDashboard;
-        if (isStaff) {
-          bool isOwner = false;
-          try {
-            isOwner = await AuthService().hasRole('owner');
-          } catch (_) {}
-          rootDashboard = isOwner ? const OwnerDb() : const EmployeeDb();
-        } else {
-          rootDashboard = const CustomerDb();
-        }
-
-        nav.pushAndRemoveUntil(
-          MaterialPageRoute(builder: (_) => rootDashboard),
-          (route) => false,
-        );
-      }
-
-      // Navigate to the target details page and stay there until user explicitly taps back
-      try {
-        await nav.push(
-          MaterialPageRoute(builder: (_) => targetDetailsPage),
-        );
-      } finally {
-        hasActiveNotificationOpen = false;
-      }
-    });
+      await nav.push(
+        MaterialPageRoute(builder: (_) => targetDetailsPage),
+      );
+    } catch (e) {
+      debugPrint('[OneSignal] Error opening target details: $e');
+    } finally {
+      hasActiveNotificationOpen = false;
+    }
   }
 }
