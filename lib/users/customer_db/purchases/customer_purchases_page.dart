@@ -4,6 +4,7 @@ import 'package:sari_sari/users/customer_db/purchases/customer_order_controller.
 import 'customer_order_model.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_details_page.dart';
 import 'package:sari_sari/shared/widgets/skeleton.dart';
+import 'package:sari_sari/shared/widgets/app_pagination.dart';
 
 class CustomerPurchasesPage extends StatefulWidget {
   const CustomerPurchasesPage({super.key, required this.orderController});
@@ -128,7 +129,7 @@ class _CustomerPurchasesPageState extends State<CustomerPurchasesPage> with Sing
   }
 }
 
-class _OrderList extends StatelessWidget {
+class _OrderList extends StatefulWidget {
   const _OrderList({
     required this.orders,
     required this.emptyMessage,
@@ -139,11 +140,32 @@ class _OrderList extends StatelessWidget {
   final RefreshCallback onRefresh;
 
   @override
+  State<_OrderList> createState() => _OrderListState();
+}
+
+class _OrderListState extends State<_OrderList> {
+  static const int _itemsPerPage = 10;
+  int _currentPage = 1;
+
+  @override
+  void didUpdateWidget(covariant _OrderList oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final totalPages = (widget.orders.length / _itemsPerPage).ceil().clamp(1, 9999);
+    if (_currentPage > totalPages) {
+      setState(() => _currentPage = totalPages);
+    }
+  }
+
+  void _onPageChanged(int page) {
+    setState(() => _currentPage = page);
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (orders.isEmpty) {
+    if (widget.orders.isEmpty) {
       return RefreshIndicator(
         color: AppColors.primaryOrange,
-        onRefresh: onRefresh,
+        onRefresh: widget.onRefresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(24),
@@ -156,7 +178,7 @@ class _OrderList extends StatelessWidget {
                   const Icon(Icons.shopping_bag_outlined, size: 48, color: AppColors.placeholderColor),
                   const SizedBox(height: 12),
                   Text(
-                    emptyMessage,
+                    widget.emptyMessage,
                     style: const TextStyle(color: AppColors.secondaryText),
                   ),
                 ],
@@ -167,33 +189,51 @@ class _OrderList extends StatelessWidget {
       );
     }
 
+    final totalCount = widget.orders.length;
+    final totalPages = (totalCount / _itemsPerPage).ceil().clamp(1, 9999);
+    final activePage = _currentPage > totalPages ? totalPages : (_currentPage < 1 ? 1 : _currentPage);
+    final startIndex = (activePage - 1) * _itemsPerPage;
+    final pagedCount = (totalCount - startIndex).clamp(0, _itemsPerPage);
+    final pagedOrders = widget.orders.skip(startIndex).take(pagedCount).toList();
+
     return RefreshIndicator(
       color: AppColors.primaryOrange,
-      onRefresh: onRefresh,
+      onRefresh: widget.onRefresh,
       child: ListView.separated(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(24),
-        itemCount: orders.length,
+        itemCount: pagedOrders.length + (totalPages > 1 ? 1 : 0),
         separatorBuilder: (context, index) => const SizedBox(height: 16),
         itemBuilder: (context, index) {
-          final order = orders[index];
-          return _OrderCard(
-            order: order,
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => CustomerOrderDetailsPage(order: order),
-                ),
-              );
-            },
+          if (index < pagedOrders.length) {
+            final order = pagedOrders[index];
+            return _OrderCard(
+              order: order,
+              onTap: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => CustomerOrderDetailsPage(order: order),
+                  ),
+                );
+              },
+            );
+          }
+          return Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 32),
+            child: Center(
+              child: AppPagination(
+                currentPage: activePage,
+                totalPages: totalPages,
+                onPageChanged: _onPageChanged,
+              ),
+            ),
           );
         },
       ),
     );
   }
 }
-
 class _OrderCard extends StatelessWidget {
   const _OrderCard({required this.order, required this.onTap});
   final CustomerOrder order;

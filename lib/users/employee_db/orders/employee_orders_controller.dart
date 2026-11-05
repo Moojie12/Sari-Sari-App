@@ -95,6 +95,12 @@ class EmployeeOrderController extends ChangeNotifier {
   List<CustomerOrder> get completedOrders =>
       _orders.where((o) => o.status == OrderStatus.completed).toList();
 
+  List<CustomerOrder> get cancelledOrders =>
+      _orders.where((o) => o.status == OrderStatus.cancelled).toList();
+
+  List<CustomerOrder> get pastOrders =>
+      _orders.where((o) => o.status == OrderStatus.completed || o.status == OrderStatus.cancelled).toList();
+
   /// Returns a map of productId -> total units sold from all completed orders.
   Map<String, int> getProductUnitsSold() {
     final Map<String, int> sales = {};

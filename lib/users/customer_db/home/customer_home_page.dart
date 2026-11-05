@@ -20,6 +20,7 @@ import 'package:sari_sari/models/sale_deal_model.dart';
 import 'package:sari_sari/core/services/sale_deal_controller.dart';
 import 'package:sari_sari/users/customer_db/tutorial/customer_tutorial_keys.dart';
 
+import 'package:sari_sari/shared/widgets/app_pagination.dart';
 /// Customer "Home" tab: product browsing.
 class CustomerHomePage extends StatefulWidget {
   const CustomerHomePage({
@@ -42,7 +43,7 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   String _selectedCategory = 'All';
   bool _isLoading = true;
 
-  static const int _itemsPerPage = 20;
+  static const int _itemsPerPage = 12;
   int _currentPage = 1;
 
   @override
@@ -516,61 +517,10 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   }
 
   Widget _buildPagination(int totalPages) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(24, 10, 24, 24),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          _PageButton(
-            icon: Icons.chevron_left,
-            onPressed: _currentPage > 1
-                ? () => _onPageSelected(_currentPage - 1)
-                : null,
-          ),
-          const SizedBox(width: 8),
-          ...List.generate(totalPages, (index) {
-            final page = index + 1;
-            final isSelected = page == _currentPage;
-            return Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: InkWell(
-                onTap: () => _onPageSelected(page),
-                borderRadius: BorderRadius.circular(8),
-                child: Container(
-                  width: 32,
-                  height: 32,
-                  decoration: BoxDecoration(
-                    color: isSelected ? AppColors.primaryOrange : Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(
-                      color: isSelected
-                          ? AppColors.primaryOrange
-                          : AppColors.borderColor.withValues(alpha: 0.5),
-                    ),
-                  ),
-                  alignment: Alignment.center,
-                  child: Text(
-                    '$page',
-                    style: TextStyle(
-                      color: isSelected ? Colors.white : AppColors.darkText,
-                      fontSize: 13,
-                      fontWeight:
-                          isSelected ? FontWeight.bold : FontWeight.w500,
-                    ),
-                  ),
-                ),
-              ),
-            );
-          }),
-          const SizedBox(width: 8),
-          _PageButton(
-            icon: Icons.chevron_right,
-            onPressed: _currentPage < totalPages
-                ? () => _onPageSelected(_currentPage + 1)
-                : null,
-          ),
-        ],
-      ),
+    return AppPagination(
+      currentPage: _currentPage,
+      totalPages: totalPages,
+      onPageChanged: _onPageSelected,
     );
   }
 
@@ -877,42 +827,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         delegate: SliverChildBuilderDelegate(
           (context, index) => const ProductCardSkeleton(),
           childCount: 4,
-        ),
-      ),
-    );
-  }
-}
-
-class _PageButton extends StatelessWidget {
-  const _PageButton({required this.icon, required this.onPressed});
-
-  final IconData icon;
-  final VoidCallback? onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(8),
-      child: InkWell(
-        onTap: onPressed,
-        borderRadius: BorderRadius.circular(8),
-        child: Container(
-          width: 32,
-          height: 32,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(8),
-            border: Border.all(
-              color: AppColors.borderColor.withValues(alpha: 0.5),
-            ),
-          ),
-          child: Icon(
-            icon,
-            size: 18,
-            color: onPressed == null
-                ? AppColors.placeholderColor
-                : AppColors.darkText,
-          ),
         ),
       ),
     );

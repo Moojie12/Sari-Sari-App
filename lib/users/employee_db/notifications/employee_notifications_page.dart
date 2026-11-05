@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:sari_sari/shared/widgets/app_pagination.dart';
 
 import '../../../core/services/dashboard_navigation_controller.dart';
 import '../../../core/theme/app_colors.dart';
@@ -124,6 +125,8 @@ class EmployeeNotificationsPage extends StatefulWidget {
 
 class _EmployeeNotificationsPageState extends State<EmployeeNotificationsPage> {
   final EmployeeNotificationsController _controller = EmployeeNotificationsController();
+  int _currentPage = 1;
+  static const int _itemsPerPage = 10;
   bool _isSelectionMode = false;
   final Set<String> _selectedIds = {};
 
@@ -373,6 +376,16 @@ class _EmployeeNotificationsPageState extends State<EmployeeNotificationsPage> {
             );
           }
 
+          final int totalCount = notifications.length;
+          final int totalPages = (totalCount / _itemsPerPage).ceil().clamp(1, 9999);
+          if (_currentPage > totalPages) {
+            _currentPage = totalPages;
+          }
+          final int activePage = _currentPage < 1 ? 1 : _currentPage;
+          final int startIndex = (activePage - 1) * _itemsPerPage;
+          final int pagedCount = (totalCount - startIndex).clamp(0, _itemsPerPage);
+          final pagedNotifications = notifications.skip(startIndex).take(pagedCount).toList();
+
           return RefreshIndicator(
             color: AppColors.primaryOrange,
             onRefresh: () async {
@@ -381,10 +394,11 @@ class _EmployeeNotificationsPageState extends State<EmployeeNotificationsPage> {
             child: ListView.separated(
               physics: const AlwaysScrollableScrollPhysics(),
               padding: const EdgeInsets.all(16),
-              itemCount: notifications.length,
+              itemCount: pagedNotifications.length + (totalPages > 1 ? 1 : 0),
               separatorBuilder: (context, index) => const SizedBox(height: 12),
               itemBuilder: (context, index) {
-                final notification = notifications[index];
+                if (index < pagedNotifications.length) {
+                final notification = pagedNotifications[index];
                 final isSelected = _selectedIds.contains(notification.id);
 
                 return Dismissible(
@@ -561,7 +575,18 @@ class _EmployeeNotificationsPageState extends State<EmployeeNotificationsPage> {
                     },
                   ),
                 );
-              },
+              }
+              return Padding(
+                padding: const EdgeInsets.only(top: 8, bottom: 24),
+                child: Center(
+                  child: AppPagination(
+                    currentPage: activePage,
+                    totalPages: totalPages,
+                    onPageChanged: (page) => setState(() => _currentPage = page),
+                  ),
+                ),
+              );
+            },
             ),
           );
         },

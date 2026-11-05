@@ -6,6 +6,7 @@ import 'employee_order_details_page.dart';
 import 'employee_orders_controller.dart';
 import '../../../shared/widgets/skeleton.dart';
 import '../../../shared/utils/top_notification.dart';
+import '../../../shared/widgets/app_pagination.dart';
 
 class EmployeeOrdersPage extends StatefulWidget {
   const EmployeeOrdersPage({super.key, required this.controller});
@@ -87,11 +88,9 @@ class _EmployeeOrdersPageState extends State<EmployeeOrdersPage> with SingleTick
                         controller: widget.controller,
                         onRefresh: widget.controller.refresh,
                       ),
-                      _OrderList(
-                        orders: widget.controller.completedOrders,
+                      _CompletedOrdersView(
                         controller: widget.controller,
                         onRefresh: widget.controller.refresh,
-                        emptyMessage: 'No completed orders found.',
                       ),
                     ],
                   );
@@ -105,7 +104,7 @@ class _EmployeeOrdersPageState extends State<EmployeeOrdersPage> with SingleTick
   }
 }
 
-class _DemandList extends StatelessWidget {
+class _DemandList extends StatefulWidget {
   const _DemandList({
     required this.demandItems,
     required this.controller,
@@ -116,11 +115,54 @@ class _DemandList extends StatelessWidget {
   final RefreshCallback onRefresh;
 
   @override
+  State<_DemandList> createState() => _DemandListState();
+}
+
+class _DemandListState extends State<_DemandList> {
+  static const int _itemsPerPage = 10;
+  int _currentPage = 1;
+
+  void _onPageChanged(int page) {
+    setState(() => _currentPage = page);
+  }
+
+  void _showBulkActionDialog(BuildContext context) {
+    final allMarked = widget.demandItems.every((item) => item.isMarked);
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text(allMarked ? 'Reset All Marks?' : 'Mark All as Collected?'),
+        content: Text(
+          allMarked
+              ? 'Are you sure you want to mark all products as NOT collected?'
+              : 'Are you sure you want to mark all items in this list as collected?',
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () {
+              widget.controller.markAllDemand(!allMarked);
+              Navigator.pop(context);
+            },
+            child: Text(
+              'Confirm',
+              style: TextStyle(
+                color: allMarked ? Colors.red : AppColors.primaryOrange,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    if (demandItems.isEmpty) {
+    if (widget.demandItems.isEmpty) {
       return RefreshIndicator(
         color: AppColors.primaryOrange,
-        onRefresh: onRefresh,
+        onRefresh: widget.onRefresh,
         child: ListView(
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(32.0),
@@ -146,19 +188,28 @@ class _DemandList extends StatelessWidget {
     }
 
     // Sort items: Unmarked first, then marked
-    final sortedItems = List<ProductDemand>.from(demandItems)
+    final sortedItems = List<ProductDemand>.from(widget.demandItems)
       ..sort((a, b) {
         if (a.isMarked == b.isMarked) return 0;
         return a.isMarked ? 1 : -1;
       });
 
+    final int totalCount = sortedItems.length;
+    final int totalPages = (totalCount / _itemsPerPage).ceil().clamp(1, 9999);
+    if (_currentPage > totalPages) {
+      _currentPage = totalPages;
+    }
+    final int startIndex = (_currentPage - 1) * _itemsPerPage;
+    final int pagedCount = (totalCount - startIndex).clamp(0, _itemsPerPage);
+    final pagedItems = sortedItems.skip(startIndex).take(pagedCount).toList();
+
     return RefreshIndicator(
       color: AppColors.primaryOrange,
-      onRefresh: onRefresh,
+      onRefresh: widget.onRefresh,
       child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(24),
-        itemCount: sortedItems.length + 1,
+        itemCount: pagedItems.length + 1 + (totalPages > 1 ? 1 : 0),
         itemBuilder: (context, index) {
           if (index == 0) {
             return Padding(
@@ -167,17 +218,17 @@ class _DemandList extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   Text(
-                    '${demandItems.length} Products to Collect',
+                    '${widget.demandItems.length} Products to Collect',
                     style: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.secondaryText),
                   ),
                   TextButton.icon(
                     onPressed: () => _showBulkActionDialog(context),
                     icon: Icon(
-                      demandItems.every((item) => item.isMarked) ? Icons.refresh : Icons.done_all,
+                      widget.demandItems.every((item) => item.isMarked) ? Icons.refresh : Icons.done_all,
                       size: 18,
                     ),
                     label: Text(
-                      demandItems.every((item) => item.isMarked) ? 'Reset List' : 'Mark All',
+                      widget.demandItems.every((item) => item.isMarked) ? 'Reset List' : 'Mark All',
                       style: const TextStyle(fontWeight: FontWeight.bold),
                     ),
                     style: TextButton.styleFrom(
@@ -189,45 +240,27 @@ class _DemandList extends StatelessWidget {
               ),
             );
           }
-          final demand = sortedItems[index - 1];
-          return _DemandItemCard(demand: demand, controller: controller);
+
+          if (index <= pagedItems.length) {
+            final demand = pagedItems[index - 1];
+            return _DemandItemCard(demand: demand, controller: widget.controller);
+          }
+
+          return Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 80),
+            child: Center(
+              child: AppPagination(
+                currentPage: _currentPage,
+                totalPages: totalPages,
+                onPageChanged: _onPageChanged,
+              ),
+            ),
+          );
         },
       ),
     );
   }
-
-  void _showBulkActionDialog(BuildContext context) {
-    final allMarked = demandItems.every((item) => item.isMarked);
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(allMarked ? 'Reset All Marks?' : 'Mark All as Collected?'),
-        content: Text(
-          allMarked
-              ? 'Are you sure you want to mark all products as NOT collected?'
-              : 'Are you sure you want to mark all items in this list as collected?',
-        ),
-        actions: [
-          TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
-          TextButton(
-            onPressed: () {
-              controller.markAllDemand(!allMarked);
-              Navigator.pop(context);
-            },
-            child: Text(
-              'Confirm',
-              style: TextStyle(
-                color: allMarked ? Colors.red : AppColors.primaryOrange,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
 }
-
 class _DemandItemCard extends StatelessWidget {
   const _DemandItemCard({required this.demand, required this.controller});
   final ProductDemand demand;
@@ -382,7 +415,7 @@ class _DemandItemCard extends StatelessWidget {
   }
 }
 
-class _ActiveOrdersView extends StatelessWidget {
+class _ActiveOrdersView extends StatefulWidget {
   const _ActiveOrdersView({
     required this.controller,
     required this.onRefresh,
@@ -391,10 +424,135 @@ class _ActiveOrdersView extends StatelessWidget {
   final RefreshCallback onRefresh;
 
   @override
+  State<_ActiveOrdersView> createState() => _ActiveOrdersViewState();
+}
+
+class _ActiveOrdersViewState extends State<_ActiveOrdersView> {
+  OrderStatus? _selectedPickupStatus;
+  OrderStatus? _selectedDeliveryStatus;
+  int _pickupCurrentPage = 1;
+  int _deliveryCurrentPage = 1;
+
+  static const List<OrderStatus?> _pickupStatuses = [
+    null,
+    OrderStatus.pending,
+    OrderStatus.confirmed,
+    OrderStatus.preparing,
+    OrderStatus.readyForPickup,
+  ];
+
+  static const List<OrderStatus?> _deliveryStatuses = [
+    null,
+    OrderStatus.pending,
+    OrderStatus.confirmed,
+    OrderStatus.preparing,
+    OrderStatus.readyForShipment,
+    OrderStatus.outForDelivery,
+    OrderStatus.delivered,
+  ];
+
+  Widget _buildStatusFilterRow({
+    required List<OrderStatus?> statuses,
+    required OrderStatus? selectedStatus,
+    required ValueChanged<OrderStatus?> onSelectStatus,
+    required List<CustomerOrder> sourceOrders,
+  }) {
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+      child: Row(
+        children: statuses.map((status) {
+          final isSelected = status == selectedStatus;
+          final count = status == null
+              ? sourceOrders.length
+              : sourceOrders.where((o) => o.status == status).length;
+          final label = status == null ? 'All' : status.label;
+
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: InkWell(
+              onTap: () => onSelectStatus(status),
+              borderRadius: BorderRadius.circular(20),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+                decoration: BoxDecoration(
+                  color: isSelected ? AppColors.primaryOrange : Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isSelected
+                        ? AppColors.primaryOrange
+                        : AppColors.borderColor.withValues(alpha: 0.7),
+                    width: 1,
+                  ),
+                  boxShadow: isSelected
+                      ? [
+                          BoxShadow(
+                            color: AppColors.primaryOrange.withValues(alpha: 0.25),
+                            blurRadius: 6,
+                            offset: const Offset(0, 2),
+                          ),
+                        ]
+                      : [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.03),
+                            blurRadius: 4,
+                            offset: const Offset(0, 1),
+                          ),
+                        ],
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      label,
+                      style: TextStyle(
+                        color: isSelected ? Colors.white : AppColors.darkText,
+                        fontSize: 12,
+                        fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? Colors.white.withValues(alpha: 0.25)
+                            : AppColors.lightBackground,
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                      child: Text(
+                        '$count',
+                        style: TextStyle(
+                          color: isSelected ? Colors.white : AppColors.secondaryText,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final activeOrders = controller.activeOrders;
+    final activeOrders = widget.controller.activeOrders;
     final pickupOrders = activeOrders.where((o) => o.orderType == OrderType.pickup).toList();
     final deliveryOrders = activeOrders.where((o) => o.orderType == OrderType.delivery).toList();
+
+    final filteredPickupOrders = _selectedPickupStatus == null
+        ? pickupOrders
+        : pickupOrders.where((o) => o.status == _selectedPickupStatus).toList();
+
+    final filteredDeliveryOrders = _selectedDeliveryStatus == null
+        ? deliveryOrders
+        : deliveryOrders.where((o) => o.status == _selectedDeliveryStatus).toList();
 
     return DefaultTabController(
       length: 2,
@@ -443,17 +601,59 @@ class _ActiveOrdersView extends StatelessWidget {
           Expanded(
             child: TabBarView(
               children: [
-                _OrderList(
-                  orders: pickupOrders,
-                  controller: controller,
-                  onRefresh: onRefresh,
-                  emptyMessage: 'No active pickup orders.',
+                Column(
+                  children: [
+                    _buildStatusFilterRow(
+                      statuses: _pickupStatuses,
+                      selectedStatus: _selectedPickupStatus,
+                      onSelectStatus: (status) {
+                        setState(() {
+                          _selectedPickupStatus = status;
+                          _pickupCurrentPage = 1;
+                        });
+                      },
+                      sourceOrders: pickupOrders,
+                    ),
+                    Expanded(
+                      child: _PagedOrderList(
+                        orders: filteredPickupOrders,
+                        controller: widget.controller,
+                        onRefresh: widget.onRefresh,
+                        currentPage: _pickupCurrentPage,
+                        onPageChanged: (page) => setState(() => _pickupCurrentPage = page),
+                        emptyMessage: _selectedPickupStatus == null
+                            ? 'No active pickup orders.'
+                            : 'No active pickup orders with status "${_selectedPickupStatus!.label}".',
+                      ),
+                    ),
+                  ],
                 ),
-                _OrderList(
-                  orders: deliveryOrders,
-                  controller: controller,
-                  onRefresh: onRefresh,
-                  emptyMessage: 'No active delivery orders.',
+                Column(
+                  children: [
+                    _buildStatusFilterRow(
+                      statuses: _deliveryStatuses,
+                      selectedStatus: _selectedDeliveryStatus,
+                      onSelectStatus: (status) {
+                        setState(() {
+                          _selectedDeliveryStatus = status;
+                          _deliveryCurrentPage = 1;
+                        });
+                      },
+                      sourceOrders: deliveryOrders,
+                    ),
+                    Expanded(
+                      child: _PagedOrderList(
+                        orders: filteredDeliveryOrders,
+                        controller: widget.controller,
+                        onRefresh: widget.onRefresh,
+                        currentPage: _deliveryCurrentPage,
+                        onPageChanged: (page) => setState(() => _deliveryCurrentPage = page),
+                        emptyMessage: _selectedDeliveryStatus == null
+                            ? 'No active delivery orders.'
+                            : 'No active delivery orders with status "${_selectedDeliveryStatus!.label}".',
+                      ),
+                    ),
+                  ],
                 ),
               ],
             ),
@@ -464,17 +664,23 @@ class _ActiveOrdersView extends StatelessWidget {
   }
 }
 
-class _OrderList extends StatelessWidget {
-  const _OrderList({
+class _PagedOrderList extends StatelessWidget {
+  const _PagedOrderList({
     required this.orders,
     required this.controller,
     required this.onRefresh,
+    required this.currentPage,
+    required this.onPageChanged,
     this.emptyMessage = 'No orders found.',
   });
+
   final List<CustomerOrder> orders;
   final EmployeeOrderController controller;
   final RefreshCallback onRefresh;
+  final int currentPage;
+  final ValueChanged<int> onPageChanged;
   final String emptyMessage;
+  static const int _itemsPerPage = 10;
 
   @override
   Widget build(BuildContext context) {
@@ -496,7 +702,7 @@ class _OrderList extends StatelessWidget {
           physics: const AlwaysScrollableScrollPhysics(),
           padding: const EdgeInsets.all(24),
           children: [
-            SizedBox(height: MediaQuery.of(context).size.height * 0.2),
+            SizedBox(height: MediaQuery.of(context).size.height * 0.15),
             Center(
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -506,6 +712,7 @@ class _OrderList extends StatelessWidget {
                   Text(
                     emptyMessage,
                     style: const TextStyle(color: AppColors.secondaryText),
+                    textAlign: TextAlign.center,
                   ),
                 ],
               ),
@@ -519,22 +726,290 @@ class _OrderList extends StatelessWidget {
     final sortedOrders = List<CustomerOrder>.from(orders)
       ..sort((a, b) => a.status.index.compareTo(b.status.index));
 
+    final totalCount = sortedOrders.length;
+    final totalPages = (totalCount / _itemsPerPage).ceil().clamp(1, 9999);
+    final activePage = currentPage > totalPages ? totalPages : (currentPage < 1 ? 1 : currentPage);
+    final startIndex = (activePage - 1) * _itemsPerPage;
+    final pagedCount = (totalCount - startIndex).clamp(0, _itemsPerPage);
+    final pagedOrders = sortedOrders.skip(startIndex).take(pagedCount).toList();
+
     return RefreshIndicator(
       color: AppColors.primaryOrange,
       onRefresh: onRefresh,
       child: ListView.builder(
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.all(24),
-        itemCount: sortedOrders.length,
+        itemCount: pagedOrders.length + (totalPages > 1 ? 1 : 0),
         itemBuilder: (context, index) {
-          final order = sortedOrders[index];
-          return _OrderCard(order: order, controller: controller);
+          if (index < pagedOrders.length) {
+            final order = pagedOrders[index];
+            return _OrderCard(order: order, controller: controller);
+          }
+          return Padding(
+            padding: const EdgeInsets.only(top: 8, bottom: 80),
+            child: Center(
+              child: AppPagination(
+                currentPage: activePage,
+                totalPages: totalPages,
+                onPageChanged: onPageChanged,
+              ),
+            ),
+          );
         },
       ),
     );
   }
 }
 
+class _CompletedOrdersView extends StatefulWidget {
+  const _CompletedOrdersView({
+    required this.controller,
+    required this.onRefresh,
+  });
+
+  final EmployeeOrderController controller;
+  final RefreshCallback onRefresh;
+
+  @override
+  State<_CompletedOrdersView> createState() => _CompletedOrdersViewState();
+}
+
+class _CompletedOrdersViewState extends State<_CompletedOrdersView> {
+  final TextEditingController _searchController = TextEditingController();
+  String _searchQuery = '';
+  OrderStatus? _selectedStatus;
+  int _currentPage = 1;
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final allPastOrders = widget.controller.pastOrders;
+    final completedCount = widget.controller.completedOrders.length;
+    final cancelledCount = widget.controller.cancelledOrders.length;
+    final allCount = allPastOrders.length;
+
+    // Filter by status tab
+    List<CustomerOrder> statusFiltered;
+    if (_selectedStatus == null) {
+      statusFiltered = allPastOrders;
+    } else {
+      statusFiltered = allPastOrders.where((o) => o.status == _selectedStatus).toList();
+    }
+
+    // Filter by search query
+    final query = _searchQuery.trim().toLowerCase();
+    final searchFiltered = query.isEmpty
+        ? statusFiltered
+        : statusFiltered.where((order) {
+            final orderIdMatch = order.orderId.toLowerCase().contains(query) ||
+                order.displayOrderId.toLowerCase().contains(query);
+            final customerMatch = order.customerName.toLowerCase().contains(query);
+            final refMatch = (order.paymentReferenceNumber ?? '').toLowerCase().contains(query);
+            final itemsMatch = order.items.any(
+              (item) => item.productName.toLowerCase().contains(query),
+            );
+            return orderIdMatch || customerMatch || refMatch || itemsMatch;
+          }).toList();
+
+    return Column(
+      children: [
+        // Search bar
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+          child: Container(
+            height: 48,
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(
+                color: AppColors.borderColor.withValues(alpha: 0.7),
+                width: 1,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: 0.03),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: TextField(
+              controller: _searchController,
+              onChanged: (value) {
+                setState(() {
+                  _searchQuery = value;
+                  _currentPage = 1;
+                });
+              },
+              decoration: InputDecoration(
+                hintText: 'Search completed orders by ID, customer, item...',
+                hintStyle: TextStyle(
+                  color: AppColors.secondaryText.withValues(alpha: 0.6),
+                  fontSize: 13,
+                ),
+                prefixIcon: const Icon(Icons.search, color: AppColors.secondaryText, size: 20),
+                suffixIcon: _searchQuery.isNotEmpty
+                    ? IconButton(
+                        icon: const Icon(Icons.close, size: 18, color: AppColors.secondaryText),
+                        onPressed: () {
+                          _searchController.clear();
+                          setState(() {
+                            _searchQuery = '';
+                            _currentPage = 1;
+                          });
+                        },
+                      )
+                    : null,
+                border: InputBorder.none,
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
+              ),
+              style: const TextStyle(fontSize: 13, color: AppColors.darkText),
+            ),
+          ),
+        ),
+
+        // Tab per status
+        SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+          child: Row(
+            children: [
+              _buildStatusPill(
+                label: 'All',
+                count: allCount,
+                isSelected: _selectedStatus == null,
+                onTap: () {
+                  setState(() {
+                    _selectedStatus = null;
+                    _currentPage = 1;
+                  });
+                },
+              ),
+              const SizedBox(width: 8),
+              _buildStatusPill(
+                label: 'Completed',
+                count: completedCount,
+                isSelected: _selectedStatus == OrderStatus.completed,
+                onTap: () {
+                  setState(() {
+                    _selectedStatus = OrderStatus.completed;
+                    _currentPage = 1;
+                  });
+                },
+              ),
+              const SizedBox(width: 8),
+              _buildStatusPill(
+                label: 'Cancelled',
+                count: cancelledCount,
+                isSelected: _selectedStatus == OrderStatus.cancelled,
+                onTap: () {
+                  setState(() {
+                    _selectedStatus = OrderStatus.cancelled;
+                    _currentPage = 1;
+                  });
+                },
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(height: 6),
+
+        // Orders list
+        Expanded(
+          child: _PagedOrderList(
+            orders: searchFiltered,
+            controller: widget.controller,
+            onRefresh: widget.onRefresh,
+            currentPage: _currentPage,
+            onPageChanged: (page) => setState(() => _currentPage = page),
+            emptyMessage: query.isNotEmpty
+                ? "No orders found matching '$_searchQuery'."
+                : _selectedStatus == null
+                    ? 'No completed or cancelled orders found.'
+                    : "No ${_selectedStatus!.label.toLowerCase()} orders found.",
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildStatusPill({
+    required String label,
+    required int count,
+    required bool isSelected,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(20),
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isSelected ? AppColors.primaryOrange : Colors.white,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(
+            color: isSelected
+                ? AppColors.primaryOrange
+                : AppColors.borderColor.withValues(alpha: 0.7),
+            width: 1,
+          ),
+          boxShadow: isSelected
+              ? [
+                  BoxShadow(
+                    color: AppColors.primaryOrange.withValues(alpha: 0.25),
+                    blurRadius: 6,
+                    offset: const Offset(0, 2),
+                  ),
+                ]
+              : [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.03),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: isSelected ? Colors.white : AppColors.darkText,
+                fontSize: 12,
+                fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
+              ),
+            ),
+            const SizedBox(width: 6),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? Colors.white.withValues(alpha: 0.25)
+                    : AppColors.lightBackground,
+                borderRadius: BorderRadius.circular(10),
+              ),
+              child: Text(
+                '$count',
+                style: TextStyle(
+                  color: isSelected ? Colors.white : AppColors.secondaryText,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
 class _OrderCard extends StatelessWidget {
   const _OrderCard({required this.order, required this.controller});
   final CustomerOrder order;

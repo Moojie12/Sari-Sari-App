@@ -23,6 +23,7 @@ import 'employee_shift_controller.dart';
 import 'employee_shift_widgets.dart';
 import '../../../shared/widgets/product_image.dart';
 
+import '../../../shared/widgets/app_pagination.dart';
 /// Employee "POS" tab: ring up a walk-in sale.
 ///
 /// Staff search (or scan a barcode) for a product to add it to the
@@ -648,94 +649,14 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
   }
 
   Widget _buildPagination(int totalPages) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(30),
-        border: Border.all(
-          color: AppColors.borderColor.withValues(alpha: 0.6),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.04),
-            blurRadius: 6,
-            offset: const Offset(0, 2),
-          ),
-        ],
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          IconButton(
-            icon: const Icon(Icons.chevron_left_rounded),
-            iconSize: 22,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            splashRadius: 18,
-            color: _currentPage > 1 ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
-            onPressed: _currentPage > 1
-                ? () => _onPageChanged(_currentPage - 1)
-                : null,
-          ),
-          const SizedBox(width: 2),
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 180),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: List.generate(totalPages, (index) {
-                  final page = index + 1;
-                  final isSelected = page == _currentPage;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 2),
-                    child: InkWell(
-                      onTap: () => _onPageChanged(page),
-                      borderRadius: BorderRadius.circular(16),
-                      child: AnimatedContainer(
-                        duration: const Duration(milliseconds: 180),
-                        width: 30,
-                        height: 30,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: isSelected ? AppColors.primaryOrange : Colors.transparent,
-                        ),
-                        alignment: Alignment.center,
-                        child: Text(
-                          '$page',
-                          style: TextStyle(
-                            color: isSelected ? Colors.white : AppColors.darkText,
-                            fontSize: 12,
-                            fontWeight: isSelected ? FontWeight.bold : FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                }),
-              ),
-            ),
-          ),
-          const SizedBox(width: 2),
-          IconButton(
-            icon: const Icon(Icons.chevron_right_rounded),
-            iconSize: 22,
-            padding: EdgeInsets.zero,
-            constraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-            splashRadius: 18,
-            color: _currentPage < totalPages ? AppColors.primaryOrange : AppColors.secondaryText.withValues(alpha: 0.35),
-            onPressed: _currentPage < totalPages
-                ? () => _onPageChanged(_currentPage + 1)
-                : null,
-          ),
-        ],
-      ),
+    return AppPagination(
+      currentPage: _currentPage,
+      totalPages: totalPages,
+      onPageChanged: _onPageChanged,
     );
   }
-}
 
+}
 class _HeaderIconButton extends StatelessWidget {
   const _HeaderIconButton({required this.icon, required this.tooltip, required this.onTap});
 
