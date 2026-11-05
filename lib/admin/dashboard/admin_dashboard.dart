@@ -31,7 +31,6 @@ import './sections/users_section.dart';
 import './sections/products_section.dart';
 import './sections/categories_section.dart';
 import './sections/sales_section.dart';
-import './sections/activity_section.dart';
 import './sections/archived_section.dart';
 import '../../users/employee_db/employee_inventory_controller.dart';
 import '../../users/employee_db/inventory/employee_archive_stock_dialog.dart';
@@ -2764,15 +2763,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
             },
           ),
           _sidebarItem(
-            icon: Icons.analytics_outlined,
-            label: 'Activity',
-            isSelected: _selectedSection == AdminSection.activity,
-            onTap: () {
-              _onSelectSection(AdminSection.activity);
-              if (isDrawer) Navigator.pop(context);
-            },
-          ),
-          _sidebarItem(
             icon: Icons.archive_outlined,
             label: 'Archived',
             isSelected: _selectedSection == AdminSection.archived,
@@ -2798,84 +2788,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
             onTap: () => _showLogoutConfirmation(context),
           ),
           const SizedBox(height: 32),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _showAuditDetail(BuildContext context, AdminAuditLog log) async {
-    if (!mounted) return;
-
-    await showDialog<void>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: Row(
-          children: [
-            const Icon(Icons.history_edu_rounded, color: AppColors.primaryOrange),
-            const SizedBox(width: 8),
-            const Text(
-              'Audit Log Details',
-              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18),
-            ),
-            const Spacer(),
-            IconButton(
-              icon: const Icon(Icons.close, size: 20),
-              onPressed: () => Navigator.pop(dialogContext),
-              splashRadius: 18,
-            ),
-          ],
-        ),
-        content: SizedBox(
-          width: 440,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _userDetailRow(Icons.bolt_outlined, 'Action', log.action.label),
-              const SizedBox(height: 12),
-              _userDetailRow(Icons.category_outlined, 'Entity Type', log.entityType),
-              const SizedBox(height: 12),
-              _userDetailRow(Icons.label_outlined, 'Entity Name', log.entityName),
-              const SizedBox(height: 12),
-              _userDetailRow(Icons.person_outline, 'Performed By', log.performedBy),
-              const SizedBox(height: 12),
-              _userDetailRow(Icons.schedule_outlined, 'Timestamp', formatDateTime(log.timestamp)),
-              if (log.previousStatus.isNotEmpty || log.newStatus.isNotEmpty) ...[
-                const SizedBox(height: 12),
-                _userDetailRow(Icons.swap_horiz_outlined, 'Status Change', '${log.previousStatus} → ${log.newStatus}'),
-              ],
-              if (log.note != null && log.note!.isNotEmpty) ...[
-                const SizedBox(height: 16),
-                const Divider(),
-                const SizedBox(height: 8),
-                const Text('Notes / Reason:', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13, color: AppColors.darkText)),
-                const SizedBox(height: 6),
-                Container(
-                  width: double.infinity,
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: AppColors.lightPeach,
-                    borderRadius: BorderRadius.circular(10),
-                  ),
-                  child: Text(
-                    log.note!,
-                    style: const TextStyle(fontSize: 12, color: AppColors.darkText),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        actions: [
-          ElevatedButton(
-            onPressed: () => Navigator.pop(dialogContext),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryOrange,
-              foregroundColor: Colors.white,
-            ),
-            child: const Text('Close'),
-          ),
         ],
       ),
     );
@@ -2967,15 +2879,6 @@ class _AdminDashboardState extends State<AdminDashboard> {
             _searchQuery = '';
             _pages['sales'] = 1;
           }),
-        );
-      case AdminSection.activity:
-        return ActivitySection(
-          auditService: _auditService,
-          searchQuery: _searchQuery,
-          rowsPerPage: _rowsPerPage,
-          pages: _pages,
-          onPageChange: _onPageChange,
-          onShowAuditDetail: (log) => _showAuditDetail(context, log),
         );
       case AdminSection.archived:
         return ArchivedSection(
