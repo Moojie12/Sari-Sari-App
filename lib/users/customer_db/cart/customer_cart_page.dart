@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../shared/utils/top_notification.dart';
 import '../../../shared/widgets/product_image.dart';
@@ -125,6 +126,11 @@ class CustomerCartPage extends StatelessWidget {
                         onError: (msg) => TopNotification.show(context, msg, isError: true),
                       ),
                       onDecrement: () => cartController.decrementQuantity(item.id),
+                      onUpdateQuantity: (newQty) => cartController.updateQuantity(
+                        item.id,
+                        newQty,
+                        onError: (msg) => TopNotification.show(context, msg, isError: true),
+                      ),
                       onRemove: () async {
                         final confirmed = await showDialog<bool>(
                           context: context,
@@ -200,12 +206,13 @@ class CustomerCartPage extends StatelessWidget {
   }
 }
 
-class _CartItemCard extends StatelessWidget {
+class _CartItemCard extends StatefulWidget {
   const _CartItemCard({
     required this.item,
     required this.onTap,
     required this.onIncrement,
     required this.onDecrement,
+    required this.onUpdateQuantity,
     required this.onRemove,
   });
 
@@ -213,14 +220,89 @@ class _CartItemCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
+  final ValueChanged<int> onUpdateQuantity;
   final VoidCallback onRemove;
 
   @override
+  State<_CartItemCard> createState() => _CartItemCardState();
+}
+
+class _CartItemCardState extends State<_CartItemCard> {
+  late TextEditingController _controller;
+  late FocusNode _focusNode;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: '${widget.item.quantity}');
+    _focusNode = FocusNode();
+    _focusNode.addListener(_onFocusChange);
+  }
+
+  @override
+  void didUpdateWidget(covariant _CartItemCard oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (!_focusNode.hasFocus && _controller.text != '${widget.item.quantity}') {
+      _controller.text = '${widget.item.quantity}';
+    }
+  }
+
+  void _onFocusChange() {
+    if (!_focusNode.hasFocus) {
+      _commitQuantity();
+    }
+  }
+
+  void _commitQuantity() {
+    final text = _controller.text.trim();
+    final parsed = int.tryParse(text);
+    final maxAllowed = widget.item.isDeal && widget.item.deal != null
+        ? CustomerCartController.instance.getAvailableDealStock(widget.item.deal!)
+        : widget.item.product.sellableQuantity.toInt();
+
+    if (parsed == null || parsed < 1) {
+      _controller.text = '1';
+      widget.onUpdateQuantity(1);
+    } else if (parsed > maxAllowed) {
+      _controller.text = '$maxAllowed';
+      widget.onUpdateQuantity(maxAllowed);
+    } else {
+      _controller.text = '$parsed';
+      if (parsed != widget.item.quantity) {
+        widget.onUpdateQuantity(parsed);
+      }
+    }
+  }
+
+  void _onQuantityChanged(String value) {
+    final parsed = int.tryParse(value.trim());
+    if (parsed == null || parsed < 1) return;
+
+    final maxAllowed = widget.item.isDeal && widget.item.deal != null
+        ? CustomerCartController.instance.getAvailableDealStock(widget.item.deal!)
+        : widget.item.product.sellableQuantity.toInt();
+
+    if (parsed <= maxAllowed) {
+      widget.onUpdateQuantity(parsed);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChange);
+    _focusNode.dispose();
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final item = widget.item;
+
     return GestureDetector(
-      onTap: onTap,
+      onTap: widget.onTap,
       child: Container(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
         decoration: BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.circular(16),
@@ -237,8 +319,8 @@ class _CartItemCard extends StatelessWidget {
           children: [
             // Product / Deal Image Frame
             Container(
-              width: 80,
-              height: 80,
+              width: 76,
+              height: 76,
               decoration: BoxDecoration(
                 color: AppColors.lightBackground,
                 borderRadius: BorderRadius.circular(12),
@@ -246,12 +328,12 @@ class _CartItemCard extends StatelessWidget {
               clipBehavior: Clip.antiAlias,
               child: ProductImage(
                 image: item.image,
-                width: 80,
-                height: 80,
+                width: 76,
+                height: 76,
                 fit: BoxFit.cover,
               ),
             ),
-            const SizedBox(width: 16),
+            const SizedBox(width: 12),
 
             // Content
             Expanded(
@@ -275,7 +357,7 @@ class _CartItemCard extends StatelessWidget {
                         ),
                       ),
                       IconButton(
-                        onPressed: onRemove,
+                        onPressed: widget.onRemove,
                         icon: const Icon(Icons.delete_outline, color: Colors.redAccent, size: 20),
                         padding: EdgeInsets.zero,
                         constraints: const BoxConstraints(),
@@ -349,35 +431,90 @@ class _CartItemCard extends StatelessWidget {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Row(
-                              children: [
-                                _QuantityBtn(
-                                  icon: Icons.remove,
-                                  onPressed: item.quantity > 1 ? onDecrement : null,
-                                ),
-                                SizedBox(
-                                  width: 40,
+                            GestureDetector(
+                              onTap: () {}, // Prevent triggering outer navigation
+                              child: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  _QuantityBtn(
+                                    icon: Icons.remove,
+                                    size: 28,
+                                    onPressed: item.quantity > 1
+                                        ? () {
+                                            _focusNode.unfocus();
+                                            widget.onDecrement();
+                                          }
+                                        : null,
+                                  ),
+                                  Container(
+                                    width: 42,
+                                    height: 28,
+                                    margin: const EdgeInsets.symmetric(horizontal: 3),
+                                    alignment: Alignment.center,
+                                    decoration: BoxDecoration(
+                                      color: Colors.white,
+                                      borderRadius: BorderRadius.circular(6),
+                                      border: Border.all(
+                                        color: _focusNode.hasFocus
+                                            ? AppColors.primaryOrange
+                                            : AppColors.borderColor,
+                                        width: 1.2,
+                                      ),
+                                    ),
+                                    child: TextField(
+                                      controller: _controller,
+                                      focusNode: _focusNode,
+                                      textAlign: TextAlign.center,
+                                      keyboardType: TextInputType.number,
+                                      inputFormatters: [
+                                        FilteringTextInputFormatter.digitsOnly,
+                                        LengthLimitingTextInputFormatter(4),
+                                      ],
+                                      style: const TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 13,
+                                        color: AppColors.darkText,
+                                      ),
+                                      decoration: const InputDecoration(
+                                        isDense: true,
+                                        contentPadding: EdgeInsets.symmetric(vertical: 4, horizontal: 1),
+                                        border: InputBorder.none,
+                                      ),
+                                      onChanged: _onQuantityChanged,
+                                      onSubmitted: (_) {
+                                        _focusNode.unfocus();
+                                        _commitQuantity();
+                                      },
+                                    ),
+                                  ),
+                                  _QuantityBtn(
+                                    icon: Icons.add,
+                                    size: 28,
+                                    onPressed: canAddMore
+                                        ? () {
+                                            _focusNode.unfocus();
+                                            widget.onIncrement();
+                                          }
+                                        : null,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Align(
+                                alignment: Alignment.centerRight,
+                                child: FittedBox(
+                                  fit: BoxFit.scaleDown,
                                   child: Text(
-                                    '${item.quantity}',
-                                    textAlign: TextAlign.center,
+                                    '₱${item.subtotal.toStringAsFixed(2)}',
                                     style: const TextStyle(
+                                      color: AppColors.darkText,
+                                      fontSize: 15,
                                       fontWeight: FontWeight.bold,
-                                      fontSize: 16,
                                     ),
                                   ),
                                 ),
-                                _QuantityBtn(
-                                  icon: Icons.add,
-                                  onPressed: canAddMore ? onIncrement : null,
-                                ),
-                              ],
-                            ),
-                            Text(
-                              '₱${item.subtotal.toStringAsFixed(2)}',
-                              style: const TextStyle(
-                                color: AppColors.darkText,
-                                fontSize: 16,
-                                fontWeight: FontWeight.bold,
                               ),
                             ),
                           ],
@@ -407,9 +544,15 @@ class _CartItemCard extends StatelessWidget {
 }
 
 class _QuantityBtn extends StatelessWidget {
-  const _QuantityBtn({required this.icon, this.onPressed});
+  const _QuantityBtn({
+    required this.icon,
+    this.onPressed,
+    this.size = 28,
+  });
+
   final IconData icon;
   final VoidCallback? onPressed;
+  final double size;
 
   @override
   Widget build(BuildContext context) {
@@ -419,13 +562,13 @@ class _QuantityBtn extends StatelessWidget {
       child: Opacity(
         opacity: isEnabled ? 1.0 : 0.3,
         child: Container(
-          width: 32,
-          height: 32,
+          width: size,
+          height: size,
           decoration: BoxDecoration(
             color: AppColors.lightBackground,
-            borderRadius: BorderRadius.circular(8),
+            borderRadius: BorderRadius.circular(6),
           ),
-          child: Icon(icon, size: 18, color: AppColors.darkText),
+          child: Icon(icon, size: size * 0.55, color: AppColors.darkText),
         ),
       ),
     );

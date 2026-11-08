@@ -73,16 +73,16 @@ class _CustomerProductDetailsPageState
     String? productImage,
   }) {
     final RenderBox? cartBox = _cartBadgeKey.currentContext?.findRenderObject() as RenderBox?;
-    if (cartBox == null) return;
-
-    final Offset endOffset = cartBox.localToGlobal(cartBox.size.center(Offset.zero));
-    final OverlayState? overlayState = Overlay.of(context);
+    final Offset endOffset = (cartBox != null && cartBox.hasSize)
+        ? cartBox.localToGlobal(cartBox.size.center(Offset.zero))
+        : Offset(MediaQuery.of(context).size.width - 44, 46);
+    final overlayState = Overlay.of(context);
     if (overlayState == null) return;
 
     late OverlayEntry overlayEntry;
     final AnimationController flyController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 850),
+      duration: const Duration(milliseconds: 1250),
     );
 
     final Animation<double> progress = CurvedAnimation(

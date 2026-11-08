@@ -145,14 +145,14 @@ class _OverviewSectionState extends State<OverviewSection> {
     );
   }
 
-  // --- BEST SELLERS CARD (TOP 3 ONLY ON CARD) ---
+  // --- BEST SELLERS CARD (TOP 4 ON CARD) ---
   Widget _buildTopSellersCard() {
-    final stats = widget.analyticsService.topSellingProducts(limit: 3);
+    final stats = widget.analyticsService.topSellingProducts(limit: 4);
     final topRevenue = stats.isEmpty ? 0.0 : stats.first.revenue;
 
     return card(
       title: 'Best Sellers',
-      subtitle: 'Top 3 products ranked by total sales revenue',
+      subtitle: 'Top 4 products ranked by total sales revenue',
       trailing: TextButton.icon(
         onPressed: () => _openAllTopSellersModal(context),
         icon: const Icon(Icons.leaderboard_rounded, size: 16, color: AppColors.primaryOrange),
@@ -397,36 +397,215 @@ class _OverviewSectionState extends State<OverviewSection> {
     );
   }
 
-  // --- ON-SALE PROMOS & DEALS CARD ---
+  // --- ON-SALE PROMOS & DEALS CARD (TOP 3 ONLY ON CARD) ---
   Widget _buildOnSaleDealsCard(BuildContext context) {
     final dealController = SaleDealController.instance;
     final deals = dealController.deals;
+    final displayedDeals = deals.take(3).toList();
 
     return card(
       title: 'On-Sale Promos & Deals',
-      subtitle: 'Manage custom promo deals and discounts for customers',
-      trailing: ElevatedButton.icon(
-        onPressed: () => _openAddEditDealModal(context),
-        icon: const Icon(Icons.add_rounded, size: 16),
-        label: const Text('New Promo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-        style: ElevatedButton.styleFrom(
-          backgroundColor: AppColors.primaryOrange,
-          foregroundColor: Colors.white,
-          elevation: 0,
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
-        ),
+      subtitle: 'Top 3 promo deals · Manage discounts for customers',
+      trailing: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (deals.length > 3)
+            TextButton.icon(
+              onPressed: () => _openAllOnSaleDealsModal(context),
+              icon: const Icon(Icons.local_offer_outlined, size: 16, color: AppColors.primaryOrange),
+              label: const Text('See All', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: AppColors.primaryOrange)),
+            ),
+          const SizedBox(width: 4),
+          ElevatedButton.icon(
+            onPressed: () => _openAddEditDealModal(context),
+            icon: const Icon(Icons.add_rounded, size: 16),
+            label: const Text('New Promo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primaryOrange,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+            ),
+          ),
+        ],
       ),
       child: deals.isEmpty
           ? _inlineEmpty('No on-sale promos created yet. Click "+ New Promo" to create one!')
           : Column(
               children: [
-                for (var i = 0; i < deals.length; i++) ...[
-                  _buildOnSaleDealRow(context, deals[i]),
-                  if (i < deals.length - 1) const SizedBox(height: 12),
+                for (var i = 0; i < displayedDeals.length; i++) ...[
+                  _buildOnSaleDealRow(context, displayedDeals[i]),
+                  if (i < displayedDeals.length - 1) const SizedBox(height: 12),
+                ],
+                if (deals.length > 3) ...[
+                  const SizedBox(height: 12),
+                  InkWell(
+                    onTap: () => _openAllOnSaleDealsModal(context),
+                    borderRadius: BorderRadius.circular(10),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.symmetric(vertical: 8),
+                      decoration: BoxDecoration(
+                        color: AppColors.primaryOrange.withValues(alpha: 0.08),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.2)),
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.format_list_bulleted_rounded, size: 15, color: AppColors.primaryOrange),
+                          const SizedBox(width: 6),
+                          Text(
+                            'View All Promos & Deals (${deals.length})',
+                            style: const TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.bold,
+                              color: AppColors.primaryOrange,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
                 ],
               ],
             ),
+    );
+  }
+
+  // --- WEB MODAL: ALL ON-SALE PROMOS & DEALS ---
+  void _openAllOnSaleDealsModal(BuildContext context) {
+    final searchController = TextEditingController();
+
+    showDialog(
+      context: context,
+      builder: (dialogCtx) {
+        return ListenableBuilder(
+          listenable: SaleDealController.instance,
+          builder: (context, _) {
+            final allDeals = SaleDealController.instance.deals;
+
+            return StatefulBuilder(
+              builder: (context, setModalState) {
+                final query = searchController.text.trim().toLowerCase();
+                final filteredDeals = query.isEmpty
+                    ? allDeals
+                    : allDeals.where((d) {
+                        final titleMatch = d.title.toLowerCase().contains(query);
+                        final itemMatch = d.items.any((it) => it.productName.toLowerCase().contains(query));
+                        return titleMatch || itemMatch;
+                      }).toList();
+
+                return Dialog(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 680, maxHeight: 720),
+                    child: Padding(
+                      padding: const EdgeInsets.all(24),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.local_offer_rounded, color: AppColors.primaryOrange, size: 22),
+                                  const SizedBox(width: 8),
+                                  const Text(
+                                    'All On-Sale Promos & Deals',
+                                    style: TextStyle(
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                      color: AppColors.darkText,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primaryOrange.withValues(alpha: 0.12),
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '${allDeals.length}',
+                                      style: const TextStyle(
+                                        fontSize: 12,
+                                        fontWeight: FontWeight.bold,
+                                        color: AppColors.primaryOrange,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              Row(
+                                children: [
+                                  ElevatedButton.icon(
+                                    onPressed: () => _openAddEditDealModal(context),
+                                    icon: const Icon(Icons.add_rounded, size: 16),
+                                    label: const Text('New Promo', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                    style: ElevatedButton.styleFrom(
+                                      backgroundColor: AppColors.primaryOrange,
+                                      foregroundColor: Colors.white,
+                                      elevation: 0,
+                                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  IconButton(
+                                    icon: const Icon(Icons.close_rounded),
+                                    onPressed: () => Navigator.pop(dialogCtx),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 4),
+                          const Text(
+                            'Manage all promotional bundles, discounts, and active statuses for your store',
+                            style: TextStyle(fontSize: 12, color: AppColors.secondaryText),
+                          ),
+                          const SizedBox(height: 16),
+
+                          // Search bar
+                          TextField(
+                            controller: searchController,
+                            onChanged: (_) => setModalState(() {}),
+                            decoration: InputDecoration(
+                              hintText: 'Search promo title or product name...',
+                              prefixIcon: const Icon(Icons.search_rounded, size: 18, color: AppColors.primaryOrange),
+                              filled: true,
+                              fillColor: AppColors.lightPeach,
+                              border: OutlineInputBorder(borderRadius: BorderRadius.circular(10), borderSide: BorderSide.none),
+                              contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                            ),
+                          ),
+                          const Divider(height: 24),
+
+                          Expanded(
+                            child: filteredDeals.isEmpty
+                                ? _inlineEmpty('No matching promo deals found.')
+                                : ListView.separated(
+                                    itemCount: filteredDeals.length,
+                                    separatorBuilder: (context, index) => const SizedBox(height: 12),
+                                    itemBuilder: (context, idx) {
+                                      return _buildOnSaleDealRow(context, filteredDeals[idx]);
+                                    },
+                                  ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                );
+              },
+            );
+          },
+        );
+      },
     );
   }
 
@@ -1231,27 +1410,34 @@ class _OverviewSectionState extends State<OverviewSection> {
 
   // --- CONFIRM DELETE DEAL ---
   void _confirmDeleteDeal(BuildContext context, SaleDealModel deal) {
+    final dealName = deal.title.trim().isEmpty ? 'this promo deal' : 'promo "${deal.title.trim()}"';
+
     showDialog(
       context: context,
       builder: (dialogCtx) {
         return AlertDialog(
-          title: const Text('Delete On-Sale Promo'),
-          content: Text('Are you sure you want to delete promo "${deal.title}"? This cannot be undone.'),
+          title: const Text('Delete On-Sale Promo', style: TextStyle(fontWeight: FontWeight.bold)),
+          content: Text(
+            'Are you sure you want to permanently delete $dealName from On-Sale Promos & Deals?\n\n'
+            'Note: Regular inventory products in the database will NOT be deleted or reduced.',
+            style: const TextStyle(fontSize: 14),
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.pop(dialogCtx),
-              child: const Text('Cancel'),
+              child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
             ),
             ElevatedButton(
               onPressed: () async {
+                Navigator.pop(dialogCtx);
+                final dealTitle = deal.title.trim().isEmpty ? 'Promo' : 'Promo "${deal.title.trim()}"';
                 await SaleDealController.instance.deleteDeal(deal.id);
                 if (context.mounted) {
-                  Navigator.pop(dialogCtx);
-                  TopNotification.show(context, 'Promo "${deal.title}" deleted.');
+                  TopNotification.show(context, '$dealTitle permanently deleted from On-Sale.');
                 }
               },
               style: ElevatedButton.styleFrom(backgroundColor: Colors.red, foregroundColor: Colors.white),
-              child: const Text('Delete'),
+              child: const Text('Delete Permanently', style: TextStyle(fontWeight: FontWeight.bold)),
             ),
           ],
         );

@@ -252,6 +252,35 @@ class CustomerCartController extends ChangeNotifier {
     }
   }
 
+  void updateQuantity(String id, int quantity, {void Function(String message)? onError}) {
+    ensureCartForActiveUser();
+    final index = _items.indexWhere((item) => item.id == id || item.product.id == id);
+    if (index >= 0) {
+      final item = _items[index];
+      final maxAvailable = item.isDeal && item.deal != null
+          ? getAvailableDealStock(item.deal!)
+          : item.product.sellableQuantity.toInt();
+
+      if (quantity < 1) {
+        quantity = 1;
+      }
+
+      if (quantity > maxAvailable) {
+        item.quantity = maxAvailable;
+        notifyListeners();
+        _saveCartToLocalAndQueueSync();
+        onError?.call(item.isDeal
+            ? 'Cannot add more. Limit is $maxAvailable for this promo.'
+            : 'Cannot add more. Only $maxAvailable available in stock.');
+        return;
+      }
+
+      item.quantity = quantity;
+      notifyListeners();
+      _saveCartToLocalAndQueueSync();
+    }
+  }
+
   void removeFromCart(String id) {
     ensureCartForActiveUser();
     _items.removeWhere((item) => item.id == id || item.product.id == id);

@@ -1053,6 +1053,140 @@ class _GcashPaymentProofUploadCard extends StatelessWidget {
   final TextEditingController? refNumberController;
   final ValueChanged<String>? onRefNumberChanged;
 
+  void _openQrModal(BuildContext context, String qrUrl) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 24),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 420),
+          child: Padding(
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Row(
+                      children: const [
+                        Icon(Icons.qr_code_scanner_rounded, color: AppColors.primaryOrange, size: 22),
+                        SizedBox(width: 8),
+                        Text(
+                          'Store GCash QR Code',
+                          style: TextStyle(
+                            fontSize: 16,
+                            fontWeight: FontWeight.bold,
+                            color: AppColors.darkText,
+                          ),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close_rounded),
+                      padding: EdgeInsets.zero,
+                      constraints: const BoxConstraints(),
+                      splashRadius: 20,
+                      onPressed: () => Navigator.pop(ctx),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                const Text(
+                  'Scan using your GCash App or pinch to zoom in for clearer scanning',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 12, color: AppColors.secondaryText),
+                ),
+                const SizedBox(height: 12),
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+                  decoration: BoxDecoration(
+                    color: AppColors.lightPeach,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.25)),
+                  ),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      const Text(
+                        'Total Amount to Pay: ',
+                        style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600, color: AppColors.darkText),
+                      ),
+                      Text(
+                        '₱${totalAmount.toStringAsFixed(2)}',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.primaryOrange),
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Container(
+                  constraints: const BoxConstraints(maxHeight: 340, maxWidth: 340),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(16),
+                    border: Border.all(color: AppColors.borderColor),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.06),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  clipBehavior: Clip.antiAlias,
+                  child: InteractiveViewer(
+                    panEnabled: true,
+                    minScale: 1.0,
+                    maxScale: 4.0,
+                    child: Center(
+                      child: ProductImage(
+                        image: qrUrl,
+                        height: 320,
+                        width: 320,
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.pinch_rounded, size: 14, color: AppColors.secondaryText),
+                    SizedBox(width: 4),
+                    Text(
+                      'Pinch / spread to zoom in and out',
+                      style: TextStyle(fontSize: 11, color: AppColors.secondaryText, fontStyle: FontStyle.italic),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 16),
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    onPressed: () => Navigator.pop(ctx),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: AppColors.primaryOrange,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      elevation: 0,
+                    ),
+                    child: const Text('Close', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return ListenableBuilder(
@@ -1139,16 +1273,78 @@ class _GcashPaymentProofUploadCard extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Center(
-                child: ProductImage(
-                  image: storeQr,
-                  height: 160,
-                  width: 160,
-                  borderRadius: 12,
+                child: Column(
+                  children: [
+                    InkWell(
+                      onTap: () => _openQrModal(context, storeQr),
+                      borderRadius: BorderRadius.circular(16),
+                      child: Container(
+                        padding: const EdgeInsets.all(4),
+                        decoration: BoxDecoration(
+                          color: Colors.white,
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(color: AppColors.primaryOrange.withValues(alpha: 0.35), width: 1.5),
+                          boxShadow: [
+                            BoxShadow(
+                              color: AppColors.primaryOrange.withValues(alpha: 0.08),
+                              blurRadius: 8,
+                              offset: const Offset(0, 3),
+                            ),
+                          ],
+                        ),
+                        child: Stack(
+                          alignment: Alignment.bottomRight,
+                          children: [
+                            ProductImage(
+                              image: storeQr,
+                              height: 160,
+                              width: 160,
+                              borderRadius: 12,
+                            ),
+                            Container(
+                              margin: const EdgeInsets.all(6),
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.black.withValues(alpha: 0.72),
+                                borderRadius: BorderRadius.circular(20),
+                              ),
+                              child: const Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Icon(Icons.fullscreen_rounded, size: 14, color: Colors.white),
+                                  SizedBox(width: 4),
+                                  Text(
+                                    'Pindutin para lumaki',
+                                    style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    InkWell(
+                      onTap: () => _openQrModal(context, storeQr),
+                      child: const Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.touch_app_outlined, size: 14, color: AppColors.primaryOrange),
+                          SizedBox(width: 4),
+                          Text(
+                            'Click QR code to enlarge / scan',
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: AppColors.primaryOrange,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              const SizedBox(height: 6),
-              const Center(
-                child: Text('Scan & Pay via GCash App', style: TextStyle(fontSize: 11, color: AppColors.secondaryText, fontWeight: FontWeight.w500)),
               ),
               const SizedBox(height: 14),
               if (hasProof) ...[

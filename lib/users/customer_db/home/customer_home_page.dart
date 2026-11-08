@@ -248,7 +248,6 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
         startOffset: pos,
         productImage: deal.effectiveImage,
       );
-      TopNotification.show(context, 'Added "${deal.title}" promo to your cart!');
     }
   }
 
@@ -1203,7 +1202,11 @@ void showSaleDealDetailsModal({
         );
         if (success) {
           Navigator.pop(modalContext);
-          TopNotification.show(context, 'Added "${deal.title}" promo to your cart!');
+          final pos = Offset(MediaQuery.of(context).size.width / 2, MediaQuery.of(context).size.height / 2);
+          CustomerDashboard.dashboardKey.currentState?.runFlyToCartAnimation(
+            startOffset: pos,
+            productImage: deal.effectiveImage,
+          );
         }
       },
       onBuyNow: () {

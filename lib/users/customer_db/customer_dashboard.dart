@@ -25,7 +25,7 @@ import 'package:sari_sari/core/services/onesignal_notification_service.dart';
 /// Main shell for the customer-facing side of the app.
 class CustomerDashboard extends StatefulWidget {
   static final GlobalKey<CustomerDashboardState> dashboardKey = GlobalKey<CustomerDashboardState>();
-  const CustomerDashboard({super.key});
+  CustomerDashboard({Key? key}) : super(key: key ?? dashboardKey);
 
   @override
   State<CustomerDashboard> createState() => CustomerDashboardState();
@@ -117,16 +117,16 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
     String? productImage,
   }) {
     final RenderBox? cartBox = _cartBadgeKey.currentContext?.findRenderObject() as RenderBox?;
-    if (cartBox == null) return;
-
-    final Offset endOffset = cartBox.localToGlobal(cartBox.size.center(Offset.zero));
-    final OverlayState? overlayState = Overlay.of(context);
+    final Offset endOffset = (cartBox != null && cartBox.hasSize)
+        ? cartBox.localToGlobal(cartBox.size.center(Offset.zero))
+        : Offset(MediaQuery.of(context).size.width - 44, 46);
+    final overlayState = Overlay.of(context);
     if (overlayState == null) return;
 
     late OverlayEntry overlayEntry;
     final AnimationController flyController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 850),
+      duration: const Duration(milliseconds: 1250),
     );
 
     final Animation<double> progress = CurvedAnimation(

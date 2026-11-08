@@ -23,8 +23,19 @@ class SaleDealController extends ChangeNotifier {
   List<SaleDealModel> _deals = [];
   bool _isLoading = true;
 
-  List<SaleDealModel> get deals => List.unmodifiable(_deals);
-  List<SaleDealModel> get activeDeals => _deals.where((d) => d.isActive).toList();
+  static int _compareDeals(SaleDealModel a, SaleDealModel b) {
+    if (a.isActive != b.isActive) {
+      return a.isActive ? -1 : 1; // Active promos at the top
+    }
+    return b.createdAt.compareTo(a.createdAt); // Newer first
+  }
+
+  List<SaleDealModel> get deals {
+    final list = List<SaleDealModel>.from(_deals);
+    list.sort(_compareDeals);
+    return List.unmodifiable(list);
+  }
+  List<SaleDealModel> get activeDeals => deals.where((d) => d.isActive).toList();
   bool get isLoading => _isLoading;
 
   Future<void> _init() async {
@@ -58,7 +69,7 @@ class SaleDealController extends ChangeNotifier {
               }
             }
             final combined = map.values.toList()
-              ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
+              ..sort(_compareDeals);
             _deals = combined;
           }
         }
@@ -91,9 +102,10 @@ class SaleDealController extends ChangeNotifier {
         (event) {
           final data = event.snapshot.value;
           if (data == null) {
+            _deals = [];
             _isLoading = false;
             notifyListeners();
-            _syncLocalDealsToFirebase();
+            _saveLocalDeals();
             return;
           }
 
@@ -121,29 +133,11 @@ class SaleDealController extends ChangeNotifier {
             }
           }
 
-          // Merge remote deals with local deals non-destructively
-          final mergedMap = <String, SaleDealModel>{};
-
-          // 1. Add current local deals first
-          for (final local in _deals) {
-            mergedMap[local.id] = local;
-          }
-
-          // 2. Overwrite / add remote deals from Firebase
-          for (final remote in remoteDeals) {
-            mergedMap[remote.id] = remote;
-          }
-
-          final mergedList = mergedMap.values.toList()
-            ..sort((a, b) => b.createdAt.compareTo(a.createdAt));
-
-          _deals = mergedList;
+          remoteDeals.sort(_compareDeals);
+          _deals = remoteDeals;
           _isLoading = false;
           notifyListeners();
           _saveLocalDeals();
-
-          // Sync any local deals not yet in Firebase
-          _syncLocalDealsToFirebase(remoteDeals);
         },
         onError: (error) {
           debugPrint('Firebase RTDB sale_deals error: $error');
@@ -158,21 +152,6 @@ class SaleDealController extends ChangeNotifier {
     }
   }
 
-  /// Syncs any locally saved deals to Firebase RTDB if missing from remote
-  Future<void> _syncLocalDealsToFirebase([List<SaleDealModel>? remoteDeals]) async {
-    final remoteIds = remoteDeals?.map((d) => d.id).toSet() ?? <String>{};
-    for (final deal in _deals) {
-      if (!remoteIds.contains(deal.id)) {
-        try {
-          final db = _authService.database;
-          await db.ref().child('sale_deals/${deal.id}').set(deal.toMap());
-        } catch (e) {
-          debugPrint('Background sync deal ${deal.id} to RTDB failed: $e');
-        }
-      }
-    }
-  }
-
   /// Saves (creates or updates) a sale deal to local cache, memory, and Firebase RTDB.
   Future<bool> saveDeal(SaleDealModel deal) async {
     final index = _deals.indexWhere((d) => d.id == deal.id);
@@ -181,6 +160,7 @@ class SaleDealController extends ChangeNotifier {
     } else {
       _deals.insert(0, deal);
     }
+    _deals.sort(_compareDeals);
     _isLoading = false;
     notifyListeners();
     await _saveLocalDeals();
@@ -188,25 +168,27 @@ class SaleDealController extends ChangeNotifier {
     try {
       final db = _authService.database;
       final ref = db.ref().child('sale_deals/${deal.id}');
-      await ref.set(deal.toMap());
+      await ref.set(deal.toMap()).timeout(const Duration(seconds: 4));
       return true;
     } catch (e) {
       debugPrint('Failed to save sale deal to Firebase: $e');
-      // Preserved in local SharedPreferences and memory
       return true;
     }
   }
 
   /// Deletes a sale deal from Firebase RTDB, local cache, and memory.
+  /// NOTE: This only removes the on-sale promo entry and does NOT delete
+  /// or deduct any underlying inventory products from the database.
   Future<bool> deleteDeal(String dealId) async {
     _deals.removeWhere((d) => d.id == dealId);
+    _deals.sort(_compareDeals);
     notifyListeners();
     await _saveLocalDeals();
 
     try {
       final db = _authService.database;
       final ref = db.ref().child('sale_deals/$dealId');
-      await ref.remove();
+      await ref.remove().timeout(const Duration(seconds: 4));
       return true;
     } catch (e) {
       debugPrint('Failed to delete sale deal from Firebase: $e');
@@ -220,13 +202,17 @@ class SaleDealController extends ChangeNotifier {
     if (index >= 0) {
       final updated = _deals[index].copyWith(isActive: isActive, updatedAt: DateTime.now());
       _deals[index] = updated;
+      _deals.sort(_compareDeals);
       notifyListeners();
       await _saveLocalDeals();
 
       try {
         final db = _authService.database;
-        await db.ref().child('sale_deals/$dealId/isActive').set(isActive);
-        await db.ref().child('sale_deals/$dealId/updatedAt').set(updated.updatedAt!.toIso8601String());
+        final ref = db.ref().child('sale_deals/$dealId');
+        await ref.update({
+          'isActive': isActive,
+          'updatedAt': updated.updatedAt!.toIso8601String(),
+        }).timeout(const Duration(seconds: 4));
         return true;
       } catch (e) {
         debugPrint('Failed to toggle sale deal status in Firebase: $e');
