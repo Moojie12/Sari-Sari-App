@@ -18,6 +18,7 @@ import 'package:sari_sari/users/customer_db/notifications/customer_notifications
 import 'package:sari_sari/users/customer_db/notifications/customer_notification_model.dart';
 import 'package:sari_sari/core/services/onesignal_notification_service.dart';
 import 'package:sari_sari/core/services/stock_reservation_service.dart';
+import 'package:sari_sari/shared/utils/gcash_ocr_helper.dart';
 
 class ProductDemand {
   final String productId;
@@ -591,7 +592,7 @@ class EmployeeOrderController extends ChangeNotifier {
     final updatedOrder = oldOrder.copyWith(
       refundProofUrl: proofUrl,
       refundStatus: 'refunded',
-      paymentReferenceNumber: refundRefNumber ?? oldOrder.paymentReferenceNumber,
+      refundRefNumber: refundRefNumber ?? oldOrder.refundRefNumber,
     );
 
     _orders[index] = updatedOrder;
@@ -599,15 +600,16 @@ class EmployeeOrderController extends ChangeNotifier {
 
     _saveOrderToFirebase(updatedOrder);
     _saveRefundProofToSupabase(updatedOrder);
-    if (refundRefNumber != null && refundRefNumber.isNotEmpty) {
-      _savePaymentReferenceToSupabase(updatedOrder);
-    }
+
+    final refText = refundRefNumber != null && refundRefNumber.isNotEmpty
+        ? ' Ref #: ${GcashOcrHelper.formatRefNumber(refundRefNumber)}.'
+        : '';
 
     CustomerNotificationsController.instance.addNotification(
       type: CustomerNotificationType.orderUpdate,
       title: 'GCash Refund Processed',
       message:
-          'Your GCash refund of ₱${oldOrder.totalAmount.toStringAsFixed(2)} for Order #${oldOrder.orderId} has been sent! View screenshot proof in Order Details.',
+          'Your GCash refund of ₱${oldOrder.totalAmount.toStringAsFixed(2)} for Order #${oldOrder.orderId} has been sent!$refText View screenshot proof in Order Details.',
       userId: oldOrder.userId,
       orderId: oldOrder.orderId,
       sendPush: true,
@@ -1201,10 +1203,12 @@ class EmployeeOrderController extends ChangeNotifier {
       String notes = existing?['order_notes']?.toString() ?? '';
       notes = notes.replaceAll(RegExp(r'\[refund_proof_url:[^\]]+\]'), '').trim();
       notes = notes.replaceAll(RegExp(r'\[refund_status:[^\]]+\]'), '').trim();
+      notes = notes.replaceAll(RegExp(r'\[refund_ref:[^\]]+\]'), '').trim();
 
       final tags = [
         if (order.refundProofUrl != null) '[refund_proof_url: ${order.refundProofUrl}]',
         if (order.refundStatus != null) '[refund_status: ${order.refundStatus}]',
+        if (order.refundRefNumber != null) '[refund_ref: ${order.refundRefNumber}]',
       ].join(' ');
 
       final updatedNotes = notes.isEmpty ? tags : '$notes $tags';

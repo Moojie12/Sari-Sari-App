@@ -744,6 +744,7 @@ class _ReceiptRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
             label,
@@ -752,11 +753,15 @@ class _ReceiptRow extends StatelessWidget {
               fontWeight: isBold ? FontWeight.bold : FontWeight.normal,
             ),
           ),
-          Text(
-            value,
-            style: TextStyle(
-              color: isBold ? AppColors.primaryOrange : AppColors.darkText,
-              fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              value,
+              textAlign: TextAlign.end,
+              style: TextStyle(
+                color: isBold ? AppColors.primaryOrange : AppColors.darkText,
+                fontWeight: isBold ? FontWeight.bold : FontWeight.w600,
+              ),
             ),
           ),
         ],

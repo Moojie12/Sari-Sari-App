@@ -118,10 +118,21 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
 
       if (!validation.isValid) {
         if (mounted) {
-          setState(() => _isVerifyingOcr = false);
+          setState(() {
+            _isVerifyingOcr = false;
+            _gcashProofFile = null;
+            _gcashProofBase64 = null;
+            _gcashPaymentRefNumber = null;
+            _gcashPaymentAmount = null;
+            _isOcrRefDetected = false;
+            _isOcrAmountDetected = false;
+            _refNumberController.clear();
+            _amountController.clear();
+          });
           showCustomerNotice(
             context,
             validation.errorMessage ?? 'The uploaded picture does not look like a GCash receipt or is too blurry.',
+            isWarning: true,
           );
         }
         return;
@@ -130,54 +141,112 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       extractedRef = validation.extractedRefNumber;
       extractedAmt = validation.extractedAmount;
 
-      if (mounted) {
-        final refDetected = extractedRef != null && extractedRef.isNotEmpty;
-        final amountDetected = extractedAmt != null && extractedAmt > 0;
+      // Strict Exact OCR Validation Requirement:
+      // Must extract GCash Ref No., must extract Amount, and Amount must EXACTLY match _total (walang labis, walang kulang)
+      if (extractedRef == null || extractedRef.isEmpty) {
+        if (mounted) {
+          setState(() {
+            _isVerifyingOcr = false;
+            _gcashProofFile = null;
+            _gcashProofBase64 = null;
+            _gcashPaymentRefNumber = null;
+            _gcashPaymentAmount = null;
+            _isOcrRefDetected = false;
+            _isOcrAmountDetected = false;
+            _refNumberController.clear();
+            _amountController.clear();
+          });
+          showCustomerNotice(
+            context,
+            'Hindi mabasa ang GCash Reference Number sa resibo. Pakisiguraduhing malinaw, maliwanag, at buo ang screenshot ng GCash receipt.',
+            isWarning: true,
+          );
+        }
+        return;
+      }
 
+      if (extractedAmt == null) {
+        if (mounted) {
+          setState(() {
+            _isVerifyingOcr = false;
+            _gcashProofFile = null;
+            _gcashProofBase64 = null;
+            _gcashPaymentRefNumber = null;
+            _gcashPaymentAmount = null;
+            _isOcrRefDetected = false;
+            _isOcrAmountDetected = false;
+            _refNumberController.clear();
+            _amountController.clear();
+          });
+          showCustomerNotice(
+            context,
+            'Hindi mabasa ang binayad na halaga sa resibo. Pakisiguraduhing kitang-kita ang saktong halaga na ₱${_total.toStringAsFixed(2)} sa screenshot.',
+            isWarning: true,
+          );
+        }
+        return;
+      }
+
+      final bool isExactMatch = (extractedAmt - _total).abs() < 0.01;
+      if (!isExactMatch) {
+        if (mounted) {
+          setState(() {
+            _isVerifyingOcr = false;
+            _gcashProofFile = null;
+            _gcashProofBase64 = null;
+            _gcashPaymentRefNumber = null;
+            _gcashPaymentAmount = null;
+            _isOcrRefDetected = false;
+            _isOcrAmountDetected = false;
+            _refNumberController.clear();
+            _amountController.clear();
+          });
+          showCustomerNotice(
+            context,
+            'Hindi sakto ang binigay na GCash payment: Ang nasa resibo ay ₱${extractedAmt.toStringAsFixed(2)}, ngunit ang dapat bayaran ay saktong ₱${_total.toStringAsFixed(2)}. Ang GCash payment ay dapat eksaktong ₱${_total.toStringAsFixed(2)} (walang labis, walang kulang).',
+            isWarning: true,
+          );
+        }
+        return;
+      }
+
+      if (mounted) {
         setState(() {
           _isVerifyingOcr = false;
           _gcashProofFile = File(image.path);
           _gcashProofBase64 = base64Image;
           _gcashPaymentRefNumber = extractedRef;
           _gcashPaymentAmount = extractedAmt;
-          _isOcrRefDetected = refDetected;
-          _isOcrAmountDetected = amountDetected;
-
-          if (refDetected) {
-            _refNumberController.text = GcashOcrHelper.formatRefNumber(extractedRef!);
-          }
-          if (amountDetected) {
-            _amountController.text = extractedAmt!.toStringAsFixed(2);
-          } else {
-            // Helpful initial default if OCR could not detect amount: total order amount
-            _amountController.text = _total.toStringAsFixed(2);
-          }
+          _isOcrRefDetected = true;
+          _isOcrAmountDetected = true;
+          _refNumberController.text = GcashOcrHelper.formatRefNumber(extractedRef!);
+          _amountController.text = extractedAmt!.toStringAsFixed(2);
         });
-
-        String noticeMessage;
-        if (refDetected && amountDetected) {
-          noticeMessage = 'GCash Receipt read via Google OCR! Ref: ${GcashOcrHelper.formatRefNumber(extractedRef!)} · Amount: ₱${extractedAmt!.toStringAsFixed(2)}';
-        } else if (refDetected) {
-          noticeMessage = 'GCash Ref #${GcashOcrHelper.formatRefNumber(extractedRef!)} detected. Please verify or enter the payment amount.';
-        } else if (amountDetected) {
-          noticeMessage = 'GCash Amount ₱${extractedAmt!.toStringAsFixed(2)} detected. Please enter the GCash Ref No. below.';
-        } else {
-          noticeMessage = 'Receipt attached. Ref No. and Amount could not be read automatically — please enter them below.';
-        }
 
         showCustomerNotice(
           context,
-          noticeMessage,
-          isWarning: !(refDetected && amountDetected),
+          'Saktong GCash payment na-verify via OCR! Ref #${GcashOcrHelper.formatRefNumber(extractedRef!)} · Halaga: ₱${extractedAmt!.toStringAsFixed(2)}',
+          isWarning: false,
         );
       }
     } catch (e) {
       debugPrint('[GCash Screenshot Upload Exception]: $e');
       if (mounted) {
-        setState(() => _isVerifyingOcr = false);
+        setState(() {
+          _isVerifyingOcr = false;
+          _gcashProofFile = null;
+          _gcashProofBase64 = null;
+          _gcashPaymentRefNumber = null;
+          _gcashPaymentAmount = null;
+          _isOcrRefDetected = false;
+          _isOcrAmountDetected = false;
+          _refNumberController.clear();
+          _amountController.clear();
+        });
         showCustomerNotice(
           context,
-          'Could not process the screenshot clearly. Please enter Ref No. and Amount manually.',
+          'Hindi maproseso ang screenshot. Pakisiguraduhing malinaw ang imahe at sakto ang halaga na ₱${_total.toStringAsFixed(2)}.',
+          isWarning: true,
         );
       }
     } finally {
@@ -274,7 +343,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       if (_refNumberController.text.trim().isEmpty) {
         showCustomerNotice(
           context,
-          'Please enter the GCash Reference Number from your receipt.',
+          'Pakisiguraduhing may valid na GCash Reference Number ang resibo.',
         );
         return;
       }
@@ -283,7 +352,17 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       if (parsedAmt == null || parsedAmt <= 0) {
         showCustomerNotice(
           context,
-          'Please enter a valid GCash payment amount from your receipt.',
+          'Hindi mabasa ang GCash payment amount mula sa resibo.',
+        );
+        return;
+      }
+
+      final bool isExact = (parsedAmt - _total).abs() < 0.01;
+      if (!isExact) {
+        showCustomerNotice(
+          context,
+          'Hindi sakto ang binigay na GCash payment: Ang resibo ay ₱${parsedAmt.toStringAsFixed(2)}, ngunit ang total ay ₱${_total.toStringAsFixed(2)}. Dapat sakto ang bayad (walang labis, walang kulang).',
+          isWarning: true,
         );
         return;
       }
@@ -472,7 +551,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       items: items,
       orderType: _orderType,
       paymentMethod: _paymentMethod,
-      paymentStatus: PaymentStatus.unpaid,
+      paymentStatus: _paymentMethod == PaymentMethod.gCash ? PaymentStatus.paid : PaymentStatus.unpaid,
       deliveryAddress: _orderType == OrderType.delivery ? _selectedAddress?.address : ShopSettingsController.instance.storeAddress,
       subtotal: widget.cartController.totalAmount,
       deliveryFee: _orderType == OrderType.delivery ? _deliveryFee : 0,
@@ -1613,7 +1692,7 @@ class _GcashPaymentProofUploadCard extends StatelessWidget {
                       const SizedBox(height: 6),
                       TextField(
                         controller: amountController,
-                        onChanged: onAmountChanged,
+                        readOnly: true,
                         keyboardType: const TextInputType.numberWithOptions(decimal: true),
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
@@ -1622,7 +1701,7 @@ class _GcashPaymentProofUploadCard extends StatelessWidget {
                         ),
                         decoration: InputDecoration(
                           isDense: true,
-                          hintText: 'e.g. 150.00',
+                          hintText: totalAmount.toStringAsFixed(2),
                           prefixText: '₱ ',
                           prefixStyle: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryOrange),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
@@ -1658,7 +1737,7 @@ class _GcashPaymentProofUploadCard extends StatelessWidget {
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
-                                      'Receipt amount matches order total (₱${totalAmount.toStringAsFixed(2)})',
+                                      'Receipt amount exactly matches order total (₱${totalAmount.toStringAsFixed(2)})',
                                       style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade900),
                                     ),
                                   ),
@@ -1669,18 +1748,18 @@ class _GcashPaymentProofUploadCard extends StatelessWidget {
                             return Container(
                               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                               decoration: BoxDecoration(
-                                color: Colors.orange.shade50,
+                                color: Colors.red.shade50,
                                 borderRadius: BorderRadius.circular(8),
-                                border: Border.all(color: Colors.orange.shade300),
+                                border: Border.all(color: Colors.red.shade300),
                               ),
                               child: Row(
                                 children: [
-                                  Icon(Icons.warning_amber_rounded, size: 16, color: Colors.orange.shade900),
+                                  Icon(Icons.error_outline_rounded, size: 16, color: Colors.red.shade900),
                                   const SizedBox(width: 6),
                                   Expanded(
                                     child: Text(
-                                      'Notice: Receipt amount (₱${parsed.toStringAsFixed(2)}) does not match order total (₱${totalAmount.toStringAsFixed(2)}). Please verify.',
-                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade900),
+                                      'Maling halaga: Ang nasa resibo ay ₱${parsed.toStringAsFixed(2)}, ngunit dapat ay saktong ₱${totalAmount.toStringAsFixed(2)}.',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.red.shade900),
                                     ),
                                   ),
                                 ],
@@ -1690,9 +1769,9 @@ class _GcashPaymentProofUploadCard extends StatelessWidget {
                         },
                       ),
                       const SizedBox(height: 8),
-                      const Text(
-                        'Note: This reference number and payment amount will be verified by the owner/cashier in POS before confirming the order.',
-                        style: TextStyle(fontSize: 11, color: AppColors.secondaryText, fontStyle: FontStyle.italic),
+                      Text(
+                        'Paalala: Saktong ₱${totalAmount.toStringAsFixed(2)} lamang ang tinatanggap ng OCR (walang labis, walang kulang). Kapag na-verify, awtomatiko itong mamamarkahan bilang bayad na.',
+                        style: const TextStyle(fontSize: 11, color: AppColors.secondaryText, fontStyle: FontStyle.italic),
                       ),
                     ],
                   ),

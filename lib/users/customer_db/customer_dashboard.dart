@@ -126,7 +126,7 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
     late OverlayEntry overlayEntry;
     final AnimationController flyController = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 1250),
+      duration: const Duration(milliseconds: 1750),
     );
 
     final Animation<double> progress = CurvedAnimation(

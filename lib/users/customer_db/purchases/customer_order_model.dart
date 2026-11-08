@@ -158,6 +158,7 @@ class CustomerOrder {
     this.gcashRefundNumber,
     this.refundProofUrl,
     this.refundStatus,
+    this.refundRefNumber,
     this.paymentProofUrl,
     this.isStockDeducted = false,
   });
@@ -189,6 +190,7 @@ class CustomerOrder {
   final String? gcashRefundNumber;
   final String? refundProofUrl;
   final String? refundStatus;
+  final String? refundRefNumber;
   final String? paymentProofUrl;
   final bool isStockDeducted;
 
@@ -254,6 +256,7 @@ class CustomerOrder {
     String? gcashRefundNumber,
     String? refundProofUrl,
     String? refundStatus,
+    String? refundRefNumber,
     String? paymentProofUrl,
     bool? isStockDeducted,
   }) {
@@ -285,6 +288,7 @@ class CustomerOrder {
       gcashRefundNumber: gcashRefundNumber ?? this.gcashRefundNumber,
       refundProofUrl: refundProofUrl ?? this.refundProofUrl,
       refundStatus: refundStatus ?? this.refundStatus,
+      refundRefNumber: refundRefNumber ?? this.refundRefNumber,
       paymentProofUrl: paymentProofUrl ?? this.paymentProofUrl,
       isStockDeducted: isStockDeducted ?? this.isStockDeducted,
     );
@@ -320,6 +324,7 @@ class CustomerOrder {
       'gcashRefundNumber': gcashRefundNumber,
       'refundProofUrl': refundProofUrl,
       'refundStatus': refundStatus,
+      'refundRefNumber': refundRefNumber,
       'paymentProofUrl': paymentProofUrl,
       'isStockDeducted': isStockDeducted,
     };
@@ -346,6 +351,7 @@ class CustomerOrder {
       'gcash_refund_number': gcashRefundNumber ?? '',
       'refund_proof_url': refundProofUrl ?? '',
       'refund_status': refundStatus ?? '',
+      'refund_ref_number': refundRefNumber ?? '',
       'updated_at': DateTime.now().toIso8601String(),
     };
   }
@@ -438,6 +444,10 @@ class CustomerOrder {
       ),
       refundStatus: _parseRefundStatus(
         map['refundStatus']?.toString() ?? map['refund_status']?.toString(),
+        notes,
+      ),
+      refundRefNumber: _parseRefundRefNumber(
+        map['refundRefNumber']?.toString() ?? map['refund_ref_number']?.toString(),
         notes,
       ),
       paymentProofUrl: _parsePaymentProofUrl(
@@ -540,6 +550,10 @@ class CustomerOrder {
         map['refund_status']?.toString() ?? map['refundStatus']?.toString(),
         notes,
       ),
+      refundRefNumber: _parseRefundRefNumber(
+        map['refund_ref_number']?.toString() ?? map['refundRefNumber']?.toString(),
+        notes,
+      ),
       paymentProofUrl: _parsePaymentProofUrl(
         map['payment_proof_url']?.toString() ?? map['paymentProofUrl']?.toString(),
         notes,
@@ -613,12 +627,14 @@ _CoordsInfo _parseCoords(double? lat, double? lng, String? orderNotes) {
 
 String? _parseProcessedBy(String? rawProcessedBy, String? orderNotes) {
   if (rawProcessedBy != null && rawProcessedBy.trim().isNotEmpty) {
-    return rawProcessedBy.trim();
+    final cleaned = rawProcessedBy.replaceAll(RegExp(r'\[[a-zA-Z0-9_-]+:[^\]]*\]'), '').trim();
+    if (cleaned.isNotEmpty) return cleaned;
   }
   if (orderNotes != null && orderNotes.contains('Sold by:')) {
-    final match = RegExp(r'Sold by:\s*([^\n;]+)').firstMatch(orderNotes);
+    final match = RegExp(r'Sold by:\s*([^\[\n;]+)').firstMatch(orderNotes);
     if (match != null && match.group(1) != null) {
-      return match.group(1)!.trim();
+      final name = match.group(1)!.trim();
+      if (name.isNotEmpty) return name;
     }
   }
   return null;
@@ -735,6 +751,15 @@ String? _parseRefundStatus(String? raw, String? orderNotes) {
   if (raw != null && raw.trim().isNotEmpty) return raw.trim();
   if (orderNotes != null && orderNotes.contains('[refund_status:')) {
     final match = RegExp(r'\[refund_status:\s*([^\]]+)\]').firstMatch(orderNotes);
+    if (match != null && match.group(1) != null) return match.group(1)!.trim();
+  }
+  return null;
+}
+
+String? _parseRefundRefNumber(String? raw, String? orderNotes) {
+  if (raw != null && raw.trim().isNotEmpty) return raw.trim();
+  if (orderNotes != null && orderNotes.contains('[refund_ref:')) {
+    final match = RegExp(r'\[refund_ref:\s*([^\]]+)\]').firstMatch(orderNotes);
     if (match != null && match.group(1) != null) return match.group(1)!.trim();
   }
   return null;

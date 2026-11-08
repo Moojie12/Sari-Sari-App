@@ -667,99 +667,7 @@ class _OrderDetailsCard extends StatelessWidget {
     );
   }
 
-  void _showVerifyPaymentConfirmation(BuildContext context) {
-    final refStr = order.paymentReferenceNumber?.isNotEmpty == true
-        ? order.paymentReferenceNumber!
-        : 'Not recorded';
-    final amtStr = '₱${(order.paymentAmount ?? order.totalAmount).toStringAsFixed(2)}';
 
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.verified, color: Colors.green),
-            SizedBox(width: 8),
-            Text('Confirm Payment Verification', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Have you verified this GCash transaction in your GCash Merchant/Personal app or SMS notice?',
-              style: TextStyle(fontSize: 13, color: AppColors.secondaryText),
-            ),
-            const SizedBox(height: 14),
-            Container(
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.grey.shade100,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              child: Column(
-                children: [
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Customer:', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                      Text(order.customerName.isNotEmpty ? order.customerName : 'Customer',
-                          style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('GCash Ref #:', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                      Text(refStr, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
-                    ],
-                  ),
-                  const SizedBox(height: 4),
-                  Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      const Text('Amount Paid:', style: TextStyle(fontSize: 12, color: Colors.black54)),
-                      Text(amtStr, style: const TextStyle(fontSize: 13, fontWeight: FontWeight.w900, color: Colors.green)),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
-          ),
-          ElevatedButton.icon(
-            onPressed: () async {
-              Navigator.pop(ctx);
-              await controller.updatePaymentStatus(order.orderId, PaymentStatus.paid);
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(
-                    content: Text('Payment successfully verified and marked as PAID!'),
-                    backgroundColor: Colors.green,
-                  ),
-                );
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.green,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            icon: const Icon(Icons.check_circle_outline, size: 18),
-            label: const Text('Mark as Paid'),
-          ),
-        ],
-      ),
-    );
-  }
 
   @override
   Widget build(BuildContext context) {
@@ -793,27 +701,30 @@ class _OrderDetailsCard extends StatelessWidget {
               children: [
                 const Icon(Icons.account_balance_wallet, size: 18, color: Color(0xFF007DFE)),
                 const SizedBox(width: 6),
-                const Text(
-                  'GCash Payment Verification',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: Color(0xFF007DFE),
+                const Expanded(
+                  child: Text(
+                    'GCash Payment Details',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                      color: Color(0xFF007DFE),
+                    ),
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ),
-                const Spacer(),
+                const SizedBox(width: 8),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
                   decoration: BoxDecoration(
-                    color: isPaid ? Colors.green.shade100 : Colors.orange.shade100,
+                    color: isPaid ? Colors.green.shade100 : Colors.blue.shade100,
                     borderRadius: BorderRadius.circular(6),
                   ),
                   child: Text(
-                    isPaid ? 'PAID / VERIFIED' : 'PENDING VERIFICATION',
+                    isPaid ? 'PAID / OCR VERIFIED' : 'GCASH PAYMENT',
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.bold,
-                      color: isPaid ? Colors.green.shade800 : Colors.orange.shade900,
+                      color: isPaid ? Colors.green.shade800 : Colors.blue.shade900,
                     ),
                   ),
                 ),
@@ -939,33 +850,7 @@ class _OrderDetailsCard extends StatelessWidget {
               ),
               const SizedBox(height: 10),
             ],
-            if (!isPaid && order.status != OrderStatus.cancelled) ...[
-              SizedBox(
-                width: double.infinity,
-                child: ElevatedButton.icon(
-                  onPressed: () => _showVerifyPaymentConfirmation(context),
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    foregroundColor: Colors.white,
-                    elevation: 1,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-                    padding: const EdgeInsets.symmetric(vertical: 12),
-                  ),
-                  icon: const Icon(Icons.check_circle_outline, size: 18),
-                  label: const Text(
-                    'Verify GCash Payment',
-                    style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 6),
-              const Center(
-                child: Text(
-                  'Requirement: Verify receipt before confirming payment.',
-                  style: TextStyle(fontSize: 11, color: AppColors.secondaryText, fontStyle: FontStyle.italic),
-                ),
-              ),
-            ],
+
           ],
 
           if (isGcash && order.status == OrderStatus.cancelled) ...[

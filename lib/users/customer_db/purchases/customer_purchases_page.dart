@@ -5,6 +5,7 @@ import 'customer_order_model.dart';
 import 'package:sari_sari/users/customer_db/purchases/customer_order_details_page.dart';
 import 'package:sari_sari/shared/widgets/skeleton.dart';
 import 'package:sari_sari/shared/widgets/app_pagination.dart';
+import 'package:sari_sari/shared/utils/gcash_ocr_helper.dart';
 
 class CustomerPurchasesPage extends StatefulWidget {
   const CustomerPurchasesPage({super.key, required this.orderController});
@@ -295,6 +296,33 @@ class _OrderCard extends StatelessWidget {
                   style: TextStyle(fontSize: 12, color: Colors.red.shade900, fontWeight: FontWeight.w500),
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
+                ),
+              ),
+            ],
+            if (order.status == OrderStatus.cancelled && order.refundStatus == 'refunded') ...[
+              const SizedBox(height: 8),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: Colors.green.shade50,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(color: Colors.green.shade200),
+                ),
+                child: Row(
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green.shade700, size: 14),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        (order.refundRefNumber ?? order.paymentReferenceNumber) != null &&
+                                (order.refundRefNumber ?? order.paymentReferenceNumber)!.isNotEmpty
+                            ? 'Refunded via GCash · Ref #${GcashOcrHelper.formatRefNumber((order.refundRefNumber ?? order.paymentReferenceNumber)!)}'
+                            : 'Refunded via GCash',
+                        style: TextStyle(fontSize: 11, color: Colors.green.shade900, fontWeight: FontWeight.bold),
+                      ),
+                    ),
+                  ],
                 ),
               ),
             ],

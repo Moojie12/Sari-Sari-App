@@ -378,9 +378,16 @@ class EmployeeShiftController extends ChangeNotifier {
     required double amount,
     required String reason,
   }) {
-    final shift = _currentShift;
     final trimmedReason = reason.trim();
-    if (shift == null || amount <= 0 || trimmedReason.isEmpty) return false;
+    if (amount <= 0 || trimmedReason.isEmpty) return false;
+
+    // If shift is not yet opened, auto-open one so POS cash movements are never lost
+    if (_currentShift == null) {
+      openShift(startingFloat: 0.0, openedBy: 'POS');
+    }
+
+    final shift = _currentShift;
+    if (shift == null) return false;
 
     shift.adjustments.add(CashAdjustment(
       id: 'ADJ${_adjustmentCounter.toString().padLeft(4, '0')}',
@@ -402,6 +409,50 @@ class EmployeeShiftController extends ChangeNotifier {
     notifyListeners();
     _saveActiveShiftToPrefs();
     return true;
+  }
+
+  /// Returns all cash adjustments recorded on [date] across current shift and history
+  List<CashAdjustment> getAdjustmentsForDate(DateTime date) {
+    final list = <CashAdjustment>[];
+    if (_currentShift != null) {
+      for (final a in _currentShift!.adjustments) {
+        if (a.timestamp.year == date.year &&
+            a.timestamp.month == date.month &&
+            a.timestamp.day == date.day) {
+          list.add(a);
+        }
+      }
+    }
+    for (final report in _history) {
+      for (final a in report.adjustments) {
+        if (a.timestamp.year == date.year &&
+            a.timestamp.month == date.month &&
+            a.timestamp.day == date.day) {
+          list.add(a);
+        }
+      }
+    }
+    list.sort((a, b) => b.timestamp.compareTo(a.timestamp));
+    return list;
+  }
+
+  /// Total Cash In recorded in POS for [date]
+  double getCashInTotalForDate(DateTime date) {
+    return getAdjustmentsForDate(date)
+        .where((a) => a.type == CashAdjustmentType.cashIn)
+        .fold(0.0, (sum, a) => sum + a.amount);
+  }
+
+  /// Total Cash Out recorded in POS for [date]
+  double getCashOutTotalForDate(DateTime date) {
+    return getAdjustmentsForDate(date)
+        .where((a) => a.type == CashAdjustmentType.cashOut)
+        .fold(0.0, (sum, a) => sum + a.amount);
+  }
+
+  /// Net Cash Adjustment for [date] (Cash In minus Cash Out)
+  double getNetCashAdjustmentForDate(DateTime date) {
+    return getCashInTotalForDate(date) - getCashOutTotalForDate(date);
   }
 
   /// Ends the current shift: computes the discrepancy against

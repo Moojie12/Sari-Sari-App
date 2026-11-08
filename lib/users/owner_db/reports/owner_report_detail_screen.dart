@@ -4,6 +4,7 @@ import '../../../core/services/auth_service.dart';
 import '../../employee_db/employee_inventory_controller.dart';
 import '../../employee_db/orders/employee_orders_controller.dart';
 import '../../employee_db/inventory/employee_product_model.dart';
+import '../../employee_db/pos/employee_shift_controller.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
 import 'owner_analytics_charts.dart';
 
@@ -84,7 +85,7 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
       ),
       body: SafeArea(
         child: ListenableBuilder(
-          listenable: Listenable.merge([inventory, orderController]),
+          listenable: Listenable.merge([inventory, orderController, EmployeeShiftController.instance]),
           builder: (context, _) {
             final orders = orderController.orders;
 
@@ -251,8 +252,13 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
             _isSameDay(o.orderDate, _selectedDate)).toList();
         final revenue = completed.fold(0.0, (sum, o) => sum + o.subtotal);
         final capital = completed.fold(0.0, (sum, o) => sum + o.totalCapital);
-        final consumablesCost = inventory.totalConsumablesCost;
+        final consumablesCost = inventory.archivedStock
+            .where((a) => a.reason == StockRemovalReason.consumable && _isSameDay(a.archivedAt, _selectedDate))
+            .fold(0.0, (sum, a) => sum + a.capital);
         final profit = revenue - capital - consumablesCost;
+        final cashIn = EmployeeShiftController.instance.getCashInTotalForDate(_selectedDate);
+        final cashOut = EmployeeShiftController.instance.getCashOutTotalForDate(_selectedDate);
+
         return Column(
           children: [
             _KpiRow(
@@ -277,6 +283,20 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
             ),
             const SizedBox(height: 12),
             _KpiRow(
+              label: 'POS Cash In',
+              value: '₱ ${cashIn.toStringAsFixed(2)}',
+              icon: Icons.arrow_downward_rounded,
+              color: Colors.teal,
+            ),
+            const SizedBox(height: 12),
+            _KpiRow(
+              label: 'POS Cash Out',
+              value: '₱ ${cashOut.toStringAsFixed(2)}',
+              icon: Icons.arrow_upward_rounded,
+              color: Colors.deepOrange,
+            ),
+            const SizedBox(height: 12),
+            _KpiRow(
               label: 'Net Profit',
               value: '₱ ${profit.toStringAsFixed(2)}',
               icon: Icons.trending_up,
@@ -287,17 +307,19 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
 
       case OwnerReportType.wastageLog:
         final totalLoss = inventory.archivedStock
-            .where((a) => a.reason == StockRemovalReason.wastage)
+            .where((a) => a.reason == StockRemovalReason.wastage && _isSameDay(a.archivedAt, _selectedDate))
             .fold(0.0, (sum, a) => sum + a.capital);
         return _KpiRow(
-          label: 'Total Capital Loss',
+          label: 'Total Capital Waste',
           value: '₱ ${totalLoss.toStringAsFixed(2)}',
           icon: Icons.delete_forever,
           color: Colors.red,
         );
 
       case OwnerReportType.consumablesLog:
-        final totalCost = inventory.totalConsumablesCost;
+        final totalCost = inventory.archivedStock
+            .where((a) => a.reason == StockRemovalReason.consumable && _isSameDay(a.archivedAt, _selectedDate))
+            .fold(0.0, (sum, a) => sum + a.capital);
         return _KpiRow(
           label: 'Total Consumables / Loss Cost',
           value: '₱ ${totalCost.toStringAsFixed(2)}',
@@ -338,18 +360,29 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
         final completed = orders.where((o) =>
             o.status == OrderStatus.completed &&
             _isSameDay(o.orderDate, _selectedDate)).toList();
-        return _TransactionCardList(
-          title: 'Completed Transactions',
-          orders: completed,
+        final adjustments = EmployeeShiftController.instance.getAdjustmentsForDate(_selectedDate);
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _TransactionCardList(
+              title: 'Completed Transactions (${completed.length})',
+              orders: completed,
+            ),
+            const SizedBox(height: 28),
+            _CashAdjustmentsSection(
+              title: 'POS Cash In / Cash Out Log (${adjustments.length})',
+              adjustments: adjustments,
+            ),
+          ],
         );
 
       case OwnerReportType.wastageLog:
         final archived = inventory.archivedStock
-            .where((a) => a.reason == StockRemovalReason.wastage)
+            .where((a) => a.reason == StockRemovalReason.wastage && _isSameDay(a.archivedAt, _selectedDate))
             .toList();
         return _ReportTable(
-          title: 'Archive & Loss History',
-          columns: const ['Item', 'Qty', 'Loss (Cap)'],
+          title: 'Daily Wastage & Expiry Records (${archived.length})',
+          columns: const ['Item', 'Qty', 'Capital Waste'],
           flexes: const [2, 1, 1],
           rows: archived.map((a) => [
             a.productName,
@@ -360,10 +393,10 @@ class _OwnerReportDetailScreenState extends State<OwnerReportDetailScreen> {
 
       case OwnerReportType.consumablesLog:
         final consumed = inventory.archivedStock
-            .where((a) => a.reason == StockRemovalReason.consumable)
+            .where((a) => a.reason == StockRemovalReason.consumable && _isSameDay(a.archivedAt, _selectedDate))
             .toList();
         return _ReportTable(
-          title: 'Consumables History',
+          title: 'Daily Consumables Records (${consumed.length})',
           columns: const ['Item', 'Qty', 'Taken By', 'Cost'],
           flexes: const [2, 1, 2, 1],
           rows: consumed.map((a) => [
@@ -599,6 +632,156 @@ class _TransactionCardList extends StatelessWidget {
                           ),
                         ],
                       ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          }),
+      ],
+    );
+  }
+}
+
+class _CashAdjustmentsSection extends StatelessWidget {
+  const _CashAdjustmentsSection({required this.title, required this.adjustments});
+
+  final String title;
+  final List<CashAdjustment> adjustments;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkText),
+        ),
+        const SizedBox(height: 16),
+        if (adjustments.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(24),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: AppColors.borderColor.withValues(alpha: 0.5)),
+            ),
+            child: const Center(
+              child: Text(
+                'No POS cash in or cash out recorded for this date.',
+                style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+              ),
+            ),
+          )
+        else
+          ...adjustments.map((adj) {
+            final isCashIn = adj.type == CashAdjustmentType.cashIn;
+            final timeStr =
+                '${adj.timestamp.hour.toString().padLeft(2, '0')}:${adj.timestamp.minute.toString().padLeft(2, '0')}';
+
+            return Padding(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: isCashIn ? Colors.teal.shade200 : Colors.deepOrange.shade200,
+                  ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.02),
+                      blurRadius: 8,
+                      offset: const Offset(0, 3),
+                    ),
+                  ],
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        Expanded(
+                          child: Row(
+                            children: [
+                              Container(
+                                padding: const EdgeInsets.all(6),
+                                decoration: BoxDecoration(
+                                  color: isCashIn ? Colors.teal.shade50 : Colors.deepOrange.shade50,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: Icon(
+                                  isCashIn ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+                                  size: 16,
+                                  color: isCashIn ? Colors.teal : Colors.deepOrange,
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      adj.type.label,
+                                      style: TextStyle(
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 14,
+                                        color: isCashIn ? Colors.teal.shade900 : Colors.deepOrange.shade900,
+                                      ),
+                                    ),
+                                    Text(
+                                      'Recorded at $timeStr · #${adj.id}',
+                                      style: const TextStyle(color: AppColors.secondaryText, fontSize: 11),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: isCashIn ? Colors.teal.shade50 : Colors.deepOrange.shade50,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Text(
+                            '${isCashIn ? '+' : '-'}₱${adj.amount.toStringAsFixed(2)}',
+                            style: TextStyle(
+                              color: isCashIn ? Colors.teal.shade800 : Colors.deepOrange.shade800,
+                              fontWeight: FontWeight.w900,
+                              fontSize: 15,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    const Divider(height: 1, color: AppColors.lightBackground),
+                    const SizedBox(height: 10),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Icon(Icons.notes_rounded, size: 16, color: AppColors.secondaryText),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            'Reason: ${adj.reason}',
+                            style: const TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w600,
+                              color: AppColors.darkText,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ],
                 ),

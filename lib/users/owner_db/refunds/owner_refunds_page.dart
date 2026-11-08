@@ -36,6 +36,20 @@ class _OwnerRefundsPageState extends State<OwnerRefundsPage>
     super.dispose();
   }
 
+  Future<void> _handleRefresh() async {
+    try {
+      await Future.wait([
+        _ordersController.refresh(),
+        Future.delayed(const Duration(milliseconds: 500)),
+      ]);
+    } catch (e) {
+      debugPrint('[OwnerRefundsPage] Pull to refresh error: $e');
+    }
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -93,8 +107,16 @@ class _OwnerRefundsPageState extends State<OwnerRefundsPage>
           return TabBarView(
             controller: _tabController,
             children: [
-              _RefundsListView(orders: pending, isPending: true),
-              _RefundsListView(orders: completed, isPending: false),
+              _RefundsListView(
+                orders: pending,
+                isPending: true,
+                onRefresh: _handleRefresh,
+              ),
+              _RefundsListView(
+                orders: completed,
+                isPending: false,
+                onRefresh: _handleRefresh,
+              ),
             ],
           );
         },
@@ -107,46 +129,71 @@ class _RefundsListView extends StatelessWidget {
   const _RefundsListView({
     required this.orders,
     required this.isPending,
+    required this.onRefresh,
   });
 
   final List<CustomerOrder> orders;
   final bool isPending;
+  final Future<void> Function() onRefresh;
 
   @override
   Widget build(BuildContext context) {
     if (orders.isEmpty) {
-      return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              isPending ? Icons.check_circle_outline_rounded : Icons.history_rounded,
-              size: 64,
-              color: AppColors.placeholderColor,
-            ),
-            const SizedBox(height: 16),
-            Text(
-              isPending ? 'No Pending GCash Refunds' : 'No Completed GCash Refunds',
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkText),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              isPending
-                  ? 'All cancelled GCash pre-orders have been refunded.'
-                  : 'Processed GCash refunds will appear here.',
-              style: const TextStyle(fontSize: 13, color: AppColors.secondaryText),
+      return RefreshIndicator(
+        color: AppColors.primaryOrange,
+        backgroundColor: Colors.white,
+        onRefresh: onRefresh,
+        child: CustomScrollView(
+          physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+          slivers: [
+            SliverFillRemaining(
+              hasScrollBody: false,
+              child: Center(
+                child: Padding(
+                  padding: const EdgeInsets.all(24),
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        isPending ? Icons.check_circle_outline_rounded : Icons.history_rounded,
+                        size: 64,
+                        color: AppColors.placeholderColor,
+                      ),
+                      const SizedBox(height: 16),
+                      Text(
+                        isPending ? 'No Pending GCash Refunds' : 'No Completed GCash Refunds',
+                        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: AppColors.darkText),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        isPending
+                            ? 'All cancelled GCash pre-orders have been refunded.'
+                            : 'Processed GCash refunds will appear here.',
+                        style: const TextStyle(fontSize: 13, color: AppColors.secondaryText),
+                        textAlign: TextAlign.center,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ),
           ],
         ),
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.all(16),
-      itemCount: orders.length,
-      itemBuilder: (context, index) {
-        return _RefundOrderCard(order: orders[index], isPending: isPending);
-      },
+    return RefreshIndicator(
+      color: AppColors.primaryOrange,
+      backgroundColor: Colors.white,
+      onRefresh: onRefresh,
+      child: ListView.builder(
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        padding: const EdgeInsets.all(16),
+        itemCount: orders.length,
+        itemBuilder: (context, index) {
+          return _RefundOrderCard(order: orders[index], isPending: isPending);
+        },
+      ),
     );
   }
 }
@@ -362,6 +409,42 @@ class _RefundOrderCardState extends State<_RefundOrderCard> {
       }
 
       extractedRef = validation.extractedRefNumber;
+      final extractedAmt = validation.extractedAmount;
+      final expectedRefund = widget.order.totalAmount;
+
+      if (extractedRef == null || extractedRef.isEmpty) {
+        if (mounted) {
+          TopNotification.show(
+            context,
+            'Hindi mabasa ang GCash Reference Number sa resibo ng refund. Pakisiguraduhing malinaw at buo ang screenshot.',
+            isError: true,
+          );
+        }
+        return;
+      }
+
+      if (extractedAmt == null) {
+        if (mounted) {
+          TopNotification.show(
+            context,
+            'Hindi mabasa ang halaga sa GCash refund receipt. Siguraduhing kitang-kita ang saktong halaga na ₱${expectedRefund.toStringAsFixed(2)}.',
+            isError: true,
+          );
+        }
+        return;
+      }
+
+      final bool isMatch = (extractedAmt - expectedRefund).abs() < 0.01;
+      if (!isMatch) {
+        if (mounted) {
+          TopNotification.show(
+            context,
+            'Maling refund amount: Ang nasa resibo ay ₱${extractedAmt.toStringAsFixed(2)}, ngunit ang dapat irefund ay saktong ₱${expectedRefund.toStringAsFixed(2)} (walang labis, walang kulang).',
+            isError: true,
+          );
+        }
+        return;
+      }
 
       final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
 
@@ -422,48 +505,81 @@ class _RefundOrderCardState extends State<_RefundOrderCard> {
                   ),
                 ),
                 const SizedBox(height: 10),
-                if (extractedRef != null && extractedRef.isNotEmpty) ...[
-                  Container(
-                    padding: const EdgeInsets.all(10),
-                    decoration: BoxDecoration(
-                      color: Colors.green.shade50,
-                      borderRadius: BorderRadius.circular(10),
-                      border: Border.all(color: Colors.green.shade300),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(Icons.verified, color: Colors.green.shade700, size: 18),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Extracted Refund Ref No. (Google OCR)',
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.bold,
-                                  color: Colors.green.shade900,
-                                ),
-                              ),
-                              const SizedBox(height: 2),
-                              Text(
-                                GcashOcrHelper.formatRefNumber(extractedRef),
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.bold,
-                                  letterSpacing: 1.1,
-                                  color: Colors.green.shade900,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
+                Container(
+                  padding: const EdgeInsets.all(10),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.green.shade300),
                   ),
-                  const SizedBox(height: 8),
-                ],
+                  child: Column(
+                    children: [
+                      Row(
+                        children: [
+                          Icon(Icons.verified, color: Colors.green.shade700, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Extracted Refund Ref No. (Google OCR)',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green.shade900,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  GcashOcrHelper.formatRefNumber(extractedRef!),
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    letterSpacing: 1.1,
+                                    color: Colors.green.shade900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Divider(height: 14),
+                      Row(
+                        children: [
+                          Icon(Icons.check_circle_outline, color: Colors.green.shade700, size: 18),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  'Extracted Refund Amount (Google OCR)',
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green.shade900,
+                                  ),
+                                ),
+                                const SizedBox(height: 2),
+                                Text(
+                                  '₱${extractedAmt.toStringAsFixed(2)} (Exact Match)',
+                                  style: TextStyle(
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.bold,
+                                    color: Colors.green.shade900,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+                const SizedBox(height: 8),
                 const Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [

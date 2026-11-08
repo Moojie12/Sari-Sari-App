@@ -16,34 +16,43 @@ void showCustomerNotice(
   messenger.showSnackBar(
     SnackBar(
       behavior: SnackBarBehavior.floating,
-      margin: const EdgeInsets.fromLTRB(16, 0, 16, 20),
-      backgroundColor: const Color(0xFF232528),
-      elevation: 6,
+      margin: const EdgeInsets.fromLTRB(16, 0, 16, 24),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      backgroundColor: const Color(0xFF1E232A),
+      elevation: 8,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         side: BorderSide(
           color: isWarning
-              ? AppColors.primaryOrange.withValues(alpha: 0.6)
-              : Colors.greenAccent.withValues(alpha: 0.6),
-          width: 1,
+              ? AppColors.primaryOrange.withValues(alpha: 0.40)
+              : const Color(0xFF10B981).withValues(alpha: 0.40),
+          width: 1.2,
         ),
       ),
-      duration: const Duration(milliseconds: 2200),
+      duration: const Duration(milliseconds: 2500),
       content: Row(
         children: [
-          Icon(
-            icon ?? (isWarning ? Icons.info_outline_rounded : Icons.check_circle_outline_rounded),
-            color: isWarning ? AppColors.primaryOrange : Colors.greenAccent,
-            size: 20,
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: (isWarning ? AppColors.primaryOrange : const Color(0xFF10B981)).withValues(alpha: 0.20),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              icon ?? (isWarning ? Icons.info_rounded : Icons.check_circle_rounded),
+              color: isWarning ? AppColors.primaryOrange : const Color(0xFF34D399),
+              size: 18,
+            ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
             child: Text(
               message,
               style: const TextStyle(
                 color: Colors.white,
-                fontSize: 13,
-                fontWeight: FontWeight.w500,
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                letterSpacing: 0.1,
               ),
             ),
           ),

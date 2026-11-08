@@ -353,8 +353,8 @@ class _PosNewOrderOverlayState extends State<PosNewOrderOverlay>
                                               ),
                                               child: Text(
                                                 order.paymentStatus == PaymentStatus.paid
-                                                    ? 'VERIFIED'
-                                                    : 'PENDING VERIFICATION',
+                                                    ? 'PAID (GCash)'
+                                                    : 'UNPAID',
                                                 style: TextStyle(
                                                   fontSize: 9,
                                                   fontWeight: FontWeight.bold,

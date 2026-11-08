@@ -235,6 +235,21 @@ class EmployeeHomePage extends StatelessWidget {
                           color: Colors.orange,
                           onTap: onOpenExpiringProducts,
                         ),
+                        const Divider(height: 1, color: AppColors.borderColor),
+                        _StatCardLong(
+                          label: 'Wastage & Expiry Log',
+                          value: 'View Log',
+                          icon: Icons.delete_outline_rounded,
+                          color: Colors.deepOrange,
+                          onTap: () {
+                            Navigator.push(
+                              context,
+                              MaterialPageRoute(
+                                builder: (context) => const OwnerReportDetailScreen(type: OwnerReportType.wastageLog),
+                              ),
+                            );
+                          },
+                        ),
                       ],
                     ),
                   ),

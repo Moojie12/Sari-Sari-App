@@ -687,7 +687,9 @@ class _CancelledOrderBannerState extends State<_CancelledOrderBanner> {
                       'Refund Amount: ₱${order.totalAmount.toStringAsFixed(2)}',
                       style: TextStyle(fontSize: 12, color: Colors.grey.shade800, height: 1.4),
                     ),
-                    if (isRefunded && order.paymentReferenceNumber != null && order.paymentReferenceNumber!.isNotEmpty) ...[
+                    if (isRefunded &&
+                        (order.refundRefNumber ?? order.paymentReferenceNumber) != null &&
+                        (order.refundRefNumber ?? order.paymentReferenceNumber)!.isNotEmpty) ...[
                       const SizedBox(height: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
@@ -702,7 +704,7 @@ class _CancelledOrderBannerState extends State<_CancelledOrderBanner> {
                             const SizedBox(width: 6),
                             Expanded(
                               child: Text(
-                                'GCash Refund Ref #: ${GcashOcrHelper.formatRefNumber(order.paymentReferenceNumber!)}',
+                                'GCash Refund Ref #: ${GcashOcrHelper.formatRefNumber((order.refundRefNumber ?? order.paymentReferenceNumber)!)}',
                                 style: TextStyle(
                                   fontWeight: FontWeight.bold,
                                   fontSize: 12,

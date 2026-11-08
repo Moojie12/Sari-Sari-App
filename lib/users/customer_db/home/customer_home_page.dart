@@ -57,6 +57,21 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
     if (mounted) setState(() {});
   }
 
+  Future<void> _handleRefresh() async {
+    try {
+      await Future.wait([
+        EmployeeInventoryController.instance.reloadProducts(),
+        widget.orderController.refresh(),
+        Future.delayed(const Duration(milliseconds: 500)),
+      ]);
+    } catch (e) {
+      debugPrint('[CustomerHomePage] Pull to refresh error: $e');
+    }
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
   void _simulateLoading() async {
     setState(() => _isLoading = true);
     await Future.delayed(const Duration(milliseconds: 250));
@@ -297,9 +312,15 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
 
         return Scaffold(
           backgroundColor: Colors.transparent,
-          body: CustomScrollView(
-            controller: _scrollController,
-            slivers: [
+          body: RefreshIndicator(
+            color: AppColors.primaryOrange,
+            backgroundColor: Colors.white,
+            edgeOffset: 12.0,
+            onRefresh: _handleRefresh,
+            child: CustomScrollView(
+              physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+              controller: _scrollController,
+              slivers: [
               SliverToBoxAdapter(child: _buildTitle(context)),
               SliverToBoxAdapter(child: _buildWelcomeSection(context)),
               SliverToBoxAdapter(child: _buildActiveOrder(context)),
@@ -370,7 +391,8 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
                 const SliverToBoxAdapter(child: SizedBox(height: 100)),
             ],
           ),
-        );
+        ),
+      );
       },
     );
   }
