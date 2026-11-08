@@ -73,9 +73,9 @@ class TopNotification {
   static String? _defaultTitle(TopNotificationType type) {
     switch (type) {
       case TopNotificationType.error:
-        return 'Error';
+        return null;
       case TopNotificationType.warning:
-        return 'Warning';
+        return null;
       case TopNotificationType.offline:
         return 'Offline Notice';
       case TopNotificationType.success:
@@ -341,21 +341,21 @@ class _TopNotificationWidgetState extends State<_TopNotificationWidget>
                 color: Colors.transparent,
                 child: Container(
                   constraints: const BoxConstraints(maxWidth: 480),
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(20),
+                    borderRadius: BorderRadius.circular(16),
                     boxShadow: [
                       BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.12),
-                        blurRadius: 16,
-                        spreadRadius: 2,
-                        offset: const Offset(0, 6),
+                        color: Colors.black.withValues(alpha: 0.10),
+                        blurRadius: 14,
+                        spreadRadius: 1,
+                        offset: const Offset(0, 4),
                       ),
                     ],
                     border: Border.all(
-                      color: accentColor.withValues(alpha: 0.6),
-                      width: 1.5,
+                      color: accentColor.withValues(alpha: 0.35),
+                      width: 1.2,
                     ),
                   ),
                   child: Row(

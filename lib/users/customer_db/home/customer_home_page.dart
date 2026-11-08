@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 
 import 'package:sari_sari/core/theme/app_colors.dart';
-import 'package:sari_sari/shared/utils/top_notification.dart';
+import 'package:sari_sari/shared/utils/customer_notice.dart';
 import 'package:sari_sari/shared/widgets/product_image.dart';
 import 'package:sari_sari/users/customer_db/customer_dashboard.dart';
 import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
@@ -226,6 +226,15 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   }
 
   void _addToCart(CustomerProduct product, [Offset? startPosition]) {
+    final maxStock = product.sellableQuantity.toInt();
+    final inCart = widget.cartController.getQuantityForProduct(product.id);
+    if (inCart >= maxStock && maxStock > 0) {
+      showCustomerNotice(
+        context,
+        'Stock limit reached: You already added all $maxStock available in stock.',
+      );
+      return;
+    }
     final added = widget.cartController.addToCart(product);
     if (!added) return;
     final pos = startPosition ?? Offset(MediaQuery.of(context).size.width / 2, MediaQuery.of(context).size.height / 2);
@@ -236,11 +245,20 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   }
 
   void _addSaleDealToCart(SaleDealModel deal, [Offset? startPosition]) {
+    final available = widget.cartController.getAvailableDealStock(deal);
+    final inCart = widget.cartController.getQuantityForDeal(deal.id);
+    if (inCart >= available && available > 0) {
+      showCustomerNotice(
+        context,
+        'Limit reached: You already added all $available available on sale.',
+      );
+      return;
+    }
     final allCustomerProducts = _allCustomerProducts;
     final success = widget.cartController.addSaleDeal(
       deal,
       allCustomerProducts,
-      onError: (msg) => TopNotification.show(context, msg, isError: true),
+      onError: (msg) => showCustomerNotice(context, msg),
     );
     if (success) {
       final pos = startPosition ?? Offset(MediaQuery.of(context).size.width / 2, MediaQuery.of(context).size.height / 2);
@@ -642,10 +660,23 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
   }
 
   void _buyNowSaleDeal(SaleDealModel deal) {
+    final inCart = widget.cartController.getQuantityForDeal(deal.id);
+    if (inCart > 0) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (context) => CustomerCheckoutPage(
+            cartController: widget.cartController,
+            orderController: widget.orderController,
+          ),
+        ),
+      );
+      return;
+    }
     final success = widget.cartController.addSaleDeal(
       deal,
       _allCustomerProducts,
-      onError: (msg) => TopNotification.show(context, msg, isError: true),
+      onError: (msg) => showCustomerNotice(context, msg),
     );
     if (success) {
       Navigator.push(
@@ -886,7 +917,9 @@ class _SaleDealCard extends StatelessWidget {
         EmployeeInventoryController.instance.isProductsLoading ||
             EmployeeInventoryController.instance.products.isEmpty;
     final availableStock = CustomerCartController.instance.getAvailableDealStock(deal);
+    final inCart = CustomerCartController.instance.getQuantityForDeal(deal.id);
     final isSoldOut = !isInventoryLoading && (deal.isSoldOut || availableStock <= 0);
+    final isMaxReached = !isSoldOut && inCart >= availableStock && availableStock > 0;
 
     return Material(
       color: Colors.white,
@@ -1058,11 +1091,13 @@ class _SaleDealCard extends StatelessWidget {
                     // Remaining Sale Limit Badge
                     if (!isSoldOut)
                       Text(
-                        'Only $availableStock left on sale',
+                        isMaxReached
+                            ? 'Limit reached ($inCart in cart)'
+                            : 'Only $availableStock left on sale',
                         style: TextStyle(
                           fontSize: 10,
                           fontWeight: FontWeight.bold,
-                          color: Colors.orange.shade800,
+                          color: isMaxReached ? Colors.orange.shade900 : Colors.orange.shade800,
                         ),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
@@ -1116,24 +1151,38 @@ class _SaleDealCard extends StatelessWidget {
                                   key: addToCartKey,
                                   style: OutlinedButton.styleFrom(
                                     padding: EdgeInsets.zero,
-                                    foregroundColor: isSoldOut ? Colors.grey.shade400 : AppColors.primaryOrange,
-                                    side: BorderSide(color: isSoldOut ? Colors.grey.shade300 : AppColors.primaryOrange),
+                                    foregroundColor: isSoldOut || isMaxReached ? Colors.grey.shade400 : AppColors.primaryOrange,
+                                    side: BorderSide(
+                                      color: isSoldOut || isMaxReached ? Colors.grey.shade300 : AppColors.primaryOrange,
+                                    ),
                                     shape: RoundedRectangleBorder(
                                       borderRadius: BorderRadius.circular(8),
                                     ),
                                   ),
-                                  onPressed: isSoldOut ? null : () {
-                                    final box = btnContext.findRenderObject() as RenderBox?;
-                                    final pos = box != null
-                                        ? box.localToGlobal(box.size.center(Offset.zero))
-                                        : const Offset(200, 400);
-                                    if (onAddToCartWithPosition != null) {
-                                      onAddToCartWithPosition!(pos);
-                                    } else {
-                                      onAddToCart();
-                                    }
-                                  },
-                                  child: const Icon(Icons.add_shopping_cart, size: 16),
+                                  onPressed: isSoldOut
+                                      ? null
+                                      : () {
+                                          if (isMaxReached) {
+                                            showCustomerNotice(
+                                              btnContext,
+                                              'Limit reached: You already added all $availableStock available on sale.',
+                                            );
+                                            return;
+                                          }
+                                          final box = btnContext.findRenderObject() as RenderBox?;
+                                          final pos = box != null
+                                              ? box.localToGlobal(box.size.center(Offset.zero))
+                                              : const Offset(200, 400);
+                                          if (onAddToCartWithPosition != null) {
+                                            onAddToCartWithPosition!(pos);
+                                          } else {
+                                            onAddToCart();
+                                          }
+                                        },
+                                  child: Icon(
+                                    isMaxReached ? Icons.check_circle_outline_rounded : Icons.add_shopping_cart,
+                                    size: 16,
+                                  ),
                                 );
                               },
                             ),
@@ -1195,10 +1244,19 @@ void showSaleDealDetailsModal({
       deal: deal,
       showActions: showActions,
       onAddToCart: () {
+        final available = cartController.getAvailableDealStock(deal);
+        final inCart = cartController.getQuantityForDeal(deal.id);
+        if (inCart >= available && available > 0) {
+          showCustomerNotice(
+            modalContext,
+            'Limit reached: You already added all $available available on sale.',
+          );
+          return;
+        }
         final success = cartController.addSaleDeal(
           deal,
           allCustomerProducts,
-          onError: (msg) => TopNotification.show(context, msg, isError: true),
+          onError: (msg) => showCustomerNotice(modalContext, msg),
         );
         if (success) {
           Navigator.pop(modalContext);
@@ -1210,10 +1268,24 @@ void showSaleDealDetailsModal({
         }
       },
       onBuyNow: () {
+        final inCart = cartController.getQuantityForDeal(deal.id);
+        if (inCart > 0) {
+          Navigator.pop(modalContext);
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (context) => CustomerCheckoutPage(
+                cartController: cartController,
+                orderController: orderController,
+              ),
+            ),
+          );
+          return;
+        }
         final success = cartController.addSaleDeal(
           deal,
           allCustomerProducts,
-          onError: (msg) => TopNotification.show(context, msg, isError: true),
+          onError: (msg) => showCustomerNotice(modalContext, msg),
         );
         if (success) {
           Navigator.pop(modalContext);
@@ -1253,7 +1325,9 @@ class SaleDealDetailsSheet extends StatelessWidget {
         EmployeeInventoryController.instance.isProductsLoading ||
             EmployeeInventoryController.instance.products.isEmpty;
     final availableStock = CustomerCartController.instance.getAvailableDealStock(deal);
+    final inCart = CustomerCartController.instance.getQuantityForDeal(deal.id);
     final isSoldOut = !isInventoryLoading && (deal.isSoldOut || availableStock <= 0);
+    final isMaxReached = !isSoldOut && inCart >= availableStock && availableStock > 0;
 
     return Container(
       decoration: const BoxDecoration(
@@ -1356,11 +1430,17 @@ class SaleDealDetailsSheet extends StatelessWidget {
                       child: Text(
                         isSoldOut
                             ? 'Promo deal is currently SOLD OUT.'
-                            : 'Only $availableStock available on promo (Limit: ${deal.saleLimit ?? "Full stock"})',
+                            : isMaxReached
+                                ? 'Limit reached: You have added all $availableStock available promo items.'
+                                : 'Only $availableStock available on promo (Limit: ${deal.saleLimit ?? "Full stock"})',
                         style: TextStyle(
                           fontSize: 12,
                           fontWeight: FontWeight.bold,
-                          color: isSoldOut ? Colors.red.shade800 : AppColors.primaryOrange,
+                          color: isSoldOut
+                              ? Colors.red.shade800
+                              : isMaxReached
+                                  ? Colors.orange.shade900
+                                  : AppColors.primaryOrange,
                         ),
                       ),
                     ),
@@ -1531,19 +1611,30 @@ class SaleDealDetailsSheet extends StatelessWidget {
                         height: 48,
                         child: OutlinedButton.icon(
                           style: OutlinedButton.styleFrom(
-                            foregroundColor: isSoldOut ? Colors.grey.shade400 : AppColors.primaryOrange,
+                            foregroundColor: isSoldOut || isMaxReached ? Colors.grey.shade400 : AppColors.primaryOrange,
                             side: BorderSide(
-                              color: isSoldOut ? Colors.grey.shade300 : AppColors.primaryOrange,
+                              color: isSoldOut || isMaxReached ? Colors.grey.shade300 : AppColors.primaryOrange,
                               width: 1.5,
                             ),
                             shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                           ),
-                          icon: const Icon(Icons.add_shopping_cart, size: 18),
-                          label: const Text(
-                            'Add to Cart',
-                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                          icon: Icon(isMaxReached ? Icons.check_circle_outline_rounded : Icons.add_shopping_cart, size: 18),
+                          label: Text(
+                            isMaxReached ? 'Limit Reached' : 'Add to Cart',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                           ),
-                          onPressed: isSoldOut ? null : onAddToCart,
+                          onPressed: isSoldOut
+                              ? null
+                              : () {
+                                  if (isMaxReached) {
+                                    showCustomerNotice(
+                                      context,
+                                      'Limit reached: You already added all $availableStock available on sale.',
+                                    );
+                                    return;
+                                  }
+                                  onAddToCart?.call();
+                                },
                         ),
                       ),
                     ),

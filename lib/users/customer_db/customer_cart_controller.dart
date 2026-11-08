@@ -90,6 +90,21 @@ class CustomerCartController extends ChangeNotifier {
     return _items.fold(0.0, (sum, item) => sum + item.subtotal);
   }
 
+  /// Returns current quantity of a specific deal bundled in the cart.
+  int getQuantityForDeal(String dealId) {
+    ensureCartForActiveUser();
+    final dealCartId = 'deal_$dealId';
+    final index = _items.indexWhere((item) => item.id == dealCartId || item.deal?.id == dealId);
+    return index >= 0 ? _items[index].quantity : 0;
+  }
+
+  /// Returns current quantity of a specific regular product in the cart.
+  int getQuantityForProduct(String productId) {
+    ensureCartForActiveUser();
+    final index = _items.indexWhere((item) => !item.isDeal && item.product.id == productId);
+    return index >= 0 ? _items[index].quantity : 0;
+  }
+
   /// Adds [quantity] of [product] to the cart.
   bool addToCart(
     CustomerProduct product, {
@@ -178,7 +193,7 @@ class CustomerCartController extends ChangeNotifier {
     final currentQty = existingIndex >= 0 ? _items[existingIndex].quantity : 0;
 
     if (currentQty + 1 > maxAvailable) {
-      onError?.call('Cannot add more. Only $maxAvailable available on sale.');
+      onError?.call('Limit reached. Only $maxAvailable available on sale.');
       return false;
     }
 
@@ -221,7 +236,7 @@ class CustomerCartController extends ChangeNotifier {
       if (item.isDeal && item.deal != null) {
         final maxAvailable = getAvailableDealStock(item.deal!);
         if (item.quantity >= maxAvailable) {
-          onError?.call('Cannot add more. Limit is $maxAvailable for this promo.');
+          onError?.call('Limit reached. Maximum is $maxAvailable for this promo.');
           return;
         }
         item.quantity++;
@@ -234,7 +249,7 @@ class CustomerCartController extends ChangeNotifier {
           notifyListeners();
           _saveCartToLocalAndQueueSync();
         } else {
-          onError?.call('Cannot add more. Only $maxAvailable available in stock.');
+          onError?.call('Stock limit reached. Only $maxAvailable available in stock.');
         }
       }
     }
@@ -270,8 +285,8 @@ class CustomerCartController extends ChangeNotifier {
         notifyListeners();
         _saveCartToLocalAndQueueSync();
         onError?.call(item.isDeal
-            ? 'Cannot add more. Limit is $maxAvailable for this promo.'
-            : 'Cannot add more. Only $maxAvailable available in stock.');
+            ? 'Limit reached. Maximum is $maxAvailable for this promo.'
+            : 'Stock limit reached. Only $maxAvailable available in stock.');
         return;
       }
 

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../../core/theme/app_colors.dart';
-import '../../../shared/utils/top_notification.dart';
+import '../../../shared/utils/customer_notice.dart';
 import '../../../shared/widgets/product_image.dart';
 import '../customer_cart_controller.dart';
 import '../purchases/customer_order_controller.dart';
@@ -64,7 +64,7 @@ class CustomerCartPage extends StatelessWidget {
                   if (confirmed == true) {
                     cartController.clearCart();
                     if (context.mounted) {
-                      TopNotification.show(context, 'Cart cleared');
+                      showCustomerNotice(context, 'Cart cleared', isWarning: false);
                     }
                   }
                 },
@@ -123,13 +123,13 @@ class CustomerCartPage extends StatelessWidget {
                       },
                       onIncrement: () => cartController.incrementQuantity(
                         item.id,
-                        onError: (msg) => TopNotification.show(context, msg, isError: true),
+                        onError: (msg) => showCustomerNotice(context, msg),
                       ),
                       onDecrement: () => cartController.decrementQuantity(item.id),
                       onUpdateQuantity: (newQty) => cartController.updateQuantity(
                         item.id,
                         newQty,
-                        onError: (msg) => TopNotification.show(context, msg, isError: true),
+                        onError: (msg) => showCustomerNotice(context, msg),
                       ),
                       onRemove: () async {
                         final confirmed = await showDialog<bool>(
@@ -153,7 +153,7 @@ class CustomerCartPage extends StatelessWidget {
                         if (confirmed == true) {
                           cartController.removeFromCart(item.id);
                           if (context.mounted) {
-                            TopNotification.show(context, 'Item removed from cart');
+                            showCustomerNotice(context, 'Item removed from cart', isWarning: false);
                           }
                         }
                       },
