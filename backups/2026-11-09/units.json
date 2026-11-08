@@ -1,0 +1,72 @@
+[
+  {
+    "id": "1c047998-64d4-42e6-98bb-d7a9466be774",
+    "code": "pcs",
+    "name": "Pieces",
+    "is_decimal": false,
+    "created_at": "2026-09-25T06:29:33.559575+00:00"
+  },
+  {
+    "id": "5686bb27-0c68-4b47-9c18-adbbdacb4b83",
+    "code": "piece",
+    "name": "Piece",
+    "is_decimal": false,
+    "created_at": "2026-09-25T06:29:33.559575+00:00"
+  },
+  {
+    "id": "de59b62f-e1ac-4f53-b3d3-9064b28396ba",
+    "code": "pack",
+    "name": "Pack",
+    "is_decimal": false,
+    "created_at": "2026-09-25T06:29:33.559575+00:00"
+  },
+  {
+    "id": "19a96566-fdfd-4d03-bb2b-cd986060ed25",
+    "code": "bottle",
+    "name": "Bottle",
+    "is_decimal": false,
+    "created_at": "2026-09-25T06:29:33.559575+00:00"
+  },
+  {
+    "id": "009c00b8-b2a5-4650-a8be-440c4ccbc0c1",
+    "code": "can",
+    "name": "Can",
+    "is_decimal": false,
+    "created_at": "2026-09-25T06:29:33.559575+00:00"
+  },
+  {
+    "id": "13a17dae-6394-4822-9820-9dd499f7fe83",
+    "code": "box",
+    "name": "Box",
+    "is_decimal": false,
+    "created_at": "2026-09-25T06:29:33.559575+00:00"
+  },
+  {
+    "id": "fd384425-1d79-4814-8a65-703fc2d9d61f",
+    "code": "sachet",
+    "name": "Sachet",
+    "is_decimal": false,
+    "created_at": "2026-09-25T06:29:33.559575+00:00"
+  },
+  {
+    "id": "41853852-a957-4397-a5f3-af80f1fdc8e2",
+    "code": "kg",
+    "name": "Kilogram",
+    "is_decimal": true,
+    "created_at": "2026-09-25T06:29:33.559575+00:00"
+  },
+  {
+    "id": "e8e82f18-d03d-41d1-9eb6-f69190d036c8",
+    "code": "gram",
+    "name": "Gram",
+    "is_decimal": true,
+    "created_at": "2026-09-25T06:29:33.559575+00:00"
+  },
+  {
+    "id": "3e50ead5-e947-4758-a88f-8b2e6729338b",
+    "code": "liter",
+    "name": "Liter",
+    "is_decimal": true,
+    "created_at": "2026-09-25T06:29:33.559575+00:00"
+  }
+]

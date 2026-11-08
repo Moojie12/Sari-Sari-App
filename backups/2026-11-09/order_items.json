@@ -1,0 +1,35 @@
+[
+  {
+    "id": "8e1a8f87-550e-4672-a46d-360950cf88f2",
+    "order_id": "2b3cf975-052b-434e-8de1-415c4956ce64",
+    "product_id": "69280861-f786-446d-8d57-b9f2f649fd61",
+    "product_name": "wanhandred",
+    "quantity": 1,
+    "unit_price": 100,
+    "total_price": 100,
+    "created_at": "2026-11-08T15:43:14.42782+00:00",
+    "unit_cost": 100
+  },
+  {
+    "id": "b94ab5a2-8f2d-4439-9fc8-56ddf2de6015",
+    "order_id": "36d50c02-a014-4c4b-a434-92d5bdc29d06",
+    "product_id": "0a7b01af-7afe-4039-b6ba-39e6a74ff3f4",
+    "product_name": "pipti",
+    "quantity": 1,
+    "unit_price": 50,
+    "total_price": 50,
+    "created_at": "2026-11-08T15:57:34.721488+00:00",
+    "unit_cost": 40
+  },
+  {
+    "id": "5c5b8b44-3770-486c-adcb-64452f3d13cf",
+    "order_id": "db3feab1-b510-409f-b0cd-da7f9ee56c6a",
+    "product_id": "69280861-f786-446d-8d57-b9f2f649fd61",
+    "product_name": "wanhandred",
+    "quantity": 1,
+    "unit_price": 100,
+    "total_price": 100,
+    "created_at": "2026-11-08T16:43:41.224987+00:00",
+    "unit_cost": 100
+  }
+]

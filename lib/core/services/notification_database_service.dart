@@ -340,8 +340,17 @@ class NotificationDatabaseService {
   CustomerNotification? _parseCustomerNotification(Map<String, dynamic> map) {
     try {
       final id = map['id']?.toString() ?? '';
-      final title = map['title']?.toString() ?? 'Notification';
-      final message = map['message']?.toString() ?? '';
+      final title = map['title']?.toString()?.trim() ?? '';
+      final message = map['message']?.toString()?.trim() ?? '';
+
+      // Filter out blank / empty notifications
+      if (title.isEmpty && message.isEmpty) {
+        return null;
+      }
+      if ((title == 'Notification' || title.isEmpty) && message.isEmpty) {
+        return null;
+      }
+
       final isRead = map['isRead'] == true;
       final timestampStr = map['timestamp']?.toString();
       final timestamp = timestampStr != null
@@ -359,7 +368,7 @@ class NotificationDatabaseService {
       return CustomerNotification(
         id: id,
         type: type,
-        title: title,
+        title: title.isEmpty ? 'Notification' : title,
         message: message,
         timestamp: timestamp,
         isRead: isRead,
@@ -373,11 +382,14 @@ class NotificationDatabaseService {
   EmployeeNotification? _parseEmployeeNotification(Map<String, dynamic> map) {
     try {
       final id = map['id']?.toString() ?? '';
-      final title = map['title']?.toString() ?? 'Notification';
-      final message = map['message']?.toString() ?? '';
+      final title = map['title']?.toString()?.trim() ?? '';
+      final message = map['message']?.toString()?.trim() ?? '';
 
       // Ignore dummy / incomplete records with generic title and blank message
-      if ((title == 'Notification' || title.isEmpty) && message.trim().isEmpty) {
+      if (title.isEmpty && message.isEmpty) {
+        return null;
+      }
+      if ((title == 'Notification' || title.isEmpty) && message.isEmpty) {
         return null;
       }
 

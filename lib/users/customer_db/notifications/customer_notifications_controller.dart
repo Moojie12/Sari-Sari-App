@@ -27,6 +27,7 @@ class CustomerNotificationsController extends ChangeNotifier {
   List<CustomerNotification> get notifications {
     return _notifications
         .where((n) => !_dismissedIds.contains(n.id))
+        .where((n) => n.title.trim().isNotEmpty || n.message.trim().isNotEmpty)
         .map((n) => n.copyWith(isRead: _readIds.contains(n.id) || n.isRead))
         .toList()
       ..sort((a, b) => b.timestamp.compareTo(a.timestamp));

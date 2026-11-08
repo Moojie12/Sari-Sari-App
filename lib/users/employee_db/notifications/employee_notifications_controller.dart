@@ -98,6 +98,7 @@ class EmployeeNotificationsController extends ChangeNotifier {
 
     final all = [...derived, ...mock, ...dynamicNotifs]
         .where((n) => !_dismissedIds.contains(n.id))
+        .where((n) => n.title.trim().isNotEmpty || n.message.trim().isNotEmpty)
         .toList()
       ..sort((a, b) => b.timestamp.compareTo(a.timestamp));
     return all;

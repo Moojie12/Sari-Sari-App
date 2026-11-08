@@ -1,0 +1,98 @@
+[
+  {
+    "id": "4c0aabe8-2508-459f-a376-e515a7bc4302",
+    "name": "Beverages",
+    "description": "Soft drinks, juices, energy drinks, and bottled water",
+    "is_archived": false,
+    "archived_at": null,
+    "archived_by": null,
+    "created_at": "2026-10-04T14:18:06.961308+00:00",
+    "updated_at": "2026-10-04T14:18:06.961308+00:00",
+    "created_by": null,
+    "updated_by": null
+  },
+  {
+    "id": "93e02312-d7b8-4092-9322-7d8e3a14d5c3",
+    "name": "Snacks & Chips",
+    "description": "Chichiriya, biscuits, candies, and chocolates",
+    "is_archived": false,
+    "archived_at": null,
+    "archived_by": null,
+    "created_at": "2026-10-04T14:18:06.961308+00:00",
+    "updated_at": "2026-10-04T14:18:06.961308+00:00",
+    "created_by": null,
+    "updated_by": null
+  },
+  {
+    "id": "945dbebf-91a1-4191-a9d5-f9ecff4dce4b",
+    "name": "Canned Goods",
+    "description": "Sardines, corned beef, meat loaf, and tuna",
+    "is_archived": false,
+    "archived_at": null,
+    "archived_by": null,
+    "created_at": "2026-10-04T14:18:06.961308+00:00",
+    "updated_at": "2026-10-04T14:18:06.961308+00:00",
+    "created_by": null,
+    "updated_by": null
+  },
+  {
+    "id": "be5d4174-4511-4694-af96-e98b5e25b7bd",
+    "name": "Instant Noodles",
+    "description": "Pancit canton, cup noodles, and instant ramen",
+    "is_archived": false,
+    "archived_at": null,
+    "archived_by": null,
+    "created_at": "2026-10-04T14:18:06.961308+00:00",
+    "updated_at": "2026-10-04T14:18:06.961308+00:00",
+    "created_by": null,
+    "updated_by": null
+  },
+  {
+    "id": "308768a8-7e38-4d95-959f-ecab79d4ffc5",
+    "name": "Condiments & Spices",
+    "description": "Toyo, suka, patis, mantika, ketchup, and seasonings",
+    "is_archived": false,
+    "archived_at": null,
+    "archived_by": null,
+    "created_at": "2026-10-04T14:18:06.961308+00:00",
+    "updated_at": "2026-10-04T14:18:06.961308+00:00",
+    "created_by": null,
+    "updated_by": null
+  },
+  {
+    "id": "0fc8bcfe-5a2e-4714-94a7-8369af0703dd",
+    "name": "Personal Care",
+    "description": "Shampoo, soap, toothpaste, and detergent",
+    "is_archived": false,
+    "archived_at": null,
+    "archived_by": null,
+    "created_at": "2026-10-04T14:18:06.961308+00:00",
+    "updated_at": "2026-10-04T14:18:06.961308+00:00",
+    "created_by": null,
+    "updated_by": null
+  },
+  {
+    "id": "89c75157-e203-4c29-8bf4-dc288a5f5429",
+    "name": "General",
+    "description": "",
+    "is_archived": false,
+    "archived_at": null,
+    "archived_by": null,
+    "created_at": "2026-10-18T09:22:50.78691+00:00",
+    "updated_at": "2026-10-18T09:22:50.78691+00:00",
+    "created_by": null,
+    "updated_by": null
+  },
+  {
+    "id": "9d095931-6f83-4504-8ff1-a3a6879f0034",
+    "name": "Piatos",
+    "description": null,
+    "is_archived": false,
+    "archived_at": null,
+    "archived_by": null,
+    "created_at": "2026-11-08T12:26:33.266821+00:00",
+    "updated_at": "2026-11-08T12:26:33.266821+00:00",
+    "created_by": null,
+    "updated_by": null
+  }
+]

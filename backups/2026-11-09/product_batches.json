@@ -1,0 +1,38 @@
+[
+  {
+    "id": "8021e2f9-b7dc-4d62-a100-9437569c57d0",
+    "product_id": "7c7a3658-93b0-4e08-84f7-97852ee16d45",
+    "quantity": 10,
+    "expiry_date": "2027-01-01T00:00:00+00:00",
+    "supplier": null,
+    "notes": null,
+    "received_date": "2026-11-08T22:40:01.517364+00:00",
+    "created_at": "2026-11-08T14:40:01.880853+00:00",
+    "updated_at": "2026-11-08T14:40:01.880853+00:00",
+    "supplier_id": null
+  },
+  {
+    "id": "72e16c46-d46b-46c1-ae30-2f1727ab2881",
+    "product_id": "0a7b01af-7afe-4039-b6ba-39e6a74ff3f4",
+    "quantity": 10,
+    "expiry_date": null,
+    "supplier": null,
+    "notes": null,
+    "received_date": "2026-11-08T23:53:02.207989+00:00",
+    "created_at": "2026-11-08T15:53:02.543178+00:00",
+    "updated_at": "2026-11-08T15:53:02.543178+00:00",
+    "supplier_id": null
+  },
+  {
+    "id": "b7d6bb9c-1ec8-47ae-8f15-4b3710a636f2",
+    "product_id": "69280861-f786-446d-8d57-b9f2f649fd61",
+    "quantity": 9,
+    "expiry_date": null,
+    "supplier": null,
+    "notes": null,
+    "received_date": "2026-11-08T23:30:30.657027+00:00",
+    "created_at": "2026-11-08T15:30:31.021828+00:00",
+    "updated_at": "2026-11-08T15:30:31.021828+00:00",
+    "supplier_id": null
+  }
+]

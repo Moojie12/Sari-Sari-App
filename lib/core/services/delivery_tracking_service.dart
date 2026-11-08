@@ -52,7 +52,10 @@ class DeliveryPerson {
     }
 
     return DeliveryPerson(
-      id: map['id']?.toString() ?? map['firebase_uid']?.toString() ?? map['uid']?.toString() ?? '',
+      id: map['firebase_uid']?.toString() ??
+          map['uid']?.toString() ??
+          map['id']?.toString() ??
+          '',
       name: fullName,
       role: formattedRole,
       email: map['email']?.toString(),
@@ -406,7 +409,65 @@ class DeliveryTrackingService {
       );
     }
 
-    final list = staffMap.values.toList();
+    // Deduplicate staff by ID, phone, email, or normalized name (ignoring middle initials)
+    final Map<String, DeliveryPerson> deduplicated = {};
+
+    String normalizeName(String name) {
+      return name
+          .toLowerCase()
+          .replaceAll(RegExp(r'\b[a-z]\.\s*', caseSensitive: false), '')
+          .replaceAll(RegExp(r'[^a-z0-9\s]'), '')
+          .replaceAll(RegExp(r'\s+'), ' ')
+          .trim();
+    }
+
+    String normalizePhone(String? phone) {
+      if (phone == null) return '';
+      var cleaned = phone.replaceAll(RegExp(r'[^\d+]'), '');
+      if (cleaned.startsWith('+63')) {
+        cleaned = '0${cleaned.substring(3)}';
+      }
+      return cleaned;
+    }
+
+    for (final person in staffMap.values) {
+      final emailKey = person.email?.trim().toLowerCase() ?? '';
+      final phoneKey = normalizePhone(person.phone);
+      final normNameKey = normalizeName(person.name);
+
+      final existingKey = deduplicated.keys.firstWhere(
+        (k) {
+          final existing = deduplicated[k]!;
+          if (existing.id == person.id) return true;
+          if (phoneKey.isNotEmpty && normalizePhone(existing.phone) == phoneKey) return true;
+          if (emailKey.isNotEmpty && (existing.email?.trim().toLowerCase() ?? '') == emailKey) return true;
+          if (normNameKey.isNotEmpty && normalizeName(existing.name) == normNameKey) return true;
+          return false;
+        },
+        orElse: () => '',
+      );
+
+      if (existingKey.isEmpty) {
+        deduplicated[person.id] = person;
+      } else {
+        final existing = deduplicated[existingKey]!;
+        final bestPhone = (existing.phone != null && existing.phone!.isNotEmpty) ? existing.phone : person.phone;
+        final bestName = (person.name.length > existing.name.length) ? person.name : existing.name;
+        final bestEmail = (existing.email != null && existing.email!.isNotEmpty) ? existing.email : person.email;
+        final bestAvatar = (existing.avatarUrl != null && existing.avatarUrl!.isNotEmpty) ? existing.avatarUrl : person.avatarUrl;
+
+        deduplicated[existingKey] = DeliveryPerson(
+          id: existing.id.isNotEmpty ? existing.id : person.id,
+          name: bestName,
+          role: existing.role,
+          email: bestEmail,
+          phone: bestPhone,
+          avatarUrl: bestAvatar,
+        );
+      }
+    }
+
+    final list = deduplicated.values.toList();
     // Sort Owners first, then Employees alphabetically
     list.sort((a, b) {
       if (a.role == 'Owner' && b.role != 'Owner') return -1;
