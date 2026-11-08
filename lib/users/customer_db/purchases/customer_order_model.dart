@@ -153,6 +153,7 @@ class CustomerOrder {
     this.deliveryLongitude,
     this.cancellationReason,
     this.paymentReferenceNumber,
+    this.paymentAmount,
     this.gcashRefundName,
     this.gcashRefundNumber,
     this.refundProofUrl,
@@ -183,6 +184,7 @@ class CustomerOrder {
   final double? deliveryLongitude;
   final String? cancellationReason;
   final String? paymentReferenceNumber;
+  final double? paymentAmount;
   final String? gcashRefundName;
   final String? gcashRefundNumber;
   final String? refundProofUrl;
@@ -247,6 +249,7 @@ class CustomerOrder {
     double? deliveryLongitude,
     String? cancellationReason,
     String? paymentReferenceNumber,
+    double? paymentAmount,
     String? gcashRefundName,
     String? gcashRefundNumber,
     String? refundProofUrl,
@@ -277,6 +280,7 @@ class CustomerOrder {
       deliveryLongitude: deliveryLongitude ?? this.deliveryLongitude,
       cancellationReason: cancellationReason ?? this.cancellationReason,
       paymentReferenceNumber: paymentReferenceNumber ?? this.paymentReferenceNumber,
+      paymentAmount: paymentAmount ?? this.paymentAmount,
       gcashRefundName: gcashRefundName ?? this.gcashRefundName,
       gcashRefundNumber: gcashRefundNumber ?? this.gcashRefundNumber,
       refundProofUrl: refundProofUrl ?? this.refundProofUrl,
@@ -311,6 +315,7 @@ class CustomerOrder {
       'deliveryLongitude': deliveryLongitude,
       'cancellationReason': cancellationReason,
       'paymentReferenceNumber': paymentReferenceNumber,
+      'paymentAmount': paymentAmount,
       'gcashRefundName': gcashRefundName,
       'gcashRefundNumber': gcashRefundNumber,
       'refundProofUrl': refundProofUrl,
@@ -336,6 +341,7 @@ class CustomerOrder {
       'delivery_address': deliveryAddress ?? '',
       'cancellation_reason': cancellationReason ?? '',
       'payment_reference_number': paymentReferenceNumber ?? '',
+      'payment_amount': paymentAmount ?? 0.0,
       'gcash_refund_name': gcashRefundName ?? '',
       'gcash_refund_number': gcashRefundNumber ?? '',
       'refund_proof_url': refundProofUrl ?? '',
@@ -412,6 +418,10 @@ class CustomerOrder {
       ),
       paymentReferenceNumber: _parsePaymentReferenceNumber(
         map['paymentReferenceNumber']?.toString() ?? map['payment_reference_number']?.toString(),
+        notes,
+      ),
+      paymentAmount: _parsePaymentAmount(
+        map['paymentAmount'] ?? map['payment_amount'],
         notes,
       ),
       gcashRefundName: _parseGcashRefundName(
@@ -508,6 +518,10 @@ class CustomerOrder {
       ),
       paymentReferenceNumber: _parsePaymentReferenceNumber(
         map['payment_reference_number']?.toString() ?? map['paymentReferenceNumber']?.toString(),
+        notes,
+      ),
+      paymentAmount: _parsePaymentAmount(
+        map['payment_amount'] ?? map['paymentAmount'],
         notes,
       ),
       gcashRefundName: _parseGcashRefundName(
@@ -740,6 +754,21 @@ String? _parsePaymentProofUrl(String? raw, String? orderNotes) {
   if (orderNotes != null && orderNotes.contains('[payment_proof_url:')) {
     final match = RegExp(r'\[payment_proof_url:\s*([^\]]+)\]').firstMatch(orderNotes);
     if (match != null && match.group(1) != null) return match.group(1)!.trim();
+  }
+  return null;
+}
+
+double? _parsePaymentAmount(dynamic raw, String? orderNotes) {
+  if (raw != null) {
+    if (raw is num) return raw.toDouble();
+    final parsed = double.tryParse(raw.toString().replaceAll(',', '').trim());
+    if (parsed != null && parsed > 0) return parsed;
+  }
+  if (orderNotes != null && orderNotes.contains('[payment_amount:')) {
+    final match = RegExp(r'\[payment_amount:\s*([0-9\.]+)\]').firstMatch(orderNotes);
+    if (match != null && match.group(1) != null) {
+      return double.tryParse(match.group(1)!);
+    }
   }
   return null;
 }

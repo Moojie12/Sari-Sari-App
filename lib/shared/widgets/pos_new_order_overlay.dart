@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import '../../core/services/firebase_notification_service.dart';
 import '../../core/services/pos_audio_service.dart';
@@ -282,6 +283,117 @@ class _PosNewOrderOverlayState extends State<PosNewOrderOverlay>
                               ),
                             ],
                           ),
+                          if (order.paymentMethod == PaymentMethod.gCash || order.paymentProofUrl != null) ...[
+                            const SizedBox(height: 10),
+                            Container(
+                              padding: const EdgeInsets.all(10),
+                              decoration: BoxDecoration(
+                                color: const Color(0xFF007DFE).withValues(alpha: 0.08),
+                                borderRadius: BorderRadius.circular(10),
+                                border: Border.all(
+                                  color: const Color(0xFF007DFE).withValues(alpha: 0.25),
+                                ),
+                              ),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  if (order.paymentProofUrl != null && order.paymentProofUrl!.isNotEmpty)
+                                    GestureDetector(
+                                      onTap: () => _showReceiptModal(context, order.paymentProofUrl!),
+                                      child: ClipRRect(
+                                        borderRadius: BorderRadius.circular(6),
+                                        child: Stack(
+                                          alignment: Alignment.center,
+                                          children: [
+                                            _buildReceiptThumbnail(order.paymentProofUrl!, 46),
+                                            Container(
+                                              width: 46,
+                                              height: 46,
+                                              color: Colors.black26,
+                                              child: const Icon(Icons.zoom_in, color: Colors.white, size: 20),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    )
+                                  else
+                                    Container(
+                                      width: 44,
+                                      height: 44,
+                                      decoration: BoxDecoration(
+                                        color: const Color(0xFF007DFE).withValues(alpha: 0.15),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: const Icon(Icons.account_balance_wallet, color: Color(0xFF007DFE), size: 22),
+                                    ),
+                                  const SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Row(
+                                          children: [
+                                            const Text(
+                                              'GCash Payment',
+                                              style: TextStyle(
+                                                fontSize: 12,
+                                                fontWeight: FontWeight.bold,
+                                                color: Color(0xFF007DFE),
+                                              ),
+                                            ),
+                                            const SizedBox(width: 6),
+                                            Container(
+                                              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                                              decoration: BoxDecoration(
+                                                color: order.paymentStatus == PaymentStatus.paid
+                                                    ? Colors.green.shade100
+                                                    : Colors.orange.shade100,
+                                                borderRadius: BorderRadius.circular(4),
+                                              ),
+                                              child: Text(
+                                                order.paymentStatus == PaymentStatus.paid
+                                                    ? 'VERIFIED'
+                                                    : 'PENDING VERIFICATION',
+                                                style: TextStyle(
+                                                  fontSize: 9,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: order.paymentStatus == PaymentStatus.paid
+                                                      ? Colors.green.shade800
+                                                      : Colors.orange.shade900,
+                                                ),
+                                              ),
+                                            ),
+                                          ],
+                                        ),
+                                        const SizedBox(height: 3),
+                                        Text(
+                                          'Ref #: ${order.paymentReferenceNumber?.isNotEmpty == true ? order.paymentReferenceNumber! : 'Pending OCR / Manual'}',
+                                          style: const TextStyle(
+                                            fontSize: 11,
+                                            fontWeight: FontWeight.w600,
+                                            color: Colors.black87,
+                                          ),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                        ),
+                                        Text(
+                                          'Receipt Amount: ₱${(order.paymentAmount ?? order.totalAmount).toStringAsFixed(2)}',
+                                          style: TextStyle(
+                                            fontSize: 11,
+                                            color: (order.paymentAmount != null && (order.paymentAmount! - order.totalAmount).abs() > 0.01)
+                                                ? Colors.red.shade700
+                                                : Colors.grey.shade800,
+                                            fontWeight: FontWeight.w500,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ],
                           const SizedBox(height: 12),
                           // Action buttons
                           Row(
@@ -334,6 +446,76 @@ class _PosNewOrderOverlayState extends State<PosNewOrderOverlay>
               ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReceiptThumbnail(String path, double size) {
+    if (path.startsWith('http://') || path.startsWith('https://')) {
+      return Image.network(
+        path,
+        width: size,
+        height: size,
+        fit: BoxFit.cover,
+        errorBuilder: (_, __, ___) => Container(
+          width: size,
+          height: size,
+          color: Colors.grey.shade200,
+          child: const Icon(Icons.broken_image, size: 20, color: Colors.grey),
+        ),
+      );
+    }
+    return Image.file(
+      File(path),
+      width: size,
+      height: size,
+      fit: BoxFit.cover,
+      errorBuilder: (_, __, ___) => Container(
+        width: size,
+        height: size,
+        color: Colors.grey.shade200,
+        child: const Icon(Icons.receipt_long, size: 20, color: Colors.grey),
+      ),
+    );
+  }
+
+  void _showReceiptModal(BuildContext context, String path) {
+    _autoDismissTimer?.cancel();
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        backgroundColor: Colors.transparent,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: Stack(
+          alignment: Alignment.topRight,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(16),
+              child: Container(
+                color: Colors.black,
+                child: InteractiveViewer(
+                  maxScale: 4.0,
+                  child: path.startsWith('http://') || path.startsWith('https://')
+                      ? Image.network(path, fit: BoxFit.contain)
+                      : Image.file(File(path), fit: BoxFit.contain),
+                ),
+              ),
+            ),
+            Positioned(
+              top: 12,
+              right: 12,
+              child: CircleAvatar(
+                backgroundColor: Colors.black54,
+                radius: 18,
+                child: IconButton(
+                  padding: EdgeInsets.zero,
+                  icon: const Icon(Icons.close, color: Colors.white, size: 20),
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

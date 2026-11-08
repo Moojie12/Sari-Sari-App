@@ -41,7 +41,7 @@ void main() {
 
     testWidgets('CustomerDashboard initializes with Home tab (index 0)', (tester) async {
       await tester.pumpWidget(
-        const MaterialApp(
+        MaterialApp(
           home: CustomerDashboard(),
         ),
       );

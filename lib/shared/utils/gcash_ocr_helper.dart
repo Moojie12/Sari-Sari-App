@@ -6,11 +6,13 @@ class GcashReceiptValidationResult {
   final bool isValid;
   final String? errorMessage;
   final String? extractedRefNumber;
+  final double? extractedAmount;
 
   const GcashReceiptValidationResult({
     required this.isValid,
     this.errorMessage,
     this.extractedRefNumber,
+    this.extractedAmount,
   });
 }
 
@@ -184,9 +186,10 @@ class GcashOcrHelper {
     int secondaryCount = secondaryKeywords.where((kw) => combinedText.contains(kw)).length;
 
     final extractedRef = extractRefNumber(items);
+    final extractedAmount = extractPaymentAmount(items);
 
-    // Validation rule: Must have at least 1 primary term OR (reference number + at least 1 secondary term) OR secondaryCount >= 1
-    bool isGcashReceipt = hasPrimary || extractedRef != null || secondaryCount >= 1;
+    // Validation rule: Must have at least 1 primary term OR (reference number + at least 1 secondary term) OR secondaryCount >= 1 OR extractedAmount != null
+    bool isGcashReceipt = hasPrimary || extractedRef != null || extractedAmount != null || secondaryCount >= 1;
 
     if (!isGcashReceipt) {
       return const GcashReceiptValidationResult(
@@ -198,6 +201,7 @@ class GcashOcrHelper {
     return GcashReceiptValidationResult(
       isValid: true,
       extractedRefNumber: extractedRef,
+      extractedAmount: extractedAmount,
     );
   }
 
@@ -295,5 +299,100 @@ class GcashOcrHelper {
       return '${digits.substring(0, 4)} ${digits.substring(4, 7)} ${digits.substring(7)}';
     }
     return digits;
+  }
+
+  /// Extracts the paid transaction amount from GCash receipt OCR text.
+  /// Looks for explicit patterns like "Amount: PHP 150.00", "Total Amount PHP 250.00",
+  /// or currency values like "PHP 500.00", while filtering out fee lines (e.g. "Fee PHP 0.00").
+  static double? extractPaymentAmount(List<OcrTextItem> items) {
+    if (items.isEmpty) return null;
+
+    double? parseAmount(String raw) {
+      final clean = raw.replaceAll(',', '').replaceAll(' ', '').trim();
+      final val = double.tryParse(clean);
+      if (val != null && val > 0 && val < 500000) {
+        return val;
+      }
+      return null;
+    }
+
+    bool isFeeLine(String text) {
+      final lower = text.toLowerCase();
+      return lower.contains('convenience') ||
+          (lower.contains('fee') && !lower.contains('amount'));
+    }
+
+    // Pass 1: Explicit labels with amount on the same line
+    final explicitAmountRegex = RegExp(
+      r'(?:total\s+amount|amount\s+sent|payment\s+amount|amount\s+paid|amount)[:\s]*(?:php|p|₱)?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)',
+      caseSensitive: false,
+    );
+
+    for (final item in items) {
+      final text = item.text.trim();
+      if (isFeeLine(text)) continue;
+
+      final match = explicitAmountRegex.firstMatch(text);
+      if (match != null && match.group(1) != null) {
+        final amt = parseAmount(match.group(1)!);
+        if (amt != null) return amt;
+      }
+    }
+
+    // Pass 2: Label on one line, amount on the next 1-2 items
+    for (int i = 0; i < items.length; i++) {
+      final text = items[i].text.trim().toLowerCase();
+      if (isFeeLine(text)) continue;
+
+      if (text == 'amount' ||
+          text == 'total amount' ||
+          text == 'amount sent' ||
+          text == 'total' ||
+          text == 'payment amount' ||
+          text.startsWith('amount:')) {
+        for (int j = i + 1; j < items.length && j <= i + 2; j++) {
+          final nextText = items[j].text.trim();
+          if (isFeeLine(nextText)) continue;
+
+          final currencyMatch = RegExp(
+            r'(?:php|p|₱)?\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{1,2})?|[0-9]+(?:\.[0-9]{1,2})?)',
+            caseSensitive: false,
+          ).firstMatch(nextText);
+
+          if (currencyMatch != null && currencyMatch.group(1) != null) {
+            final amt = parseAmount(currencyMatch.group(1)!);
+            if (amt != null) return amt;
+          }
+        }
+      }
+    }
+
+    // Pass 3: Explicit currency prefix (PHP or ₱) anywhere on non-fee lines
+    final currencyPattern = RegExp(
+      r'(?:php|₱)\s*([0-9]{1,3}(?:,[0-9]{3})*(?:\.[0-9]{2})|[0-9]+(?:\.[0-9]{2}))',
+      caseSensitive: false,
+    );
+
+    for (final item in items) {
+      if (isFeeLine(item.text)) continue;
+      final match = currencyPattern.firstMatch(item.text);
+      if (match != null && match.group(1) != null) {
+        final amt = parseAmount(match.group(1)!);
+        if (amt != null) return amt;
+      }
+    }
+
+    // Pass 4: Look for numbers with 2 decimal places that are not reference numbers or 0.00
+    final decimalPattern = RegExp(r'\b([0-9]{1,3}(?:,[0-9]{3})*\.[0-9]{2})\b');
+    for (final item in items) {
+      if (isFeeLine(item.text)) continue;
+      final match = decimalPattern.firstMatch(item.text);
+      if (match != null && match.group(1) != null) {
+        final amt = parseAmount(match.group(1)!);
+        if (amt != null && amt > 0) return amt;
+      }
+    }
+
+    return null;
   }
 }

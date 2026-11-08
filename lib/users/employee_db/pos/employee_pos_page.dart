@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
@@ -14,6 +15,7 @@ import '../../owner_db/profile/shop_settings_controller.dart';
 import '../employee_inventory_controller.dart';
 import '../inventory/employee_product_model.dart';
 import '../orders/employee_orders_controller.dart';
+import '../orders/employee_order_details_page.dart';
 import '../../customer_db/purchases/customer_order_model.dart';
 import '../profile/employee_profile_controller.dart';
 import 'employee_pos_controller.dart';
@@ -436,7 +438,14 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
                   fontWeight: FontWeight.bold,
                 ),
               ),
-              _buildCartSummary(),
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _buildOnlineOrdersBadge(),
+                  const SizedBox(width: 8),
+                  _buildCartSummary(),
+                ],
+              ),
             ],
           ),
           if (shift != null) ...[
@@ -546,6 +555,426 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
               ],
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOnlineOrdersBadge() {
+    return ListenableBuilder(
+      listenable: EmployeeOrderController.instance,
+      builder: (context, _) {
+        final pendingGcashOrders = EmployeeOrderController.instance.orders.where((o) =>
+            (o.paymentMethod == PaymentMethod.gCash || o.paymentProofUrl != null) &&
+            o.paymentStatus != PaymentStatus.paid &&
+            o.status != OrderStatus.cancelled &&
+            o.status != OrderStatus.completed).toList();
+        final hasPending = pendingGcashOrders.isNotEmpty;
+        return Material(
+          color: hasPending ? const Color(0xFF007DFE) : Colors.grey.shade100,
+          borderRadius: BorderRadius.circular(12),
+          child: InkWell(
+            onTap: () => _showOnlineGcashOrdersSheet(context),
+            borderRadius: BorderRadius.circular(12),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(
+                    Icons.receipt_long_rounded,
+                    size: 18,
+                    color: hasPending ? Colors.white : Colors.grey.shade700,
+                  ),
+                  const SizedBox(width: 6),
+                  Text(
+                    'GCash',
+                    style: TextStyle(
+                      color: hasPending ? Colors.white : Colors.grey.shade700,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 12,
+                    ),
+                  ),
+                  if (hasPending) ...[
+                    const SizedBox(width: 6),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                      decoration: const BoxDecoration(
+                        color: Colors.redAccent,
+                        shape: BoxShape.circle,
+                      ),
+                      child: Text(
+                        '${pendingGcashOrders.length}',
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 10,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  void _showOnlineGcashOrdersSheet(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetCtx) => DraggableScrollableSheet(
+        initialChildSize: 0.75,
+        maxChildSize: 0.95,
+        minChildSize: 0.4,
+        builder: (ctx, scrollController) => Container(
+          decoration: const BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: ListenableBuilder(
+            listenable: EmployeeOrderController.instance,
+            builder: (ctx, _) {
+              final gcashOrders = EmployeeOrderController.instance.orders.where((o) =>
+                  (o.paymentMethod == PaymentMethod.gCash || o.paymentProofUrl != null) &&
+                  o.status != OrderStatus.cancelled &&
+                  o.status != OrderStatus.completed).toList();
+
+              return Column(
+                children: [
+                  Center(
+                    child: Container(
+                      margin: const EdgeInsets.only(top: 10, bottom: 8),
+                      width: 40,
+                      height: 4,
+                      decoration: BoxDecoration(
+                        color: Colors.grey.shade300,
+                        borderRadius: BorderRadius.circular(2),
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Row(
+                          children: [
+                            Icon(Icons.account_balance_wallet, color: Color(0xFF007DFE)),
+                            SizedBox(width: 8),
+                            Text(
+                              'GCash Orders Verification',
+                              style: TextStyle(
+                                fontSize: 18,
+                                fontWeight: FontWeight.bold,
+                                color: AppColors.darkText,
+                              ),
+                            ),
+                          ],
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          onPressed: () => Navigator.pop(sheetCtx),
+                        ),
+                      ],
+                    ),
+                  ),
+                  const Divider(height: 1),
+                  if (gcashOrders.isEmpty)
+                    Expanded(
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Icon(Icons.check_circle_outline, size: 54, color: Colors.green.shade300),
+                            const SizedBox(height: 12),
+                            const Text(
+                              'No Active GCash Orders',
+                              style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                            ),
+                            const SizedBox(height: 4),
+                            const Text(
+                              'All GCash customer payments have been reviewed.',
+                              style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+                            ),
+                          ],
+                        ),
+                      ),
+                    )
+                  else
+                    Expanded(
+                      child: ListView.separated(
+                        controller: scrollController,
+                        padding: const EdgeInsets.all(16),
+                        itemCount: gcashOrders.length,
+                        separatorBuilder: (_, __) => const SizedBox(height: 14),
+                        itemBuilder: (ctx, i) {
+                          final o = gcashOrders[i];
+                          final isPaid = o.paymentStatus == PaymentStatus.paid;
+                          final paymentAmt = o.paymentAmount ?? o.totalAmount;
+                          final isMatch = (paymentAmt - o.totalAmount).abs() < 0.01;
+
+                          return Container(
+                            padding: const EdgeInsets.all(14),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(
+                                color: isPaid ? Colors.grey.shade200 : const Color(0xFF007DFE).withValues(alpha: 0.3),
+                                width: isPaid ? 1 : 1.5,
+                              ),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.04),
+                                  blurRadius: 8,
+                                  offset: const Offset(0, 2),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    Text(
+                                      'Order #${o.displayOrderId}',
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                                      decoration: BoxDecoration(
+                                        color: isPaid ? Colors.green.shade50 : Colors.orange.shade50,
+                                        borderRadius: BorderRadius.circular(6),
+                                        border: Border.all(
+                                          color: isPaid ? Colors.green.shade300 : Colors.orange.shade300,
+                                        ),
+                                      ),
+                                      child: Text(
+                                        isPaid ? 'VERIFIED' : 'PENDING VERIFICATION',
+                                        style: TextStyle(
+                                          fontSize: 10,
+                                          fontWeight: FontWeight.bold,
+                                          color: isPaid ? Colors.green.shade800 : Colors.orange.shade900,
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.person_outline, size: 15, color: Colors.grey),
+                                    const SizedBox(width: 4),
+                                    Text(
+                                      o.customerName.isNotEmpty ? o.customerName : 'Customer',
+                                      style: const TextStyle(fontWeight: FontWeight.w600, fontSize: 13),
+                                    ),
+                                    const Spacer(),
+                                    Text(
+                                      'Order Total: ₱${o.totalAmount.toStringAsFixed(2)}',
+                                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 10),
+                                Container(
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: Colors.grey.shade50,
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: Row(
+                                    children: [
+                                      if (o.paymentProofUrl != null && o.paymentProofUrl!.isNotEmpty)
+                                        GestureDetector(
+                                          onTap: () => _showReceiptDialog(context, o.paymentProofUrl!),
+                                          child: ClipRRect(
+                                            borderRadius: BorderRadius.circular(6),
+                                            child: Stack(
+                                              alignment: Alignment.center,
+                                              children: [
+                                                ProductImage(
+                                                  image: o.paymentProofUrl!,
+                                                  width: 48,
+                                                  height: 48,
+                                                  fit: BoxFit.cover,
+                                                  borderRadius: 6,
+                                                  fallbackIcon: Icons.receipt_long,
+                                                ),
+                                                Container(
+                                                  width: 48,
+                                                  height: 48,
+                                                  color: Colors.black26,
+                                                  child: const Icon(Icons.zoom_in, color: Colors.white, size: 20),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        )
+                                      else
+                                        Container(
+                                          width: 48,
+                                          height: 48,
+                                          decoration: BoxDecoration(
+                                            color: Colors.grey.shade200,
+                                            borderRadius: BorderRadius.circular(6),
+                                          ),
+                                          child: const Icon(Icons.receipt_long, color: Colors.grey),
+                                        ),
+                                      const SizedBox(width: 10),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              'Ref #: ${o.paymentReferenceNumber?.isNotEmpty == true ? o.paymentReferenceNumber! : 'Pending Manual Entry'}',
+                                              style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            const SizedBox(height: 2),
+                                            Row(
+                                              children: [
+                                                Text(
+                                                  'Paid: ₱${paymentAmt.toStringAsFixed(2)}',
+                                                  style: TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.w600,
+                                                    color: isMatch ? Colors.black87 : Colors.red.shade700,
+                                                  ),
+                                                ),
+                                                const SizedBox(width: 6),
+                                                Container(
+                                                  padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                                  decoration: BoxDecoration(
+                                                    color: isMatch ? Colors.green.shade50 : Colors.red.shade50,
+                                                    borderRadius: BorderRadius.circular(4),
+                                                  ),
+                                                  child: Text(
+                                                    isMatch ? '✓ Match' : '⚠ Mismatch',
+                                                    style: TextStyle(
+                                                      fontSize: 9,
+                                                      fontWeight: FontWeight.bold,
+                                                      color: isMatch ? Colors.green.shade800 : Colors.red.shade800,
+                                                    ),
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(height: 10),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: OutlinedButton(
+                                        onPressed: () {
+                                          Navigator.pop(sheetCtx);
+                                          Navigator.push(
+                                            context,
+                                            MaterialPageRoute(
+                                              builder: (_) => EmployeeOrderDetailsPage(
+                                                order: o,
+                                                controller: EmployeeOrderController.instance,
+                                              ),
+                                            ),
+                                          );
+                                        },
+                                        style: OutlinedButton.styleFrom(
+                                          padding: const EdgeInsets.symmetric(vertical: 8),
+                                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                        ),
+                                        child: const Text('View Order Details', style: TextStyle(fontSize: 12)),
+                                      ),
+                                    ),
+                                    if (!isPaid) ...[
+                                      const SizedBox(width: 8),
+                                      Expanded(
+                                        child: ElevatedButton.icon(
+                                          onPressed: () async {
+                                            await EmployeeOrderController.instance.updatePaymentStatus(
+                                              o.orderId,
+                                              PaymentStatus.paid,
+                                            );
+                                            if (context.mounted) {
+                                              ScaffoldMessenger.of(context).showSnackBar(
+                                                SnackBar(
+                                                  content: Text('Order #${o.displayOrderId} payment verified!'),
+                                                  backgroundColor: Colors.green,
+                                                ),
+                                              );
+                                            }
+                                          },
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.green,
+                                            foregroundColor: Colors.white,
+                                            padding: const EdgeInsets.symmetric(vertical: 8),
+                                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                                          ),
+                                          icon: const Icon(Icons.check, size: 16),
+                                          label: const Text('Verify Payment', style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold)),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
+                    ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _showReceiptDialog(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog.fullscreen(
+        backgroundColor: Colors.black,
+        child: Stack(
+          children: [
+            Center(
+              child: InteractiveViewer(
+                maxScale: 4.0,
+                child: ProductImage(
+                  image: imageUrl,
+                  fit: BoxFit.contain,
+                  width: double.infinity,
+                  height: double.infinity,
+                  borderRadius: 0,
+                  fallbackIcon: Icons.broken_image,
+                ),
+              ),
+            ),
+            SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.all(16.0),
+                child: CircleAvatar(
+                  backgroundColor: Colors.black54,
+                  child: IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -1771,6 +2200,12 @@ class _CheckoutSheetState extends State<_CheckoutSheet> {
                   onRefNumberScanned: (ref) {
                     setState(() => _scannedRefNumber = ref);
                   },
+                  onAmountScanned: (amt) {
+                    setState(() {
+                      _amountController.text = amt.toStringAsFixed(2);
+                      _amountErrorText = null;
+                    });
+                  },
                 ),
               ],
               const SizedBox(height: 20),
@@ -1971,11 +2406,13 @@ class _GcashQrView extends StatelessWidget {
     required this.posController,
     this.scannedRefNumber,
     this.onRefNumberScanned,
+    this.onAmountScanned,
   });
 
   final EmployeePosController posController;
   final String? scannedRefNumber;
   final ValueChanged<String>? onRefNumberScanned;
+  final ValueChanged<double>? onAmountScanned;
 
   Future<void> _scanReceiptOcr(BuildContext context) async {
     final ImageSource? source = await showModalBottomSheet<ImageSource>(
@@ -2059,101 +2496,260 @@ class _GcashQrView extends StatelessWidget {
       );
 
       final String? detectedRef = validation.extractedRefNumber ?? GcashOcrHelper.extractRefNumber(ocrItems);
+      final double? detectedAmount = validation.extractedAmount ?? GcashOcrHelper.extractPaymentAmount(ocrItems);
 
       if (context.mounted) {
-        if (detectedRef != null && detectedRef.isNotEmpty) {
-          onRefNumberScanned?.call(detectedRef);
+        if (detectedRef != null && detectedRef.isNotEmpty && detectedAmount != null) {
           TopNotification.show(
             context,
-            'GCash Receipt scanned! Ref #: ${GcashOcrHelper.formatRefNumber(detectedRef)}',
+            'GCash Receipt read! Ref: ${GcashOcrHelper.formatRefNumber(detectedRef)}, Amt: ₱${detectedAmount.toStringAsFixed(2)}',
           );
-          _showRefVerificationDialog(context, detectedRef);
+        } else if (detectedRef != null && detectedRef.isNotEmpty) {
+          TopNotification.show(
+            context,
+            'GCash Ref detected (${GcashOcrHelper.formatRefNumber(detectedRef)}). Please verify amount.',
+          );
+        } else if (detectedAmount != null) {
+          TopNotification.show(
+            context,
+            'GCash Amount read (₱${detectedAmount.toStringAsFixed(2)}). Please verify Ref No.',
+          );
         } else {
           TopNotification.show(
             context,
-            'GCash Ref No. could not be read automatically. Please enter it below.',
+            'Could not extract Ref No. or Amount automatically. Please verify or input manually.',
             isError: true,
           );
-          _showRefVerificationDialog(context, '');
         }
+
+        _showRefVerificationDialog(
+          context,
+          initialRef: detectedRef ?? '',
+          initialAmount: detectedAmount,
+          imagePath: image.path,
+        );
       }
     } catch (e) {
       debugPrint('[POS OCR Error]: $e');
       if (context.mounted) {
         TopNotification.show(
           context,
-          'Could not scan screenshot. Please enter the GCash Ref No. manually.',
+          'Could not scan screenshot. Please enter GCash details manually.',
           isError: true,
         );
-        _showRefVerificationDialog(context, '');
+        _showRefVerificationDialog(context, initialRef: '', initialAmount: null);
       }
     }
   }
 
-  void _showRefVerificationDialog(BuildContext context, String initialRef) {
-    final controller = TextEditingController(
+  void _showRefVerificationDialog(
+    BuildContext context, {
+    required String initialRef,
+    double? initialAmount,
+    String? imagePath,
+  }) {
+    final refController = TextEditingController(
       text: initialRef.isNotEmpty ? GcashOcrHelper.formatRefNumber(initialRef) : '',
     );
+    final amtController = TextEditingController(
+      text: initialAmount != null ? initialAmount.toStringAsFixed(2) : '',
+    );
+
     showDialog(
       context: context,
-      builder: (dialogCtx) => AlertDialog(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Row(
-          children: [
-            Icon(Icons.verified, color: AppColors.primaryOrange),
-            SizedBox(width: 8),
-            Text('Verify Reference No.', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
-          ],
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Confirm or edit the GCash reference number automatically extracted by Google OCR:',
-              style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+      builder: (dialogCtx) => StatefulBuilder(
+        builder: (ctx, setDialogState) {
+          final enteredAmt = double.tryParse(amtController.text.trim()) ?? 0.0;
+          final total = posController.totalAmount;
+          final bool isMatch = (enteredAmt - total).abs() < 0.01;
+
+          return AlertDialog(
+            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+            title: const Row(
+              children: [
+                Icon(Icons.verified, color: AppColors.primaryOrange),
+                SizedBox(width: 8),
+                Text('Verify GCash Receipt', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+              ],
             ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: controller,
-              keyboardType: TextInputType.number,
-              autofocus: true,
-              style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2, fontSize: 15),
-              decoration: InputDecoration(
-                labelText: 'GCash Reference Number *',
-                hintText: 'e.g. 5045 062 915234',
-                filled: true,
-                fillColor: AppColors.lightPeach,
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-                focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(12),
-                  borderSide: const BorderSide(color: AppColors.primaryOrange, width: 2),
-                ),
+            content: SingleChildScrollView(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Confirm or edit the GCash reference number and payment amount extracted by OCR:',
+                    style: TextStyle(color: AppColors.secondaryText, fontSize: 13),
+                  ),
+                  if (imagePath != null) ...[
+                    const SizedBox(height: 12),
+                    GestureDetector(
+                      onTap: () => _showFullScreen(context, imagePath),
+                      child: Container(
+                        padding: const EdgeInsets.all(8),
+                        decoration: BoxDecoration(
+                          color: Colors.grey.shade50,
+                          borderRadius: BorderRadius.circular(10),
+                          border: Border.all(color: Colors.grey.shade300),
+                        ),
+                        child: Row(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(6),
+                              child: Image.file(
+                                File(imagePath),
+                                width: 44,
+                                height: 44,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            const SizedBox(width: 10),
+                            const Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text('Receipt Screenshot', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                  Text('Tap to inspect full screenshot', style: TextStyle(fontSize: 10, color: AppColors.secondaryText)),
+                                ],
+                              ),
+                            ),
+                            const Icon(Icons.zoom_in, color: AppColors.primaryOrange, size: 20),
+                          ],
+                        ),
+                      ),
+                    ),
+                  ],
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      const Text('Reference Number', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      const Spacer(),
+                      if (initialRef.isNotEmpty)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.green.shade200),
+                          ),
+                          child: const Text('OCR Detected', style: TextStyle(fontSize: 9, color: Colors.green, fontWeight: FontWeight.bold)),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: refController,
+                    keyboardType: TextInputType.number,
+                    style: const TextStyle(fontWeight: FontWeight.bold, letterSpacing: 1.2, fontSize: 14),
+                    decoration: InputDecoration(
+                      hintText: 'e.g. 5045 062 915234',
+                      filled: true,
+                      fillColor: AppColors.lightPeach,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.primaryOrange, width: 2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 14),
+                  Row(
+                    children: [
+                      const Text('Payment Amount (₱)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                      const Spacer(),
+                      if (initialAmount != null)
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: Colors.green.shade50,
+                            borderRadius: BorderRadius.circular(4),
+                            border: Border.all(color: Colors.green.shade200),
+                          ),
+                          child: const Text('OCR Detected', style: TextStyle(fontSize: 9, color: Colors.green, fontWeight: FontWeight.bold)),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 6),
+                  TextField(
+                    controller: amtController,
+                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                    style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 14),
+                    onChanged: (_) => setDialogState(() {}),
+                    decoration: InputDecoration(
+                      prefixText: '₱ ',
+                      hintText: total.toStringAsFixed(2),
+                      filled: true,
+                      fillColor: AppColors.lightPeach,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
+                      focusedBorder: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(10),
+                        borderSide: const BorderSide(color: AppColors.primaryOrange, width: 2),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: isMatch ? Colors.green.shade50 : Colors.orange.shade50,
+                      borderRadius: BorderRadius.circular(8),
+                      border: Border.all(color: isMatch ? Colors.green.shade300 : Colors.orange.shade300),
+                    ),
+                    child: Row(
+                      children: [
+                        Icon(
+                          isMatch ? Icons.check_circle : Icons.warning_amber_rounded,
+                          size: 16,
+                          color: isMatch ? Colors.green.shade800 : Colors.orange.shade900,
+                        ),
+                        const SizedBox(width: 6),
+                        Expanded(
+                          child: Text(
+                            isMatch
+                                ? 'Matches cart total (₱${total.toStringAsFixed(2)})'
+                                : 'Differs from cart total (₱${total.toStringAsFixed(2)})',
+                            style: TextStyle(
+                              fontSize: 11,
+                              fontWeight: FontWeight.bold,
+                              color: isMatch ? Colors.green.shade800 : Colors.orange.shade900,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
               ),
             ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogCtx),
-            child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              final cleanRef = controller.text.trim().replaceAll(' ', '');
-              if (cleanRef.isNotEmpty && onRefNumberScanned != null) {
-                onRefNumberScanned!(cleanRef);
-              }
-              Navigator.pop(dialogCtx);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.primaryOrange,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Save Reference #'),
-          ),
-        ],
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogCtx),
+                child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  final cleanRef = refController.text.trim().replaceAll(' ', '');
+                  if (cleanRef.isNotEmpty) {
+                    onRefNumberScanned?.call(cleanRef);
+                  }
+                  final parsedAmt = double.tryParse(amtController.text.trim());
+                  if (parsedAmt != null && parsedAmt > 0) {
+                    onAmountScanned?.call(parsedAmt);
+                  }
+                  Navigator.pop(dialogCtx);
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primaryOrange,
+                  foregroundColor: Colors.white,
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                ),
+                child: const Text('Apply to POS'),
+              ),
+            ],
+          );
+        },
       ),
     );
   }
@@ -2369,7 +2965,7 @@ class _GcashQrView extends StatelessWidget {
                     ),
                     IconButton(
                       icon: const Icon(Icons.edit, size: 16, color: Colors.green),
-                      onPressed: () => _showRefVerificationDialog(context, scannedRefNumber!),
+                      onPressed: () => _showRefVerificationDialog(context, initialRef: scannedRefNumber!),
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
                       tooltip: 'Edit Reference #',

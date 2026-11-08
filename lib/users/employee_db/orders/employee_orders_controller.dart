@@ -631,6 +631,66 @@ class EmployeeOrderController extends ChangeNotifier {
     _savePaymentReferenceToSupabase(updatedOrder);
   }
 
+  /// Update payment verification status (e.g. from unpaid to paid upon verifying GCash receipt)
+  Future<void> updatePaymentStatus(
+    String orderId,
+    PaymentStatus paymentStatus,
+  ) async {
+    final index = _orders.indexWhere((o) =>
+        o.orderId == orderId ||
+        (o.dbId != null && o.dbId == orderId) ||
+        o.orderId.replaceAll('#', '').trim() == orderId.replaceAll('#', '').trim());
+    if (index == -1) return;
+
+    final oldOrder = _orders[index];
+    final updatedOrder = oldOrder.copyWith(paymentStatus: paymentStatus);
+
+    _orders[index] = updatedOrder;
+    notifyListeners();
+
+    // 1. Dual-persist to Firebase RTDB
+    try {
+      final db = AuthService().database;
+      await db.ref().child('orders/${updatedOrder.orderId}').update({
+        'paymentStatus': paymentStatus.name,
+        'updatedAt': DateTime.now().toIso8601String(),
+      });
+    } catch (e) {
+      debugPrint('Error updating payment status in Firebase: $e');
+    }
+
+    // 2. Persist to Supabase
+    try {
+      await _supabaseService.updateOrderStatusInDb(
+        updatedOrder.orderId,
+        updatedOrder.status.name,
+        paymentStatus.name,
+      );
+    } catch (e) {
+      debugPrint('Error updating payment status in Supabase: $e');
+    }
+
+    // 3. Persist to LocalDatabaseService (SQLite)
+    try {
+      await LocalDatabaseService.instance.insert('orders', updatedOrder.toSqliteMap());
+    } catch (e) {
+      debugPrint('Error updating order in SQLite: $e');
+    }
+
+    // 4. Send customer notification if verified
+    if (paymentStatus == PaymentStatus.paid) {
+      CustomerNotificationsController.instance.addNotification(
+        type: CustomerNotificationType.orderUpdate,
+        title: 'Payment Verified',
+        message:
+            'Your GCash payment for Order #${updatedOrder.orderId} (₱${(updatedOrder.paymentAmount ?? updatedOrder.totalAmount).toStringAsFixed(2)}) has been verified by the store!',
+        userId: updatedOrder.userId,
+        orderId: updatedOrder.orderId,
+        sendPush: true,
+      );
+    }
+  }
+
   /// Checks whether live inventory has sufficient stock for all items in [order].
   bool hasSufficientStock(CustomerOrder order) {
     for (final item in order.items) {

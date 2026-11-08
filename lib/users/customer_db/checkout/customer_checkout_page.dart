@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:sari_sari/shared/utils/customer_notice.dart';
 import 'package:sari_sari/shared/utils/gcash_ocr_helper.dart';
 import '../../../shared/widgets/product_image.dart';
 import 'package:sari_sari/core/services/ocr_service.dart';
@@ -48,13 +49,18 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
   File? _gcashProofFile;
   String? _gcashProofBase64;
   String? _gcashPaymentRefNumber;
+  double? _gcashPaymentAmount;
+  bool _isOcrRefDetected = false;
+  bool _isOcrAmountDetected = false;
   final TextEditingController _refNumberController = TextEditingController();
+  final TextEditingController _amountController = TextEditingController();
   bool _isVerifyingOcr = false;
   final ImagePicker _picker = ImagePicker();
 
   @override
   void dispose() {
     _refNumberController.dispose();
+    _amountController.dispose();
     super.dispose();
   }
 
@@ -89,6 +95,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
 
       final base64Image = 'data:image/jpeg;base64,${base64Encode(bytes)}';
       String? extractedRef;
+      double? extractedAmt;
 
       // 2. OCR Text Recognition via Google ML Kit on Mobile App & Web OCR on Web
       List<OcrTextItem> ocrItems = [];
@@ -112,44 +119,65 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       if (!validation.isValid) {
         if (mounted) {
           setState(() => _isVerifyingOcr = false);
-          TopNotification.show(
+          showCustomerNotice(
             context,
             validation.errorMessage ?? 'The uploaded picture does not look like a GCash receipt or is too blurry.',
-            isError: true,
           );
         }
         return;
       }
 
       extractedRef = validation.extractedRefNumber;
+      extractedAmt = validation.extractedAmount;
 
       if (mounted) {
+        final refDetected = extractedRef != null && extractedRef.isNotEmpty;
+        final amountDetected = extractedAmt != null && extractedAmt > 0;
+
         setState(() {
           _isVerifyingOcr = false;
           _gcashProofFile = File(image.path);
           _gcashProofBase64 = base64Image;
           _gcashPaymentRefNumber = extractedRef;
-          if (extractedRef != null && extractedRef.isNotEmpty) {
-            _refNumberController.text = GcashOcrHelper.formatRefNumber(extractedRef);
+          _gcashPaymentAmount = extractedAmt;
+          _isOcrRefDetected = refDetected;
+          _isOcrAmountDetected = amountDetected;
+
+          if (refDetected) {
+            _refNumberController.text = GcashOcrHelper.formatRefNumber(extractedRef!);
+          }
+          if (amountDetected) {
+            _amountController.text = extractedAmt!.toStringAsFixed(2);
           } else {
-            _refNumberController.clear();
+            // Helpful initial default if OCR could not detect amount: total order amount
+            _amountController.text = _total.toStringAsFixed(2);
           }
         });
-        TopNotification.show(
+
+        String noticeMessage;
+        if (refDetected && amountDetected) {
+          noticeMessage = 'GCash Receipt read via Google OCR! Ref: ${GcashOcrHelper.formatRefNumber(extractedRef!)} · Amount: ₱${extractedAmt!.toStringAsFixed(2)}';
+        } else if (refDetected) {
+          noticeMessage = 'GCash Ref #${GcashOcrHelper.formatRefNumber(extractedRef!)} detected. Please verify or enter the payment amount.';
+        } else if (amountDetected) {
+          noticeMessage = 'GCash Amount ₱${extractedAmt!.toStringAsFixed(2)} detected. Please enter the GCash Ref No. below.';
+        } else {
+          noticeMessage = 'Receipt attached. Ref No. and Amount could not be read automatically — please enter them below.';
+        }
+
+        showCustomerNotice(
           context,
-          extractedRef != null
-              ? 'GCash Receipt verified via Google OCR! Ref #: ${GcashOcrHelper.formatRefNumber(extractedRef)}'
-              : 'GCash receipt attached! Ref No. could not be read automatically — please type the Ref No. below.',
+          noticeMessage,
+          isWarning: !(refDetected && amountDetected),
         );
       }
     } catch (e) {
       debugPrint('[GCash Screenshot Upload Exception]: $e');
       if (mounted) {
         setState(() => _isVerifyingOcr = false);
-        TopNotification.show(
+        showCustomerNotice(
           context,
-          'Could not process the screenshot clearly. Please make sure the picture is not blurry and shows the GCash Ref No.',
-          isError: true,
+          'Could not process the screenshot clearly. Please enter Ref No. and Amount manually.',
         );
       }
     } finally {
@@ -236,10 +264,26 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       }
 
       if (_gcashProofBase64 == null || _gcashProofBase64!.isEmpty) {
-        TopNotification.show(
+        showCustomerNotice(
           context,
           'Please attach your GCash payment receipt screenshot before placing your order.',
-          isError: true,
+        );
+        return;
+      }
+
+      if (_refNumberController.text.trim().isEmpty) {
+        showCustomerNotice(
+          context,
+          'Please enter the GCash Reference Number from your receipt.',
+        );
+        return;
+      }
+
+      final parsedAmt = double.tryParse(_amountController.text.replaceAll(',', '').trim());
+      if (parsedAmt == null || parsedAmt <= 0) {
+        showCustomerNotice(
+          context,
+          'Please enter a valid GCash payment amount from your receipt.',
         );
         return;
       }
@@ -417,6 +461,10 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
             : _gcashPaymentRefNumber)
         : null;
 
+    final double? finalPaymentAmount = _paymentMethod == PaymentMethod.gCash
+        ? (double.tryParse(_amountController.text.replaceAll(',', '').trim()) ?? _gcashPaymentAmount ?? _total)
+        : null;
+
     final order = CustomerOrder(
       customerName: CustomerProfileController.instance.profile.fullName.isEmpty ? 'Customer' : CustomerProfileController.instance.profile.fullName,
       orderId: orderId,
@@ -424,7 +472,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       items: items,
       orderType: _orderType,
       paymentMethod: _paymentMethod,
-      paymentStatus: _paymentMethod == PaymentMethod.cashOnDelivery ? PaymentStatus.unpaid : PaymentStatus.paid,
+      paymentStatus: PaymentStatus.unpaid,
       deliveryAddress: _orderType == OrderType.delivery ? _selectedAddress?.address : ShopSettingsController.instance.storeAddress,
       subtotal: widget.cartController.totalAmount,
       deliveryFee: _orderType == OrderType.delivery ? _deliveryFee : 0,
@@ -435,6 +483,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
       deliveryLongitude: destCoords?.longitude,
       paymentProofUrl: _paymentMethod == PaymentMethod.gCash ? _gcashProofBase64 : null,
       paymentReferenceNumber: finalRefNumber,
+      paymentAmount: finalPaymentAmount,
     );
 
     widget.orderController.placeOrder(order);
@@ -555,8 +604,15 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
                     totalAmount: _total,
                     isVerifyingOcr: _isVerifyingOcr,
                     refNumberController: _refNumberController,
+                    amountController: _amountController,
+                    isOcrRefDetected: _isOcrRefDetected,
+                    isOcrAmountDetected: _isOcrAmountDetected,
                     onRefNumberChanged: (val) {
                       _gcashPaymentRefNumber = val.trim().replaceAll(' ', '');
+                    },
+                    onAmountChanged: (val) {
+                      _gcashPaymentAmount = double.tryParse(val.replaceAll(',', '').trim());
+                      setState(() {});
                     },
                   ),
                 ],
@@ -1042,7 +1098,11 @@ class _GcashPaymentProofUploadCard extends StatelessWidget {
     required this.totalAmount,
     this.isVerifyingOcr = false,
     this.refNumberController,
+    this.amountController,
     this.onRefNumberChanged,
+    this.onAmountChanged,
+    this.isOcrRefDetected = false,
+    this.isOcrAmountDetected = false,
   });
 
   final File? proofFile;
@@ -1051,7 +1111,55 @@ class _GcashPaymentProofUploadCard extends StatelessWidget {
   final double totalAmount;
   final bool isVerifyingOcr;
   final TextEditingController? refNumberController;
+  final TextEditingController? amountController;
   final ValueChanged<String>? onRefNumberChanged;
+  final ValueChanged<String>? onAmountChanged;
+  final bool isOcrRefDetected;
+  final bool isOcrAmountDetected;
+
+  void _openReceiptPreview(BuildContext context, String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (ctx) => Dialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        backgroundColor: Colors.white,
+        insetPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 24),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text('Payment Receipt Preview', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 10),
+              Container(
+                constraints: const BoxConstraints(maxHeight: 400),
+                child: InteractiveViewer(
+                  panEnabled: true,
+                  minScale: 1.0,
+                  maxScale: 4.0,
+                  child: ProductImage(
+                    image: imageUrl,
+                    fit: BoxFit.contain,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              const Text('Pinch to zoom in/out', style: TextStyle(fontSize: 11, color: AppColors.secondaryText)),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   void _openQrModal(BuildContext context, String qrUrl) {
     showDialog(
@@ -1349,38 +1457,104 @@ class _GcashPaymentProofUploadCard extends StatelessWidget {
               const SizedBox(height: 14),
               if (hasProof) ...[
                 if (proofBase64 != null && proofBase64!.isNotEmpty)
-                  ProductImage(
-                    image: proofBase64!,
-                    height: 160,
-                    width: double.infinity,
-                    borderRadius: 12,
+                  GestureDetector(
+                    onTap: () => _openReceiptPreview(context, proofBase64!),
+                    child: Stack(
+                      alignment: Alignment.bottomRight,
+                      children: [
+                        ProductImage(
+                          image: proofBase64!,
+                          height: 180,
+                          width: double.infinity,
+                          borderRadius: 12,
+                        ),
+                        Container(
+                          margin: const EdgeInsets.all(8),
+                          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.black.withValues(alpha: 0.7),
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: const Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.fullscreen_rounded, size: 14, color: Colors.white),
+                              SizedBox(width: 4),
+                              Text(
+                                'Tap to inspect receipt',
+                                style: TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.bold),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 const SizedBox(height: 12),
                 Container(
-                  padding: const EdgeInsets.all(12),
+                  padding: const EdgeInsets.all(14),
                   decoration: BoxDecoration(
                     color: Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: Colors.green.shade300),
+                    borderRadius: BorderRadius.circular(14),
+                    border: Border.all(color: Colors.green.shade400, width: 1.2),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 2),
+                      ),
+                    ],
                   ),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Row(
                         children: [
-                          Icon(Icons.verified, color: Colors.green.shade700, size: 18),
-                          const SizedBox(width: 6),
-                          Text(
-                            'Extracted GCash Ref # (Google OCR)',
-                            style: TextStyle(
-                              fontWeight: FontWeight.bold,
-                              fontSize: 12,
-                              color: Colors.green.shade900,
+                          Icon(Icons.verified_rounded, color: Colors.green.shade700, size: 20),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              'GCash Receipt Details (Google OCR)',
+                              style: TextStyle(
+                                fontWeight: FontWeight.bold,
+                                fontSize: 13,
+                                color: Colors.green.shade900,
+                              ),
                             ),
                           ),
                         ],
                       ),
-                      const SizedBox(height: 8),
+                      const SizedBox(height: 12),
+
+                      // Reference Number Field
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'GCash Ref Number *',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.darkText),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isOcrRefDetected ? Colors.green.shade50 : Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: isOcrRefDetected ? Colors.green.shade300 : Colors.orange.shade300,
+                              ),
+                            ),
+                            child: Text(
+                              isOcrRefDetected ? 'OCR Auto-Extracted' : 'Manual Entry / Verification',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isOcrRefDetected ? Colors.green.shade800 : Colors.orange.shade900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
                       TextField(
                         controller: refNumberController,
                         onChanged: onRefNumberChanged,
@@ -1388,12 +1562,13 @@ class _GcashPaymentProofUploadCard extends StatelessWidget {
                         style: const TextStyle(
                           fontWeight: FontWeight.bold,
                           letterSpacing: 1.2,
-                          fontSize: 15,
+                          fontSize: 14,
                           color: AppColors.darkText,
                         ),
                         decoration: InputDecoration(
                           isDense: true,
                           hintText: 'e.g. 5045 062 915234',
+                          prefixIcon: const Icon(Icons.tag_rounded, size: 18, color: AppColors.primaryOrange),
                           contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
                           border: OutlineInputBorder(
                             borderRadius: BorderRadius.circular(8),
@@ -1405,10 +1580,119 @@ class _GcashPaymentProofUploadCard extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: 4),
+                      const SizedBox(height: 14),
+
+                      // Payment Amount Field
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text(
+                            'Payment Amount Paid *',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: AppColors.darkText),
+                          ),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                            decoration: BoxDecoration(
+                              color: isOcrAmountDetected ? Colors.green.shade50 : Colors.orange.shade50,
+                              borderRadius: BorderRadius.circular(6),
+                              border: Border.all(
+                                color: isOcrAmountDetected ? Colors.green.shade300 : Colors.orange.shade300,
+                              ),
+                            ),
+                            child: Text(
+                              isOcrAmountDetected ? 'OCR Auto-Extracted' : 'Manual Entry / Verification',
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.bold,
+                                color: isOcrAmountDetected ? Colors.green.shade800 : Colors.orange.shade900,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      TextField(
+                        controller: amountController,
+                        onChanged: onAmountChanged,
+                        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                        style: const TextStyle(
+                          fontWeight: FontWeight.bold,
+                          fontSize: 14,
+                          color: AppColors.darkText,
+                        ),
+                        decoration: InputDecoration(
+                          isDense: true,
+                          hintText: 'e.g. 150.00',
+                          prefixText: '₱ ',
+                          prefixStyle: const TextStyle(fontWeight: FontWeight.bold, color: AppColors.primaryOrange),
+                          contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                          border: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: BorderSide(color: Colors.grey.shade300),
+                          ),
+                          focusedBorder: OutlineInputBorder(
+                            borderRadius: BorderRadius.circular(8),
+                            borderSide: const BorderSide(color: AppColors.primaryOrange, width: 1.5),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Amount matching status
+                      Builder(
+                        builder: (ctx) {
+                          final parsed = double.tryParse(amountController?.text.replaceAll(',', '').trim() ?? '');
+                          if (parsed == null) return const SizedBox.shrink();
+                          final matches = (parsed - totalAmount).abs() < 0.01;
+                          if (matches) {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.green.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.green.shade200),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.check_circle_outline_rounded, size: 16, color: Colors.green.shade800),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'Receipt amount matches order total (₱${totalAmount.toStringAsFixed(2)})',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.green.shade900),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          } else {
+                            return Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                              decoration: BoxDecoration(
+                                color: Colors.orange.shade50,
+                                borderRadius: BorderRadius.circular(8),
+                                border: Border.all(color: Colors.orange.shade300),
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(Icons.warning_amber_rounded, size: 16, color: Colors.orange.shade900),
+                                  const SizedBox(width: 6),
+                                  Expanded(
+                                    child: Text(
+                                      'Notice: Receipt amount (₱${parsed.toStringAsFixed(2)}) does not match order total (₱${totalAmount.toStringAsFixed(2)}). Please verify.',
+                                      style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, color: Colors.orange.shade900),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            );
+                          }
+                        },
+                      ),
+                      const SizedBox(height: 8),
                       const Text(
-                        'This reference number is automatically extracted by Google OCR and will be saved on your order receipt.',
-                        style: TextStyle(fontSize: 11, color: AppColors.secondaryText),
+                        'Note: This reference number and payment amount will be verified by the owner/cashier in POS before confirming the order.',
+                        style: TextStyle(fontSize: 11, color: AppColors.secondaryText, fontStyle: FontStyle.italic),
                       ),
                     ],
                   ),
