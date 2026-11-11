@@ -13,14 +13,14 @@ import 'home/customer_product_model.dart';
 class CartItem {
   CartItem({
     required this.product,
-    this.quantity = 1,
+    this.quantity = 1.0,
     this.customPrice,
     this.saleDealTitle,
     this.deal,
   });
 
   final CustomerProduct product;
-  int quantity;
+  double quantity;
   final double? customPrice;
   final String? saleDealTitle;
   final SaleDealModel? deal;
@@ -37,7 +37,7 @@ class CartItem {
 
   String? get dealInclusions {
     if (!isDeal) return null;
-    return deal!.items.map((i) => '${i.quantity * quantity}x ${i.productName}').join(', ');
+    return deal!.items.map((i) => '${i.quantity * quantity.toInt()}x ${i.productName}').join(', ');
   }
 }
 
@@ -82,7 +82,7 @@ class CustomerCartController extends ChangeNotifier {
 
   int get itemCount {
     ensureCartForActiveUser();
-    return _items.fold(0, (sum, item) => sum + item.quantity);
+    return _items.fold(0, (sum, item) => sum + item.quantity.ceil());
   }
 
   double get totalAmount {
@@ -95,20 +95,20 @@ class CustomerCartController extends ChangeNotifier {
     ensureCartForActiveUser();
     final dealCartId = 'deal_$dealId';
     final index = _items.indexWhere((item) => item.id == dealCartId || item.deal?.id == dealId);
-    return index >= 0 ? _items[index].quantity : 0;
+    return index >= 0 ? _items[index].quantity.toInt() : 0;
   }
 
   /// Returns current quantity of a specific regular product in the cart.
-  int getQuantityForProduct(String productId) {
+  double getQuantityForProduct(String productId) {
     ensureCartForActiveUser();
     final index = _items.indexWhere((item) => !item.isDeal && item.product.id == productId);
-    return index >= 0 ? _items[index].quantity : 0;
+    return index >= 0 ? _items[index].quantity : 0.0;
   }
 
   /// Adds [quantity] of [product] to the cart.
   bool addToCart(
     CustomerProduct product, {
-    int quantity = 1,
+    num quantity = 1,
     double? customPrice,
     String? saleDealTitle,
   }) {
@@ -118,13 +118,14 @@ class CustomerCartController extends ChangeNotifier {
     final existingIndex = _items.indexWhere(
       (item) => item.product.id == product.id && item.customPrice == customPrice && !item.isDeal,
     );
-    final maxAvailable = product.sellableQuantity.toInt();
+    final maxAvailable = product.sellableQuantity;
+    final qtyDouble = quantity.toDouble();
 
     if (existingIndex >= 0) {
-      final newQuantity = _items[existingIndex].quantity + quantity;
+      final newQuantity = _items[existingIndex].quantity + qtyDouble;
       _items[existingIndex].quantity = newQuantity > maxAvailable ? maxAvailable : newQuantity;
     } else {
-      final cappedQuantity = quantity > maxAvailable ? maxAvailable : quantity;
+      final cappedQuantity = qtyDouble > maxAvailable ? maxAvailable : qtyDouble;
       _items.add(
         CartItem(
           product: product,
@@ -239,17 +240,21 @@ class CustomerCartController extends ChangeNotifier {
           onError?.call('Limit reached. Maximum is $maxAvailable for this promo.');
           return;
         }
-        item.quantity++;
+        item.quantity += 1.0;
         notifyListeners();
         _saveCartToLocalAndQueueSync();
       } else {
-        final maxAvailable = item.product.sellableQuantity.toInt();
-        if (item.quantity < maxAvailable) {
-          item.quantity++;
+        final isWeight = item.product.isWeightBased;
+        final step = isWeight ? 0.25 : 1.0;
+        final maxAvailable = item.product.sellableQuantity;
+        if (item.quantity + step <= maxAvailable + 0.001) {
+          item.quantity += step;
           notifyListeners();
           _saveCartToLocalAndQueueSync();
         } else {
-          onError?.call('Stock limit reached. Only $maxAvailable available in stock.');
+          final maxStr = isWeight ? maxAvailable.toStringAsFixed(2) : maxAvailable.toInt().toString();
+          final unitStr = isWeight ? 'kg' : 'pcs';
+          onError?.call('Stock limit reached. Only $maxStr $unitStr available in stock.');
         }
       }
     }
@@ -259,38 +264,47 @@ class CustomerCartController extends ChangeNotifier {
     ensureCartForActiveUser();
     final index = _items.indexWhere((item) => item.id == id || item.product.id == id);
     if (index >= 0) {
-      if (_items[index].quantity > 1) {
-        _items[index].quantity--;
+      final item = _items[index];
+      final isWeight = item.product.isWeightBased;
+      final step = isWeight ? 0.25 : 1.0;
+      final minQty = isWeight ? 0.25 : 1.0;
+      if (item.quantity - step >= minQty - 0.001) {
+        item.quantity -= step;
         notifyListeners();
         _saveCartToLocalAndQueueSync();
       }
     }
   }
 
-  void updateQuantity(String id, int quantity, {void Function(String message)? onError}) {
+  void updateQuantity(String id, num quantity, {void Function(String message)? onError}) {
     ensureCartForActiveUser();
     final index = _items.indexWhere((item) => item.id == id || item.product.id == id);
     if (index >= 0) {
       final item = _items[index];
+      final isWeight = item.product.isWeightBased;
+      final minQty = isWeight ? 0.25 : 1.0;
       final maxAvailable = item.isDeal && item.deal != null
-          ? getAvailableDealStock(item.deal!)
-          : item.product.sellableQuantity.toInt();
+          ? getAvailableDealStock(item.deal!).toDouble()
+          : item.product.sellableQuantity;
 
-      if (quantity < 1) {
-        quantity = 1;
+      double targetQty = quantity.toDouble();
+      if (targetQty < minQty) {
+        targetQty = minQty;
       }
 
-      if (quantity > maxAvailable) {
+      if (targetQty > maxAvailable) {
         item.quantity = maxAvailable;
         notifyListeners();
         _saveCartToLocalAndQueueSync();
+        final maxStr = isWeight ? maxAvailable.toStringAsFixed(2) : maxAvailable.toInt().toString();
+        final unitStr = isWeight ? 'kg' : 'pcs';
         onError?.call(item.isDeal
-            ? 'Limit reached. Maximum is $maxAvailable for this promo.'
-            : 'Stock limit reached. Only $maxAvailable available in stock.');
+            ? 'Limit reached. Maximum is ${maxAvailable.toInt()} for this promo.'
+            : 'Stock limit reached. Only $maxStr $unitStr available in stock.');
         return;
       }
 
-      item.quantity = quantity;
+      item.quantity = targetQty;
       notifyListeners();
       _saveCartToLocalAndQueueSync();
     }
@@ -349,6 +363,8 @@ class CustomerCartController extends ChangeNotifier {
       availability: availability,
       isOnSale: pMap['isOnSale'] as bool? ?? false,
       isFeatured: pMap['isFeatured'] as bool? ?? false,
+      unit: pMap['unit'] as String? ?? 'pcs',
+      isWeightBased: pMap['isWeightBased'] as bool? ?? false,
     );
 
     SaleDealModel? deal;
@@ -360,7 +376,7 @@ class CustomerCartController extends ChangeNotifier {
 
     return CartItem(
       product: product,
-      quantity: map['quantity'] as int? ?? 1,
+      quantity: (map['quantity'] as num?)?.toDouble() ?? 1.0,
       customPrice: (map['customPrice'] as num?)?.toDouble(),
       saleDealTitle: map['saleDealTitle'] as String?,
       deal: deal,

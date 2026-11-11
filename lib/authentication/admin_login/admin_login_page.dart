@@ -10,7 +10,6 @@ import '../../admin/dashboard/admin_dashboard.dart';
 import '../../core/services/auth_service.dart';
 import '../../shared/utils/top_notification.dart';
 import '../../core/diagnostic/backend_diagnostic_page.dart';
-import '../forgot_password/forgot_password_page.dart';
 import '../../main.dart';
 
 class AdminLoginPage extends StatefulWidget {
@@ -434,34 +433,6 @@ class _AdminLoginPageState extends State<AdminLoginPage> {
                     ),
                   ),
                 ],
-              ),
-              Flexible(
-                child: TextButton(
-                  onPressed: _isLoading
-                      ? null
-                      : () {
-                          Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => const ForgotPasswordPage(),
-                            ),
-                          );
-                        },
-                  style: TextButton.styleFrom(
-                    padding: EdgeInsets.zero,
-                    minimumSize: const Size(0, 30),
-                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                  ),
-                  child: Text(
-                    'Forgot password?',
-                    style: TextStyle(
-                      color: _isLoading ? AppColors.secondaryText.withValues(alpha: 0.5) : AppColors.primaryOrange,
-                      fontSize: 12,
-                      fontWeight: FontWeight.w600,
-                    ),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
               ),
             ],
           ),

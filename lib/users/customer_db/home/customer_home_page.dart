@@ -145,6 +145,8 @@ class _CustomerHomePageState extends State<CustomerHomePage> {
       isOnSale: ep.hasExpiringSoonBatch,
       isBestSeller: isBestSeller,
       totalSold: totalSold,
+      unit: ep.unit,
+      isWeightBased: ep.isWeightBased,
     );
   }
 

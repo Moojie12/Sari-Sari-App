@@ -491,3 +491,306 @@ class TableRowSkeleton extends StatelessWidget {
   }
 }
 
+/// Page-level skeleton for Customer Home Page
+class CustomerHomeSkeleton extends StatelessWidget {
+  const CustomerHomeSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Greeting & Search
+          const Skeleton(height: 24, width: 140),
+          const SizedBox(height: 8),
+          const Skeleton(height: 14, width: 220),
+          const SizedBox(height: 16),
+          const Skeleton(height: 48, borderRadius: 14),
+          const SizedBox(height: 16),
+          // Weather widget
+          const WeatherCardSkeleton(),
+          const SizedBox(height: 20),
+          // Category chips
+          Row(
+            children: const [
+              Skeleton(height: 36, width: 70, borderRadius: 20),
+              SizedBox(width: 8),
+              Skeleton(height: 36, width: 85, borderRadius: 20),
+              SizedBox(width: 8),
+              Skeleton(height: 36, width: 90, borderRadius: 20),
+              SizedBox(width: 8),
+              Skeleton(height: 36, width: 60, borderRadius: 20),
+            ],
+          ),
+          const SizedBox(height: 24),
+          // Section title
+          const Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Skeleton(height: 18, width: 120),
+              Skeleton(height: 14, width: 60),
+            ],
+          ),
+          const SizedBox(height: 14),
+          // Product Grid
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 0.72,
+              crossAxisSpacing: 12,
+              mainAxisSpacing: 12,
+            ),
+            itemCount: 4,
+            itemBuilder: (_, __) => const ProductCardSkeleton(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Page-level skeleton for Notifications Page
+class NotificationsPageSkeleton extends StatelessWidget {
+  const NotificationsPageSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Skeleton(height: 26, width: 160),
+          const SizedBox(height: 16),
+          for (int i = 0; i < 5; i++) ...[
+            const NotificationSkeleton(),
+            const SizedBox(height: 12),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Page-level skeleton for Customer Purchases/Orders Page
+class CustomerPurchasesSkeleton extends StatelessWidget {
+  const CustomerPurchasesSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Skeleton(height: 26, width: 150),
+          const SizedBox(height: 16),
+          // Tab pills
+          Row(
+            children: const [
+              Expanded(child: Skeleton(height: 38, borderRadius: 10)),
+              SizedBox(width: 8),
+              Expanded(child: Skeleton(height: 38, borderRadius: 10)),
+              SizedBox(width: 8),
+              Expanded(child: Skeleton(height: 38, borderRadius: 10)),
+            ],
+          ),
+          const SizedBox(height: 18),
+          for (int i = 0; i < 3; i++) ...[
+            const OrderCardSkeleton(),
+            const SizedBox(height: 14),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Page-level skeleton for Profile Page
+class ProfilePageSkeleton extends StatelessWidget {
+  const ProfilePageSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return const SingleChildScrollView(
+      physics: NeverScrollableScrollPhysics(),
+      padding: EdgeInsets.fromLTRB(20, 16, 20, 100),
+      child: ProfileSkeleton(),
+    );
+  }
+}
+
+/// Page-level skeleton for Employee Home Page
+class EmployeeHomeSkeleton extends StatelessWidget {
+  const EmployeeHomeSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Cashier Shift banner
+          const Skeleton(height: 90, borderRadius: 16),
+          const SizedBox(height: 16),
+          // Stat cards
+          Row(
+            children: const [
+              Expanded(child: Skeleton(height: 80, borderRadius: 14)),
+              SizedBox(width: 12),
+              Expanded(child: Skeleton(height: 80, borderRadius: 14)),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const Skeleton(height: 20, width: 140),
+          const SizedBox(height: 12),
+          for (int i = 0; i < 3; i++) ...[
+            const InventoryItemSkeleton(),
+            const SizedBox(height: 10),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Page-level skeleton for Owner Home Page
+class OwnerHomeSkeleton extends StatelessWidget {
+  const OwnerHomeSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Skeleton(height: 24, width: 180),
+          const SizedBox(height: 8),
+          const Skeleton(height: 14, width: 130),
+          const SizedBox(height: 18),
+          // Top 2 Analytics Cards
+          Row(
+            children: const [
+              Expanded(child: Skeleton(height: 90, borderRadius: 16)),
+              SizedBox(width: 12),
+              Expanded(child: Skeleton(height: 90, borderRadius: 16)),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Bottom Analytics Card
+          const Skeleton(height: 90, borderRadius: 16),
+          const SizedBox(height: 18),
+          const WeatherCardSkeleton(),
+          const SizedBox(height: 20),
+          const Skeleton(height: 20, width: 140),
+          const SizedBox(height: 12),
+          for (int i = 0; i < 2; i++) ...[
+            const OrderCardSkeleton(),
+            const SizedBox(height: 12),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Page-level skeleton for POS Page
+class PosSkeleton extends StatelessWidget {
+  const PosSkeleton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Search & scan bar
+          Row(
+            children: const [
+              Expanded(child: Skeleton(height: 46, borderRadius: 12)),
+              SizedBox(width: 8),
+              Skeleton(height: 46, width: 46, borderRadius: 12),
+            ],
+          ),
+          const SizedBox(height: 12),
+          // Category pills
+          Row(
+            children: const [
+              Skeleton(height: 32, width: 60, borderRadius: 16),
+              SizedBox(width: 6),
+              Skeleton(height: 32, width: 80, borderRadius: 16),
+              SizedBox(width: 6),
+              Skeleton(height: 32, width: 80, borderRadius: 16),
+              SizedBox(width: 6),
+              Skeleton(height: 32, width: 60, borderRadius: 16),
+            ],
+          ),
+          const SizedBox(height: 16),
+          // POS Products Grid
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: 2,
+              childAspectRatio: 0.75,
+              crossAxisSpacing: 10,
+              mainAxisSpacing: 10,
+            ),
+            itemCount: 4,
+            itemBuilder: (_, __) => const ProductCardSkeleton(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Page-level skeleton for Inventory Page
+class InventorySkeletonPage extends StatelessWidget {
+  const InventorySkeletonPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return SingleChildScrollView(
+      physics: const NeverScrollableScrollPhysics(),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 100),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Search bar
+          const Skeleton(height: 46, borderRadius: 12),
+          const SizedBox(height: 12),
+          // Filter pills
+          Row(
+            children: const [
+              Skeleton(height: 32, width: 70, borderRadius: 16),
+              SizedBox(width: 8),
+              Skeleton(height: 32, width: 90, borderRadius: 16),
+              SizedBox(width: 8),
+              Skeleton(height: 32, width: 80, borderRadius: 16),
+            ],
+          ),
+          const SizedBox(height: 16),
+          for (int i = 0; i < 5; i++) ...[
+            const InventoryItemSkeleton(),
+            const SizedBox(height: 10),
+          ],
+        ],
+      ),
+    );
+  }
+}
+

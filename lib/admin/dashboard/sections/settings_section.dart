@@ -563,7 +563,7 @@ class _SettingsSectionState extends State<SettingsSection> {
               child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 final text = textController.text.trim();
                 final val = int.tryParse(text);
                 if (val == null || val < 0 || val > 99) {
@@ -571,7 +571,7 @@ class _SettingsSectionState extends State<SettingsSection> {
                   return;
                 }
 
-                controller.updateLowStockThreshold(val);
+                await controller.updateLowStockThreshold(val);
                 Navigator.pop(dialogContext);
                 TopNotification.showSuccessDialog(
                   context,
@@ -646,7 +646,7 @@ class _SettingsSectionState extends State<SettingsSection> {
               child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 final text = textController.text.trim();
                 final val = double.tryParse(text);
                 if (val == null || val < 0 || val > 99) {
@@ -722,7 +722,7 @@ class _SettingsSectionState extends State<SettingsSection> {
               child: const Text('Cancel', style: TextStyle(color: AppColors.secondaryText)),
             ),
             ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
                 controller.updateExpiryMonitoringDays(selectedDays);
                 Navigator.pop(dialogContext);
                 TopNotification.showSuccessDialog(

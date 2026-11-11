@@ -225,7 +225,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
 
         showCustomerNotice(
           context,
-          'Saktong GCash payment na-verify via OCR! Ref #${GcashOcrHelper.formatRefNumber(extractedRef!)} · Halaga: ₱${extractedAmt!.toStringAsFixed(2)}',
+          'Saktong GCash payment na-verify via OCR! Ref #${GcashOcrHelper.formatRefNumber(extractedRef)} · Halaga: ₱${extractedAmt.toStringAsFixed(2)}',
           isWarning: false,
         );
       }
@@ -570,7 +570,7 @@ class _CustomerCheckoutPageState extends State<CustomerCheckoutPage> {
     // Record deal purchases to track remaining promo quota in real time
     for (final cartItem in widget.cartController.items) {
       if (cartItem.isDeal && cartItem.deal != null) {
-        SaleDealController.instance.recordDealPurchase(cartItem.deal!.id, cartItem.quantity);
+        SaleDealController.instance.recordDealPurchase(cartItem.deal!.id, cartItem.quantity.toInt());
       }
     }
 
@@ -772,7 +772,7 @@ class _OrderSummaryList extends StatelessWidget {
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Text(
-                        '${item.displayName} x${item.quantity}',
+                        '${item.displayName} x${item.quantity % 1 == 0 ? item.quantity.toInt().toString() : item.quantity.toStringAsFixed(2)}',
                         style: const TextStyle(color: AppColors.darkText, fontWeight: FontWeight.w600),
                       ),
                       if (item.isDeal && item.dealInclusions != null)

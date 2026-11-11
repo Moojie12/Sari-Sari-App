@@ -191,7 +191,7 @@ class CustomerAddressController extends ChangeNotifier {
     }
   }
 
-  bool addAddress(CustomerAddress address) {
+  Future<bool> addAddress(CustomerAddress address) async {
     if (address.address.trim().isEmpty || address.type.trim().isEmpty) {
       return false;
     }
@@ -202,11 +202,11 @@ class CustomerAddressController extends ChangeNotifier {
     }
     _addresses.add(address);
     notifyListeners();
-    saveAddresses();
+    await saveAddresses();
     return true;
   }
 
-  bool updateAddress(CustomerAddress updated) {
+  Future<bool> updateAddress(CustomerAddress updated) async {
     if (updated.address.trim().isEmpty || updated.type.trim().isEmpty) {
       return false;
     }
@@ -219,28 +219,28 @@ class CustomerAddressController extends ChangeNotifier {
       }
       _addresses[index] = updated;
       notifyListeners();
-      saveAddresses();
+      await saveAddresses();
       return true;
     }
     return false;
   }
 
-  void deleteAddress(String id) {
+  Future<void> deleteAddress(String id) async {
     _addresses.removeWhere((a) => a.id == id);
     if (_addresses.isNotEmpty && !_addresses.any((a) => a.isDefault)) {
       _addresses[0] = _addresses[0].copyWith(isDefault: true);
     }
     notifyListeners();
-    saveAddresses();
+    await saveAddresses();
   }
 
-  void setDefault(String id) {
+  Future<void> setDefault(String id) async {
     final index = _addresses.indexWhere((a) => a.id == id);
     if (index >= 0) {
       _clearDefaults();
       _addresses[index] = _addresses[index].copyWith(isDefault: true);
       notifyListeners();
-      saveAddresses();
+      await saveAddresses();
     }
   }
 

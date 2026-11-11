@@ -273,7 +273,7 @@ class _OrderCard extends StatelessWidget {
             ...order.items.take(2).map((item) => Padding(
               padding: const EdgeInsets.only(bottom: 4),
               child: Text(
-                '${item.productName} x${item.quantity}',
+                '${item.productName} x${item.quantity % 1 == 0 ? item.quantity.toInt().toString() : item.quantity.toStringAsFixed(2)}',
                 style: const TextStyle(color: AppColors.secondaryText),
               ),
             )),

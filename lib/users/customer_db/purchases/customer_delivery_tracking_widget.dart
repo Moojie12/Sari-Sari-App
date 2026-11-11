@@ -47,7 +47,9 @@ class _CustomerDeliveryTrackingWidgetState extends State<CustomerDeliveryTrackin
     if (cached != null) {
       _trackingData = cached;
       _riderPos = LagunaBounds.clamp(cached.riderLatLng);
-      _destPos = LagunaBounds.clamp(cached.destinationLatLng);
+      if (widget.order.deliveryLatitude == null || widget.order.deliveryLongitude == null) {
+        _destPos = LagunaBounds.clamp(cached.destinationLatLng);
+      }
     } else {
       _riderPos = DeliveryTrackingService.storeLocation;
     }
@@ -60,7 +62,9 @@ class _CustomerDeliveryTrackingWidgetState extends State<CustomerDeliveryTrackin
         setState(() {
           _trackingData = data;
           _riderPos = LagunaBounds.clamp(data.riderLatLng);
-          _destPos = LagunaBounds.clamp(data.destinationLatLng);
+          if (widget.order.deliveryLatitude == null || widget.order.deliveryLongitude == null) {
+            _destPos = LagunaBounds.clamp(data.destinationLatLng);
+          }
         });
       }
     });
@@ -382,7 +386,9 @@ class _CustomerFullScreenMapPageState extends State<_CustomerFullScreenMapPage> 
         setState(() {
           _trackingData = data;
           _riderPos = LagunaBounds.clamp(data.riderLatLng);
-          _destPos = LagunaBounds.clamp(data.destinationLatLng);
+          if (widget.order.deliveryLatitude == null || widget.order.deliveryLongitude == null) {
+            _destPos = LagunaBounds.clamp(data.destinationLatLng);
+          }
         });
       }
     });

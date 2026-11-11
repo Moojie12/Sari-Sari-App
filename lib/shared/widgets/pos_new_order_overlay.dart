@@ -128,7 +128,7 @@ class _PosNewOrderOverlayState extends State<PosNewOrderOverlay>
   Widget build(BuildContext context) {
     final order = widget.order;
     final totalAmountStr = '₱${order.totalAmount.toStringAsFixed(2)}';
-    final itemCount = order.items.fold<int>(0, (sum, item) => sum + item.quantity);
+    final itemCount = order.items.fold<double>(0.0, (sum, item) => sum + item.quantity).ceil();
     final isDelivery = order.orderType == OrderType.delivery;
 
     return SafeArea(

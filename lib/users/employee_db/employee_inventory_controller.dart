@@ -440,6 +440,7 @@ class EmployeeInventoryController extends ChangeNotifier {
 
   /// Reloads products from Supabase (useful for pull-to-refresh)
   Future<void> reloadProducts() async => _loadProducts();
+  Future<void> loadProducts() async => _loadProducts();
 
   String _generateUuid() {
     final random = Random.secure();

@@ -340,8 +340,8 @@ class NotificationDatabaseService {
   CustomerNotification? _parseCustomerNotification(Map<String, dynamic> map) {
     try {
       final id = map['id']?.toString() ?? '';
-      final title = map['title']?.toString()?.trim() ?? '';
-      final message = map['message']?.toString()?.trim() ?? '';
+      final title = map['title']?.toString().trim() ?? '';
+      final message = map['message']?.toString().trim() ?? '';
 
       // Filter out blank / empty notifications
       if (title.isEmpty && message.isEmpty) {
@@ -382,8 +382,8 @@ class NotificationDatabaseService {
   EmployeeNotification? _parseEmployeeNotification(Map<String, dynamic> map) {
     try {
       final id = map['id']?.toString() ?? '';
-      final title = map['title']?.toString()?.trim() ?? '';
-      final message = map['message']?.toString()?.trim() ?? '';
+      final title = map['title']?.toString().trim() ?? '';
+      final message = map['message']?.toString().trim() ?? '';
 
       // Ignore dummy / incomplete records with generic title and blank message
       if (title.isEmpty && message.isEmpty) {

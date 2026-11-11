@@ -11,6 +11,7 @@ import 'authentication/login/login_page.dart';
 import 'users/owner_db/owner_db.dart';
 import 'users/employee_db/employee_db.dart';
 import 'users/customer_db/customer_db.dart';
+import 'users/owner_db/profile/shop_settings_controller.dart';
 import 'core/services/auth_service.dart';
 import 'core/services/firebase_notification_service.dart';
 import 'core/services/onesignal_notification_service.dart';
@@ -30,6 +31,8 @@ void main() async {
         options: DefaultFirebaseOptions.currentPlatform,
       );
     }
+    // Initialize system settings early to sync delivery fee & store address
+    ShopSettingsController.instance;
   } catch (e) {
     debugPrint('[Firebase] Init notice: $e');
   }

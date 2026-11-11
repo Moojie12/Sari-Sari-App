@@ -1,6 +1,7 @@
 import 'package:flutter/foundation.dart';
 
 import '../../../core/expiry/expiry_checker.dart';
+import '../../owner_db/profile/shop_settings_controller.dart';
 import 'employee_batch_model.dart';
 
 /// Stock status derived from a product's *sellable* quantity versus its
@@ -107,7 +108,11 @@ class EmployeeProduct {
 
   EmployeeStockStatus get stockStatus {
     if (sellableQuantity <= 0) return EmployeeStockStatus.outOfStock;
-    if (sellableQuantity <= lowStockThreshold) return EmployeeStockStatus.lowStock;
+    final globalThreshold = ShopSettingsController.instance.lowStockThreshold.toDouble();
+    final effectiveThreshold = (lowStockThreshold > 0 && lowStockThreshold != 10.0)
+        ? lowStockThreshold
+        : globalThreshold;
+    if (sellableQuantity <= effectiveThreshold) return EmployeeStockStatus.lowStock;
     return EmployeeStockStatus.inStock;
   }
 

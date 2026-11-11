@@ -6,6 +6,8 @@ import 'package:flutter/services.dart';
 import '../../core/services/dashboard_navigation_controller.dart';
 import '../../core/theme/app_colors.dart';
 import '../../shared/utils/exit_confirmation_dialog.dart';
+import '../../shared/widgets/skeleton.dart';
+import '../../core/services/sale_deal_controller.dart';
 import '../../shared/tutorial/staff_tutorial_overlay.dart';
 import '../../shared/tutorial/staff_tutorial_service.dart';
 import 'employee_floating_nav_bar.dart';
@@ -214,9 +216,64 @@ class EmployeeDashboardState extends State<EmployeeDashboard> {
 
   static const Duration _navBarAnimationDuration = Duration(milliseconds: 260);
 
+  bool _isRefreshingTab = false;
+  int _refreshingTabIndex = 0;
+
   void _onDestinationSelected(int index) {
     if (index == _selectedIndex) return;
-    setState(() => _selectedIndex = index);
+    setState(() {
+      _selectedIndex = index;
+      _isRefreshingTab = true;
+      _refreshingTabIndex = index;
+    });
+
+    _refreshTab(index);
+
+    Future.delayed(const Duration(milliseconds: 380), () {
+      if (mounted && _selectedIndex == index) {
+        setState(() => _isRefreshingTab = false);
+      }
+    });
+  }
+
+  void _refreshTab(int index) {
+    try {
+      switch (index) {
+        case 0:
+          _inventoryController.loadProducts();
+          _ordersController.fetchOrders();
+          break;
+        case 1:
+          _inventoryController.loadProducts();
+          SaleDealController.instance.loadDeals();
+          break;
+        case 2:
+          _inventoryController.loadProducts();
+          break;
+        case 3:
+          _ordersController.fetchOrders();
+          break;
+        case 4:
+          EmployeeProfileController.instance.loadProfile();
+          break;
+      }
+    } catch (_) {}
+  }
+
+  Widget _buildTabSkeleton(int index) {
+    switch (index) {
+      case 0:
+        return const EmployeeHomeSkeleton();
+      case 1:
+        return const PosSkeleton();
+      case 2:
+        return const InventorySkeletonPage();
+      case 3:
+        return const CustomerPurchasesSkeleton();
+      case 4:
+      default:
+        return const ProfilePageSkeleton();
+    }
   }
 
   bool _handleScrollNotification(UserScrollNotification notification) {
@@ -261,6 +318,15 @@ class EmployeeDashboardState extends State<EmployeeDashboard> {
               children: _pages,
             ),
           ),
+          if (_isRefreshingTab)
+            Positioned.fill(
+              child: Container(
+                color: AppColors.lightBackground,
+                child: SafeArea(
+                  child: _buildTabSkeleton(_refreshingTabIndex),
+                ),
+              ),
+            ),
           Positioned(
             left: 0,
             right: 0,

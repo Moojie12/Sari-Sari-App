@@ -413,3 +413,51 @@ exports.sendTestNotification = functions.https.onRequest(async (req, res) => {
     fcmResult: result,
   });
 });
+
+// =============================================================================
+// HTTPS FUNCTION: Direct In-App User Password Reset
+// =============================================================================
+exports.resetUserPassword = functions.https.onRequest(async (req, res) => {
+  res.set("Access-Control-Allow-Origin", "*");
+  res.set("Access-Control-Allow-Methods", "GET, POST, OPTIONS");
+  res.set("Access-Control-Allow-Headers", "Content-Type, Authorization");
+
+  if (req.method === "OPTIONS") {
+    return res.status(204).send("");
+  }
+
+  const email = (req.body && req.body.email) || req.query.email;
+  const newPassword = (req.body && req.body.newPassword) || req.query.newPassword;
+
+  if (!email || !newPassword) {
+    return res.status(400).json({ error: "Missing email or newPassword parameter" });
+  }
+
+  if (typeof newPassword !== "string" || newPassword.length < 8) {
+    return res.status(400).json({ error: "Password must be at least 8 characters long" });
+  }
+
+  try {
+    const cleanEmail = email.trim().toLowerCase();
+    const user = await admin.auth().getUserByEmail(cleanEmail);
+    if (!user) {
+      return res.status(404).json({ error: "User account not found" });
+    }
+
+    await admin.auth().updateUser(user.uid, {
+      password: newPassword,
+    });
+
+    console.log(`[resetUserPassword] Password successfully updated for ${cleanEmail} (UID: ${user.uid})`);
+    return res.status(200).json({
+      status: "success",
+      message: "Password updated successfully in Firebase Auth",
+      uid: user.uid,
+    });
+  } catch (error) {
+    console.error("[resetUserPassword] Error updating user password:", error);
+    return res.status(500).json({
+      error: error.message || "Failed to update user password in Firebase Auth",
+    });
+  }
+});

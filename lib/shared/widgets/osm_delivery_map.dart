@@ -403,7 +403,7 @@ class _OsmDeliveryMapState extends State<OsmDeliveryMap> {
                   point: safeRider,
                   width: 170,
                   height: 100,
-                  rotate: true,
+                  rotate: false,
                   alignment: Alignment.center,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,

@@ -487,8 +487,8 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
         longitude: _currentLocation.longitude,
         isDefault: _isDefault,
       );
-      CustomerAddressController.instance.addAddress(newAddress);
-      TopNotification.show(context, 'Address added successfully');
+      await CustomerAddressController.instance.addAddress(newAddress);
+      if (mounted) TopNotification.show(context, 'Address added successfully');
     } else {
       final updated = widget.address!.copyWith(
         type: type,
@@ -505,8 +505,8 @@ class _CustomerAddEditAddressPageState extends State<CustomerAddEditAddressPage>
         longitude: _currentLocation.longitude,
         isDefault: _isDefault,
       );
-      CustomerAddressController.instance.updateAddress(updated);
-      TopNotification.show(context, 'Address updated successfully');
+      await CustomerAddressController.instance.updateAddress(updated);
+      if (mounted) TopNotification.show(context, 'Address updated successfully');
     }
 
     if (!mounted) return;

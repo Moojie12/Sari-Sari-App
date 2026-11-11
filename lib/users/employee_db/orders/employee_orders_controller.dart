@@ -23,7 +23,7 @@ import 'package:sari_sari/shared/utils/gcash_ocr_helper.dart';
 class ProductDemand {
   final String productId;
   final String productName;
-  final int totalQuantity;
+  final double totalQuantity;
   final List<String> orderIds;
   final bool isMarked;
 
@@ -34,6 +34,9 @@ class ProductDemand {
     required this.orderIds,
     this.isMarked = false,
   });
+
+  String get formattedTotalQuantity =>
+      totalQuantity % 1 == 0 ? totalQuantity.toInt().toString() : totalQuantity.toStringAsFixed(2);
 }
 
 class EmployeeOrderController extends ChangeNotifier {
@@ -108,7 +111,7 @@ class EmployeeOrderController extends ChangeNotifier {
     for (final order in completedOrders) {
       for (final item in order.items) {
         if (item.productId.isNotEmpty) {
-          sales[item.productId] = (sales[item.productId] ?? 0) + item.quantity;
+          sales[item.productId] = (sales[item.productId] ?? 0) + item.quantity.ceil();
         }
       }
     }
@@ -122,7 +125,7 @@ class EmployeeOrderController extends ChangeNotifier {
       for (final item in order.items) {
         if (item.productName.isNotEmpty) {
           final key = item.productName.trim().toLowerCase();
-          sales[key] = (sales[key] ?? 0) + item.quantity;
+          sales[key] = (sales[key] ?? 0) + item.quantity.ceil();
         }
       }
     }
@@ -137,7 +140,7 @@ class EmployeeOrderController extends ChangeNotifier {
       for (final item in order.items) {
         if ((item.productId.isNotEmpty && item.productId == productId) ||
             (lowerName != null && lowerName.isNotEmpty && item.productName.trim().toLowerCase() == lowerName)) {
-          total += item.quantity;
+          total += item.quantity.ceil();
         }
       }
     }
@@ -349,6 +352,14 @@ class EmployeeOrderController extends ChangeNotifier {
   }
 
   Future<void> refresh() async {
+    await _loadAllOrders();
+  }
+
+  Future<void> fetchOrders() async {
+    await _loadAllOrders();
+  }
+
+  Future<void> loadOrders() async {
     await _loadAllOrders();
   }
 
@@ -803,7 +814,7 @@ class EmployeeOrderController extends ChangeNotifier {
           for (var item in oldOrder.items) {
             if (item.productId.startsWith('deal_')) {
               final dealId = item.productId.substring(5);
-              SaleDealController.instance.restoreDealPurchase(dealId, item.quantity);
+              SaleDealController.instance.restoreDealPurchase(dealId, item.quantity.toInt());
             }
           }
         }

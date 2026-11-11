@@ -21,6 +21,10 @@ import 'package:sari_sari/users/customer_db/tutorial/customer_tutorial_overlay.d
 import 'package:sari_sari/users/customer_db/tutorial/customer_tutorial_service.dart';
 import 'package:sari_sari/core/services/auth_service.dart';
 import 'package:sari_sari/core/services/onesignal_notification_service.dart';
+import 'package:sari_sari/core/services/sale_deal_controller.dart';
+import 'package:sari_sari/shared/widgets/skeleton.dart';
+import 'package:sari_sari/users/employee_db/employee_inventory_controller.dart';
+import 'package:sari_sari/users/customer_db/profile/customer_address_controller.dart';
 
 /// Main shell for the customer-facing side of the app.
 class CustomerDashboard extends StatefulWidget {
@@ -120,7 +124,7 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
     final Offset endOffset = (cartBox != null && cartBox.hasSize)
         ? cartBox.localToGlobal(cartBox.size.center(Offset.zero))
         : Offset(MediaQuery.of(context).size.width - 44, 46);
-    final overlayState = Overlay.of(context);
+    final overlayState = Overlay.maybeOf(context);
     if (overlayState == null) return;
 
     late OverlayEntry overlayEntry;
@@ -228,9 +232,59 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
 
   static const Duration _navBarAnimationDuration = Duration(milliseconds: 260);
 
+  bool _isRefreshingTab = false;
+  int _refreshingTabIndex = 0;
+
   void _onDestinationSelected(int index) {
     if (index == _selectedIndex) return;
-    setState(() => _selectedIndex = index);
+    setState(() {
+      _selectedIndex = index;
+      _isRefreshingTab = true;
+      _refreshingTabIndex = index;
+    });
+
+    _refreshTab(index);
+
+    Future.delayed(const Duration(milliseconds: 380), () {
+      if (mounted && _selectedIndex == index) {
+        setState(() => _isRefreshingTab = false);
+      }
+    });
+  }
+
+  void _refreshTab(int index) {
+    try {
+      switch (index) {
+        case 0:
+          EmployeeInventoryController.instance.loadProducts();
+          SaleDealController.instance.loadDeals();
+          break;
+        case 1:
+          _notificationsController.refresh();
+          break;
+        case 2:
+          _orderController.fetchOrders();
+          break;
+        case 3:
+          CustomerProfileController.instance.loadProfile();
+          CustomerAddressController.instance.ensureAddressesForActiveUser();
+          break;
+      }
+    } catch (_) {}
+  }
+
+  Widget _buildTabSkeleton(int index) {
+    switch (index) {
+      case 0:
+        return const CustomerHomeSkeleton();
+      case 1:
+        return const NotificationsPageSkeleton();
+      case 2:
+        return const CustomerPurchasesSkeleton();
+      case 3:
+      default:
+        return const ProfilePageSkeleton();
+    }
   }
 
   bool _handleScrollNotification(UserScrollNotification notification) {
@@ -275,6 +329,15 @@ class CustomerDashboardState extends State<CustomerDashboard> with TickerProvide
               children: _pages,
             ),
           ),
+          if (_isRefreshingTab)
+            Positioned.fill(
+              child: Container(
+                color: AppColors.lightBackground,
+                child: SafeArea(
+                  child: _buildTabSkeleton(_refreshingTabIndex),
+                ),
+              ),
+            ),
           // Shortcut Button — Top Right
           Positioned(
             top: 0,

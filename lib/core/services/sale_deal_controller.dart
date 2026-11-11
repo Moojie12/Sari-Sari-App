@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sari_sari/models/sale_deal_model.dart';
 import 'auth_service.dart';
+import 'supabase_service.dart';
 
 /// Controller managing all custom On-Sale deals with local SharedPreferences cache
 /// and real-time Firebase RTDB synchronization.
@@ -37,6 +38,10 @@ class SaleDealController extends ChangeNotifier {
   }
   List<SaleDealModel> get activeDeals => deals.where((d) => d.isActive).toList();
   bool get isLoading => _isLoading;
+
+  Future<void> loadDeals() async {
+    await _loadLocalDeals();
+  }
 
   Future<void> _init() async {
     await _loadLocalDeals();
@@ -176,14 +181,27 @@ class SaleDealController extends ChangeNotifier {
     }
   }
 
-  /// Deletes a sale deal from Firebase RTDB, local cache, and memory.
-  /// NOTE: This only removes the on-sale promo entry and does NOT delete
-  /// or deduct any underlying inventory products from the database.
+  /// Deletes a sale deal from Firebase RTDB, local cache, and memory,
+  /// and removes any uploaded promo images from Supabase and Firebase storage.
   Future<bool> deleteDeal(String dealId) async {
+    final dealToDelete = _deals.where((d) => d.id == dealId).firstOrNull;
+    final imgUrl = dealToDelete?.image;
+
     _deals.removeWhere((d) => d.id == dealId);
     _deals.sort(_compareDeals);
     notifyListeners();
     await _saveLocalDeals();
+
+    // Clean up uploaded images from Supabase storage and Firebase storage
+    try {
+      if (imgUrl != null && imgUrl.isNotEmpty) {
+        await SupabaseService().deleteDealImages(dealId, imgUrl);
+      } else {
+        await SupabaseService().deleteDealImages(dealId);
+      }
+    } catch (e) {
+      debugPrint('Error cleaning up deal images from storage: $e');
+    }
 
     try {
       final db = _authService.database;
@@ -211,6 +229,8 @@ class SaleDealController extends ChangeNotifier {
         final ref = db.ref().child('sale_deals/$dealId');
         await ref.update({
           'isActive': isActive,
+          'is_active': isActive,
+          'active': isActive,
           'updatedAt': updated.updatedAt!.toIso8601String(),
         }).timeout(const Duration(seconds: 4));
         return true;

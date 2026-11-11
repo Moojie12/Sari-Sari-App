@@ -545,7 +545,7 @@ class SupabaseService {
         'payment_reference_number': order.paymentReferenceNumber ?? '',
         'order_notes': sellerNote,
         'total_amount': order.totalAmount,
-        'total_items': order.items.fold<int>(0, (sum, i) => sum + i.quantity),
+        'total_items': order.items.fold<double>(0.0, (sum, i) => sum + i.quantity).ceil(),
         'placed_at': order.orderDate.toIso8601String(),
         'updated_at': DateTime.now().toIso8601String(),
       };
@@ -1630,6 +1630,75 @@ class SupabaseService {
     );
   }
 
+  /// Deletes an uploaded image from Supabase Storage and Firebase Storage.
+  Future<void> deleteProductImage(String imageUrl) async {
+    try {
+      final trimmed = imageUrl.trim();
+      if (trimmed.isEmpty) return;
+
+      // 1. Supabase Storage: https://.../storage/v1/object/public/products/...
+      if (trimmed.contains('/storage/v1/object/public/products/')) {
+        final path = trimmed.split('/storage/v1/object/public/products/').last;
+        if (path.isNotEmpty) {
+          final decodedPath = Uri.decodeComponent(path);
+          await _client.storage.from('products').remove([decodedPath]);
+          debugPrint('Deleted image from Supabase storage: $decodedPath');
+        }
+      } else if (trimmed.contains('/products/')) {
+        final path = trimmed.split('/products/').last;
+        if (path.isNotEmpty) {
+          final decodedPath = Uri.decodeComponent(path);
+          await _client.storage.from('products').remove([decodedPath]);
+          debugPrint('Deleted image from Supabase storage (fallback): $decodedPath');
+        }
+      }
+
+      // 2. Firebase Storage
+      if (trimmed.contains('firebasestorage.googleapis.com')) {
+        try {
+          await FirebaseStorage.instance.refFromURL(trimmed).delete();
+          debugPrint('Deleted image from Firebase storage: $trimmed');
+        } catch (e) {
+          debugPrint('Note: Firebase storage image deletion error: $e');
+        }
+      }
+
+      // 3. Local file cleanup if present
+      if (!kIsWeb && (trimmed.startsWith('/') || trimmed.startsWith('file://') || trimmed.contains(':\\'))) {
+        try {
+          String clean = trimmed.startsWith('file://') ? trimmed.substring(7) : trimmed;
+          final file = File(clean);
+          if (file.existsSync()) {
+            file.deleteSync();
+            debugPrint('Deleted local image file: $clean');
+          }
+        } catch (e) {
+          debugPrint('Note: local file delete error: $e');
+        }
+      }
+    } catch (e) {
+      debugPrint('Error in deleteProductImage: $e');
+    }
+  }
+
+  /// Deletes all storage assets associated with a custom sale deal
+  Future<void> deleteDealImages(String dealId, [String? explicitImageUrl]) async {
+    if (explicitImageUrl != null && explicitImageUrl.isNotEmpty) {
+      await deleteProductImage(explicitImageUrl);
+    }
+    try {
+      final safeId = 'deal_$dealId'.replaceAll(RegExp(r'[^a-zA-Z0-9_\-]'), '_');
+      final files = await _client.storage.from('products').list(path: 'items');
+      final matching = files.where((f) => f.name.startsWith(safeId)).map((f) => 'items/${f.name}').toList();
+      if (matching.isNotEmpty) {
+        await _client.storage.from('products').remove(matching);
+        debugPrint('Deleted matching deal images from Supabase storage: $matching');
+      }
+    } catch (e) {
+      debugPrint('Note: Supabase list/remove matching deal images: $e');
+    }
+  }
+
   /// Delete user profile by firebase_uid, id (UUID), or email
   Future<void> deleteUserProfile(String id, {String? email}) async {
     try {
@@ -2047,15 +2116,17 @@ class SupabaseService {
   Future<Map<String, dynamic>> updateShopSettings(
       Map<String, dynamic> updates) async {
     try {
+      final payload = Map<String, dynamic>.from(updates);
+      payload['id'] = 1;
       final response = await _client
           .from('shop_settings')
-          .update(updates)
-          .eq('id', 1)
+          .upsert(payload)
           .select()
-          .single();
-      return response;
+          .maybeSingle();
+      return response ?? {};
     } catch (e) {
-      throw Exception('Failed to update shop settings: $e');
+      debugPrint('[SupabaseService] updateShopSettings note: $e');
+      return {};
     }
   }
 

@@ -47,6 +47,10 @@ class CustomerOrderController extends ChangeNotifier {
     await _sharedController.refresh();
   }
 
+  Future<void> fetchOrders() async {
+    await _sharedController.refresh();
+  }
+
   void placeOrder(CustomerOrder order) {
     _sharedController.placeOrder(order);
     notifyListeners();

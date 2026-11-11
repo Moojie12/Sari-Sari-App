@@ -274,7 +274,7 @@ class _DemandItemCard extends StatelessWidget {
         content: Text(
           demand.isMarked
               ? 'Are you sure you want to mark "${demand.productName}" as NOT collected yet?'
-              : 'Have you collected all ${demand.totalQuantity} units of "${demand.productName}"?',
+              : 'Have you collected all ${demand.formattedTotalQuantity} units of "${demand.productName}"?',
         ),
         actions: [
           TextButton(onPressed: () => Navigator.pop(context), child: const Text('Cancel')),
@@ -371,7 +371,7 @@ class _DemandItemCard extends StatelessWidget {
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Text(
-                          'x${demand.totalQuantity}',
+                          'x${demand.formattedTotalQuantity}',
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,

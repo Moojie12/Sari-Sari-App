@@ -223,6 +223,7 @@ class SaleDealModel {
       'salePrice': salePrice,
       'items': items.map((item) => item.toMap()).toList(),
       'isActive': isActive,
+      'is_active': isActive,
       'createdAt': createdAt.toIso8601String(),
       'updatedAt': updatedAt?.toIso8601String(),
       'saleLimit': saleLimit,
@@ -283,10 +284,18 @@ class SaleDealModel {
     final createdStr = map['createdAt']?.toString();
     final updatedStr = map['updatedAt']?.toString();
 
-    final isActiveRaw = map['isActive'];
-    final bool isActive = isActiveRaw is bool
-        ? isActiveRaw
-        : (isActiveRaw?.toString().toLowerCase() != 'false');
+    final isActiveRaw = map['isActive'] ?? map['is_active'] ?? map['active'];
+    final bool isActive;
+    if (isActiveRaw is bool) {
+      isActive = isActiveRaw;
+    } else if (isActiveRaw is num) {
+      isActive = isActiveRaw == 1;
+    } else if (isActiveRaw != null) {
+      final s = isActiveRaw.toString().trim().toLowerCase();
+      isActive = s == 'true' || s == '1' || s == 'active';
+    } else {
+      isActive = true;
+    }
 
     return SaleDealModel(
       id: (map['id'] ?? fallbackId ?? '').toString(),

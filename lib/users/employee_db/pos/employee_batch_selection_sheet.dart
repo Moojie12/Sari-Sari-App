@@ -377,19 +377,27 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
                         _StepButton(
                           icon: Icons.remove,
                           onPressed: () {
-                             final val = double.tryParse(_quantityController.text) ?? 1.0;
-                             if (val > 1) {
-                               _quantityController.text = (val - 1).toInt().toString();
-                             }
+                            final val = double.tryParse(_quantityController.text) ?? 1.0;
+                            final step = widget.product.isWeightBased ? 0.25 : 1.0;
+                            if (val > step) {
+                              final next = val - step;
+                              _quantityController.text = widget.product.isWeightBased
+                                  ? next.toStringAsFixed(2)
+                                  : next.toInt().toString();
+                            }
                           },
                         ),
                         SizedBox(
-                          width: 60,
+                          width: widget.product.isWeightBased ? 75 : 60,
                           child: TextField(
                             controller: _quantityController,
-                            keyboardType: TextInputType.number,
+                            keyboardType: TextInputType.numberWithOptions(decimal: widget.product.isWeightBased),
                             inputFormatters: [
-                              FilteringTextInputFormatter.digitsOnly,
+                              FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                              if (widget.product.isWeightBased)
+                                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}'))
+                              else
+                                FilteringTextInputFormatter.digitsOnly,
                             ],
                             textAlign: TextAlign.center,
                             style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
@@ -400,8 +408,12 @@ class _EmployeeBatchSelectionSheetState extends State<EmployeeBatchSelectionShee
                           icon: Icons.add,
                           onPressed: () {
                             final val = double.tryParse(_quantityController.text) ?? 0.0;
-                            if (val < _selected.quantity) {
-                              _quantityController.text = (val + 1).toInt().toString();
+                            final step = widget.product.isWeightBased ? 0.25 : 1.0;
+                            if (val + step <= _selected.quantity) {
+                              final next = val + step;
+                              _quantityController.text = widget.product.isWeightBased
+                                  ? next.toStringAsFixed(2)
+                                  : next.toInt().toString();
                             }
                           },
                         ),

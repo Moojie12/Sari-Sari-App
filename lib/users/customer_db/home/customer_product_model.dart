@@ -45,6 +45,8 @@ class CustomerProduct {
     this.isFeatured = false,
     this.isBestSeller = false,
     this.totalSold = 0,
+    this.unit = 'pcs',
+    this.isWeightBased = false,
   });
 
   final String id;
@@ -53,6 +55,8 @@ class CustomerProduct {
   final double price;
   final double capital;
   final double sellableQuantity;
+  final String unit;
+  final bool isWeightBased;
 
   /// Placeholder image reference (e.g. a future asset path or network
   /// URL). Not rendered yet — the UI currently shows a plain placeholder
@@ -83,6 +87,8 @@ class CustomerProduct {
     bool? isFeatured,
     bool? isBestSeller,
     int? totalSold,
+    String? unit,
+    bool? isWeightBased,
   }) {
     return CustomerProduct(
       id: id ?? this.id,
@@ -97,6 +103,8 @@ class CustomerProduct {
       isFeatured: isFeatured ?? this.isFeatured,
       isBestSeller: isBestSeller ?? this.isBestSeller,
       totalSold: totalSold ?? this.totalSold,
+      unit: unit ?? this.unit,
+      isWeightBased: isWeightBased ?? this.isWeightBased,
     );
   }
 }

@@ -65,8 +65,8 @@ void main() {
     CustomerOrder createTestOrder({
       required String orderId,
       required OrderStatus status,
-      int cokeQty = 3,
-      int chipsQty = 2,
+      double cokeQty = 3.0,
+      double chipsQty = 2.0,
       bool isStockDeducted = false,
     }) {
       return CustomerOrder(

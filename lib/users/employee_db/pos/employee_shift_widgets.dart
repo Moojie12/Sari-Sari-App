@@ -246,8 +246,10 @@ class _CashAdjustmentSheetState extends State<_CashAdjustmentSheet> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Confirm Cash Adjustment'),
-        content: Text(
-          'Are you sure you want to record a ${_type.label} of ₱${amount.toStringAsFixed(2)}?\n\nNote: $trimmedReason',
+        content: SingleChildScrollView(
+          child: Text(
+            'Are you sure you want to record a ${_type.label} of ₱${amount.toStringAsFixed(2)}?\n\nNote: $trimmedReason',
+          ),
         ),
         actions: [
           TextButton(
@@ -287,88 +289,92 @@ class _CashAdjustmentSheetState extends State<_CashAdjustmentSheet> {
     return Padding(
       padding: EdgeInsets.only(bottom: MediaQuery.of(context).viewInsets.bottom),
       child: Container(
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.85),
         padding: const EdgeInsets.fromLTRB(24, 20, 24, 24),
         decoration: const BoxDecoration(
           color: Colors.white,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text('Cash Adjustment',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText)),
-            const SizedBox(height: 4),
-            Text(
-              'Record non-sales cash added to or removed from the drawer.',
-              style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 12),
-            ),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: _AdjustmentTypeChip(
-                    label: 'Cash In',
-                    icon: Icons.add_circle_outline,
-                    color: Colors.green,
-                    isSelected: _type == CashAdjustmentType.cashIn,
-                    onTap: () => setState(() => _type = CashAdjustmentType.cashIn),
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: _AdjustmentTypeChip(
-                    label: 'Cash Out',
-                    icon: Icons.remove_circle_outline,
-                    color: Colors.red,
-                    isSelected: _type == CashAdjustmentType.cashOut,
-                    onTap: () => setState(() => _type = CashAdjustmentType.cashOut),
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            const Text('Amount *', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _amountController,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              inputFormatters: [
-                FilteringTextInputFormatter.deny(RegExp(r'\s')),
-                FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
-              ],
-              onChanged: (_) {
-                if (_amountError != null) setState(() => _amountError = null);
-              },
-              decoration: _fieldDecoration('e.g. 500.00', prefixText: '₱ ', errorText: _amountError),
-            ),
-            const SizedBox(height: 14),
-            const Text('Reason / Note *', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _reasonController,
-              maxLines: 2,
-              maxLength: 100,
-              onChanged: (_) {
-                if (_reasonError != null) setState(() => _reasonError = null);
-              },
-              decoration: _fieldDecoration('e.g. Added ₱500 coins for change', errorText: _reasonError),
-            ),
-            const SizedBox(height: 20),
-            SizedBox(
-              width: double.infinity,
-              child: ElevatedButton(
-                onPressed: _submit,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primaryOrange,
-                  foregroundColor: Colors.white,
-                  padding: const EdgeInsets.symmetric(vertical: 16),
-                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-                ),
-                child: const Text('Save Adjustment', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+        child: SingleChildScrollView(
+          physics: const ClampingScrollPhysics(),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Cash Adjustment',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.darkText)),
+              const SizedBox(height: 4),
+              Text(
+                'Record non-sales cash added to or removed from the drawer.',
+                style: TextStyle(color: AppColors.secondaryText.withValues(alpha: 0.8), fontSize: 12),
               ),
-            ),
-          ],
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  Expanded(
+                    child: _AdjustmentTypeChip(
+                      label: 'Cash In',
+                      icon: Icons.add_circle_outline,
+                      color: Colors.green,
+                      isSelected: _type == CashAdjustmentType.cashIn,
+                      onTap: () => setState(() => _type = CashAdjustmentType.cashIn),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: _AdjustmentTypeChip(
+                      label: 'Cash Out',
+                      icon: Icons.remove_circle_outline,
+                      color: Colors.red,
+                      isSelected: _type == CashAdjustmentType.cashOut,
+                      onTap: () => setState(() => _type = CashAdjustmentType.cashOut),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              const Text('Amount *', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _amountController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                inputFormatters: [
+                  FilteringTextInputFormatter.deny(RegExp(r'\s')),
+                  FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,2}')),
+                ],
+                onChanged: (_) {
+                  if (_amountError != null) setState(() => _amountError = null);
+                },
+                decoration: _fieldDecoration('e.g. 500.00', prefixText: '₱ ', errorText: _amountError),
+              ),
+              const SizedBox(height: 14),
+              const Text('Reason / Note *', style: TextStyle(color: AppColors.labelText, fontSize: 12, fontWeight: FontWeight.w500)),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _reasonController,
+                maxLines: 2,
+                maxLength: 100,
+                onChanged: (_) {
+                  if (_reasonError != null) setState(() => _reasonError = null);
+                },
+                decoration: _fieldDecoration('e.g. Added ₱500 coins for change', errorText: _reasonError),
+              ),
+              const SizedBox(height: 20),
+              SizedBox(
+                width: double.infinity,
+                child: ElevatedButton(
+                  onPressed: _submit,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primaryOrange,
+                    foregroundColor: Colors.white,
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                  child: const Text('Save Adjustment', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     );

@@ -558,9 +558,11 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
                 );
 
                 if (proceed == true && context.mounted) {
-                  controller.updateLowStockThreshold(newValue);
-                  Navigator.pop(context);
-                  _showSuccessDialog(context, 'Low-stock threshold updated.');
+                  await controller.updateLowStockThreshold(newValue);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    _showSuccessDialog(context, 'Low-stock threshold updated.');
+                  }
                 }
               },
               child: const Text('Save'),
@@ -642,9 +644,11 @@ class _OwnerProfilePageState extends State<OwnerProfilePage> {
                 );
 
                 if (proceed == true && context.mounted) {
-                  controller.updateDeliveryFee(newValue);
-                  Navigator.pop(context);
-                  _showSuccessDialog(context, 'Delivery fee setting updated.');
+                  await controller.updateDeliveryFee(newValue);
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    _showSuccessDialog(context, 'Delivery fee setting updated.');
+                  }
                 }
               },
               child: const Text('Save'),

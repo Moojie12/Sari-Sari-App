@@ -337,10 +337,10 @@ class _EmployeePosPageState extends State<EmployeePosPage> with TickerProviderSt
             }
 
             final query = _searchQuery.trim().toLowerCase();
-            final showDeals = _selectedCategory == 'All' || _selectedCategory == 'On Sale 🔥';
+            final showDeals = _selectedCategory == 'On Sale 🔥';
             final activeDeals = showDeals
                 ? SaleDealController.instance.activeDeals.where((d) {
-                    return query.isEmpty || d.title.toLowerCase().contains(query);
+                    return d.isActive && (query.isEmpty || d.title.toLowerCase().contains(query));
                   }).toList()
                 : <SaleDealModel>[];
 

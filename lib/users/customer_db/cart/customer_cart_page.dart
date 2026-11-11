@@ -220,7 +220,7 @@ class _CartItemCard extends StatefulWidget {
   final VoidCallback onTap;
   final VoidCallback onIncrement;
   final VoidCallback onDecrement;
-  final ValueChanged<int> onUpdateQuantity;
+  final ValueChanged<num> onUpdateQuantity;
   final VoidCallback onRemove;
 
   @override
@@ -231,10 +231,12 @@ class _CartItemCardState extends State<_CartItemCard> {
   late TextEditingController _controller;
   late FocusNode _focusNode;
 
+  String _formatQty(double q) => (q % 1 == 0) ? q.toInt().toString() : q.toStringAsFixed(2);
+
   @override
   void initState() {
     super.initState();
-    _controller = TextEditingController(text: '${widget.item.quantity}');
+    _controller = TextEditingController(text: _formatQty(widget.item.quantity));
     _focusNode = FocusNode();
     _focusNode.addListener(_onFocusChange);
   }
@@ -242,8 +244,8 @@ class _CartItemCardState extends State<_CartItemCard> {
   @override
   void didUpdateWidget(covariant _CartItemCard oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (!_focusNode.hasFocus && _controller.text != '${widget.item.quantity}') {
-      _controller.text = '${widget.item.quantity}';
+    if (!_focusNode.hasFocus && _controller.text != _formatQty(widget.item.quantity)) {
+      _controller.text = _formatQty(widget.item.quantity);
     }
   }
 
@@ -255,32 +257,36 @@ class _CartItemCardState extends State<_CartItemCard> {
 
   void _commitQuantity() {
     final text = _controller.text.trim();
-    final parsed = int.tryParse(text);
+    final isWeight = widget.item.product.isWeightBased && !widget.item.isDeal;
+    final minQty = isWeight ? 0.25 : 1.0;
+    final parsed = double.tryParse(text);
     final maxAllowed = widget.item.isDeal && widget.item.deal != null
-        ? CustomerCartController.instance.getAvailableDealStock(widget.item.deal!)
-        : widget.item.product.sellableQuantity.toInt();
+        ? CustomerCartController.instance.getAvailableDealStock(widget.item.deal!).toDouble()
+        : widget.item.product.sellableQuantity;
 
-    if (parsed == null || parsed < 1) {
-      _controller.text = '1';
-      widget.onUpdateQuantity(1);
+    if (parsed == null || parsed < minQty) {
+      _controller.text = _formatQty(minQty);
+      widget.onUpdateQuantity(minQty);
     } else if (parsed > maxAllowed) {
-      _controller.text = '$maxAllowed';
+      _controller.text = _formatQty(maxAllowed);
       widget.onUpdateQuantity(maxAllowed);
     } else {
-      _controller.text = '$parsed';
-      if (parsed != widget.item.quantity) {
+      _controller.text = _formatQty(parsed);
+      if ((parsed - widget.item.quantity).abs() > 0.001) {
         widget.onUpdateQuantity(parsed);
       }
     }
   }
 
   void _onQuantityChanged(String value) {
-    final parsed = int.tryParse(value.trim());
-    if (parsed == null || parsed < 1) return;
+    final parsed = double.tryParse(value.trim());
+    final isWeight = widget.item.product.isWeightBased && !widget.item.isDeal;
+    final minQty = isWeight ? 0.25 : 1.0;
+    if (parsed == null || parsed < minQty) return;
 
     final maxAllowed = widget.item.isDeal && widget.item.deal != null
-        ? CustomerCartController.instance.getAvailableDealStock(widget.item.deal!)
-        : widget.item.product.sellableQuantity.toInt();
+        ? CustomerCartController.instance.getAvailableDealStock(widget.item.deal!).toDouble()
+        : widget.item.product.sellableQuantity;
 
     if (parsed <= maxAllowed) {
       widget.onUpdateQuantity(parsed);
@@ -420,10 +426,12 @@ class _CartItemCardState extends State<_CartItemCard> {
 
                   // Stepper & Subtotal Row
                   () {
-                    final int maxAllowed = item.isDeal && item.deal != null
-                        ? CustomerCartController.instance.getAvailableDealStock(item.deal!)
-                        : item.product.sellableQuantity.toInt();
-                    final bool canAddMore = item.quantity < maxAllowed;
+                    final isWeight = item.product.isWeightBased && !item.isDeal;
+                    final minQty = isWeight ? 0.25 : 1.0;
+                    final double maxAllowed = item.isDeal && item.deal != null
+                        ? CustomerCartController.instance.getAvailableDealStock(item.deal!).toDouble()
+                        : item.product.sellableQuantity;
+                    final bool canAddMore = item.quantity < maxAllowed - 0.001;
 
                     return Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -439,7 +447,7 @@ class _CartItemCardState extends State<_CartItemCard> {
                                   _QuantityBtn(
                                     icon: Icons.remove,
                                     size: 28,
-                                    onPressed: item.quantity > 1
+                                    onPressed: item.quantity > minQty
                                         ? () {
                                             _focusNode.unfocus();
                                             widget.onDecrement();
@@ -447,7 +455,7 @@ class _CartItemCardState extends State<_CartItemCard> {
                                         : null,
                                   ),
                                   Container(
-                                    width: 42,
+                                    width: isWeight ? 56 : 42,
                                     height: 28,
                                     margin: const EdgeInsets.symmetric(horizontal: 3),
                                     alignment: Alignment.center,
@@ -465,10 +473,16 @@ class _CartItemCardState extends State<_CartItemCard> {
                                       controller: _controller,
                                       focusNode: _focusNode,
                                       textAlign: TextAlign.center,
-                                      keyboardType: TextInputType.number,
+                                      keyboardType: isWeight
+                                          ? const TextInputType.numberWithOptions(decimal: true)
+                                          : TextInputType.number,
                                       inputFormatters: [
-                                        FilteringTextInputFormatter.digitsOnly,
-                                        LengthLimitingTextInputFormatter(4),
+                                        if (isWeight)
+                                          FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}'))
+                                        else ...[
+                                          FilteringTextInputFormatter.digitsOnly,
+                                          LengthLimitingTextInputFormatter(4),
+                                        ],
                                       ],
                                       style: const TextStyle(
                                         fontWeight: FontWeight.bold,

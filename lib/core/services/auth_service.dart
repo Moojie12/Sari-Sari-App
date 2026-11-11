@@ -500,7 +500,31 @@ class AuthService {
       }
     }
 
-    // B. Send official Firebase Auth password reset email as standard flow
+    // B. Call Cloud Function to update Firebase Auth user password directly
+    if (!updatedInFirebaseAuth) {
+      try {
+        final resetUri = Uri.parse('https://us-central1-tindahan-ni-eca-app.cloudfunctions.net/resetUserPassword');
+        final response = await http.post(
+          resetUri,
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'email': cleanEmail,
+            'newPassword': newPassword,
+          }),
+        ).timeout(const Duration(seconds: 10));
+
+        if (response.statusCode == 200) {
+          updatedInFirebaseAuth = true;
+          debugPrint('[resetUserPassword] Successfully updated password via Cloud Function');
+        } else {
+          debugPrint('[resetUserPassword] Cloud Function response: ${response.statusCode} - ${response.body}');
+        }
+      } catch (e) {
+        debugPrint('[resetUserPassword] Note on Cloud Function call: $e');
+      }
+    }
+
+    // C. Also send official Firebase Auth password reset email as backup
     try {
       await sendPasswordResetEmail(cleanEmail);
     } catch (_) {}

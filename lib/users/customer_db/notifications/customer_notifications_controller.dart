@@ -36,6 +36,7 @@ class CustomerNotificationsController extends ChangeNotifier {
   int get unreadCount => notifications.where((n) => !n.isRead).length;
 
   /// Load existing customer notifications from the database
+  Future<void> refresh([String? userId]) async => loadNotifications(userId);
   Future<void> loadNotifications([String? userId]) async {
     final effectiveUserId = userId ?? AuthService().currentUser?.uid;
     if (effectiveUserId == null || effectiveUserId.isEmpty) return;

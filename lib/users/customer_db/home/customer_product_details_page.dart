@@ -31,9 +31,11 @@ class CustomerProductDetailsPage extends StatefulWidget {
 
 class _CustomerProductDetailsPageState
     extends State<CustomerProductDetailsPage> with TickerProviderStateMixin {
-  int _quantity = 1;
+  double _quantity = 1.0;
   late final TextEditingController _quantityController;
   late final FocusNode _quantityFocusNode;
+
+  String _formatQty(double q) => (q % 1 == 0) ? q.toInt().toString() : q.toStringAsFixed(2);
 
   final GlobalKey _cartBadgeKey = GlobalKey();
   late AnimationController _cartPulseController;
@@ -42,7 +44,8 @@ class _CustomerProductDetailsPageState
   @override
   void initState() {
     super.initState();
-    _quantityController = TextEditingController(text: '$_quantity');
+    _quantity = widget.product.isWeightBased ? 0.25 : 1.0;
+    _quantityController = TextEditingController(text: _formatQty(_quantity));
     _quantityFocusNode = FocusNode();
     _quantityFocusNode.addListener(_onFocusChange);
 
@@ -76,7 +79,7 @@ class _CustomerProductDetailsPageState
     final Offset endOffset = (cartBox != null && cartBox.hasSize)
         ? cartBox.localToGlobal(cartBox.size.center(Offset.zero))
         : Offset(MediaQuery.of(context).size.width - 44, 46);
-    final overlayState = Overlay.of(context);
+    final overlayState = Overlay.maybeOf(context);
     if (overlayState == null) return;
 
     late OverlayEntry overlayEntry;
@@ -173,8 +176,8 @@ class _CustomerProductDetailsPageState
   void _onFocusChange() {
     if (!_quantityFocusNode.hasFocus) {
       if (_quantityController.text.isEmpty ||
-          int.tryParse(_quantityController.text) == null) {
-        _quantityController.text = '$_quantity';
+          double.tryParse(_quantityController.text) == null) {
+        _quantityController.text = _formatQty(_quantity);
       }
     }
   }
@@ -187,42 +190,40 @@ class _CustomerProductDetailsPageState
   double get _subtotal => widget.product.price * _quantity;
 
   void _incrementQuantity() {
-    final maxStock = widget.product.sellableQuantity.toInt();
-    if (_quantity >= maxStock) return;
+    final step = widget.product.isWeightBased ? 0.25 : 1.0;
+    final maxStock = widget.product.sellableQuantity;
+    if (_quantity + step > maxStock + 0.001) return;
     setState(() {
-      _quantity++;
-      _quantityController.text = '$_quantity';
+      _quantity += step;
+      _quantityController.text = _formatQty(_quantity);
     });
   }
 
   void _decrementQuantity() {
-    if (_quantity <= 1) return;
+    final step = widget.product.isWeightBased ? 0.25 : 1.0;
+    final minQty = widget.product.isWeightBased ? 0.25 : 1.0;
+    if (_quantity - step < minQty - 0.001) return;
     setState(() {
-      _quantity--;
-      _quantityController.text = '$_quantity';
+      _quantity -= step;
+      _quantityController.text = _formatQty(_quantity);
     });
   }
 
   void _onQuantityChanged(String value) {
+    final minQty = widget.product.isWeightBased ? 0.25 : 1.0;
     if (value.isEmpty) {
       setState(() {
-        _quantity = 1;
+        _quantity = minQty;
       });
       return;
     }
-    final parsed = int.tryParse(value);
+    final parsed = double.tryParse(value);
     if (parsed != null) {
-      final maxStock = widget.product.sellableQuantity.toInt();
-      int clamped = parsed;
-      if (clamped < 1) clamped = 1;
+      final maxStock = widget.product.sellableQuantity;
+      double clamped = parsed;
+      if (clamped < minQty) clamped = minQty;
       if (clamped > maxStock && maxStock > 0) clamped = maxStock;
 
-      if (clamped != parsed) {
-        _quantityController.value = TextEditingValue(
-          text: '$clamped',
-          selection: TextSelection.collapsed(offset: '$clamped'.length),
-        );
-      }
       setState(() {
         _quantity = clamped;
       });
@@ -492,6 +493,8 @@ class _CustomerProductDetailsPageState
                 controller: _quantityController,
                 focusNode: _quantityFocusNode,
                 onChanged: _onQuantityChanged,
+                isWeightBased: widget.product.isWeightBased,
+                unit: widget.product.unit,
               ),
             ],
           ),
@@ -657,9 +660,11 @@ class _QuantityCard extends StatelessWidget {
     required this.controller,
     required this.focusNode,
     required this.onChanged,
+    this.isWeightBased = false,
+    this.unit = 'pcs',
   });
 
-  final int quantity;
+  final double quantity;
   final bool enabled;
   final double enabledQuantity;
   final double subtotal;
@@ -668,10 +673,13 @@ class _QuantityCard extends StatelessWidget {
   final TextEditingController controller;
   final FocusNode focusNode;
   final ValueChanged<String> onChanged;
+  final bool isWeightBased;
+  final String unit;
 
   @override
   Widget build(BuildContext context) {
-    final maxAvailable = quantity >= enabledQuantity.toInt();
+    final maxAvailable = quantity >= enabledQuantity - 0.001;
+    final minQty = isWeightBased ? 0.25 : 1.0;
 
     return Container(
       width: double.infinity,
@@ -683,13 +691,36 @@ class _QuantityCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Text(
-            'Quantity',
-            style: TextStyle(
-              color: AppColors.darkText,
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              const Text(
+                'Quantity',
+                style: TextStyle(
+                  color: AppColors.darkText,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (isWeightBased) ...[
+                const SizedBox(width: 6),
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                  decoration: BoxDecoration(
+                    color: AppColors.primaryOrange.withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: Text(
+                    unit,
+                    style: const TextStyle(
+                      color: AppColors.primaryOrange,
+                      fontSize: 11,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+              ],
+            ],
           ),
           const SizedBox(height: 14),
           Container(
@@ -703,18 +734,23 @@ class _QuantityCard extends StatelessWidget {
               children: [
                 _QuantityButton(
                   icon: Icons.remove,
-                  onPressed: enabled && quantity > 1 ? onDecrement : null,
+                  onPressed: enabled && quantity > minQty ? onDecrement : null,
                 ),
                 SizedBox(
-                  width: 64,
+                  width: isWeightBased ? 80 : 64,
                   child: TextField(
                     controller: controller,
                     focusNode: focusNode,
                     enabled: enabled,
-                    keyboardType: TextInputType.number,
+                    keyboardType: isWeightBased
+                        ? const TextInputType.numberWithOptions(decimal: true)
+                        : TextInputType.number,
                     textAlign: TextAlign.center,
                     inputFormatters: [
-                      FilteringTextInputFormatter.digitsOnly,
+                      if (isWeightBased)
+                        FilteringTextInputFormatter.allow(RegExp(r'^\d*\.?\d{0,3}'))
+                      else
+                        FilteringTextInputFormatter.digitsOnly,
                     ],
                     style: const TextStyle(
                       color: AppColors.darkText,
@@ -742,7 +778,9 @@ class _QuantityCard extends StatelessWidget {
           ),
           const SizedBox(height: 10),
           Text(
-            maxAvailable ? 'Maximum quantity reached' : 'Only ${enabledQuantity.toInt()} items available',
+            maxAvailable
+                ? 'Maximum quantity reached'
+                : 'Only ${isWeightBased ? enabledQuantity.toStringAsFixed(2) : enabledQuantity.toInt()} ${isWeightBased ? 'kg' : 'items'} available',
             style: TextStyle(
               color: maxAvailable
                   ? AppColors.primaryOrange

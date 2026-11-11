@@ -69,6 +69,11 @@ class ShopSettingsController extends ChangeNotifier {
     _listenToFirebase();
   }
 
+  void reinitListener() {
+    _loadFromLocalCache();
+    _listenToFirebase();
+  }
+
   Future<void> _loadFromLocalCache() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -245,37 +250,45 @@ class ShopSettingsController extends ChangeNotifier {
         'storePostalCode': _storePostalCode,
         'updatedAt': DateTime.now().toIso8601String(),
       });
+      try {
+        await SupabaseService().updateShopSettings({
+          'store_address': _storeAddress,
+          'delivery_fee_per_500m': _deliveryFeePer500m,
+          'low_stock_threshold': _lowStockThreshold,
+          'expiry_monitoring_days': _expiryMonitoringDays,
+        });
+      } catch (_) {}
     } catch (e) {
       debugPrint('[ShopSettingsController] Firebase sync error: $e');
     }
   }
 
-  void updateDeliveryFee(double fee) {
+  Future<void> updateDeliveryFee(double fee) async {
     _deliveryFeePer500m = fee.clamp(0.0, 99.0);
     notifyListeners();
-    _saveToLocalCache();
-    _syncToFirebase();
+    await _saveToLocalCache();
+    await _syncToFirebase();
   }
 
-  void updateLowStockThreshold(int threshold) {
+  Future<void> updateLowStockThreshold(int threshold) async {
     _lowStockThreshold = threshold.clamp(0, 99);
     notifyListeners();
-    _saveToLocalCache();
-    _syncToFirebase();
+    await _saveToLocalCache();
+    await _syncToFirebase();
   }
 
-  void updateExpiryMonitoringDays(int days) {
+  Future<void> updateExpiryMonitoringDays(int days) async {
     _expiryMonitoringDays = days;
     notifyListeners();
-    _saveToLocalCache();
-    _syncToFirebase();
+    await _saveToLocalCache();
+    await _syncToFirebase();
   }
 
-  void updateGcashQrUrl(String? url) {
+  Future<void> updateGcashQrUrl(String? url) async {
     _gcashQrUrl = url;
     notifyListeners();
-    _saveToLocalCache();
-    _syncToFirebase();
+    await _saveToLocalCache();
+    await _syncToFirebase();
   }
 
   /// Update the Owner's store address and confirmed location coordinates

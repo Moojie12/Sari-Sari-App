@@ -26,7 +26,8 @@ class DescriptiveAnalyticsView extends StatelessWidget {
     final totalCapital = completed.fold(0.0, (sum, o) => sum + o.totalCapital);
     final totalProfit = totalRevenue - totalCapital - inventory.totalConsumablesCost;
     final marginPct = totalRevenue > 0 ? (totalProfit / totalRevenue) * 100 : 0.0;
-    final totalUnitsSold = completed.fold(0, (sum, o) => sum + o.items.fold(0, (s, i) => s + i.quantity));
+    final totalUnitsSold = completed.fold<double>(0.0, (sum, o) => sum + o.items.fold<double>(0.0, (s, i) => s + i.quantity));
+    final totalUnitsSoldStr = totalUnitsSold % 1 == 0 ? totalUnitsSold.toInt().toString() : totalUnitsSold.toStringAsFixed(2);
     final avgOrderValue = completed.isNotEmpty ? totalRevenue / completed.length : 0.0;
 
     return Column(
@@ -64,7 +65,7 @@ class DescriptiveAnalyticsView extends StatelessWidget {
             Expanded(
               child: _MetricCard(
                 title: 'Units Sold',
-                value: '$totalUnitsSold pcs',
+                value: '$totalUnitsSoldStr units',
                 subtitle: 'All completed items',
                 icon: Icons.shopping_basket_outlined,
                 color: Colors.indigo,
@@ -532,12 +533,12 @@ class _TopSellingProductsRanking extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final Map<String, int> qtyMap = {};
+    final Map<String, double> qtyMap = {};
     final Map<String, double> revMap = {};
 
     for (final o in orders) {
       for (final item in o.items) {
-        qtyMap[item.productName] = (qtyMap[item.productName] ?? 0) + item.quantity;
+        qtyMap[item.productName] = (qtyMap[item.productName] ?? 0.0) + item.quantity;
         revMap[item.productName] = (revMap[item.productName] ?? 0.0) + item.subtotal;
       }
     }
@@ -649,7 +650,7 @@ class _TopSellingProductsRanking extends StatelessWidget {
                         ),
                         const SizedBox(width: 8),
                         Text(
-                          '$qty pcs · ₱${rev.toStringAsFixed(2)}',
+                          '${qty % 1 == 0 ? qty.toInt() : qty.toStringAsFixed(2)} sold · ₱${rev.toStringAsFixed(2)}',
                           style: const TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w700,

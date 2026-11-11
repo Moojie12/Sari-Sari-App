@@ -60,7 +60,7 @@ class CustomerOrderItem {
   final String productName;
   final double price;
   final double capital;
-  final int quantity;
+  final double quantity;
   final double subtotal;
 
   double get totalCapital => capital * quantity;
@@ -87,7 +87,7 @@ class CustomerOrderItem {
       productName: map['product_name']?.toString() ?? 'Product',
       price: unitPrice,
       capital: unitCost,
-      quantity: qty.round() > 0 ? qty.round() : 1,
+      quantity: qty > 0 ? qty : 1.0,
       subtotal: totalPrice,
     );
   }
@@ -109,7 +109,7 @@ class CustomerOrderItem {
       productName: map['productName']?.toString() ?? map['product_name']?.toString() ?? 'Product',
       price: (map['price'] as num?)?.toDouble() ?? (map['unit_price'] as num?)?.toDouble() ?? 0.0,
       capital: (map['capital'] as num?)?.toDouble() ?? (map['unit_cost'] as num?)?.toDouble() ?? 0.0,
-      quantity: (map['quantity'] as num?)?.toInt() ?? 1,
+      quantity: (map['quantity'] as num?)?.toDouble() ?? 1.0,
       subtotal: (map['subtotal'] as num?)?.toDouble() ?? (map['total_price'] as num?)?.toDouble() ?? 0.0,
     );
   }
